@@ -1,5 +1,11 @@
-Prompts para Generación de Imágenes:
+Una imagen dinámica en estética moderna y tecnológica de la ciudad de Bogotá, en la zona de Kennedy, con edificios de oficinas y gente moviéndose en la calle, iluminados por luces LED brillantes y una iluminación futurista. En el centro de la imagen, una pantalla de computadora gigante emerge de la fachada de un edificio, proyectando un código de programación dinámico y brillante en la noche, con una iluminación suave de estudio y un fondo de noche profunda. La pantalla debe tener un estilo futurista y tecnológico, con elementos de 3D y efectos de luz que destacan la tecnología de NoyeCode.
 
-Promt 1:
+En primer plano, un equipo de desarrolladores de software de NoyeCode, con ropa de estilo moderno y cascos de realidad virtual, trabajan en equipo, rodeados de monitores y ordenadores de alta gama. Los desarrolladores deben tener expresiones de concentración y sorpresa, mientras trabajan en la pantalla de computadora gigante. La iluminación en este plano debe ser suave y cálida, para destacar la creatividad y la innovación de los desarrolladores.
 
-Crea la imagen 3D de ['PHP'], estilo Pixar 3D, con ojos y boca expresivos, expresión divertida, brazos y pies cortos, iluminación suave de estudio, fondo que ilustre la naturaleza del objeto, encuadre medio y apariencia de personaje animado listo para video corto. No incluir texto a la imagen.
+En el fondo, se pueden ver los carteles de la ciudad de Bogotá, con los logos de NoyeCode destacados en la parte superior, en letras de fuente futurista y color naranja. El eslogan "Transformando la ciudad con tecnología" debe estar en una fuente más pequeña, pero legible y visible. La ciudad debe estar en crecimiento y transformación, gracias a la tecnología de NoyeCode.
+
+La imagen debe transmitir innovación, transformación digital y automatización en la ciudad de Bogotá, con un toque humano y emocional. La capacidad de NoyeCode para ayudar a las empresas a crecer y transformarse en un entorno digital debe estar en el centro de la imagen. La calidad visual debe ser alta, con una resolución de 4K y un acabado pulido.
+
+La imagen debe tener un estilo de composición y encuadre que destaque la pantalla de computadora gigante y el equipo de desarrolladores. La profundidad de campo debe ser alta, para que la imagen tenga un efecto de profundidad y una sensación de movimiento.
+
+La imagen debe ser una pieza publicitaria para NoyeCode, que transmita profesionalismo, confianza, innovación y alto nivel tecnico. Debe ayudar a vender servicios de calidad en software, automatización, desarrollo a la medida, desarrollo Android, desarrollo desktop y modernización de sistemas legacy. La imagen debe ser listo para campanas publicitarias en redes sociales y video corto.

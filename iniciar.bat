@@ -30,13 +30,34 @@ if not exist "%KILLER_PS1%" (
   exit /b 1
 )
 
-echo [1/7] Taskkill directo (forzado)...
+echo [1/10] Generando prompt inicial con IA de n8n...
+where python >nul 2>nul
+if errorlevel 1 (
+  echo [WARN] Python no esta disponible en PATH. Se conserva el prompt actual.
+) else (
+  if not exist "%N8N_PROMPT_CLIENT_PY%" (
+    echo [WARN] No existe cliente n8n: "%N8N_PROMPT_CLIENT_PY%". Se conserva el prompt actual.
+  ) else (
+    if not exist "%PROMPT_FILE%" (
+      echo [WARN] No existe prompt base: "%PROMPT_FILE%". Se conserva el flujo actual.
+    ) else (
+      python "%N8N_PROMPT_CLIENT_PY%" --idea-file "%PROMPT_FILE%" --output "%PROMPT_FILE%"
+      if errorlevel 1 (
+        echo [WARN] No se pudo regenerar el prompt con n8n. Se usara el contenido actual de "%PROMPT_FILE%".
+      ) else (
+        echo [OK] Prompt regenerado en "%PROMPT_FILE%".
+      )
+    )
+  )
+)
+
+echo [2/10] Taskkill directo (forzado)...
 taskkill /F /IM DICloak.exe >nul 2>nul
 taskkill /F /IM ginsbrowser.exe >nul 2>nul
 taskkill /F /IM chrome.exe >nul 2>nul
 timeout /t 1 /nobreak >nul
 
-echo [2/7] Limpieza avanzada de servicios/procesos DICloak...
+echo [3/10] Limpieza avanzada de servicios/procesos DICloak...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%KILLER_PS1%" -Port 9333 -TimeoutSec 60
 if errorlevel 1 (
   echo [ERROR] No se pudo cerrar completamente DICloak.
@@ -45,10 +66,10 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [3/7] Iniciando DICloak en modo debug (9333)...
+echo [4/10] Iniciando DICloak en modo debug (9333)...
 start "" "%DICLOAK_EXE%" --remote-debugging-port=9333 --remote-allow-origins=*
 
-echo [4/7] Esperando CDP en puerto 9333...
+echo [5/10] Esperando CDP en puerto 9333...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ok=$false;" ^
   "1..90 | ForEach-Object {" ^
@@ -92,7 +113,7 @@ if errorlevel 1 (
   )
 )
 
-echo [5/7] Verificando Node.js...
+echo [6/10] Verificando Node.js...
 where node >nul 2>nul
 if errorlevel 1 (
   echo [ERROR] Node.js no esta disponible en PATH.
@@ -102,7 +123,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [6/9] Abriendo perfil: %PROFILE_NAME%
+echo [7/10] Abriendo perfil: %PROFILE_NAME%
 if exist "%FORCE_CDP_LAUNCHER_BAT%" (
   echo [INFO] Lanzando reforce CDP en paralelo: "%FORCE_CDP_LAUNCHER_BAT%"
   start "Forzar CDP Perfil (10s + reforce)" "%FORCE_CDP_LAUNCHER_BAT%"
@@ -143,7 +164,7 @@ if not errorlevel 1 (
 )
 
 if exist "%FORCE_CDP_PS1%" (
-  echo [7/9] Ejecutando automatizacion clave de depuracion de perfil...
+  echo [8/10] Ejecutando automatizacion clave de depuracion de perfil...
   echo [INFO] FORCE_CDP_PS1 = "%FORCE_CDP_PS1%"
   if "%FORCE_LAUNCH_STARTED%"=="0" (
     if exist "%FORCE_CDP_LAUNCHER_BAT%" (
@@ -186,7 +207,7 @@ if exist "%FORCE_CDP_PS1%" (
 )
 
 if exist "%GET_DEBUG_PORT_PS1%" (
-  echo [8/9] Detectando puerto real de perfil y abriendo /json...
+  echo [9/10] Detectando puerto real de perfil y abriendo /json...
   for /f "usebackq delims=" %%L in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%GET_DEBUG_PORT_PS1%" -TimeoutSec 120 -OpenInProfile`) do (
     echo [DEBUG] %%L
   )
@@ -194,7 +215,7 @@ if exist "%GET_DEBUG_PORT_PS1%" (
   echo [WARN] No existe "%GET_DEBUG_PORT_PS1%". Omitiendo apertura de /json en perfil real.
 )
 
-echo [9/9] [OK] Perfil abierto: %PROFILE_NAME%
+echo [10/10] [OK] Perfil abierto: %PROFILE_NAME%
 if /I not "%NO_PAUSE%"=="1" pause
 endlocal
 exit /b 0
