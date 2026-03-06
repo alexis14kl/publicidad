@@ -1,0 +1,5 @@
+Prompts para Generación de Imágenes:
+
+Promt 1:
+
+Crea la imagen 3D de ['PHP'], estilo Pixar 3D, con ojos y boca expresivos, expresión divertida, brazos y pies cortos, iluminación suave de estudio, fondo que ilustre la naturaleza del objeto, encuadre medio y apariencia de personaje animado listo para video corto. No incluir texto a la imagen.
