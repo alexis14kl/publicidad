@@ -1,0 +1,151 @@
+tasklist | findstr /i "dicl oak chrome chromium"
+abrir dickoa  Start-Process "C:\Program Files\DICloak\DICloak.exe" -ArgumentList "--remote-debugging-port=9333","--remote-allow-origins=*"
+netstat -ano | findstr LISTENING
+
+http://127.0.0.1:9333/json
+
+shell
+netstat -ano | findstr LISTENING | findstr /i "9333 9222"
+
+ tasklist | findstr /i "dicloak"
+
+
+paso 1  taskkill /F /IM DICloak.exe
+PS C:\Windows\system32>  where.exe /R "C:\Program Files" DICloak.exe 2>$null
+C:\Program Files\DICloak\DICloak.exe
+
+abrir mcp dicloak
+Start-Process "C:\Program Files\DICloak\DICloak.exe" -ArgumentList "--remote-debugging-port=9333","--remote-allow-origins=*"
+
+
+verificar puertos 
+ tasklist | findstr "9448 4864 7568"
+
+  # 1. Cerrar el perfil actual
+taskkill /F /PID 7568
+
+
+verificar navegador
+PS C:\Windows\system32>   Test-Path "C:\Users\NyGsoft\AppData\Roaming\.DICloakCache\browsers\134.1.19\core\Application\ginsbrowser.exe"
+True
+PS C:\Windows\system32>
+
+
+verificar que se abrio
+PS C:\Windows\system32>  tasklist | findstr "ginsbrowser"
+ginsbrowser.exe              14416 Console                    1     6.688 KB
+ginsbrowser.exe              11092 Console                    1    47.128 KB
+PS C:\Windows\system32>
+
+
+verr puertos corriendo
+netstat -ano | findstr :9333
+
+puerto oficial de dicloak http://127.0.0.1:9225/json/version
+
+
+
+
+
+crear puerto para dicloak 
+ $wrapperPath = "C:\Users\NyGsoft\ginsbrowser_wrapper.bat"
+PS C:\Windows\system32>   @'
+>>   @echo off
+>>   set ORIG_EXE=%1
+>>   shift
+>>   set ARGS=
+>>   :loop
+>>   if "%~1"=="" goto launch
+>>   set ARGS=%ARGS% %1
+>>   shift
+>>   goto loop
+>>   :launch
+>>   %ORIG_EXE% %ARGS% --remote-debugging-port=9225
+>>   '@ | Set-Content -Path $wrapperPath -Encoding ASCII
+
+
+
+abrir dicloak en depuracion 
+Start-Process "C:\Users\NyGsoft\AppData\Roaming\.DICloakCache\browsers\134.1.19\core\Application\ginsbrowser.exe" -ArgumentList  "--remote-debugging-port=9225","--user-data-dir=C:\Users\NyGsoft\AppData\Roaming\.DICloakCache\1999581736218873857\ud_1999581736218873857","--no-first-run","--no-sandbox","--proxy-server=http://152.232.14.159:7290"
+
+
+
+asignar puerto
+ Start-Process "C:\Users\NyGsoft\AppData\Roaming\.DICloakCache\browsers\134.1.19\core\Application\ginsbrowser.exe" -ArgumentList  "--remote-debugging-port=9225","--user-data-dir=C:\Users\NyGsoft\AppData\Roaming\.DICloakCache\1999581736218873857\ud_1999581736218873857","--no-first-run","--no-sandbox","--proxy-server=http://152.232.14.159:7290"
+ netsh advfirewall firewall add rule name="DiCloak CDP Profile 9225" dir=in action=allow protocol=TCP localport=9225
+
+paso 2
+ Test-Path "C:\Users\NyGsoft\AppData\Roaming\.DICloakCache\browsers\134.1.19\core\Application\ginsbrowser.exe"
+
+paso 4
+ & "C:\Users\NyGsoft\AppData\Roaming\.DICloakCache\browsers\134.1.19\core\Application\ginsbrowser.exe" --remote-debugging-port=9225 "--user-data-dir=C:\Users\NyGsoft\AppData\Roaming\.DICloakCache\1999581736218873857\ud_1999581736218873857" --no-first-run --no-sandbox
+
+paso 5
+ reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ginsbrowser.exe" /v Debugger /t REG_SZ /d "wscript.exe C:\Users\NyGsoft\ginsbrowser_wrapper.vbs" /f
+
+paso 6
+abrir mcp dicloak
+Start-Process "C:\Program Files\DICloak\DICloak.exe" -ArgumentList "--remote-debugging-port=9333","--remote-allow-origins=*"
+
+
+
+paso  7 cerrar debug 
+reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ginsbrowser.exe" /f
+
+
+paso 8 verificar puertos
+
+ while($true) { $p = netstat -ano | findstr LISTENING | findstr /V "3636 3864 7384 7392 4 496 808 908 880 1636 1876 3988 5272 5948 9448 4864"; if($p) { Write-Host "$(Get-Date) - Nuevos puertos:"; $p }; Start-Sleep 2 }
+
+
+
+matar dicvloak
+Stop-Process -Name DICloak -Force
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+abrir dickoat en la web http://127.0.0.1:27777/environment?id=1999581736218873857
+
+
+
+
+
+
+pasos resumido v0
+salir de cualquier proceso
+taskkill /F /IM DICloak.exe 2>$null
+taskkill /F /IM ginsbrowser.exe 2>$null
+
+modo depuracion
+Start-Process "C:\Program Files\DICloak\DICloak.exe" -ArgumentList "--remote-debugging-port=9333","--remote-allow-origins=*"
+
+
+verificar depuracion
+curl.exe http://127.0.0.1:9333/json/version
+
+
+
+forzar sistema 
+
+
+• Entiendo, voy a intentar una vía para forzar la elevación desde aquí con Start-Process -Verb RunAs (dispara UAC). Si no deja, te doy un plan B que sí puedo aplicar sin admin.
+
+• Ran $cmd = 'reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ginsbrowser.exe" /v Debugger /t REG_SZ /d "wscript.exe C:\Users\NyGsoft\ginsbrowser_wrapper.vbs" /f'; Start-Process -FilePath "cmd.exe"
+  │ -ArgumentList "/c $cmd" -Verb RunAs; Start-Sleep -Seconds 3; reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ginsbrowser.exe"
+  └
+    HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ginsbrowser.exe
+        Debugger    REG_SZ    wscript.exe C:\Users\NyGsoft\ginsbrowser_wrapper.vbs

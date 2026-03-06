@@ -1,0 +1,1 @@
+powershell -NoProfile -ExecutionPolicy Bypass -File "c:\Users\NyGsoft\Desktop\publicidad\forzar_cdp_perfil_dicloak.ps1" -PreferredPort 9225 -TimeoutSec 30 -OpenDebugWindow
