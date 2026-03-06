@@ -19,12 +19,5 @@ fi
 
 echo "[INFO] Perfil: $PROFILE_NAME"
 echo "[INFO] CDP URL: $CDP_URL"
-
-if ! curl -s --max-time 3 "${CDP_URL}/json/version" | grep -q "webSocketDebuggerUrl"; then
-  echo "[ERROR] CDP no esta disponible en ${CDP_URL}."
-  echo "[INFO] Primero ejecuta: ./terminal_mac.sh debug 9333"
-  exit 1
-fi
-
 echo "[INFO] Ejecutando apertura de perfil..."
 node force_open_profile_cdp.js "$PROFILE_NAME" "$CDP_URL"
