@@ -11,10 +11,12 @@ from urllib.request import urlopen
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
 PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
+CHANGE_COUNT_SCRIPT = PROJECT_ROOT / "perfil" / "change_count.py"
 CDP_DEBUG_INFO = Path(os.getenv("APPDATA", "")) / "DICloak" / "cdp_debug_info.json"
 DEFAULT_PORT = 9225
 PROMPT_LOCK_FILE = PROJECT_ROOT / ".prompt_last_send.json"
 PROMPT_DEDUP_WINDOW_SEC = 90
+NO_IMAGE_TOKENS_MARKER = "Sin tokens para imgs."
 
 
 def read_prompt() -> str:
@@ -96,6 +98,29 @@ def resolve_cdp_port() -> int:
     raise RuntimeError("No hay puerto CDP activo para el perfil")
 
 
+def trigger_change_count(reason: str = "no_image_tokens") -> None:
+    if not CHANGE_COUNT_SCRIPT.exists():
+        print(f"[WARN] No existe script de cambio de cuenta: {CHANGE_COUNT_SCRIPT}")
+        return
+
+    result = subprocess.run(
+        [sys.executable, str(CHANGE_COUNT_SCRIPT), "--reason", reason],
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="ignore",
+    )
+
+    if result.stdout.strip():
+        print(result.stdout.strip())
+    if result.stderr.strip():
+        print(result.stderr.strip())
+
+    if result.returncode != 0:
+        print(f"[WARN] change_count.py termino con codigo {result.returncode}")
+
+
 def run_prompt_paste(cdp_port: int) -> None:
     js = r"""
 const fs = require('fs');
@@ -119,13 +144,28 @@ const { chromium } = require('playwright');
       return x.startsWith(`http://127.0.0.1:${cdpPort}/json`);
     };
 
-    let page = context.pages().find(p => /^https:\/\/chatgpt\.com\//i.test(p.url()));
+    const pickBestChatPage = () => {
+      const chatPages = context.pages().filter(p => isChatPage(p.url()));
+      if (!chatPages.length) return null;
+      const ranked = [...chatPages].sort((a, b) => {
+        const score = (p) => {
+          const url = p.url() || '';
+          if (/^https:\/\/chatgpt\.com\/c\//i.test(url)) return 3;
+          if (/^https:\/\/chatgpt\.com\/$/i.test(url)) return 2;
+          return 1;
+        };
+        return score(b) - score(a);
+      });
+      return ranked[ranked.length - 1] || chatPages[chatPages.length - 1];
+    };
+
+    let page = pickBestChatPage();
     if (!page) {
       page = await context.newPage();
+      await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
     }
 
     await page.bringToFront();
-    await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
 
     const selectors = [
       'div#prompt-textarea[contenteditable="true"]',
@@ -144,6 +184,22 @@ const { chromium } = require('playwright');
         .replace(/[^a-z0-9\s]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+
+    const composerReadyInPage = async () => {
+      return await page.evaluate(() => {
+        const editor = document.querySelector('div#prompt-textarea[contenteditable="true"], #prompt-textarea[contenteditable="true"]');
+        const form = document.querySelector('form[data-type="unified-composer"], form.group\\/composer');
+        if (!editor || !form) return false;
+        const editorRect = editor.getBoundingClientRect();
+        const style = window.getComputedStyle(editor);
+        return (
+          editorRect.width > 50 &&
+          editorRect.height > 20 &&
+          style.display !== 'none' &&
+          style.visibility !== 'hidden'
+        );
+      }).catch(() => false);
+    };
 
     const waitForComposerReady = async (timeoutMs = 30000) => {
       await page.waitForFunction(() => {
@@ -180,7 +236,21 @@ const { chromium } = require('playwright');
       return null;
     };
 
-    await waitForComposerReady();
+    try {
+      await waitForComposerReady();
+    } catch {
+      const fallbackPage = [...context.pages()]
+        .filter(p => isChatPage(p.url()) && p !== page)
+        .reverse()
+        .find(p => /^https:\/\/chatgpt\.com\/(c\/|$)/i.test(p.url()));
+      if (fallbackPage) {
+        page = fallbackPage;
+        await page.bringToFront();
+      } else {
+        await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
+      }
+      await waitForComposerReady(45000);
+    }
     const target = await findVisiblePromptInput();
     if (!target) throw new Error('No se encontro input visible de prompt');
 
@@ -243,6 +313,28 @@ const { chromium } = require('playwright');
         await page.waitForTimeout(200);
       }
       return false;
+    };
+
+    const promptExistsAsUserTurn = async (expectedPrompt) => {
+      const expectedSample = normalizeText(expectedPrompt).slice(0, 120);
+      if (!expectedSample) return false;
+      return await page.evaluate((sample) => {
+        const headings = Array.from(document.querySelectorAll('article h5'));
+        const userTurns = headings
+          .filter((h) => /tu dijiste/i.test(h.innerText || ''))
+          .map((h) => h.closest('article'))
+          .filter(Boolean);
+        const lastTurn = userTurns[userTurns.length - 1];
+        if (!lastTurn) return false;
+        const text = String(lastTurn.innerText || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9\\s]/g, ' ')
+          .replace(/\\s+/g, ' ')
+          .trim();
+        return text.includes(sample);
+      }, expectedSample).catch(() => false);
     };
 
     const waitForSendButtonReady = async (timeoutMs = 12000) => {
@@ -318,6 +410,10 @@ const { chromium } = require('playwright');
       await focusPromptSurface().catch(() => {});
       await page.keyboard.press('Enter');
       submitted = await waitForSubmissionStart();
+    }
+
+    if (!submitted) {
+      submitted = await promptExistsAsUserTurn(prompt);
     }
 
     if (!submitted) {
@@ -409,6 +505,9 @@ const { chromium } = require('playwright');
         print(result.stdout.strip())
     if result.stderr.strip():
         print(result.stderr.strip())
+
+    if NO_IMAGE_TOKENS_MARKER in result.stdout:
+        trigger_change_count("no_image_tokens")
 
     if result.returncode != 0 or "PROMPT_PEGADO_OK" not in result.stdout:
         raise RuntimeError("No se pudo pegar el prompt en ChatGPT")

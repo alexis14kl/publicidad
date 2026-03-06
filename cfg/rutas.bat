@@ -22,6 +22,7 @@ set "FORCE_OPEN_JS=%PERFIL_DIR%\force_open_profile_cdp.js"
 set "FORCE_CDP_PS1=%CDP_DIR%\forzar_cdp_perfil_dicloak.ps1"
 set "FORCE_CDP_LAUNCHER_BAT=%CDP_DIR%\forzar_cdp_post_apertura.bat"
 set "GET_DEBUG_PORT_PS1=%CDP_DIR%\obtener_puerto_perfil_cdp.ps1"
+set "CHANGE_COUNT_PY=%PERFIL_DIR%\change_count.py"
 set "PROMPT_AUTOMATION_PY=%PROMPT_DIR%\page_pronmt.py"
 set "N8N_PROMPT_CLIENT_PY=%UTILS_DIR%\n8n_prompt_client.py"
 
