@@ -8,11 +8,139 @@ from urllib.request import Request, urlopen
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
+DEFAULT_IDEA_FILE = PROJECT_ROOT / "utils" / "prompt_seed.txt"
 DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/py-prompt-imgs"
+DEFAULT_BRAND_HINT = (
+    "Pieza publicitaria para NoyeCode enfocada en captar clientes reales de software. "
+    "Debe verse premium, moderna, comercial, confiable y lista para campanas digitales. "
+    "El texto dentro de la imagen si es importante porque estas piezas son para redes sociales y captacion comercial. "
+    "Incluir copy comercial claro, CTA, web, WhatsApp y el servicio protagonista cuando el formato lo permita. "
+    "Evitar imagenes genericas, pantallas gigantes irreales, cascos VR innecesarios, slogans confusos o logos invasivos dentro de la imagen. "
+    "Bogota y Kennedy pueden existir como contexto sutil, pero nunca como protagonista visual principal."
+)
 
 
 class N8NPromptError(RuntimeError):
     pass
+
+
+def clean_generated_prompt(prompt: str) -> str:
+    text = " ".join(str(prompt).strip().split())
+    lower = text.lower()
+
+    markers = ["prompt:", "prompt final:", "prompt para imagen:"]
+    for marker in markers:
+        idx = lower.find(marker)
+        if idx != -1:
+            text = text[idx + len(marker):].strip()
+            break
+
+    return text.strip(" -\n\r\t")
+
+
+def detect_primary_service(text: str) -> str:
+    lower = text.lower()
+    if "desarrollo a la medida" in lower or "a la medida" in lower:
+        return "desarrollo a la medida"
+    if "rpa" in lower or "rpas" in lower:
+        return "rpas nativos"
+    if "legacy" in lower or "modernizacion" in lower or "actualizacion de software" in lower:
+        return "modernizacion de software legacy"
+    if "android" in lower:
+        return "desarrollo android"
+    if "desktop" in lower or "desk" in lower:
+        return "desarrollo desktop"
+    if "automatiza" in lower or "automatizacion" in lower or "automatizaciones" in lower:
+        return "automatizaciones empresariales"
+    return "desarrollo a la medida"
+
+
+def enrich_idea(idea: str) -> str:
+    base = " ".join(idea.strip().split())
+    lower = base.lower()
+    primary_service = detect_primary_service(base)
+    hints: list[str] = [DEFAULT_BRAND_HINT]
+
+    hints.append(
+        f"Servicio principal obligatorio de esta pieza: {primary_service}. "
+        "No cambiarlo por otro servicio y no mezclar el protagonismo con otro producto."
+    )
+    hints.append(
+        "La imagen debe vender un servicio concreto de NoyeCode, no una postal de ciudad. "
+        "El sujeto principal debe ser el producto, el servicio o el resultado de negocio."
+    )
+    hints.append(
+        "No centrar la composicion en la ciudad de Bogota, edificios urbanos o calles, salvo que el usuario lo pida de forma explicita."
+    )
+    hints.append(
+        "No usar como recurso repetitivo pantallas gigantes en fachadas, codigo flotando en edificios ni escenas futuristas poco creibles."
+    )
+    hints.append(
+        "Priorizar escenas comerciales creibles: reuniones con clientes, demo de producto, dashboards reales, software en uso, automatizacion operativa, modernizacion tecnológica y resultados empresariales."
+    )
+    hints.append(
+        "La pieza debe sentirse como arte publicitario para redes sociales de NoyeCode, orientado a conversion y captacion de clientes."
+    )
+    hints.append(
+        "Incluir dentro de la imagen un bloque de texto publicitario corto y bien jerarquizado con: nombre del servicio, beneficio principal, CTA, sitio web noyecode.com y WhatsApp +57 301 385 9952."
+    )
+    hints.append(
+        f"El nombre del servicio destacado dentro del arte debe ser exactamente: {primary_service}."
+    )
+    hints.append(
+        "Cuando encaje con formato de redes, incluir hashtags comerciales discretos como #NoyeCode #DesarrolloALaMedida #AutomatizacionEmpresarial #SoftwareEmpresarial #Bogota #Colombia."
+    )
+    hints.append(
+        "Si se listan servicios complementarios, deben ir en segundo nivel visual y nunca opacar el servicio principal."
+    )
+
+    if "desarrollo a la medida" in lower or "a la medida" in lower:
+        hints.append(
+            "Servicio clave: desarrollo a la medida. "
+            "Mostrar una solucion de software creada especificamente para una empresa: "
+            "equipo de trabajo profesional, reunion de descubrimiento o entrega de producto, "
+            "interfaces UI/UX limpias en laptops o pantallas reales, dashboards elegantes, "
+            "colaboracion entre negocio y tecnologia, sensacion de software personalizado, escalable y de alto valor."
+        )
+        hints.append(
+            "Composicion recomendada: escena corporativa moderna, personas reales o semi-realistas, "
+            "producto digital visible, ambiente premium, iluminacion cinematica suave, profundidad de campo, "
+            "4K, con texto publicitario integrado de forma elegante en el arte."
+        )
+        hints.append(
+            "Evitar monitores desproporcionados, hologramas exagerados, interfaces imposibles o recursos visuales caricaturescos. "
+            "Preferir escenas creibles de venta consultiva, demostracion de producto y confianza empresarial."
+        )
+        hints.append(
+            "El texto recomendado dentro del arte debe resaltar ideas como: desarrollo a la medida, software personalizado, escalable, soporte experto, contactanos por WhatsApp, visita noyecode.com."
+        )
+
+    if "automatiza" in lower or "automatizacion" in lower or "automatizaciones" in lower:
+        hints.append(
+            "Si la pieza es sobre automatizaciones, reflejar eficiencia operativa, integraciones entre sistemas, "
+            "flujos conectados, paneles de control y ahorro de tiempo para empresas."
+        )
+
+    if "android" in lower:
+        hints.append(
+            "Si la pieza es sobre desarrollo Android, mostrar app movil profesional en uso real, "
+            "interfaz pulida, experiencia de usuario clara y contexto comercial."
+        )
+
+    if "desktop" in lower or "desk" in lower:
+        hints.append(
+            "Si la pieza es sobre desarrollo desktop, mostrar una aplicacion empresarial robusta en escritorio, "
+            "paneles limpios, productividad, control operativo y entorno profesional."
+        )
+
+    if "legacy" in lower or "sistema legacy" in lower or "modernizacion" in lower or "actualizacion de sistema" in lower:
+        hints.append(
+            "Si la pieza trata de modernizacion legacy, representar evolucion tecnologica: "
+            "antes y despues sutil, software antiguo transformandose en plataforma moderna, "
+            "sin verse caotico ni demasiado tecnico."
+        )
+
+    return f"{base}\n\nDirectrices internas para enriquecer la escena:\n- " + "\n- ".join(hints)
 
 
 def _read_json_response(resp: Any) -> dict[str, Any]:
@@ -36,8 +164,9 @@ def generate_prompt(
     idea = idea.strip()
     if not idea:
         raise ValueError("La idea base no puede estar vacia")
+    enriched_idea = enrich_idea(idea)
 
-    payload = json.dumps({"text": idea}, ensure_ascii=False).encode("utf-8")
+    payload = json.dumps({"text": enriched_idea}, ensure_ascii=False).encode("utf-8")
     req = Request(
         webhook_url,
         data=payload,
@@ -61,7 +190,7 @@ def generate_prompt(
     prompt = str(data.get("output", "")).strip()
     if not prompt:
         raise N8NPromptError(f"n8n no devolvio el campo output: {json.dumps(data, ensure_ascii=False)}")
-    return prompt
+    return clean_generated_prompt(prompt)
 
 
 def save_prompt(prompt: str, path: Path = DEFAULT_PROMPT_FILE) -> Path:
@@ -94,7 +223,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--idea-file",
-        help="Archivo de texto cuyo contenido se usa como idea base",
+        default=str(DEFAULT_IDEA_FILE),
+        help=f"Archivo de texto cuyo contenido se usa como idea base. Default: {DEFAULT_IDEA_FILE}",
     )
     parser.add_argument(
         "--webhook-url",

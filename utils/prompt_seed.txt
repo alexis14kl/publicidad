@@ -1,0 +1,49 @@
+Crear una sola imagen publicitaria premium para NoyeCode enfocada en captar clientes de software.
+
+Datos fijos de empresa:
+- Empresa: NoyeCode
+- Responsable comercial: Gerson Javier Barbosa Romero
+- Telefono: +57 301 385 9952
+- Sitio web: noyecode.com
+- Ubicacion: Bogota, Kennedy, Colombia
+
+Servicios que si se deben promocionar:
+- desarrollo a la medida
+- automatizaciones empresariales
+- actualizacion y modernizacion de software legacy
+- RPAs nativos
+- desarrollo Android
+- desarrollo desktop
+
+Reglas claras para la imagen:
+- La imagen debe promocionar un servicio o producto de NoyeCode, no la ciudad.
+- El protagonista visual debe ser el servicio, el software, el equipo con el cliente o el resultado de negocio.
+- Bogota solo puede aparecer como contexto sutil, nunca como tema principal.
+- No usar pantallas gigantes saliendo de edificios.
+- No usar cascos VR ni escenas futuristas exageradas.
+- El texto dentro de la imagen es importante porque la pieza es para redes sociales.
+- Incluir copy publicitario corto y claro dentro de la composicion.
+- Incluir CTA comercial visible.
+- Incluir sitio web: noyecode.com
+- Incluir WhatsApp o telefono comercial: +57 301 385 9952
+- Incluir el servicio principal destacado de la pieza.
+- Incluir un bloque secundario breve con otros servicios de la empresa cuando el diseno lo permita.
+- Incluir hashtags comerciales de Facebook/Instagram cuando encajen con el formato del arte.
+- No hacer una postal urbana ni una escena generica de ciudad.
+- Debe verse como anuncio comercial premium, moderno, creible, 4K, con valor empresarial.
+- Priorizar composiciones que ayuden a vender confianza, profesionalismo, personalizacion, automatizacion y calidad tecnica.
+
+Preferencia de enfoque:
+- Elegir una de estas lineas para la pieza visual:
+  1. reunion cliente + equipo de desarrollo mostrando software a la medida
+  2. automatizacion empresarial con dashboards reales, integraciones y eficiencia operativa
+  3. modernizacion de sistema legacy mostrando evolucion a plataforma moderna
+  4. RPA nativo resolviendo tareas repetitivas en entorno empresarial
+  5. app Android o software desktop profesional en uso real
+
+Salida esperada:
+- devolver un prompt listo para generador de imagen
+- sin encabezados
+- sin explicaciones
+- incluir texto comercial dentro de la imagen por defecto
+- incluir sitio web, WhatsApp y llamada a la accion

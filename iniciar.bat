@@ -38,10 +38,10 @@ if errorlevel 1 (
   if not exist "%N8N_PROMPT_CLIENT_PY%" (
     echo [WARN] No existe cliente n8n: "%N8N_PROMPT_CLIENT_PY%". Se conserva el prompt actual.
   ) else (
-    if not exist "%PROMPT_FILE%" (
-      echo [WARN] No existe prompt base: "%PROMPT_FILE%". Se conserva el flujo actual.
+    if not exist "%PROMPT_SEED_FILE%" (
+      echo [WARN] No existe brief base: "%PROMPT_SEED_FILE%". Se conserva el flujo actual.
     ) else (
-      python "%N8N_PROMPT_CLIENT_PY%" --idea-file "%PROMPT_FILE%" --output "%PROMPT_FILE%"
+      python "%N8N_PROMPT_CLIENT_PY%" --idea-file "%PROMPT_SEED_FILE%" --output "%PROMPT_FILE%"
       if errorlevel 1 (
         echo [WARN] No se pudo regenerar el prompt con n8n. Se usara el contenido actual de "%PROMPT_FILE%".
       ) else (
