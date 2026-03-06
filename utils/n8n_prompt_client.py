@@ -28,12 +28,216 @@ SERVICE_HASHTAGS = {
 
 def looks_like_generic_service_seed(text: str) -> bool:
     lower = text.lower()
+<<<<<<< HEAD
     markers = [
         "servicios que si se deben promocionar",
         "preferencia de enfoque",
         "elegir una de estas lineas para la pieza visual",
     ]
     service_hits = sum(
+=======
+
+    markers = ["prompt:", "prompt final:", "prompt para imagen:"]
+    for marker in markers:
+        idx = lower.find(marker)
+        if idx != -1:
+            text = text[idx + len(marker):].strip()
+            break
+
+    text = text.strip(" -\n\r\t")
+
+    lower = text.lower()
+    if lower.startswith("creame una imagen de alta definicion grafica: contexto:"):
+        body = text[len("CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA: contexto:"):].strip()
+    elif lower.startswith("creame una imagen de alta definicion grafica:"):
+        body = text[len("CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA:"):].strip()
+    elif lower.startswith("genera una imagen; contexto:"):
+        body = text[len("Genera una imagen; contexto:"):].strip()
+    elif lower.startswith("genera una imagen:"):
+        body = text[len("Genera una imagen:"):].strip()
+    elif lower.startswith("genera una imagen"):
+        body = text[len("Genera una imagen"):].lstrip(" :;,-")
+    elif lower.startswith("crea una imagen"):
+        body = text[len("Crea una imagen"):].lstrip(" :;,-")
+    elif lower.startswith("imagina una escena"):
+        body = "una escena" + text[len("Imagina una escena"):]
+    elif lower.startswith("imagina una imagen"):
+        body = text[len("Imagina una imagen"):].lstrip(" :;,-")
+    elif lower.startswith("imagina "):
+        body = text[len("Imagina "):].lstrip(" :;,-")
+    elif lower.startswith("una imagen "):
+        body = text[len("una imagen "):].lstrip(" :;,-")
+    elif lower.startswith("la imagen "):
+        body = text[len("La imagen "):].lstrip(" :;,-")
+    else:
+        body = text
+
+    advisory_prefixes = [
+        "aqui tienes",
+        "te sugiero",
+        "te propongo",
+        "puedes usar",
+        "este prompt",
+        "prompt final",
+        "prompt para imagen",
+    ]
+    lowered_body = body.lower()
+    for prefix in advisory_prefixes:
+        if lowered_body.startswith(prefix):
+            body = body[len(prefix):].lstrip(" :;,-")
+            lowered_body = body.lower()
+
+    body = body.strip(" ;:-")
+    return (
+        "CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA. "
+        f"CONTEXTO PUBLICITARIO: {body}. "
+        "GENERA LA IMAGEN DIRECTAMENTE EN CALIDAD 4K, ESTILO PUBLICITARIO PREMIUM Y ALTA CLARIDAD GRAFICA."
+    ).strip()
+
+
+def detect_primary_service(text: str) -> str:
+    lower = text.lower()
+    if "desarrollo a la medida" in lower or "a la medida" in lower:
+        return "desarrollo a la medida"
+    if "rpa" in lower or "rpas" in lower:
+        return "rpas nativos"
+    if "legacy" in lower or "modernizacion" in lower or "actualizacion de software" in lower:
+        return "modernizacion de software legacy"
+    if "android" in lower:
+        return "desarrollo android"
+    if "desktop" in lower or "desk" in lower:
+        return "desarrollo desktop"
+    if "automatiza" in lower or "automatizacion" in lower or "automatizaciones" in lower:
+        return "automatizaciones empresariales"
+    return "desarrollo a la medida"
+
+
+def enrich_idea(idea: str) -> str:
+    base = " ".join(idea.strip().split())
+    lower = base.lower()
+    primary_service = detect_primary_service(base)
+    hints: list[str] = [DEFAULT_BRAND_HINT]
+
+    hints.append(
+        f"Servicio principal obligatorio de esta pieza: {primary_service}. "
+        "No cambiarlo por otro servicio y no mezclar el protagonismo con otro producto."
+    )
+    hints.append(
+        "La imagen debe vender un servicio concreto de NoyeCode, no una postal de ciudad. "
+        "El sujeto principal debe ser el producto, el servicio o el resultado de negocio."
+    )
+    hints.append(
+        "No centrar la composicion en la ciudad de Bogota, edificios urbanos o calles, salvo que el usuario lo pida de forma explicita."
+    )
+    hints.append(
+        "No usar como recurso repetitivo pantallas gigantes en fachadas, codigo flotando en edificios ni escenas futuristas poco creibles."
+    )
+    hints.append(
+        "Priorizar escenas comerciales creibles: reuniones con clientes, demo de producto, dashboards reales, software en uso, automatizacion operativa, modernizacion tecnológica y resultados empresariales."
+    )
+    hints.append(
+        "La pieza debe sentirse como arte publicitario para redes sociales de NoyeCode, orientado a conversion y captacion de clientes."
+    )
+    hints.append(
+        "Incluir dentro de la imagen un bloque de texto publicitario corto y bien jerarquizado con: nombre del servicio, beneficio principal, CTA, sitio web noyecode.com y WhatsApp +57 301 385 9952."
+    )
+    hints.append(
+        f"El nombre del servicio destacado dentro del arte debe ser exactamente: {primary_service}."
+    )
+    hints.append(
+        "Cuando encaje con formato de redes, incluir hashtags comerciales discretos como #NoyeCode #DesarrolloALaMedida #AutomatizacionEmpresarial #SoftwareEmpresarial #Bogota #Colombia."
+    )
+    hints.append(
+        "Si se listan servicios complementarios, deben ir en segundo nivel visual y nunca opacar el servicio principal."
+    )
+    hints.append(
+        "Salida obligatoria: devolver una sola instruccion final lista para pegar en ChatGPT y generar la imagen de inmediato."
+    )
+    hints.append(
+        "La respuesta debe empezar como una orden directa y operativa para generar imagen, no como una sugerencia."
+    )
+    hints.append(
+        "Prohibido empezar con frases como 'Imagina', 'Visualiza', 'Una imagen de', 'La imagen debe', 'Aqui tienes', 'Te sugiero' o cualquier explicacion."
+    )
+    hints.append(
+        "No responder como asesor de prompts. No dar sugerencias. No explicar. No listar opciones. Solo entregar la instruccion final de generacion."
+    )
+    hints.append(
+        "Cada respuesta debe variar el contexto visual principal para evitar escenas repetidas. Alternar entre reunion comercial, demo de producto, uso real del software, automatizacion en operacion, equipo con cliente, transformacion de sistema legacy, entorno movil Android o entorno desktop, segun el servicio principal."
+    )
+    hints.append(
+        "No repetir siempre la misma composicion de oficina con mesa y dashboard. Cambiar encuadre, tipo de escena, foco visual y ambiente segun el objetivo comercial."
+    )
+
+    if "desarrollo a la medida" in lower or "a la medida" in lower:
+        hints.append(
+            "Servicio clave: desarrollo a la medida. "
+            "Mostrar una solucion de software creada especificamente para una empresa: "
+            "equipo de trabajo profesional, reunion de descubrimiento o entrega de producto, "
+            "interfaces UI/UX limpias en laptops o pantallas reales, dashboards elegantes, "
+            "colaboracion entre negocio y tecnologia, sensacion de software personalizado, escalable y de alto valor."
+        )
+        hints.append(
+            "Composicion recomendada: escena corporativa moderna, personas reales o semi-realistas, "
+            "producto digital visible, ambiente premium, iluminacion cinematica suave, profundidad de campo, "
+            "4K, con texto publicitario integrado de forma elegante en el arte."
+        )
+        hints.append(
+            "Evitar monitores desproporcionados, hologramas exagerados, interfaces imposibles o recursos visuales caricaturescos. "
+            "Preferir escenas creibles de venta consultiva, demostracion de producto y confianza empresarial."
+        )
+        hints.append(
+            "El texto recomendado dentro del arte debe resaltar ideas como: desarrollo a la medida, software personalizado, escalable, soporte experto, contactanos por WhatsApp, visita noyecode.com."
+        )
+
+    if "automatiza" in lower or "automatizacion" in lower or "automatizaciones" in lower:
+        hints.append(
+            "Si la pieza es sobre automatizaciones, reflejar eficiencia operativa, integraciones entre sistemas, "
+            "flujos conectados, paneles de control y ahorro de tiempo para empresas."
+        )
+
+    if "android" in lower:
+        hints.append(
+            "Si la pieza es sobre desarrollo Android, mostrar app movil profesional en uso real, "
+            "interfaz pulida, experiencia de usuario clara y contexto comercial."
+        )
+
+    if "desktop" in lower or "desk" in lower:
+        hints.append(
+            "Si la pieza es sobre desarrollo desktop, mostrar una aplicacion empresarial robusta en escritorio, "
+            "paneles limpios, productividad, control operativo y entorno profesional."
+        )
+
+    if "legacy" in lower or "sistema legacy" in lower or "modernizacion" in lower or "actualizacion de sistema" in lower:
+        hints.append(
+            "Si la pieza trata de modernizacion legacy, representar evolucion tecnologica: "
+            "antes y despues sutil, software antiguo transformandose en plataforma moderna, "
+            "sin verse caotico ni demasiado tecnico."
+        )
+
+    return f"{base}\n\nDirectrices internas para enriquecer la escena:\n- " + "\n- ".join(hints)
+
+
+def _read_json_response(resp: Any) -> dict[str, Any]:
+    raw = resp.read().decode("utf-8", errors="replace").strip()
+    if not raw:
+        raise N8NPromptError("n8n respondio vacio")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise N8NPromptError(f"n8n no devolvio JSON valido: {raw[:200]}") from exc
+    if not isinstance(data, dict):
+        raise N8NPromptError("n8n devolvio un JSON inesperado")
+    return data
+
+
+def generate_prompt(
+    idea: str,
+    webhook_url: str = DEFAULT_WEBHOOK_URL,
+    timeout: int = 60,
+) -> str:
+    idea = idea.strip()
+>>>>>>> 6f30f6f (seleccionar cuenta de chapgpt)
     if not idea:
         raise ValueError("La idea base no puede estar vacia")
 
@@ -125,9 +329,12 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        idea = args.idea
-        if args.idea_file:
+        if args.idea:
+            idea = args.idea.strip()
+        elif args.idea_file:
             idea = Path(args.idea_file).read_text(encoding="utf-8").strip()
+        else:
+            idea = ""
         if not idea:
             raise ValueError("Debes enviar una idea o usar --idea-file")
 

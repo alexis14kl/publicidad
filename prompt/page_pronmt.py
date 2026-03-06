@@ -315,7 +315,7 @@ const { chromium } = require('playwright');
         };
         return score(b) - score(a);
       });
-      return ranked[ranked.length - 1] || chatPages[chatPages.length - 1];
+      return ranked[0] || chatPages[chatPages.length - 1];
     };
 
     let page = pickBestChatPage();
