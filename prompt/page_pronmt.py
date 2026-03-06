@@ -27,9 +27,12 @@ DEFAULT_PORT = 9225
 PROMPT_LOCK_FILE = PROJECT_ROOT / ".prompt_last_send.json"
 PROMPT_DEDUP_WINDOW_SEC = 90
 NO_IMAGE_TOKENS_MARKER = "Sin tokens para imgs."
+<<<<<<< HEAD
 PROMPT_STATUS_SUCCESS = "success"
 PROMPT_STATUS_NO_IMAGE_TOKENS = "no_image_tokens"
 MAX_ACCOUNT_ROTATION_ATTEMPTS = 20
+=======
+>>>>>>> 40266b7 (conexion a bot contexto empresarial more time)
 
 
 def read_prompt() -> str:
@@ -134,7 +137,11 @@ def trigger_change_count(reason: str = "no_image_tokens") -> None:
         log_warn(f"change_count.py termino con codigo {result.returncode}")
 
 
+<<<<<<< HEAD
 def run_prompt_paste(cdp_port: int) -> str:
+=======
+def run_prompt_paste(cdp_port: int) -> None:
+>>>>>>> 40266b7 (conexion a bot contexto empresarial more time)
     js = r"""
 const fs = require('fs');
 const { chromium } = require('playwright');
@@ -157,6 +164,7 @@ const { chromium } = require('playwright');
       return x.startsWith(`http://127.0.0.1:${cdpPort}/json`);
     };
 
+<<<<<<< HEAD
     const getPageSignals = async (targetPage) => {
       try {
         return await targetPage.evaluate(() => {
@@ -294,12 +302,31 @@ const { chromium } = require('playwright');
     };
 
     let page = await pickBestChatPage();
+=======
+    const pickBestChatPage = () => {
+      const chatPages = context.pages().filter(p => isChatPage(p.url()));
+      if (!chatPages.length) return null;
+      const ranked = [...chatPages].sort((a, b) => {
+        const score = (p) => {
+          const url = p.url() || '';
+          if (/^https:\/\/chatgpt\.com\/c\//i.test(url)) return 3;
+          if (/^https:\/\/chatgpt\.com\/$/i.test(url)) return 2;
+          return 1;
+        };
+        return score(b) - score(a);
+      });
+      return ranked[ranked.length - 1] || chatPages[chatPages.length - 1];
+    };
+
+    let page = pickBestChatPage();
+>>>>>>> 40266b7 (conexion a bot contexto empresarial more time)
     if (!page) {
       page = await context.newPage();
       await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
     }
 
     await page.bringToFront();
+<<<<<<< HEAD
 <<<<<<< HEAD
 
     let sessionPages = await ensureSingleChatAndDebugPage(page);
@@ -317,6 +344,8 @@ const { chromium } = require('playwright');
 =======
     await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
 >>>>>>> 57bc22b (conexion a bot contexto empresarial more time)
+=======
+>>>>>>> 40266b7 (conexion a bot contexto empresarial more time)
 
     const selectors = [
       'div#prompt-textarea[contenteditable="true"]',
@@ -337,6 +366,9 @@ const { chromium } = require('playwright');
         .trim();
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 40266b7 (conexion a bot contexto empresarial more time)
     const composerReadyInPage = async () => {
       return await page.evaluate(() => {
         const editor = document.querySelector('div#prompt-textarea[contenteditable="true"], #prompt-textarea[contenteditable="true"]');
@@ -353,8 +385,11 @@ const { chromium } = require('playwright');
       }).catch(() => false);
     };
 
+<<<<<<< HEAD
 =======
 >>>>>>> 57bc22b (conexion a bot contexto empresarial more time)
+=======
+>>>>>>> 40266b7 (conexion a bot contexto empresarial more time)
     const waitForComposerReady = async (timeoutMs = 30000) => {
       await page.waitForFunction(() => {
         const editor = document.querySelector('div#prompt-textarea[contenteditable="true"], #prompt-textarea[contenteditable="true"]');
@@ -421,6 +456,9 @@ const { chromium } = require('playwright');
     };
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 40266b7 (conexion a bot contexto empresarial more time)
     try {
       await waitForComposerReady();
     } catch {
@@ -436,11 +474,14 @@ const { chromium } = require('playwright');
       }
       await waitForComposerReady(45000);
     }
+<<<<<<< HEAD
     await disableAdvancedResearchMode();
 
 =======
     await waitForComposerReady();
 >>>>>>> 57bc22b (conexion a bot contexto empresarial more time)
+=======
+>>>>>>> 40266b7 (conexion a bot contexto empresarial more time)
     const target = await findVisiblePromptInput();
     if (!target) throw new Error('No se encontro input visible de prompt');
 
@@ -521,6 +562,28 @@ const { chromium } = require('playwright');
       return false;
     };
 
+    const promptExistsAsUserTurn = async (expectedPrompt) => {
+      const expectedSample = normalizeText(expectedPrompt).slice(0, 120);
+      if (!expectedSample) return false;
+      return await page.evaluate((sample) => {
+        const headings = Array.from(document.querySelectorAll('article h5'));
+        const userTurns = headings
+          .filter((h) => /tu dijiste/i.test(h.innerText || ''))
+          .map((h) => h.closest('article'))
+          .filter(Boolean);
+        const lastTurn = userTurns[userTurns.length - 1];
+        if (!lastTurn) return false;
+        const text = String(lastTurn.innerText || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9\\s]/g, ' ')
+          .replace(/\\s+/g, ' ')
+          .trim();
+        return text.includes(sample);
+      }, expectedSample).catch(() => false);
+    };
+
     const waitForSendButtonReady = async (timeoutMs = 12000) => {
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
@@ -594,6 +657,10 @@ const { chromium } = require('playwright');
       await focusPromptSurface().catch(() => {});
       await page.keyboard.press('Enter');
       submitted = await waitForSubmissionStart();
+    }
+
+    if (!submitted) {
+      submitted = await promptExistsAsUserTurn(prompt);
     }
 
     if (!submitted) {
@@ -935,6 +1002,9 @@ const { chromium } = require('playwright');
         print(result.stdout.strip())
     if result.stderr.strip():
         print(result.stderr.strip())
+
+    if NO_IMAGE_TOKENS_MARKER in result.stdout:
+        trigger_change_count("no_image_tokens")
 
     if result.returncode != 0 or "PROMPT_PEGADO_OK" not in result.stdout:
         raise RuntimeError("No se pudo pegar el prompt en ChatGPT")
