@@ -136,21 +136,44 @@ const { chromium } = require('playwright');
       'textarea[data-testid="prompt-textarea"]'
     ];
 
-    let target = null;
-    for (const sel of selectors) {
-      const loc = page.locator(sel).first();
-      if (await loc.count()) {
-        target = loc;
-        break;
+    const findVisiblePromptInput = async (timeoutMs = 15000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        for (const sel of selectors) {
+          const loc = page.locator(sel);
+          const count = await loc.count();
+          for (let i = 0; i < count; i++) {
+            const candidate = loc.nth(i);
+            const visible = await candidate.isVisible().catch(() => false);
+            if (visible) {
+              return candidate;
+            }
+          }
+        }
+        await page.waitForTimeout(250);
       }
-    }
+      return null;
+    };
 
-    if (!target) throw new Error('No se encontro input de prompt');
+    const target = await findVisiblePromptInput();
+    if (!target) throw new Error('No se encontro input visible de prompt');
 
     await target.click({ timeout: 5000 });
     await page.keyboard.press('Control+A');
-    await page.keyboard.type(prompt, { delay: 10 });
-    await page.keyboard.press('Enter');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.insertText(prompt);
+    await page.waitForTimeout(250);
+
+    const sendBtn = page.locator('button[data-testid="send-button"]').first();
+    if (
+      await sendBtn.count() &&
+      await sendBtn.isVisible().catch(() => false) &&
+      await sendBtn.isEnabled().catch(() => false)
+    ) {
+      await sendBtn.click({ timeout: 5000 });
+    } else {
+      await page.keyboard.press('Enter');
+    }
 
     // Asegura una pestana de debug visible y limpia el resto.
     let debugPage = context.pages().find(p => isDebugPage(p.url()));
