@@ -156,7 +156,7 @@ const { chromium } = require('playwright');
         };
         return score(b) - score(a);
       });
-      return ranked[ranked.length - 1] || chatPages[chatPages.length - 1];
+      return ranked[0] || chatPages[chatPages.length - 1];
     };
 
     let page = pickBestChatPage();
@@ -430,32 +430,116 @@ const { chromium } = require('playwright');
       'image generation limit'
     ];
 
-    const waitForNoImageTokensAlert = async (timeoutMs = 12000) => {
+    const detectNoImageTokensAlert = async () => {
       const domSignals = [
         page.getByRole('heading', { name: /Has alcanzado tu límite de creación de imágenes/i }),
         page.getByRole('button', { name: /notificar al administrador/i }),
         page.getByText(/You've hit the team plan limit for image generations requests/i),
         page.getByText(/No pude invocar la herramienta de generación de imágenes/i),
       ];
+      for (const signal of domSignals) {
+        const visible = await signal.first().isVisible().catch(() => false);
+        if (visible) {
+          return true;
+        }
+      }
+
+      const bodyText = normalizeText(await page.evaluate(() => document.body?.innerText || ''));
+      if (noImageTokenPhrases.some((phrase) => bodyText.includes(phrase))) {
+        return true;
+      }
+      return false;
+    };
+
+    const waitForNoImageTokensAlert = async (timeoutMs = 90000, pollMs = 1000) => {
       const deadline = Date.now() + timeoutMs;
+      let idleCycles = 0;
       while (Date.now() < deadline) {
-        for (const signal of domSignals) {
+        if (await detectNoImageTokensAlert()) {
+          return true;
+        }
+
+        const generatingSignals = [
+          page.getByRole('button', { name: /Creando imagen/i }),
+          page.getByRole('progressbar'),
+          page.getByText(/Creando imagen/i),
+          page.locator('button[data-testid="stop-button"]').first(),
+        ];
+
+        let generating = false;
+        for (const signal of generatingSignals) {
           const visible = await signal.first().isVisible().catch(() => false);
           if (visible) {
-            return true;
+            generating = true;
+            break;
           }
         }
 
-        const bodyText = normalizeText(await page.evaluate(() => document.body?.innerText || ''));
-        if (noImageTokenPhrases.some((phrase) => bodyText.includes(phrase))) {
-          return true;
+        if (generating) {
+          idleCycles = 0;
+        } else {
+          idleCycles += 1;
+          if (idleCycles >= 5) {
+            return false;
+          }
         }
-        await page.waitForTimeout(500);
+
+        await page.waitForTimeout(pollMs);
+      }
+      return false;
+    };
+
+    const clickProfileMenu = async () => {
+      const selectors = [
+        '[data-testid="accounts-profile-button"][aria-label="Abrir el menú de perfil"]',
+        '[data-testid="accounts-profile-button"][aria-label="Abrir el menu de perfil"]',
+      ];
+
+      for (const selector of selectors) {
+        const loc = page.locator(selector).last();
+        const count = await loc.count().catch(() => 0);
+        if (!count) continue;
+        const visible = await loc.isVisible().catch(() => false);
+        if (!visible) continue;
+        await loc.scrollIntoViewIfNeeded().catch(() => {});
+        try {
+          await loc.click({ timeout: 5000 });
+        } catch {
+          const handle = await loc.elementHandle();
+          if (handle) {
+            await page.evaluate((el) => el.click(), handle);
+          } else {
+            continue;
+          }
+        }
+        return true;
+      }
+
+      const labelLoc = page.getByLabel(/Abrir el men[uú] de perfil/i).last();
+      const labelVisible = await labelLoc.isVisible().catch(() => false);
+      if (labelVisible) {
+        await labelLoc.scrollIntoViewIfNeeded().catch(() => {});
+        try {
+          await labelLoc.click({ timeout: 5000 });
+        } catch {
+          const handle = await labelLoc.elementHandle();
+          if (handle) {
+            await page.evaluate((el) => el.click(), handle);
+          } else {
+            return false;
+          }
+        }
+        return true;
       }
       return false;
     };
 
     if (await waitForNoImageTokensAlert()) {
+      if (await clickProfileMenu()) {
+        console.log('PERFIL_CLICK_OK');
+      } else {
+        console.log('PERFIL_CLICK_WARN');
+      }
       console.log('Sin tokens para imgs.');
     }
 
