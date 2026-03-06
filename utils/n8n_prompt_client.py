@@ -35,7 +35,55 @@ def clean_generated_prompt(prompt: str) -> str:
             text = text[idx + len(marker):].strip()
             break
 
-    return text.strip(" -\n\r\t")
+    text = text.strip(" -\n\r\t")
+
+    lower = text.lower()
+    if lower.startswith("creame una imagen de alta definicion grafica: contexto:"):
+        body = text[len("CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA: contexto:"):].strip()
+    elif lower.startswith("creame una imagen de alta definicion grafica:"):
+        body = text[len("CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA:"):].strip()
+    elif lower.startswith("genera una imagen; contexto:"):
+        body = text[len("Genera una imagen; contexto:"):].strip()
+    elif lower.startswith("genera una imagen:"):
+        body = text[len("Genera una imagen:"):].strip()
+    elif lower.startswith("genera una imagen"):
+        body = text[len("Genera una imagen"):].lstrip(" :;,-")
+    elif lower.startswith("crea una imagen"):
+        body = text[len("Crea una imagen"):].lstrip(" :;,-")
+    elif lower.startswith("imagina una escena"):
+        body = "una escena" + text[len("Imagina una escena"):]
+    elif lower.startswith("imagina una imagen"):
+        body = text[len("Imagina una imagen"):].lstrip(" :;,-")
+    elif lower.startswith("imagina "):
+        body = text[len("Imagina "):].lstrip(" :;,-")
+    elif lower.startswith("una imagen "):
+        body = text[len("una imagen "):].lstrip(" :;,-")
+    elif lower.startswith("la imagen "):
+        body = text[len("La imagen "):].lstrip(" :;,-")
+    else:
+        body = text
+
+    advisory_prefixes = [
+        "aqui tienes",
+        "te sugiero",
+        "te propongo",
+        "puedes usar",
+        "este prompt",
+        "prompt final",
+        "prompt para imagen",
+    ]
+    lowered_body = body.lower()
+    for prefix in advisory_prefixes:
+        if lowered_body.startswith(prefix):
+            body = body[len(prefix):].lstrip(" :;,-")
+            lowered_body = body.lower()
+
+    body = body.strip(" ;:-")
+    return (
+        "CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA. "
+        f"CONTEXTO PUBLICITARIO: {body}. "
+        "GENERA LA IMAGEN DIRECTAMENTE EN CALIDAD 4K, ESTILO PUBLICITARIO PREMIUM Y ALTA CLARIDAD GRAFICA."
+    ).strip()
 
 
 def detect_primary_service(text: str) -> str:
@@ -92,6 +140,24 @@ def enrich_idea(idea: str) -> str:
     )
     hints.append(
         "Si se listan servicios complementarios, deben ir en segundo nivel visual y nunca opacar el servicio principal."
+    )
+    hints.append(
+        "Salida obligatoria: devolver una sola instruccion final lista para pegar en ChatGPT y generar la imagen de inmediato."
+    )
+    hints.append(
+        "La respuesta debe empezar como una orden directa y operativa para generar imagen, no como una sugerencia."
+    )
+    hints.append(
+        "Prohibido empezar con frases como 'Imagina', 'Visualiza', 'Una imagen de', 'La imagen debe', 'Aqui tienes', 'Te sugiero' o cualquier explicacion."
+    )
+    hints.append(
+        "No responder como asesor de prompts. No dar sugerencias. No explicar. No listar opciones. Solo entregar la instruccion final de generacion."
+    )
+    hints.append(
+        "Cada respuesta debe variar el contexto visual principal para evitar escenas repetidas. Alternar entre reunion comercial, demo de producto, uso real del software, automatizacion en operacion, equipo con cliente, transformacion de sistema legacy, entorno movil Android o entorno desktop, segun el servicio principal."
+    )
+    hints.append(
+        "No repetir siempre la misma composicion de oficina con mesa y dashboard. Cambiar encuadre, tipo de escena, foco visual y ambiente segun el objetivo comercial."
     )
 
     if "desarrollo a la medida" in lower or "a la medida" in lower:
@@ -255,9 +321,12 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        idea = args.idea
-        if args.idea_file:
+        if args.idea:
+            idea = args.idea.strip()
+        elif args.idea_file:
             idea = Path(args.idea_file).read_text(encoding="utf-8").strip()
+        else:
+            idea = ""
         if not idea:
             raise ValueError("Debes enviar una idea o usar --idea-file")
 
