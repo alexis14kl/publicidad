@@ -1,0 +1,570 @@
+{
+  "name": "Telegram Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-bot-noyecode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1488,
+        3184
+      ],
+      "id": "8365c7aa-fd46-426d-bd54-711cc4af1144",
+      "name": "Telegram Webhook",
+      "webhookId": "telegram-bot-webhook"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.originalText }}",
+        "options": {
+          "systemMessage": "=Eres el asistente virtual de *NoyeCode*.\n\nREGLAS DE RESPUESTA:\n\n1. /start (PRIMER CONTACTO):\nResponde SOLO con bienvenida, SIN menú ni opciones numeradas:\n\n*NoyeCode* | _Bienvenido_\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n👋 ¡Hola, *[nombre]*!\n\nBienvenido a *NoyeCode*, expertos en desarrollo de software, automatización e inteligencia artificial 🚀\n\n💬 Cuéntanos, ¿en qué podemos ayudarte?\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n_Escribe tu consulta o escribe *menu* para ver opciones_ 👇\n\nIMPORTANTE: Para /start NO muestres el menú de opciones numeradas. Solo la bienvenida.\n\n2. MENU (hola, menu, buenas, inicio):\nResponde EXACTAMENTE con este formato:\n\n*NoyeCode* | _Soluciones Digitales_\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n👋 ¡Hola, *[nombre]*!\n\nSomos expertos en desarrollo de software, automatización e inteligencia artificial 🚀\n\n*¿Cómo podemos ayudarte?*\n\n1️⃣ ▸ Conocer la empresa\n2️⃣ ▸ Hablar con un asesor\n3️⃣ ▸ Planes y precios\n4️⃣ ▸ Ver productos\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n_Escribe el número de tu opción_ 👇\n\nIMPORTANTE: Copia este formato EXACTO para el menú. No cambies el orden, no agregues texto extra.\n\n3. SALUDO + CONSULTA (el usuario saluda y pregunta por un servicio):\nSaluda por nombre y responde SOLO del servicio que preguntó:\n\n*NoyeCode* | _[Nombre del servicio]_\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nDesarrollo: apps web/móviles con React, Next.js, FastAPI, Flutter. Metodología ágil.\nAutomatización: flujos con n8n, CRMs, ERPs, WhatsApp, facturación.\nIA: chatbots, análisis predictivo, asistentes virtuales.\nConsultoría: hoja de ruta digital adaptada.\n\nCierra con: 👉 Escribe *2* para asesor o *menu* para opciones\n\n4. OPCIÓN 1 (empresa, información, \"1\"):\n\n*NoyeCode* | _Sobre Nosotros_\n━━━━━━━━━━━━━━━━━━━━━━━━━━\nSomos una empresa colombiana especializada en el desarrollo de soluciones tecnológicas a medida. Ayudamos a las organizaciones a optimizar sus procesos, escalar sus operaciones y acelerar su transformación digital mediante tecnología confiable e innovadora.\n\n💻 Desarrollo de software a medida (Web, Mobile, APIs)\n⚙️ Automatización de procesos empresariales\n🤖 Implementación de soluciones con Inteligencia Artificial\n💡 Consultoría, arquitectura y estrategia tecnológica\n🔗 Integración de sistemas y plataformas\n\n🌐 Sitio web: https://noyecode.com\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n👉 Escribe *2* para asesor o *menu* para opciones\n\n5. OPCIÓN 2 (asesor, contacto, \"2\"):\n\n*NoyeCode* | _Contacto_\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n✅ Un asesor se comunicará contigo pronto\n\n✉️ contacto@noyecode.com\n🌐 noyecode.com\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n👉 Escribe *menu* para volver\n\n6. OPCIÓN 3 (precios, planes, \"3\"):\n\n*NoyeCode* | _Planes_\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n⭐ *Básico* ─ Landing page\n🌟 *Profesional* ─ App web completa\n👑 *Enterprise* ─ Solución a medida\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n👉 Escribe *2* para cotización personalizada\n\n7. OPCIÓN 4 (productos, \"4\"):\n\n*NoyeCode* | _Productos_\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n🌐 Landing Pages\n🛒 E-commerce\n📱 Apps móviles\n📊 SGSSTPro - sgsstpro.com\n🤖 Bots con IA\n⚙️ Automatización con n8n\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n👉 Escribe *2* para cotización\n\n8. CONSULTA TÉCNICA:\nResponde breve y profesional. Usa encabezado *NoyeCode* | _Tema_. Cierra con 👉 *menu*\n\n9. CUALQUIER OTRO MENSAJE:\nSi no estás seguro qué responder, muestra el menú principal (igual que regla 2). NUNCA digas \"no logré entender\" ni \"no entendí\" ni nada similar.\n\nFORMATO:\n- Encabezado siempre: *NoyeCode* | _Sección_\n- Separadores: ━━━━━━ (línea gruesa)\n- *negrillas*, _cursiva_\n- Máximo 12 líneas\n- NO inventar precios\n- NO repetir menú en cada respuesta\n\nNombre del usuario: {{ $json.firstName }}\nFecha: {{ $now }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -672,
+        3200
+      ],
+      "id": "ed50ad2f-3621-4f13-a4ed-2884faa3fe97",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Extract Data').item.json.chatId }}",
+        "contextWindowLength": 6
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -560,
+        3488
+      ],
+      "id": "7076278f-8566-40f0-b20d-e261bfbb15ac",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8330436500:AAFn_2kMLSjqR-V_zQg2BacWRWx7ULOiNuw/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chat_id\": {{ $('Extract Data').item.json.chatId }},\n  \"text\": {{ JSON.stringify($json.output) }},\n  \"parse_mode\": \"Markdown\"{{ $('Extract Data').item.json.text === '/start' ? '' : ', \"reply_markup\": {\"inline_keyboard\": [[{\"text\": \"Informacion\", \"callback_data\": \"1\"}, {\"text\": \"Asesor\", \"callback_data\": \"2\"}], [{\"text\": \"Planes\", \"callback_data\": \"3\"}, {\"text\": \"Productos\", \"callback_data\": \"4\"}], [{\"text\": \"Menu principal\", \"callback_data\": \"menu\"}]]}' }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        48,
+        3200
+      ],
+      "id": "ad9ae555-cb97-477f-86ed-9ed6cb6069e9",
+      "name": "Respuesta"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8330436500:AAFn_2kMLSjqR-V_zQg2BacWRWx7ULOiNuw/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chat_id\": {{ $('Extract Data').item.json.chatId }},\n  \"text\": \"*Nuestros Productos*\\n\\nMira nuestro catalogo:\",\n  \"parse_mode\": \"Markdown\",\n  \"reply_markup\": {\n    \"inline_keyboard\": [\n      [{\"text\": \"Cotizacion\", \"callback_data\": \"2\"}, {\"text\": \"Menu\", \"callback_data\": \"menu\"}]\n    ]\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -112,
+        3488
+      ],
+      "id": "4fdc9c9e-81ba-464a-96e1-2339040246b6",
+      "name": "Send Productos"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "queryString": "Imagenes ADS",
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        144,
+        3488
+      ],
+      "id": "054faebc-39f9-4bf5-9d97-a0e628c499e5",
+      "name": "Find Folder ADS",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "3d4SgmvZPnNf5Wle",
+          "name": "Drive api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "={{ $json.id }}"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        368,
+        3488
+      ],
+      "id": "133bbd0d-952d-4b52-bf1d-ee8920239fd3",
+      "name": "List Images",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "3d4SgmvZPnNf5Wle",
+          "name": "Drive api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.id }}"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        576,
+        3488
+      ],
+      "id": "87714752-e0b5-409b-bef2-5bddf0aeff7c",
+      "name": "Download Images",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "3d4SgmvZPnNf5Wle",
+          "name": "Drive api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "4fa874d3-1d52-464e-9c1e-4635eedbc15b",
+                    "leftValue": "={{ $json.name }}",
+                    "rightValue": "NOCODE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "5c466f51-cf42-43c6-bc3f-b7670427c4f0",
+                    "leftValue": "={{ $json.name }}",
+                    "rightValue": "SGSST",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        800,
+        3488
+      ],
+      "id": "8cdecde2-06be-44d1-a93f-0ab7a31f76ed",
+      "name": "Route by Image"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8330436500:AAFn_2kMLSjqR-V_zQg2BacWRWx7ULOiNuw/sendPhoto",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $('Extract Data').item.json.chatId }}"
+            },
+            {
+              "name": "caption",
+              "value": "🚀 *Desarrollo a la Medida*\n\nCreamos software personalizado que se adapta 100% a las necesidades de tu negocio. Apps web, móviles y sistemas empresariales."
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "photo",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1152,
+        3376
+      ],
+      "id": "8dcf2b77-18c9-4364-8538-217826aada55",
+      "name": "Send Photo "
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8330436500:AAFn_2kMLSjqR-V_zQg2BacWRWx7ULOiNuw/sendPhoto",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $('Extract Data').item.json.chatId }}"
+            },
+            {
+              "name": "caption",
+              "value": "📊 *SGSSTPro - Sistema de Gestión*\n\nPlataforma integral para la gestión de Seguridad y Salud en el Trabajo.\n\n💬 Escribe *2* para solicitar una cotización.\n_Escribe *menu* para volver al menú._"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "photo",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1056,
+        3600
+      ],
+      "id": "d7819ac9-7400-4ccf-86d6-2ed7969ba426",
+      "name": "Send Photo 3"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "prod-num",
+                    "leftValue": "={{ $('Extract Data').item.json.text }}",
+                    "rightValue": "4",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "id": "prod-text",
+                    "leftValue": "={{ $('Extract Data').item.json.text }}",
+                    "rightValue": "productos",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "or"
+              },
+              "renameOutput": true,
+              "outputKey": "productos"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -304,
+        3168
+      ],
+      "id": "e9c463d7-598a-4d96-8b6c-b5482275d127",
+      "name": "Switch Productos"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "chatId",
+              "name": "chatId",
+              "value": "={{ $json.body.message ? $json.body.message.chat.id : ($json.body.callback_query ? $json.body.callback_query.message.chat.id : 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "text",
+              "name": "text",
+              "value": "={{ $json.body.message ? ($json.body.message.text || '').trim().toLowerCase() : ($json.body.callback_query ? $json.body.callback_query.data : '') }}",
+              "type": "string"
+            },
+            {
+              "id": "originalText",
+              "name": "originalText",
+              "value": "={{ $json.body.message ? ($json.body.message.text || '') : ($json.body.callback_query ? $json.body.callback_query.data : '') }}",
+              "type": "string"
+            },
+            {
+              "id": "firstName",
+              "name": "firstName",
+              "value": "={{ $json.body.message ? ($json.body.message.from.first_name || 'amigo') : ($json.body.callback_query ? ($json.body.callback_query.from.first_name || 'amigo') : 'amigo') }}",
+              "type": "string"
+            },
+            {
+              "id": "callbackQueryId",
+              "name": "callbackQueryId",
+              "value": "={{ $json.body.callback_query ? $json.body.callback_query.id : '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1120,
+        3184
+      ],
+      "id": "6cc121fb-0cd2-4a7e-b961-72d0961c1baa",
+      "name": "Extract Data"
+    },
+    {
+      "parameters": {
+        "model": "groq/compound-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -896,
+        3424
+      ],
+      "id": "25be4ad1-139e-4bf2-8886-d99464e3b8d5",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "ujxI8q61jPeRlWaT",
+          "name": "Groq account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Switch Productos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Productos": {
+      "main": [
+        [
+          {
+            "node": "Find Folder ADS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Folder ADS": {
+      "main": [
+        [
+          {
+            "node": "List Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Images": {
+      "main": [
+        [
+          {
+            "node": "Download Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Images": {
+      "main": [
+        [
+          {
+            "node": "Route by Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Image": {
+      "main": [
+        [
+          {
+            "node": "Send Photo ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Photo 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Productos": {
+      "main": [
+        [
+          {
+            "node": "Send Productos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Data": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "0e99e747-50b2-4257-90f4-03bea188a075",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "163ce87dbe572193199f89bc4dbb6a4fa759f447d0902c3911cb69aaab43f17a"
+  },
+  "id": "YPph0qQ-BJlPdDNr90KAH",
+  "tags": []
+}
