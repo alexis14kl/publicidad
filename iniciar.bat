@@ -143,11 +143,17 @@ if errorlevel 1 (
 )
 
 %LOG% step "7/10" "Abriendo perfil: %PROFILE_NAME%"
+if exist "%FORCE_CDP_LAUNCHER_BAT%" (
+  %LOG% info "Lanzando reforce CDP en paralelo: %FORCE_CDP_LAUNCHER_BAT%"
+  start "Forzar CDP Perfil (10s + reforce)" "%FORCE_CDP_LAUNCHER_BAT%"
+  set "FORCE_LAUNCH_STARTED=1"
+) else (
+  %LOG% warn "No existe launcher CDP: %FORCE_CDP_LAUNCHER_BAT%"
+)
 set "PROFILE_MAYBE_OPEN=0"
 python "%RUN_WITH_PROGRESS_PY%" "Abriendo perfil en DiCloak..." node "%SCRIPT_PATH%" "%PROFILE_NAME%" "%CDP_URL%" "%PROFILE_DEBUG_PORT_HINT%" "%OPENAPI_PORT_HINT%" "%RUN_MODE%" "%OPENAPI_SECRET_HINT%"
 if not errorlevel 1 (
   set "PROFILE_MAYBE_OPEN=1"
-  rem OK flujo principal
 ) else (
   %LOG% warn "Flujo principal fallo. Intentando apertura forzada por CDP..."
   if not exist "%FORCE_OPEN_JS%" (

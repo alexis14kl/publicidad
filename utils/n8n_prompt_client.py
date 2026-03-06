@@ -5,8 +5,8 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from service_rotation import rotate_service
 from logger import log_error, progress_bar
+from service_rotation import rotate_service
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -26,16 +26,6 @@ DEFAULT_BRAND_HINT = (
 
 class N8NPromptError(RuntimeError):
     pass
-
-
-SERVICE_HASHTAGS = {
-    "desarrollo a la medida": "#NoyeCode #DesarrolloALaMedida #SoftwareEmpresarial #Colombia",
-    "automatizaciones empresariales": "#NoyeCode #AutomatizacionEmpresarial #Productividad #SoftwareEmpresarial",
-    "modernizacion de software legacy": "#NoyeCode #ModernizacionLegacy #TransformacionDigital #SoftwareEmpresarial",
-    "rpas nativos": "#NoyeCode #RPAsNativos #Automatizacion #EficienciaOperativa",
-    "desarrollo android": "#NoyeCode #DesarrolloAndroid #AppsEmpresariales #TransformacionDigital",
-    "desarrollo desktop": "#NoyeCode #DesarrolloDesktop #SoftwareEmpresarial #Productividad",
-}
 
 
 def looks_like_generic_service_seed(text: str) -> bool:
@@ -64,15 +54,13 @@ def clean_generated_prompt(prompt: str) -> str:
     text = " ".join(str(prompt).strip().split())
     lower = text.lower()
 
-    markers = ["prompt:", "prompt final:", "prompt para imagen:"]
-    for marker in markers:
+    for marker in ("prompt:", "prompt final:", "prompt para imagen:"):
         idx = lower.find(marker)
         if idx != -1:
             text = text[idx + len(marker):].strip()
             break
 
     text = text.strip(" -\n\r\t")
-
     lower = text.lower()
     if lower.startswith("creame una imagen de alta definicion grafica: contexto:"):
         body = text[len("CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA: contexto:"):].strip()
@@ -86,20 +74,12 @@ def clean_generated_prompt(prompt: str) -> str:
         body = text[len("Genera una imagen"):].lstrip(" :;,-")
     elif lower.startswith("crea una imagen"):
         body = text[len("Crea una imagen"):].lstrip(" :;,-")
-    elif lower.startswith("imagina una escena"):
-        body = "una escena" + text[len("Imagina una escena"):]
-    elif lower.startswith("imagina una imagen"):
-        body = text[len("Imagina una imagen"):].lstrip(" :;,-")
     elif lower.startswith("imagina "):
         body = text[len("Imagina "):].lstrip(" :;,-")
-    elif lower.startswith("una imagen "):
-        body = text[len("una imagen "):].lstrip(" :;,-")
-    elif lower.startswith("la imagen "):
-        body = text[len("La imagen "):].lstrip(" :;,-")
     else:
         body = text
 
-    advisory_prefixes = [
+    for prefix in (
         "aqui tienes",
         "te sugiero",
         "te propongo",
@@ -107,12 +87,10 @@ def clean_generated_prompt(prompt: str) -> str:
         "este prompt",
         "prompt final",
         "prompt para imagen",
-    ]
-    lowered_body = body.lower()
-    for prefix in advisory_prefixes:
+    ):
+        lowered_body = body.lower()
         if lowered_body.startswith(prefix):
             body = body[len(prefix):].lstrip(" :;,-")
-            lowered_body = body.lower()
 
     body = body.strip(" ;:-")
     return (
@@ -153,8 +131,7 @@ def select_primary_service(text: str) -> str:
 def enrich_idea(idea: str) -> str:
     base = " ".join(idea.strip().split())
     primary_service = select_primary_service(base)
-    hints: list[str] = [DEFAULT_BRAND_HINT]
-
+    hints = [DEFAULT_BRAND_HINT]
     hints.append(
         f"Servicio principal obligatorio de esta pieza: {primary_service}. "
         "No cambiarlo por otro servicio y no mezclar el protagonismo con otro producto."
@@ -164,16 +141,7 @@ def enrich_idea(idea: str) -> str:
         "El sujeto principal debe ser el producto, el servicio o el resultado de negocio."
     )
     hints.append(
-        "No centrar la composicion en la ciudad de Bogota, edificios urbanos o calles, salvo que el usuario lo pida de forma explicita."
-    )
-    hints.append(
-        "No usar como recurso repetitivo pantallas gigantes en fachadas, codigo flotando en edificios ni escenas futuristas poco creibles."
-    )
-    hints.append(
-        "Priorizar escenas comerciales creibles: reuniones con clientes, demo de producto, dashboards reales, software en uso, automatizacion operativa, modernizacion tecnológica y resultados empresariales."
-    )
-    hints.append(
-        "La pieza debe sentirse como arte publicitario para redes sociales de NoyeCode, orientado a conversion y captacion de clientes."
+        "Priorizar escenas comerciales creibles: reuniones con clientes, demo de producto, dashboards reales, software en uso, automatizacion operativa, modernizacion tecnologica y resultados empresariales."
     )
     hints.append(
         "Formato obligatorio: vertical 4:5 optimizado para feed de Facebook e Instagram, con composicion pensada para verse completa al publicarse."
@@ -183,9 +151,6 @@ def enrich_idea(idea: str) -> str:
     )
     hints.append(
         "Mantener todo el contenido critico dentro de una zona segura central aproximada del 80 por ciento del lienzo."
-    )
-    hints.append(
-        "No usar composicion edge-to-edge con texto o rostros cortados. Evitar que el arte dependa de las esquinas o laterales."
     )
     hints.append(
         "Direccion de arte mas profesional: look corporativo premium, iluminacion cinematica controlada, paleta elegante, mejor jerarquia tipografica, profundidad realista y acabado limpio."
@@ -203,103 +168,35 @@ def enrich_idea(idea: str) -> str:
         "NO incluir hashtags ni simbolos # dentro de la imagen. Los hashtags se agregan despues en el caption de Facebook. La imagen debe quedar limpia sin texto tipo hashtag."
     )
     hints.append(
-        "Si se listan servicios complementarios, deben ir en segundo nivel visual y nunca opacar el servicio principal."
-    )
-    hints.append(
-        "Salida obligatoria: devolver una sola instruccion final lista para pegar en ChatGPT y generar la imagen de inmediato."
-    )
-    hints.append(
-        "La generacion debe producir exactamente una sola imagen final. Prohibido devolver variantes, comparativas, opciones A/B o preguntas de seleccion."
-    )
-    hints.append(
         "La respuesta debe empezar como una orden directa y operativa para generar imagen, no como una sugerencia."
-    )
-    hints.append(
-        "Prohibido empezar con frases como 'Imagina', 'Visualiza', 'Una imagen de', 'La imagen debe', 'Aqui tienes', 'Te sugiero' o cualquier explicacion."
     )
     hints.append(
         "No responder como asesor de prompts. No dar sugerencias. No explicar. No listar opciones. Solo entregar la instruccion final de generacion."
     )
-    hints.append(
-        "Cada respuesta debe variar el contexto visual principal para evitar escenas repetidas. Alternar entre reunion comercial, demo de producto, uso real del software, automatizacion en operacion, equipo con cliente, transformacion de sistema legacy, entorno movil Android o entorno desktop, segun el servicio principal."
-    )
-    hints.append(
-        "No repetir siempre la misma composicion de oficina con mesa y dashboard. Cambiar encuadre, tipo de escena, foco visual y ambiente segun el objetivo comercial."
-    )
-
-    if primary_service == "desarrollo a la medida":
-        hints.append(
-            "Servicio clave: desarrollo a la medida. "
-            "Mostrar una solucion de software creada especificamente para una empresa: "
-            "equipo de trabajo profesional, reunion de descubrimiento o entrega de producto, "
-            "interfaces UI/UX limpias en laptops o pantallas reales, dashboards elegantes, "
-            "colaboracion entre negocio y tecnologia, sensacion de software personalizado, escalable y de alto valor."
-        )
-        hints.append(
-            "Composicion recomendada: escena corporativa moderna, personas reales o semi-realistas, "
-            "producto digital visible, ambiente premium, iluminacion cinematica suave, profundidad de campo, "
-            "4K, con texto publicitario integrado de forma elegante en el arte."
-        )
-        hints.append(
-            "Evitar monitores desproporcionados, hologramas exagerados, interfaces imposibles o recursos visuales caricaturescos. "
-            "Preferir escenas creibles de venta consultiva, demostracion de producto y confianza empresarial."
-        )
-        hints.append(
-            "El texto recomendado dentro del arte debe resaltar ideas como: desarrollo a la medida, software personalizado, escalable, soporte experto, contactanos por WhatsApp, visita noyecode.com."
-        )
-        hints.append(
-            "Para esta escena, usar una composicion mas editorial y premium: menos personas si hace falta, un foco principal claro, mejor aire visual y texto mejor distribuido en zona segura."
-        )
-
-    if primary_service == "automatizaciones empresariales":
-        hints.append(
-            "Si la pieza es sobre automatizaciones, reflejar eficiencia operativa, integraciones entre sistemas, "
-            "flujos conectados, paneles de control y ahorro de tiempo para empresas."
-        )
-        hints.append(
-            "Variar la escena entre procesos empresariales, equipos operando con menos friccion, tableros reales, integraciones activas y resultados visibles de ahorro de tiempo."
-        )
-
-    if primary_service == "desarrollo android":
-        hints.append(
-            "Si la pieza es sobre desarrollo Android, mostrar app movil profesional en uso real, "
-            "interfaz pulida, experiencia de usuario clara y contexto comercial."
-        )
-        hints.append(
-            "Evitar la oficina tradicional como unica escena. Priorizar manos usando el movil, pantallas reales de app y contexto de negocio o ventas."
-        )
-        hints.append(
-            "Cuidar que la interfaz del movil no quede demasiado pegada al borde ni recortada. Mantener el celular y el copy dentro de la zona segura central."
-        )
 
     if primary_service == "desarrollo desktop":
         hints.append(
-            "Si la pieza es sobre desarrollo desktop, mostrar una aplicacion empresarial robusta en escritorio, "
-            "paneles limpios, productividad, control operativo y entorno profesional."
+            "Si la pieza es sobre desarrollo desktop, mostrar una aplicacion empresarial robusta en escritorio, paneles limpios, productividad, control operativo y entorno profesional."
         )
+    elif primary_service == "desarrollo android":
         hints.append(
-            "Cambiar la escena hacia uso de software en operacion, control de procesos, estaciones de trabajo y valor empresarial medible."
+            "Si la pieza es sobre desarrollo Android, mostrar app movil profesional en uso real, interfaz pulida, experiencia de usuario clara y contexto comercial."
         )
-
-    if primary_service == "modernizacion de software legacy":
+    elif primary_service == "automatizaciones empresariales":
         hints.append(
-            "Si la pieza trata de modernizacion legacy, representar evolucion tecnologica: "
-            "antes y despues sutil, software antiguo transformandose en plataforma moderna, "
-            "sin verse caotico ni demasiado tecnico."
+            "Si la pieza es sobre automatizaciones, reflejar eficiencia operativa, integraciones entre sistemas, flujos conectados, paneles de control y ahorro de tiempo para empresas."
         )
+    elif primary_service == "modernizacion de software legacy":
         hints.append(
-            "Enfatizar migracion, actualizacion, continuidad operativa y modernizacion visual del sistema."
+            "Si la pieza trata de modernizacion legacy, representar evolucion tecnologica: software antiguo transformandose en plataforma moderna, sin verse caotico ni demasiado tecnico."
         )
+    elif primary_service == "rpas nativos":
         hints.append(
-            "Usar composicion comparativa o de transformacion, pero sin partir la imagen de forma brusca ni empujar el contenido importante a los extremos."
+            "Si la pieza es sobre RPAs nativos, mostrar automatizacion de tareas repetitivas en flujos empresariales reales. Evitar robots humanoides."
         )
-
-    if primary_service == "rpas nativos":
+    else:
         hints.append(
-            "Si la pieza es sobre RPAs nativos, mostrar automatizacion de tareas repetitivas en flujos empresariales reales, con tableros claros, procesos conectados y sensacion de eficiencia operativa."
-        )
-        hints.append(
-            "Evitar robots humanoides. Representar el RPA como inteligencia operativa aplicada al negocio."
+            "Si la pieza es sobre desarrollo a la medida, mostrar una solucion creada especificamente para una empresa, con sensacion de software personalizado, escalable y de alto valor."
         )
 
     return f"{base}\n\nDirectrices internas para enriquecer la escena:\n- " + "\n- ".join(hints)
@@ -326,8 +223,8 @@ def generate_prompt(
     idea = idea.strip()
     if not idea:
         raise ValueError("La idea base no puede estar vacia")
-    enriched_idea = enrich_idea(idea)
 
+    enriched_idea = enrich_idea(idea)
     payload = json.dumps({"text": enriched_idea}, ensure_ascii=False).encode("utf-8")
     req = Request(
         webhook_url,
@@ -378,11 +275,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Genera un prompt usando n8n y opcionalmente lo guarda en utils/prontm.txt",
     )
-    parser.add_argument(
-        "idea",
-        nargs="?",
-        help="Idea base para que la IA la convierta en prompt completo",
-    )
+    parser.add_argument("idea", nargs="?", help="Idea base para que la IA la convierta en prompt completo")
     parser.add_argument(
         "--idea-file",
         default=str(DEFAULT_IDEA_FILE),
@@ -423,6 +316,7 @@ def main() -> int:
             idea = Path(args.idea_file).read_text(encoding="utf-8").strip()
         else:
             idea = ""
+
         if not idea:
             raise ValueError("Debes enviar una idea o usar --idea-file")
 

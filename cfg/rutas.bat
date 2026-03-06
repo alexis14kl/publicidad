@@ -42,7 +42,6 @@ set "POLLER_HIDDEN_VBS=%ROOT_DIR%\iniciar_poller_oculto.vbs"
 set "POLLER_HIDDEN_PS1=%ROOT_DIR%\iniciar_poller_oculto.ps1"
 set "INSTALL_POLLER_STARTUP_BAT=%ROOT_DIR%\instalar_inicio_poller_sesion.bat"
 set "UNINSTALL_POLLER_STARTUP_BAT=%ROOT_DIR%\desinstalar_inicio_poller_sesion.bat"
-
 set "RUN_WITH_PROGRESS_PY=%UTILS_DIR%\run_with_progress.py"
 
 rem --- Logger ---
