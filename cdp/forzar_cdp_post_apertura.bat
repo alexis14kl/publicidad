@@ -2,14 +2,10 @@
 setlocal EnableExtensions
 title Forzar CDP Perfil (Post Apertura)
 
-set "FORCE_CDP_PS1=%~dp0forzar_cdp_perfil_dicloak.ps1"
-if not exist "%FORCE_CDP_PS1%" set "FORCE_CDP_PS1=%~dp0..\forzar_cdp_perfil_dicloak.ps1"
-if not exist "%FORCE_CDP_PS1%" set "FORCE_CDP_PS1=C:\Users\NyGsoft\Desktop\publicidad\forzar_cdp_perfil_dicloak.ps1"
-if not exist "%FORCE_CDP_PS1%" set "FORCE_CDP_PS1=C:\Users\NyGsoft\Desktop\publicidad\publicidad\forzar_cdp_perfil_dicloak.ps1"
+rem --- Cargar rutas centralizadas ---
+call "%~dp0..\cfg\rutas.bat"
 
-set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 set "CDP_INFO_JSON=%APPDATA%\DICloak\cdp_debug_info.json"
-set "PROMPT_AUTOMATION_PY=%~dp0page_pronmt.py"
 
 set "HAS_DEBUG_PORT=0"
 set "CHECK_DEBUG_CMD=$path='%CDP_INFO_JSON%'; $ok=$false; try { if(Test-Path $path){ $j=Get-Content $path -Raw | ConvertFrom-Json; foreach($p in $j.PSObject.Properties){ if($p.Value.debugPort){ $ok=$true; break } } } } catch {}; if($ok){exit 0}else{exit 1}"

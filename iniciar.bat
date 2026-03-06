@@ -2,22 +2,14 @@
 setlocal EnableExtensions
 title DICloak + Auto abrir perfil ChatGPT
 
-set "DICLOAK_EXE=C:\Program Files\DICloak\DICloak.exe"
+rem --- Cargar rutas centralizadas ---
+call "%~dp0cfg\rutas.bat"
+
 set "PROFILE_NAME=#1 Chat Gpt PRO"
 set "PROFILE_DEBUG_PORT_HINT="
 set "RUN_MODE="
 set "OPENAPI_PORT_HINT="
 set "OPENAPI_SECRET_HINT="
-set "SCRIPT_PATH=%~dp0abrir_perfil_dicloak.js"
-set "FORCE_OPEN_JS=%~dp0force_open_profile_cdp.js"
-set "KILLER_PS1=%~dp0cerrar_dicloak_avanzado.ps1"
-set "GET_DEBUG_PORT_PS1=%~dp0obtener_puerto_perfil_cdp.ps1"
-set "FORCE_CDP_PS1=%~dp0forzar_cdp_perfil_dicloak.ps1"
-set "FORCE_CDP_LAUNCHER_BAT=%~dp0forzar_cdp_post_apertura.bat"
-if not exist "%FORCE_CDP_PS1%" set "FORCE_CDP_PS1=%~dp0..\forzar_cdp_perfil_dicloak.ps1"
-if not exist "%FORCE_CDP_PS1%" set "FORCE_CDP_PS1=C:\Users\NyGsoft\Desktop\publicidad\forzar_cdp_perfil_dicloak.ps1"
-if not exist "%FORCE_CDP_PS1%" set "FORCE_CDP_PS1=C:\Users\NyGsoft\Desktop\publicidad\publicidad\forzar_cdp_perfil_dicloak.ps1"
-set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 set "CDP_URL=http://127.0.0.1:9333"
 set "FORCE_LAUNCH_STARTED=0"
 if not "%~1"=="" set "PROFILE_NAME=%~1"
@@ -145,7 +137,7 @@ if not errorlevel 1 (
   if "%PROFILE_MAYBE_OPEN%"=="0" (
     echo.
     echo [ERROR] No se pudo abrir el perfil automaticamente.
-    echo Revisa los PNG de debug creados en: %~dp0
+    echo Revisa los PNG de debug creados en: %DEBUG_DIR%
     goto :FAIL_OPEN_PROFILE
   )
 )

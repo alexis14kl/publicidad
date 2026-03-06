@@ -9,10 +9,11 @@ from urllib.request import urlopen
 
 
 BASE_DIR = Path(__file__).resolve().parent
-PROMPT_FILE = BASE_DIR / "prontm.txt"
+PROJECT_ROOT = BASE_DIR.parent
+PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 CDP_DEBUG_INFO = Path(os.getenv("APPDATA", "")) / "DICloak" / "cdp_debug_info.json"
 DEFAULT_PORT = 9225
-PROMPT_LOCK_FILE = BASE_DIR / ".prompt_last_send.json"
+PROMPT_LOCK_FILE = PROJECT_ROOT / ".prompt_last_send.json"
 PROMPT_DEDUP_WINDOW_SEC = 90
 
 

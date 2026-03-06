@@ -24,6 +24,7 @@ const DICLOAK_LOCAL_STORAGE_LEVELDB = path.join(
   'leveldb',
 );
 
+const DEBUG_DIR = path.join(__dirname, '..', 'debug');
 const WAIT_CDP_MS = 120000;
 const WAIT_UI_MS = 120000;
 const WAIT_OPEN_MS = 150000;
@@ -1389,7 +1390,7 @@ async function reselectForVisualConfirmation(page, profileName) {
 
 async function saveDebugScreenshot(page, name) {
   try {
-    const p = path.join(process.cwd(), name);
+    const p = path.join(DEBUG_DIR, name);
     await page.screenshot({ path: p, fullPage: true });
     console.log(`[DEBUG] Screenshot: ${p}`);
   } catch (_) {

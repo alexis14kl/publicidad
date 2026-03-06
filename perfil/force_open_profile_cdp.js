@@ -4,6 +4,7 @@ const path = require('path');
 
 const PROFILE_NAME = process.argv[2] || '#1 Chat Gpt PRO';
 const CDP_URL = process.argv[3] || 'http://127.0.0.1:9333';
+const DEBUG_DIR = path.join(__dirname, '..', 'debug');
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -70,7 +71,7 @@ async function main() {
     }, PROFILE_NAME);
 
     if (!found) {
-      await page.screenshot({ path: path.join(process.cwd(), 'force_open_not_found.png'), fullPage: true });
+      await page.screenshot({ path: path.join(DEBUG_DIR, 'force_open_not_found.png'), fullPage: true });
       throw new Error('No se encontro la fila del perfil');
     }
 
@@ -119,7 +120,7 @@ async function main() {
     }
 
     if (!opened) {
-      await page.screenshot({ path: path.join(process.cwd(), 'force_open_no_toolbar_button.png'), fullPage: true });
+      await page.screenshot({ path: path.join(DEBUG_DIR, 'force_open_no_toolbar_button.png'), fullPage: true });
       throw new Error('No se encontro boton Abrir (toolbar ni fila)');
     }
 
