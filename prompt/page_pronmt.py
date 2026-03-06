@@ -126,15 +126,40 @@ const { chromium } = require('playwright');
 
     await page.bringToFront();
     await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1000);
 
     const selectors = [
-      '#prompt-textarea',
       'div#prompt-textarea[contenteditable="true"]',
+      '#prompt-textarea[contenteditable="true"]',
+      '#prompt-textarea',
       'textarea[placeholder*="Pregunta"]',
       'textarea[placeholder*="Message"]',
       'textarea[data-testid="prompt-textarea"]'
     ];
+
+    const normalizeText = (value) =>
+      String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const waitForComposerReady = async (timeoutMs = 30000) => {
+      await page.waitForFunction(() => {
+        const editor = document.querySelector('div#prompt-textarea[contenteditable="true"], #prompt-textarea[contenteditable="true"]');
+        const form = document.querySelector('form[data-type="unified-composer"], form.group\\/composer');
+        if (!editor || !form) return false;
+        const editorRect = editor.getBoundingClientRect();
+        const style = window.getComputedStyle(editor);
+        return (
+          editorRect.width > 50 &&
+          editorRect.height > 20 &&
+          style.display !== 'none' &&
+          style.visibility !== 'hidden'
+        );
+      }, { timeout: timeoutMs });
+    };
 
     const findVisiblePromptInput = async (timeoutMs = 15000) => {
       const deadline = Date.now() + timeoutMs;
@@ -155,34 +180,149 @@ const { chromium } = require('playwright');
       return null;
     };
 
+    await waitForComposerReady();
     const target = await findVisiblePromptInput();
     if (!target) throw new Error('No se encontro input visible de prompt');
 
-    await target.click({ timeout: 5000 });
-    await page.keyboard.press('Control+A');
-    await page.keyboard.press('Backspace');
-    await page.keyboard.insertText(prompt);
-    await page.waitForTimeout(250);
+    const getPromptSurfaceText = async () => {
+      const handle = await target.elementHandle();
+      if (!handle) return '';
+      return await page.evaluate((el) => {
+        if (!el) return '';
+        if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
+          return el.value || '';
+        }
+        return el.innerText || el.textContent || '';
+      }, handle);
+    };
 
-    const sendBtn = page.locator('button[data-testid="send-button"]').first();
-    if (
-      await sendBtn.count() &&
-      await sendBtn.isVisible().catch(() => false) &&
-      await sendBtn.isEnabled().catch(() => false)
-    ) {
-      await sendBtn.click({ timeout: 5000 });
-    } else {
-      await page.keyboard.press('Enter');
+    const focusPromptSurface = async () => {
+      const handle = await target.elementHandle();
+      if (!handle) throw new Error('No se pudo resolver el editor de prompt');
+      await page.evaluate((el) => {
+        el.focus();
+        if (!(el instanceof HTMLTextAreaElement) && !(el instanceof HTMLInputElement)) {
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          range.collapse(false);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }, handle);
+    };
+
+    const clearPromptSurface = async () => {
+      const handle = await target.elementHandle();
+      if (!handle) throw new Error('No se pudo resolver el editor de prompt');
+
+      await page.evaluate((el) => {
+        el.focus();
+        if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
+          el.value = '';
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          return;
+        }
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }, handle);
+      await page.keyboard.press('Backspace');
+    };
+
+    const waitForPromptRegistered = async (expectedPrompt, timeoutMs = 20000) => {
+      const expectedSample = normalizeText(expectedPrompt).slice(0, 120);
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const currentText = normalizeText(await getPromptSurfaceText());
+        if (currentText && currentText.includes(expectedSample)) {
+          return true;
+        }
+        await page.waitForTimeout(200);
+      }
+      return false;
+    };
+
+    const waitForSendButtonReady = async (timeoutMs = 12000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const btn = page.locator('button[data-testid="send-button"]').first();
+        const visible = await btn.isVisible().catch(() => false);
+        const enabled = await btn.isEnabled().catch(() => false);
+        if (visible && enabled) {
+          return btn;
+        }
+        await page.waitForTimeout(200);
+      }
+      return null;
+    };
+
+    const waitForSubmissionStart = async (timeoutMs = 8000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const currentText = normalizeText(await getPromptSurfaceText());
+        if (!currentText) {
+          return true;
+        }
+        const stopSignals = [
+          page.getByRole('button', { name: /detener|stop/i }),
+          page.locator('button[data-testid="stop-button"]').first(),
+        ];
+        for (const signal of stopSignals) {
+          if (await signal.first().isVisible().catch(() => false)) {
+            return true;
+          }
+        }
+        await page.waitForTimeout(250);
+      }
+      return false;
+    };
+
+    const injectPrompt = async () => {
+      await focusPromptSurface();
+      await clearPromptSurface();
+      await focusPromptSurface();
+      await page.keyboard.insertText(prompt);
+    };
+
+    await injectPrompt();
+
+    let promptRegistered = await waitForPromptRegistered(prompt);
+    if (!promptRegistered) {
+      await page.waitForTimeout(1500);
+      await injectPrompt();
+      promptRegistered = await waitForPromptRegistered(prompt, 25000);
+    }
+    if (!promptRegistered) {
+      throw new Error('ChatGPT no registro el prompt en el editor visible');
     }
 
-    const normalizeText = (value) =>
-      String(value || '')
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9\s]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+    const sendBtn = await waitForSendButtonReady();
+    let submitted = false;
+    if (sendBtn) {
+      await sendBtn.scrollIntoViewIfNeeded().catch(() => {});
+      try {
+        await sendBtn.click({ timeout: 5000 });
+      } catch {
+        const handle = await sendBtn.elementHandle();
+        if (handle) {
+          await page.evaluate((el) => el.click(), handle);
+        }
+      }
+      submitted = await waitForSubmissionStart();
+    }
+
+    if (!submitted) {
+      await focusPromptSurface().catch(() => {});
+      await page.keyboard.press('Enter');
+      submitted = await waitForSubmissionStart();
+    }
+
+    if (!submitted) {
+      throw new Error('No se confirmo el envio del prompt');
+    }
 
     const noImageTokenPhrases = [
       'has alcanzado tu limite de creacion de imagenes',
