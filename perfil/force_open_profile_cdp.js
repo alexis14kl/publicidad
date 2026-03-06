@@ -6,6 +6,30 @@ const PROFILE_NAME = process.argv[2] || '#1 Chat Gpt PRO';
 const CDP_URL = process.argv[3] || 'http://127.0.0.1:9333';
 const DEBUG_DIR = path.join(__dirname, '..', 'debug');
 
+function resolveCdpDebugInfoPath() {
+  const explicit = process.env.DICLOAK_CDP_INFO_PATH;
+  if (explicit && fs.existsSync(explicit)) return explicit;
+
+  const candidates = [];
+  if (process.env.APPDATA) {
+    candidates.push(path.join(process.env.APPDATA, 'DICloak', 'cdp_debug_info.json'));
+  }
+
+  const home = process.env.HOME || '';
+  if (home) {
+    candidates.push(path.join(home, 'Library', 'Application Support', 'DICloak', 'cdp_debug_info.json'));
+    candidates.push(path.join(home, 'Library', 'Application Support', 'dicloak', 'cdp_debug_info.json'));
+    candidates.push(path.join(home, '.config', 'DICloak', 'cdp_debug_info.json'));
+  }
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+
+  // Fallback para mantener compatibilidad con behavior anterior.
+  return path.join(process.env.APPDATA || '', 'DICloak', 'cdp_debug_info.json');
+}
+
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -126,9 +150,10 @@ async function main() {
 
     await sleep(6000);
 
-    const cdpPath = path.join(process.env.APPDATA || '', 'DICloak', 'cdp_debug_info.json');
+    const cdpPath = resolveCdpDebugInfoPath();
     const raw = fs.existsSync(cdpPath) ? fs.readFileSync(cdpPath, 'utf8') : '';
     console.log(`[OK] click Abrir perfil ejecutado`);
+    console.log(`[INFO] cdp_debug_info path: ${cdpPath}`);
     console.log(`[INFO] cdp_debug_info.json: ${raw || '(vacio)'}`);
   } finally {
     await browser.close();

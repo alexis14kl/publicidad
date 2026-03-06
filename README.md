@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Bot Publicitario NoyeCode
 
 Bot end-to-end que automatiza la generacion y publicacion de piezas publicitarias para **NoyeCode** en Facebook/Instagram.
@@ -276,3 +277,37 @@ Nota:
 - **Contacto:** +57 301 385 9952
 - **Web:** noyecode.com
 - **Formato de salida:** Vertical 4:5, estilo premium 4K, optimizado para Facebook e Instagram
+=======
+# publicidad
+Automatizacion de apertura de perfil DiCloak por CDP.
+
+## macOS
+
+1. Preparar entorno:
+```bash
+cd /Users/ipadmini/Desktop/AgenteMarketing/publicidad
+./setup_mac.sh
+```
+
+2. Detectar puerto CDP real del perfil (opcional):
+```bash
+./detectar_cdp_mac.sh
+```
+
+3. Abrir perfil por CDP:
+```bash
+./abrir_dicloak_y_chatgpt_mac.sh "#1 Chat Gpt PRO" "http://127.0.0.1:9333"
+```
+
+Si tienes ruta personalizada del JSON de DiCloak:
+```bash
+export DICLOAK_CDP_INFO_PATH="/ruta/a/cdp_debug_info.json"
+```
+
+## Windows
+
+Se mantienen los scripts originales:
+- `abrir_dicloak_y_chatgpt.bat`
+- `forzar_cdp_perfil_dicloak.ps1`
+- `obtener_puerto_perfil_cdp.ps1`
+>>>>>>> 78b8225 (agentes)
