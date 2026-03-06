@@ -13,7 +13,13 @@ set "FORCE_OPEN_JS=%~dp0force_open_profile_cdp.js"
 set "KILLER_PS1=%~dp0cerrar_dicloak_avanzado.ps1"
 set "GET_DEBUG_PORT_PS1=%~dp0obtener_puerto_perfil_cdp.ps1"
 set "FORCE_CDP_PS1=%~dp0forzar_cdp_perfil_dicloak.ps1"
+set "FORCE_CDP_LAUNCHER_BAT=%~dp0forzar_cdp_post_apertura.bat"
+if not exist "%FORCE_CDP_PS1%" set "FORCE_CDP_PS1=%~dp0..\forzar_cdp_perfil_dicloak.ps1"
+if not exist "%FORCE_CDP_PS1%" set "FORCE_CDP_PS1=C:\Users\NyGsoft\Desktop\publicidad\forzar_cdp_perfil_dicloak.ps1"
+if not exist "%FORCE_CDP_PS1%" set "FORCE_CDP_PS1=C:\Users\NyGsoft\Desktop\publicidad\publicidad\forzar_cdp_perfil_dicloak.ps1"
+set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 set "CDP_URL=http://127.0.0.1:9333"
+set "FORCE_LAUNCH_STARTED=0"
 if not "%~1"=="" set "PROFILE_NAME=%~1"
 if not "%~2"=="" set "PROFILE_DEBUG_PORT_HINT=%~2"
 if not "%~3"=="" set "RUN_MODE=%~3"
@@ -105,17 +111,38 @@ if errorlevel 1 (
 )
 
 echo [6/9] Abriendo perfil: %PROFILE_NAME%
+if exist "%FORCE_CDP_LAUNCHER_BAT%" (
+  echo [INFO] Lanzando reforce CDP en paralelo: "%FORCE_CDP_LAUNCHER_BAT%"
+  start "Forzar CDP Perfil (10s + reforce)" "%FORCE_CDP_LAUNCHER_BAT%"
+  set "FORCE_LAUNCH_STARTED=1"
+) else (
+  echo [WARN] No existe launcher CDP: "%FORCE_CDP_LAUNCHER_BAT%"
+)
+set "PROFILE_MAYBE_OPEN=0"
 node "%SCRIPT_PATH%" "%PROFILE_NAME%" "%CDP_URL%" "%PROFILE_DEBUG_PORT_HINT%" "%OPENAPI_PORT_HINT%" "%RUN_MODE%" "%OPENAPI_SECRET_HINT%"
 if not errorlevel 1 (
+  set "PROFILE_MAYBE_OPEN=1"
   rem OK flujo principal
 ) else (
   echo [WARN] Flujo principal fallo. Intentando apertura forzada por CDP...
   if not exist "%FORCE_OPEN_JS%" (
-    echo [ERROR] No existe fallback CDP: "%FORCE_OPEN_JS%"
-    goto :FAIL_OPEN_PROFILE
+    echo [WARN] No existe fallback CDP: "%FORCE_OPEN_JS%"
+  ) else (
+    node "%FORCE_OPEN_JS%" "%PROFILE_NAME%" "%CDP_URL%"
+    if not errorlevel 1 (
+      set "PROFILE_MAYBE_OPEN=1"
+    )
   )
-  node "%FORCE_OPEN_JS%" "%PROFILE_NAME%" "%CDP_URL%"
-  if errorlevel 1 (
+
+  if "%PROFILE_MAYBE_OPEN%"=="0" (
+    tasklist | findstr /i "ginsbrowser.exe" >nul
+    if not errorlevel 1 (
+      echo [INFO] Se detecto ginsbrowser activo; se continua con forzado CDP.
+      set "PROFILE_MAYBE_OPEN=1"
+    )
+  )
+
+  if "%PROFILE_MAYBE_OPEN%"=="0" (
     echo.
     echo [ERROR] No se pudo abrir el perfil automaticamente.
     echo Revisa los PNG de debug creados en: %~dp0
@@ -124,14 +151,43 @@ if not errorlevel 1 (
 )
 
 if exist "%FORCE_CDP_PS1%" (
-  echo [7/9] Forzando CDP real de perfil y actualizando cdp_debug_info.json...
-  set "FORCE_CDP_OUT=%TEMP%\\dicloak_force_cdp_%RANDOM%.log"
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%FORCE_CDP_PS1%" -PreferredPort 9225 -TimeoutSec 90 -OpenDebugWindow > "%FORCE_CDP_OUT%" 2>&1
-  set "FORCE_CDP_RC=%ERRORLEVEL%"
-  for /f "usebackq delims=" %%L in ("%FORCE_CDP_OUT%") do echo [DEBUG] %%L
-  del /q "%FORCE_CDP_OUT%" >nul 2>nul
-  if not "%FORCE_CDP_RC%"=="0" (
-    echo [WARN] No se pudo forzar CDP real automaticamente (RC=%FORCE_CDP_RC%).
+  echo [7/9] Ejecutando automatizacion clave de depuracion de perfil...
+  echo [INFO] FORCE_CDP_PS1 = "%FORCE_CDP_PS1%"
+  if "%FORCE_LAUNCH_STARTED%"=="0" (
+    if exist "%FORCE_CDP_LAUNCHER_BAT%" (
+      echo [INFO] Abriendo segunda consola con launcher: "%FORCE_CDP_LAUNCHER_BAT%"
+      start "Forzar CDP Perfil (10s + reforce)" "%FORCE_CDP_LAUNCHER_BAT%"
+      set "FORCE_LAUNCH_STARTED=1"
+    ) else (
+      echo [WARN] No existe launcher bat. Fallback a PowerShell directo...
+      echo [INFO] "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%FORCE_CDP_PS1%" -PreferredPort 9225 -TimeoutSec 30 -OpenDebugWindow
+      start "Forzar CDP Perfil" "%PS_EXE%" -NoExit -NoProfile -ExecutionPolicy Bypass -File "%FORCE_CDP_PS1%" -PreferredPort 9225 -TimeoutSec 30 -OpenDebugWindow
+      set "FORCE_LAUNCH_STARTED=1"
+    )
+  ) else (
+    echo [INFO] Launcher CDP ya estaba iniciado; no se relanza.
+  )
+  echo [INFO] Esperando hasta 45s a que aparezca debugPort en cdp_debug_info.json...
+  "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$path=Join-Path $env:APPDATA 'DICloak\cdp_debug_info.json';" ^
+    "$ok=$false;" ^
+    "1..45 | ForEach-Object {" ^
+    "  try {" ^
+    "    if(Test-Path $path){" ^
+    "      $j=Get-Content $path -Raw | ConvertFrom-Json;" ^
+    "      foreach($p in $j.PSObject.Properties){" ^
+    "        if($p.Value.debugPort){ $ok=$true; break }" ^
+    "      }" ^
+    "    }" ^
+    "  } catch {}" ^
+    "  if($ok){ break }" ^
+    "  Start-Sleep -Seconds 1" ^
+    "};" ^
+    "if($ok){exit 0}else{exit 1}"
+  if errorlevel 1 (
+    echo [WARN] No se detecto debugPort dentro de la espera.
+  ) else (
+    echo [OK] debugPort detectado en cdp_debug_info.json.
   )
 ) else (
   echo [WARN] No existe "%FORCE_CDP_PS1%". Omitiendo forzado CDP real.
