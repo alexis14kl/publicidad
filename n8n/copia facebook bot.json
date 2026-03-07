@@ -1,0 +1,693 @@
+{
+  "name": "copia facebook bot",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cab2af20-1763-4b80-a242-28b0607bf001",
+      "name": "Trigger 7AM - Noticias Dev",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        64,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 12 * * *"
+            }
+          ]
+        }
+      },
+      "id": "9779972c-35bd-4383-ab6a-203a532809ad",
+      "name": "Trigger 12PM - Presentacion",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        64,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 16 * * *"
+            }
+          ]
+        }
+      },
+      "id": "2aede1a7-b31b-4eb0-ac48-aeed142d2216",
+      "name": "Trigger 4PM - Servicios",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        64,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "draft-noticias",
+              "name": "draftText",
+              "value": "Publicacion automatica de Noyecode - Noticias de Desarrollo de Software.\n\nGenera una publicacion informativa y educativa sobre las ultimas tendencias y noticias del mundo del desarrollo de software y tecnologia. Incluye temas como: nuevos frameworks, actualizaciones de lenguajes de programacion, avances en inteligencia artificial, herramientas de desarrollo, metodologias agiles, DevOps, cloud computing, o ciberseguridad.\n\nEl tono debe ser educativo e informativo, posicionando a Noyecode como referente tecnologico que mantiene a su comunidad actualizada con lo ultimo en tecnologia. Incluye un dato interesante o tendencia relevante del momento.\n\nCierra con un llamado a la accion invitando a seguir a Noyecode para mantenerse al dia con la tecnologia. #Noyecode #DesarrolloDeSoftware #Tecnologia",
+              "type": "string"
+            },
+            {
+              "id": "cat-name-noticias",
+              "name": "categoryName",
+              "value": "Noticias de Desarrollo",
+              "type": "string"
+            },
+            {
+              "id": "cat-emoji-noticias",
+              "name": "categoryEmoji",
+              "value": "📰",
+              "type": "string"
+            },
+            {
+              "id": "cat-desc-noticias",
+              "name": "categoryDescription",
+              "value": "Noticias y tendencias actuales del mundo del desarrollo de software, tecnologia, inteligencia artificial, frameworks, lenguajes de programacion y herramientas para desarrolladores",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a24f24ad-b0c3-43ec-86da-e2dda65781e1",
+      "name": "Borrador - Noticias Dev",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        304,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "draft-presentacion",
+              "name": "draftText",
+              "value": "Publicacion automatica de Noyecode - Presentacion de la Empresa.\n\nGenera una publicacion de presentacion de Noyecode, una empresa colombiana especializada en soluciones tecnologicas integrales. Noyecode transforma negocios a traves de la tecnologia: automatizacion de procesos con herramientas no-code y low-code, desarrollo de software personalizado, creacion de agentes de inteligencia artificial con n8n, consultoria TI y el programa SGSST.\n\nDestaca la experiencia del equipo, el compromiso con la innovacion, y como Noyecode acompaña a empresas de todos los tamanos en su transformacion digital. Transmite confianza, profesionalismo y cercanía.\n\nCierra con un llamado a la accion para contactar a Noyecode y conocer como pueden ayudar a tu empresa. #Noyecode #TransformacionDigital #Tecnologia",
+              "type": "string"
+            },
+            {
+              "id": "cat-name-presentacion",
+              "name": "categoryName",
+              "value": "Presentacion Noyecode",
+              "type": "string"
+            },
+            {
+              "id": "cat-emoji-presentacion",
+              "name": "categoryEmoji",
+              "value": "🏢",
+              "type": "string"
+            },
+            {
+              "id": "cat-desc-presentacion",
+              "name": "categoryDescription",
+              "value": "Presentacion de la empresa Noyecode, empresa colombiana de soluciones tecnologicas, transformacion digital, innovacion y tecnologia al servicio de los negocios",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ca8fcbcb-17bc-4d31-a229-62740a0e11d6",
+      "name": "Borrador - Presentacion",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        304,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "draft-servicios",
+              "name": "draftText",
+              "value": "=Publicacion automatica de Noyecode - Servicios de la Empresa.\n\nGenera una publicacion destacando los servicios que ofrece Noyecode:\n\n1. Consultoria TI: Asesoramos a tu empresa para optimizar su infraestructura tecnologica, seguridad informatica y procesos IT.\n\n2. Desarrollo de Software: Creamos aplicaciones web y moviles a medida que resuelven las necesidades unicas de tu negocio.\n\n3. Creacion de Agentes AI con n8n: Diseñamos e implementamos agentes de inteligencia artificial usando n8n para automatizar flujos de trabajo complejos de manera inteligente.\n\n4. Programa SGSST: Implementamos el Sistema de Gestion de Seguridad y Salud en el Trabajo, ayudando a tu empresa a cumplir con la normatividad vigente colombiana.\n\nPosiciona a Noyecode como el aliado tecnologico integral que toda empresa necesita. Cierra con un llamado a la accion para solicitar una consulta. #Noyecode #ServiciosTI #DesarrolloDeSoftware",
+              "type": "string"
+            },
+            {
+              "id": "cat-name-servicios",
+              "name": "categoryName",
+              "value": "Servicios Noyecode",
+              "type": "string"
+            },
+            {
+              "id": "cat-emoji-servicios",
+              "name": "categoryEmoji",
+              "value": "💼",
+              "type": "string"
+            },
+            {
+              "id": "cat-desc-servicios",
+              "name": "categoryDescription",
+              "value": "Servicios de Noyecode: consultoria TI, desarrollo de software a medida, creacion de agentes de inteligencia artificial con n8n, y programa SGSST (Sistema de Gestion de Seguridad y Salud en el Trabajo)",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f82b4dc0-0d81-4988-a368-f4e599c225a3",
+      "name": "Borrador - Servicios",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        304,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "pass-draft",
+              "name": "draftText",
+              "value": "={{ $json.draftText }}",
+              "type": "string"
+            },
+            {
+              "id": "pass-cat-name",
+              "name": "categoryName",
+              "value": "={{ $json.categoryName }}",
+              "type": "string"
+            },
+            {
+              "id": "pass-cat-emoji",
+              "name": "categoryEmoji",
+              "value": "={{ $json.categoryEmoji }}",
+              "type": "string"
+            },
+            {
+              "id": "pass-cat-desc",
+              "name": "categoryDescription",
+              "value": "={{ $json.categoryDescription }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a3689981-457a-4f78-9845-58733d7e7057",
+      "name": "Preparar Borrador",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        576,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres el director de marketing de Noyecode. Tu trabajo es tomar este borrador de publicacion para Facebook y optimizarlo para maximizar el engagement y las conversiones.\n\nBORRADOR:\n{{ $json.draftText }}\n\nCATEGORIA: {{ $json.categoryName }} {{ $json.categoryEmoji }}\n\nINSTRUCCIONES:\n1. Mejora el gancho inicial para captar atencion en los primeros 2 segundos\n2. Asegura que el llamado a la accion sea claro y persuasivo\n3. Optimiza los hashtags para maximo alcance (incluye siempre #Noyecode)\n4. Manten el tono profesional pero cercano de Noyecode\n5. Asegura que mencione Noyecode de forma natural\n6. Manten entre 150-300 palabras\n7. Usa maximo 3-4 emojis estrategicamente ubicados\n8. Haz que el contenido sea accionable y genere conversion\n9. no generes caracteres incesesarios como (*,+ ,=,/,)\n10. agrega la url de la pagina https://www.noyecode.com/#/ en cada publicación\n11. no agreges cosas que no tengan relacion con noyecode com webinars,suscripiones, recursos , tutotiales y comunidad\n12. agrega solo informacion de lo que ofrece noyecode\n\nResponde UNICAMENTE con el texto optimizado de la publicacion, sin explicaciones ni comentarios adicionales.",
+        "options": {}
+      },
+      "id": "edf38dcb-b1be-418c-9d9b-5d478a937787",
+      "name": "Agente IA Optimizador",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        832,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "optimized-text",
+              "name": "optimizedText",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "image-prompt",
+              "name": "imagePrompt",
+              "value": "=Crea una imagen publicitaria premium, moderna y de alta conversión para una empresa de desarrollo de software a medida llamada Noyecode.\n\n⚠ IMPORTANTE:\n\nNO debe parecer una diapositiva de PowerPoint.\n\nNO debe parecer una presentación corporativa.\n\nNO debe contener párrafos largos.\n\nNO debe sentirse como una plantilla genérica.\n\nDebe parecer un anuncio real pagado para redes sociales.\n\nDiseño enfocado en generación de leads empresariales.\n\nFormato:\nFacebook 1200x630\nAlta resolución\nLista para pauta publicitaria\n\n🎯 Objetivo\n\nGenerar leads de empresas que buscan:\n\nDesarrollo de software a medida\n\nTransformación digital\n\nAutomatización de procesos\n\nSoluciones tecnológicas empresariales\n\n🧠 Adaptación Visual Según Categoría\n\nLa imagen debe cambiar según la categoría:\n\n📰 Si la categoría es \"Noticias\"\n\nEnfoque visual:\n\nSensación de innovación y actualización tecnológica\n\nElementos visuales dinámicos (flujos digitales, data en movimiento, estructuras digitales en transición)\n\nSensación de avance y evolución\n\nHeadline:\nDebe comunicar novedad, actualización o avance tecnológico.\n\nEstilo:\nImpactante, dinámico, moderno.\n\n🏢 Si la categoría es \"Presentación\"\n\nEnfoque visual:\n\nImagen más institucional y sólida\n\nSensación de confianza, respaldo empresarial\n\nArquitectura digital estructurada y organizada\n\nEstética elegante y corporativa premium\n\nHeadline:\nEnfocado en posicionamiento, experiencia y autoridad.\n\nEstilo:\nSerio, profesional, sobrio.\n\n⚙️ Si la categoría es \"Servicios\"\n\nEnfoque visual:\n\nMostrar solución, transformación o eficiencia\n\nSensación de optimización y resultados\n\nElementos digitales conectados (ecosistema tecnológico integrado)\n\nEnfoque en beneficios tangibles\n\nHeadline:\nDebe comunicar beneficio claro y directo para empresas.\n\nEstilo:\nOrientado a conversión, enfocado en resultados.\n\n📌 Estructura del Contenido (Minimalista y Poderoso)\n\n1️⃣ Marca\nNoyecode\nDebe verse limpio, moderno y sutil (no dominante).\n\n2️⃣ Headline (máximo 6–8 palabras)\nBeneficio claro, directo y empresarial.\n\n3️⃣ Línea de soporte (1 sola frase corta)\nExplicación breve del valor ofrecido.\n\n4️⃣ Botón CTA visible y elegante\n“Agenda tu Consultoría Gratuita”\no\n“Transforma tu Empresa Hoy”\n\n5️⃣ Línea de contacto compacta\nwww.noyecode.com\n | WhatsApp +57 301 385 9952\nPequeña pero legible.\n\n🎨 Dirección de Diseño\n\nPaleta:\n\nGradiente premium azul marino oscuro a negro\n\nAcentos en azul eléctrico sutil\n\nGlow cálido ámbar estratégico alrededor del CTA\n\nEstética:\n\nEnterprise SaaS\n\nProfesional\n\nModerna\n\nDe alto valor\n\nComposición:\n\nJerarquía visual fuerte\n\nHeadline grande y dominante\n\nTexto mínimo\n\nEspaciado limpio\n\nUn solo CTA claro\n\nDiseño balanceado\n\nFondo:\n\nArquitectura digital abstracta estructurada (capas modulares o sistemas tecnológicos)\n\nDebe reforzar el mensaje\n\nNO cubos aleatorios\n\nNO formas flotantes genéricas\n\nNO wireframes simples\n\n🚫 Reglas de Estilo\n\nNo bloques largos de texto\n\nNo diseño tipo diapositiva\n\nNo saturación de texto\n\nNo botones con degradados baratos\n\nNo sección de contacto dominante\n\nNo estética de presentación corporativa tradicional",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "77b9b8ec-8487-4438-a142-5b529ff2d8ec",
+      "name": "Preparar Prompt Imagen",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1344,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/115406607722279/photos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.image.url }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $('Preparar Imagen abacus').item.json.postText }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2512,
+        -16
+      ],
+      "id": "68c1e790-5b25-405b-bba4-8fad0ae86c33",
+      "name": "Publicar en Facebook IA",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "bACRgILlcPROzumK",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "log-status",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "log-fb-id",
+              "name": "facebook_post_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "log-text",
+              "name": "published_text",
+              "value": "={{ $('Preparar Imagen abacus').item.json.postText }}",
+              "type": "string"
+            },
+            {
+              "id": "log-category",
+              "name": "category",
+              "value": "={{ $('Preparar Borrador').item.json.categoryName }}",
+              "type": "string"
+            },
+            {
+              "id": "log-timestamp",
+              "name": "published_at",
+              "value": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "80ffe43c-daee-40e9-8a12-da7c8a71e2f8",
+      "name": "Log Publicacion IA",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2688,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://routellm.abacus.ai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer s2_4665a345448e430bbf36c96990d36e78"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"model\": \"flux-2-pro\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": $json.imagePrompt\n    }\n  ],\n  \"modalities\": [\"image\"],\n  \"image_config\": {\n    \"num_images\": 1,\n    \"aspect_ratio\": \"16:9\"\n  }\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "de79f581-8bb5-4862-bcc3-e16a3d1ac778",
+      "name": "Abacus AI - Generar Imagen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1872,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://freeimage.host/api/1/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "6d207e02198a847aa98d0a2a901485a5"
+            },
+            {
+              "name": "source",
+              "value": "={{ $json.imageBase64 }}"
+            },
+            {
+              "name": "format",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "973fb9f2-f94b-4aa0-baa7-617ec3c430fa",
+      "name": "Subir Imagen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2336,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "model": "groq/compound-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        704,
+        192
+      ],
+      "id": "46860b05-e322-4ca7-b3e7-19e21fcf2b48",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "ujxI8q61jPeRlWaT",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "image-base64",
+              "name": "imageBase64",
+              "value": "={{ $json.choices[0].message.images[0].image_url.url.split(',')[1] }}",
+              "type": "string"
+            },
+            {
+              "id": "post-text",
+              "name": "postText",
+              "value": "={{ $('Preparar Prompt Imagen').item.json.optimizedText }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "82076424-70b4-45d1-a5cb-843a0ab6cc4c",
+      "name": "Preparar Imagen abacus",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2160,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1712,
+        -16
+      ],
+      "id": "effbb413-8655-4e21-a10b-b65efae83666",
+      "name": "Loop Over Items"
+    }
+  ],
+  "pinData": {
+    "Trigger 12PM - Presentacion": [
+      {
+        "json": {
+          "timestamp": "2026-02-17T12:00:00.051-05:00",
+          "Readable date": "February 17th 2026, 12:00:00 pm",
+          "Readable time": "12:00:00 pm",
+          "Day of week": "Tuesday",
+          "Year": "2026",
+          "Month": "February",
+          "Day of month": "17",
+          "Hour": "12",
+          "Minute": "00",
+          "Second": "00",
+          "Timezone": "America/Bogota (UTC-05:00)"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Trigger 7AM - Noticias Dev": {
+      "main": [
+        [
+          {
+            "node": "Borrador - Noticias Dev",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger 12PM - Presentacion": {
+      "main": [
+        [
+          {
+            "node": "Borrador - Presentacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger 4PM - Servicios": {
+      "main": [
+        [
+          {
+            "node": "Borrador - Servicios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Borrador - Noticias Dev": {
+      "main": [
+        [
+          {
+            "node": "Preparar Borrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Borrador - Presentacion": {
+      "main": [
+        [
+          {
+            "node": "Preparar Borrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Borrador - Servicios": {
+      "main": [
+        [
+          {
+            "node": "Preparar Borrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Borrador": {
+      "main": [
+        [
+          {
+            "node": "Agente IA Optimizador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente IA Optimizador": {
+      "main": [
+        [
+          {
+            "node": "Preparar Prompt Imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Prompt Imagen": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publicar en Facebook IA": {
+      "main": [
+        [
+          {
+            "node": "Log Publicacion IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abacus AI - Generar Imagen": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir Imagen": {
+      "main": [
+        [
+          {
+            "node": "Publicar en Facebook IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente IA Optimizador",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Imagen abacus": {
+      "main": [
+        [
+          {
+            "node": "Subir Imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Preparar Imagen abacus",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Abacus AI - Generar Imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "92f915e8-72b5-4edb-9d3d-c324618853eb",
+  "meta": {
+    "instanceId": "163ce87dbe572193199f89bc4dbb6a4fa759f447d0902c3911cb69aaab43f17a"
+  },
+  "id": "y7H_HwcSW24gQEuFopXW4",
+  "tags": []
+}
