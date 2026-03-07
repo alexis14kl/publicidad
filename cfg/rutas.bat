@@ -30,6 +30,9 @@ set "N8N_PROMPT_CLIENT_PY=%UTILS_DIR%\n8n_prompt_client.py"
 set "PUBLIC_IMG_PY=%ROOT_DIR%\n8n\public_img.py"
 set "N8N_POST_TEXT_CLIENT_PY=%UTILS_DIR%\n8n_post_text_client.py"
 
+rem --- Logger ---
+set "LOG=python %UTILS_DIR%\bat_logger.py"
+
 rem --- Datos ---
 set "PROMPT_FILE=%UTILS_DIR%\prontm.txt"
 set "PROMPT_SEED_FILE=%UTILS_DIR%\prompt_seed.txt"
