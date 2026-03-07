@@ -11,8 +11,7 @@ set "HAS_DEBUG_PORT=0"
 set "CHECK_DEBUG_CMD=$path='%CDP_INFO_JSON%'; $ok=$false; try { if(Test-Path $path){ $j=Get-Content $path -Raw | ConvertFrom-Json; foreach($p in $j.PSObject.Properties){ if($p.Value.debugPort){ $ok=$true; break } } } } catch {}; if($ok){exit 0}else{exit 1}"
 
 %LOG% info "Launcher post-apertura iniciado."
-%LOG% info "Esperando 10 segundos antes de forzar CDP del perfil..."
-timeout /t 10 /nobreak >nul
+python "%RUN_WITH_PROGRESS_PY%" "Esperando 10s antes de forzar CDP del perfil..." timeout /t 10 /nobreak
 
 if not exist "%FORCE_CDP_PS1%" (
   %LOG% error "No existe script: %FORCE_CDP_PS1%"
@@ -23,7 +22,7 @@ if not exist "%FORCE_CDP_PS1%" (
 
 %LOG% info "Ejecutando forzado CDP..."
 %LOG% debug "powershell -NoProfile -ExecutionPolicy Bypass -File %FORCE_CDP_PS1% -PreferredPort 9225 -TimeoutSec 30 -OpenDebugWindow"
-"%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%FORCE_CDP_PS1%" -PreferredPort 9225 -TimeoutSec 30 -OpenDebugWindow
+python "%RUN_WITH_PROGRESS_PY%" "Forzando CDP del perfil..." "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%FORCE_CDP_PS1%" -PreferredPort 9225 -TimeoutSec 30 -OpenDebugWindow
 
 if errorlevel 1 (
   %LOG% warn "El forzado CDP devolvio error."
@@ -39,9 +38,8 @@ if not errorlevel 1 (
 
 if "%HAS_DEBUG_PORT%"=="0" (
   %LOG% warn "No se detecto debugPort tras primer intento. Reforce en 10 segundos..."
-  timeout /t 10 /nobreak >nul
-  %LOG% info "Reforce CDP..."
-  "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%FORCE_CDP_PS1%" -PreferredPort 9225 -TimeoutSec 30 -OpenDebugWindow
+  python "%RUN_WITH_PROGRESS_PY%" "Esperando 10s antes de reforzar CDP..." timeout /t 10 /nobreak
+  python "%RUN_WITH_PROGRESS_PY%" "Reforzando CDP del perfil..." "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%FORCE_CDP_PS1%" -PreferredPort 9225 -TimeoutSec 30 -OpenDebugWindow
   if errorlevel 1 (
     %LOG% warn "Reforce devolvio error."
   ) else (
@@ -51,21 +49,19 @@ if "%HAS_DEBUG_PORT%"=="0" (
 
 if exist "%PROMPT_AUTOMATION_PY%" (
   %LOG% info "Ejecutando automatizacion de pegado de prompt por CDP..."
-  call :RUN_PYTHON_SCRIPT "%PROMPT_AUTOMATION_PY%"
+  python "%RUN_WITH_PROGRESS_PY%" "Pegando prompt en ChatGPT..." python "%PROMPT_AUTOMATION_PY%"
   if errorlevel 1 (
     %LOG% warn "No se pudo ejecutar page_pronmt.py correctamente."
   ) else (
     %LOG% ok "promnt pegado con exito"
     if exist "%DOWNLOAD_GENERATED_IMAGE_PY%" (
-      %LOG% info "Esperando y descargando imagen generada..."
-      call :RUN_PYTHON_SCRIPT "%DOWNLOAD_GENERATED_IMAGE_PY%" 9225
+      python "%RUN_WITH_PROGRESS_PY%" "Esperando y descargando imagen generada..." python "%DOWNLOAD_GENERATED_IMAGE_PY%" 9225
       if errorlevel 1 (
         %LOG% warn "No se pudo descargar la imagen generada."
       ) else (
         %LOG% ok "imagen descargada con exito"
         if exist "%PUBLIC_IMG_PY%" (
-          %LOG% info "Enviando imagen local a n8n para publicacion..."
-          call :RUN_PYTHON_SCRIPT "%PUBLIC_IMG_PY%"
+          python "%RUN_WITH_PROGRESS_PY%" "Enviando imagen a n8n para publicacion..." python "%PUBLIC_IMG_PY%"
           if errorlevel 1 (
             %LOG% warn "No se pudo enviar la imagen local a n8n."
           ) else (

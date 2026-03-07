@@ -68,7 +68,7 @@ taskkill /F /IM chrome.exe >nul 2>nul
 timeout /t 1 /nobreak >nul
 
 %LOG% step "3/10" "Limpieza avanzada de servicios/procesos DICloak..."
-powershell -NoProfile -ExecutionPolicy Bypass -File "%KILLER_PS1%" -Port 9333 -TimeoutSec 60
+python "%RUN_WITH_PROGRESS_PY%" "Limpiando procesos DICloak..." powershell -NoProfile -ExecutionPolicy Bypass -File "%KILLER_PS1%" -Port 9333 -TimeoutSec 60
 if errorlevel 1 (
   %LOG% error "No se pudo cerrar completamente DICloak."
   %LOG% info "Ejecuta la CMD como Administrador y vuelve a intentar."
@@ -142,7 +142,7 @@ if exist "%FORCE_CDP_LAUNCHER_BAT%" (
   %LOG% warn "No existe launcher CDP: %FORCE_CDP_LAUNCHER_BAT%"
 )
 set "PROFILE_MAYBE_OPEN=0"
-node "%SCRIPT_PATH%" "%PROFILE_NAME%" "%CDP_URL%" "%PROFILE_DEBUG_PORT_HINT%" "%OPENAPI_PORT_HINT%" "%RUN_MODE%" "%OPENAPI_SECRET_HINT%"
+python "%RUN_WITH_PROGRESS_PY%" "Abriendo perfil en DiCloak..." node "%SCRIPT_PATH%" "%PROFILE_NAME%" "%CDP_URL%" "%PROFILE_DEBUG_PORT_HINT%" "%OPENAPI_PORT_HINT%" "%RUN_MODE%" "%OPENAPI_SECRET_HINT%"
 if not errorlevel 1 (
   set "PROFILE_MAYBE_OPEN=1"
   rem OK flujo principal
@@ -190,23 +190,7 @@ if exist "%FORCE_CDP_PS1%" (
   ) else (
     %LOG% info "Launcher CDP ya estaba iniciado; no se relanza."
   )
-  %LOG% info "Esperando hasta 45s a que aparezca debugPort en cdp_debug_info.json..."
-  "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$path=Join-Path $env:APPDATA 'DICloak\cdp_debug_info.json';" ^
-    "$ok=$false;" ^
-    "1..45 | ForEach-Object {" ^
-    "  try {" ^
-    "    if(Test-Path $path){" ^
-    "      $j=Get-Content $path -Raw | ConvertFrom-Json;" ^
-    "      foreach($p in $j.PSObject.Properties){" ^
-    "        if($p.Value.debugPort){ $ok=$true; break }" ^
-    "      }" ^
-    "    }" ^
-    "  } catch {}" ^
-    "  if($ok){ break }" ^
-    "  Start-Sleep -Seconds 1" ^
-    "};" ^
-    "if($ok){exit 0}else{exit 1}"
+  python "%RUN_WITH_PROGRESS_PY%" "Esperando debugPort en cdp_debug_info.json (hasta 45s)..." "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -Command "$path=Join-Path $env:APPDATA 'DICloak\cdp_debug_info.json'; $ok=$false; 1..45 | ForEach-Object { try { if(Test-Path $path){ $j=Get-Content $path -Raw | ConvertFrom-Json; foreach($p in $j.PSObject.Properties){ if($p.Value.debugPort){ $ok=$true; break } } } } catch {}; if($ok){ break }; Start-Sleep -Seconds 1 }; if($ok){exit 0}else{exit 1}"
   if errorlevel 1 (
     %LOG% warn "No se detecto debugPort dentro de la espera."
   ) else (

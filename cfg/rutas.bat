@@ -30,6 +30,8 @@ set "N8N_PROMPT_CLIENT_PY=%UTILS_DIR%\n8n_prompt_client.py"
 set "PUBLIC_IMG_PY=%ROOT_DIR%\n8n\public_img.py"
 set "N8N_POST_TEXT_CLIENT_PY=%UTILS_DIR%\n8n_post_text_client.py"
 
+set "RUN_WITH_PROGRESS_PY=%UTILS_DIR%\run_with_progress.py"
+
 rem --- Logger ---
 set "LOG=python %UTILS_DIR%\bat_logger.py"
 

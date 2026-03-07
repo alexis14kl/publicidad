@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 import typer
 
 
@@ -24,3 +26,23 @@ def log_step(step: str, msg: str) -> None:
 
 def log_debug(msg: str) -> None:
     typer.echo(typer.style(f"[DEBUG] {msg}", dim=True))
+
+
+@contextmanager
+def progress_bar(description: str):
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        TimeElapsedColumn,
+    )
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold cyan]{task.description}"),
+        BarColumn(pulse_style="cyan"),
+        TimeElapsedColumn(),
+    ) as progress:
+        progress.add_task(description, total=None)
+        yield
