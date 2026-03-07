@@ -6,6 +6,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from service_rotation import rotate_service
+from logger import log_error
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -441,7 +442,7 @@ def main() -> int:
         print(f"PROMPT_GUARDADO={output_path}")
         return 0
     except Exception as exc:
-        print(f"ERROR: {exc}")
+        log_error(str(exc))
         return 1
 
 

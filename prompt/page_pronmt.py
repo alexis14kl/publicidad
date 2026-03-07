@@ -18,6 +18,7 @@ from perfil.account_rotation import (  # noqa: E402
     mark_account_exhausted,
     switch_to_next_available_account,
 )
+from utils.logger import log_info, log_warn, log_error  # noqa: E402
 
 PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 CHANGE_COUNT_SCRIPT = PROJECT_ROOT / "perfil" / "change_count.py"
@@ -112,7 +113,7 @@ def resolve_cdp_port() -> int:
 
 def trigger_change_count(reason: str = "no_image_tokens") -> None:
     if not CHANGE_COUNT_SCRIPT.exists():
-        print(f"[WARN] No existe script de cambio de cuenta: {CHANGE_COUNT_SCRIPT}")
+        log_warn(f"No existe script de cambio de cuenta: {CHANGE_COUNT_SCRIPT}")
         return
 
     result = subprocess.run(
@@ -130,7 +131,7 @@ def trigger_change_count(reason: str = "no_image_tokens") -> None:
         print(result.stderr.strip())
 
     if result.returncode != 0:
-        print(f"[WARN] change_count.py termino con codigo {result.returncode}")
+        log_warn(f"change_count.py termino con codigo {result.returncode}")
 
 
 def run_prompt_paste(cdp_port: int) -> str:
@@ -770,10 +771,10 @@ def process_prompt_with_account_rotation(cdp_port: int) -> None:
 
         if last_switched_account_id:
             mark_account_exhausted(cdp_port, last_switched_account_id, last_switched_account_label)
-            print(f"[INFO] Cuenta agotada marcada temporalmente: {last_switched_account_label or last_switched_account_id}")
+            log_info(f"Cuenta agotada marcada temporalmente: {last_switched_account_label or last_switched_account_id}")
 
         switch_result = switch_to_next_available_account(cdp_port)
-        print(f"[INFO] Cuentas disponibles para rotacion: {switch_result.available_count}")
+        log_info(f"Cuentas disponibles para rotacion: {switch_result.available_count}")
 
         if not switch_result.switched:
             trigger_change_count("no_viable_account")
@@ -781,7 +782,7 @@ def process_prompt_with_account_rotation(cdp_port: int) -> None:
 
         last_switched_account_id = switch_result.selected_account_id
         last_switched_account_label = switch_result.selected_account_label
-        print(f"[INFO] Cambiando a cuenta: {last_switched_account_label or last_switched_account_id}")
+        log_info(f"Cambiando a cuenta: {last_switched_account_label or last_switched_account_id}")
         time.sleep(5)
 
     trigger_change_count("rotation_attempts_exhausted")
@@ -801,7 +802,7 @@ def main() -> int:
         print("promnt pegado con exito")
         return 0
     except Exception as e:
-        print(f"ERROR: {e}")
+        log_error(str(e))
         return 1
 
 
