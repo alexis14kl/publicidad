@@ -14,6 +14,7 @@ set "SERVER_DIR=%ROOT_DIR%\server"
 set "UTILS_DIR=%ROOT_DIR%\utils"
 set "DEBUG_DIR=%ROOT_DIR%\debug"
 set "DOCS_DIR=%ROOT_DIR%\docs"
+set "IMG_PUBLICITARIAS_DIR=%ROOT_DIR%\img_publicitarias"
 
 rem --- Scripts ---
 set "KILLER_PS1=%INICIO_DIR%\cerrar_dicloak_avanzado.ps1"
