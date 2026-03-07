@@ -10,6 +10,15 @@ from urllib.request import urlopen
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from perfil.account_rotation import (  # noqa: E402
+    clear_account_exhausted,
+    mark_account_exhausted,
+    switch_to_next_available_account,
+)
+
 PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 CHANGE_COUNT_SCRIPT = PROJECT_ROOT / "perfil" / "change_count.py"
 CDP_DEBUG_INFO = Path(os.getenv("APPDATA", "")) / "DICloak" / "cdp_debug_info.json"
@@ -17,6 +26,9 @@ DEFAULT_PORT = 9225
 PROMPT_LOCK_FILE = PROJECT_ROOT / ".prompt_last_send.json"
 PROMPT_DEDUP_WINDOW_SEC = 90
 NO_IMAGE_TOKENS_MARKER = "Sin tokens para imgs."
+PROMPT_STATUS_SUCCESS = "success"
+PROMPT_STATUS_NO_IMAGE_TOKENS = "no_image_tokens"
+MAX_ACCOUNT_ROTATION_ATTEMPTS = 20
 
 
 def read_prompt() -> str:
@@ -121,7 +133,7 @@ def trigger_change_count(reason: str = "no_image_tokens") -> None:
         print(f"[WARN] change_count.py termino con codigo {result.returncode}")
 
 
-def run_prompt_paste(cdp_port: int) -> None:
+def run_prompt_paste(cdp_port: int) -> str:
     js = r"""
 const fs = require('fs');
 const { chromium } = require('playwright');
@@ -590,11 +602,46 @@ const { chromium } = require('playwright');
     if result.stderr.strip():
         print(result.stderr.strip())
 
-    if NO_IMAGE_TOKENS_MARKER in result.stdout:
-        trigger_change_count("no_image_tokens")
-
     if result.returncode != 0 or "PROMPT_PEGADO_OK" not in result.stdout:
         raise RuntimeError("No se pudo pegar el prompt en ChatGPT")
+
+    if NO_IMAGE_TOKENS_MARKER in result.stdout:
+        return PROMPT_STATUS_NO_IMAGE_TOKENS
+    return PROMPT_STATUS_SUCCESS
+
+
+def process_prompt_with_account_rotation(cdp_port: int) -> None:
+    last_switched_account_id = ""
+    last_switched_account_label = ""
+
+    for _ in range(MAX_ACCOUNT_ROTATION_ATTEMPTS):
+        status = run_prompt_paste(cdp_port)
+        if status == PROMPT_STATUS_SUCCESS:
+            if last_switched_account_id:
+                clear_account_exhausted(cdp_port, last_switched_account_id)
+            return
+
+        if status != PROMPT_STATUS_NO_IMAGE_TOKENS:
+            raise RuntimeError(f"Estado inesperado de pegado de prompt: {status}")
+
+        if last_switched_account_id:
+            mark_account_exhausted(cdp_port, last_switched_account_id, last_switched_account_label)
+            print(f"[INFO] Cuenta agotada marcada temporalmente: {last_switched_account_label or last_switched_account_id}")
+
+        switch_result = switch_to_next_available_account(cdp_port)
+        print(f"[INFO] Cuentas disponibles para rotacion: {switch_result.available_count}")
+
+        if not switch_result.switched:
+            trigger_change_count("no_viable_account")
+            raise RuntimeError("No se encontro una cuenta disponible que pueda seguir intentando")
+
+        last_switched_account_id = switch_result.selected_account_id
+        last_switched_account_label = switch_result.selected_account_label
+        print(f"[INFO] Cambiando a cuenta: {last_switched_account_label or last_switched_account_id}")
+        time.sleep(5)
+
+    trigger_change_count("rotation_attempts_exhausted")
+    raise RuntimeError("Se agotaron los intentos de rotacion de cuenta")
 
 
 def main() -> int:
@@ -605,7 +652,7 @@ def main() -> int:
             print("promnt pegado con exito")
             return 0
         cdp_port = resolve_cdp_port()
-        run_prompt_paste(cdp_port)
+        process_prompt_with_account_rotation(cdp_port)
         mark_prompt_sent(prompt)
         print("promnt pegado con exito")
         return 0
