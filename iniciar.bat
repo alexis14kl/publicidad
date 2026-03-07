@@ -38,29 +38,14 @@ if errorlevel 1 (
   if not exist "%N8N_PROMPT_CLIENT_PY%" (
     echo [WARN] No existe cliente n8n: "%N8N_PROMPT_CLIENT_PY%". Se conserva el prompt actual.
   ) else (
-<<<<<<< HEAD
-<<<<<<< HEAD
     if not exist "%PROMPT_SEED_FILE%" (
       echo [WARN] No existe brief base: "%PROMPT_SEED_FILE%". Se conserva el flujo actual.
     ) else (
       python "%N8N_PROMPT_CLIENT_PY%" --idea-file "%PROMPT_SEED_FILE%" --output "%PROMPT_FILE%"
-=======
-    if not exist "%PROMPT_FILE%" (
-      echo [WARN] No existe prompt base: "%PROMPT_FILE%". Se conserva el flujo actual.
-    ) else (
-      python "%N8N_PROMPT_CLIENT_PY%" --idea-file "%PROMPT_FILE%" --output "%PROMPT_FILE%"
->>>>>>> 7ca84d4 (conexion a bot contexto empresarial)
-=======
-    if not exist "%PROMPT_SEED_FILE%" (
-      echo [WARN] No existe brief base: "%PROMPT_SEED_FILE%". Se conserva el flujo actual.
-    ) else (
-      python "%N8N_PROMPT_CLIENT_PY%" --idea-file "%PROMPT_SEED_FILE%" --output "%PROMPT_FILE%"
->>>>>>> 09ac57c (conexion a bot contexto empresarial, correcion del promt)
       if errorlevel 1 (
         echo [WARN] No se pudo regenerar el prompt con n8n. Se usara el contenido actual de "%PROMPT_FILE%".
       ) else (
         echo [OK] Prompt regenerado en "%PROMPT_FILE%".
-<<<<<<< HEAD
         if exist "%N8N_POST_TEXT_CLIENT_PY%" (
           python "%N8N_POST_TEXT_CLIENT_PY%" --prompt-file "%PROMPT_FILE%" --output "%POST_TEXT_FILE%"
           if errorlevel 1 (
@@ -71,8 +56,6 @@ if errorlevel 1 (
         ) else (
           echo [WARN] No existe cliente de caption n8n: "%N8N_POST_TEXT_CLIENT_PY%".
         )
-=======
->>>>>>> 7ca84d4 (conexion a bot contexto empresarial)
       )
     )
   )

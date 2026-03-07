@@ -63,6 +63,17 @@ if exist "%PROMPT_AUTOMATION_PY%" (
         echo [WARN] No se pudo descargar la imagen generada.
       ) else (
         echo [OK] imagen descargada con exito
+        if exist "%PUBLIC_IMG_PY%" (
+          echo [INFO] Enviando imagen local a n8n para publicacion...
+          call :RUN_PYTHON_SCRIPT "%PUBLIC_IMG_PY%"
+          if errorlevel 1 (
+            echo [WARN] No se pudo enviar la imagen local a n8n.
+          ) else (
+            echo [OK] imagen enviada a n8n con exito
+          )
+        ) else (
+          echo [WARN] No existe script de publicacion local a n8n: "%PUBLIC_IMG_PY%"
+        )
       )
     ) else (
       echo [WARN] No existe script de descarga: "%DOWNLOAD_GENERATED_IMAGE_PY%"
