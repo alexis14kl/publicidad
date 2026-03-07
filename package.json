@@ -1,0 +1,12 @@
+{
+  "name": "bot-publicitario-noyecode",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Bot de publicidad automatizada: DiCloak + ChatGPT + n8n + Facebook",
+  "scripts": {
+    "start": "iniciar.bat"
+  },
+  "dependencies": {
+    "playwright": "^1.58.0"
+  }
+}

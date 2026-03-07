@@ -1,1 +1,16 @@
-# Add Python dependencies here
+# Bot Publicitario NoyeCode - Dependencias
+# Instalar: pip install -r requirements.txt
+# Post-install: playwright install chromium
+
+# Automatizacion del navegador (CDP + ChatGPT + descarga de imagenes)
+playwright>=1.58
+
+# CLI: logs con colores, spinners y barras de progreso
+typer>=0.24
+
+# Rich viene como dependencia de typer, pero se declara
+# porque se usa directamente (Progress, SpinnerColumn, etc.)
+rich>=14.0
+
+# Soporte de colores ANSI en terminales Windows (CMD/PowerShell)
+colorama>=0.4.6
