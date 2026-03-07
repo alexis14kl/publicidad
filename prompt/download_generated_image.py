@@ -11,6 +11,8 @@ from playwright.sync_api import sync_playwright
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 IMG_PUBLICITARIAS_DIR = PROJECT_ROOT / "img_publicitarias"
 DEFAULT_CDP_PORT = 9225
+DEFAULT_WAIT_TIMEOUT_SEC = 180
+DEFAULT_POLL_INTERVAL_SEC = 2
 
 
 def build_filename(source_url: str) -> str:
@@ -20,6 +22,60 @@ def build_filename(source_url: str) -> str:
     safe_file_id = re.sub(r"[^a-zA-Z0-9_-]+", "_", file_id)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"{timestamp}_{safe_file_id}.png"
+
+
+def get_latest_downloadable_image_info(page) -> dict:
+    return page.evaluate(
+        """() => {
+            const articleHasDownloadButton = (article) =>
+                Array.from(article.querySelectorAll('button,[role="button"],a')).some((el) =>
+                    /descargar esta imagen|download this image/i.test((el.innerText || el.getAttribute('aria-label') || '').trim())
+                );
+
+            const articleHasImageCreatedText = (article) =>
+                /imagen creada|image created/i.test(article.innerText || '');
+
+            const articles = Array.from(document.querySelectorAll('article')).reverse();
+            const targetArticle = articles.find((article) => articleHasDownloadButton(article) || articleHasImageCreatedText(article));
+            if (!targetArticle) {
+                return {
+                    foundArticle: false,
+                    hasDownloadButton: false,
+                    imageUrl: '',
+                    articleText: '',
+                };
+            }
+
+            const imgs = Array.from(targetArticle.querySelectorAll('img'));
+            const matchingUrls = imgs
+                .map((img) => img.currentSrc || img.src || '')
+                .filter((src) => src.includes('/backend-api/estuary/content'));
+
+            return {
+                foundArticle: true,
+                hasDownloadButton: articleHasDownloadButton(targetArticle),
+                imageUrl: matchingUrls[matchingUrls.length - 1] || '',
+                articleText: (targetArticle.innerText || '').slice(0, 400),
+            };
+        }"""
+    )
+
+
+def wait_for_downloadable_image(page, timeout_sec: int = DEFAULT_WAIT_TIMEOUT_SEC, poll_interval_sec: int = DEFAULT_POLL_INTERVAL_SEC) -> str:
+    deadline = time.time() + timeout_sec
+    last_info: dict | None = None
+
+    while time.time() < deadline:
+        info = get_latest_downloadable_image_info(page)
+        last_info = info
+        if info.get("foundArticle") and info.get("hasDownloadButton") and info.get("imageUrl"):
+            return str(info["imageUrl"]).strip()
+        page.wait_for_timeout(int(poll_interval_sec * 1000))
+
+    detail = ""
+    if last_info:
+        detail = f" Estado final: {last_info}"
+    raise RuntimeError(f"No aparecio una imagen descargable dentro del tiempo de espera.{detail}")
 
 
 def main() -> int:
@@ -37,28 +93,7 @@ def main() -> int:
             page = pages[-1]
             page.bring_to_front()
 
-            page.wait_for_function(
-                """() => {
-                    const imgs = Array.from(document.querySelectorAll('img'));
-                    return imgs.some((img) =>
-                        (img.alt || '').toLowerCase().includes('imagen generada') &&
-                        (img.currentSrc || img.src || '').includes('/backend-api/estuary/content')
-                    );
-                }""",
-                timeout=60000,
-            )
-
-            image_url = page.evaluate(
-                """() => {
-                    const imgs = Array.from(document.querySelectorAll('img'));
-                    const matches = imgs.filter((img) =>
-                        (img.alt || '').toLowerCase().includes('imagen generada') &&
-                        (img.currentSrc || img.src || '').includes('/backend-api/estuary/content')
-                    );
-                    const selected = matches[matches.length - 1];
-                    return selected ? (selected.currentSrc || selected.src || '') : '';
-                }"""
-            )
+            image_url = wait_for_downloadable_image(page)
 
             if not image_url:
                 raise RuntimeError("No se encontro la URL de la imagen generada")
