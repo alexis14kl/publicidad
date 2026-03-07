@@ -46,6 +46,16 @@ if errorlevel 1 (
         echo [WARN] No se pudo regenerar el prompt con n8n. Se usara el contenido actual de "%PROMPT_FILE%".
       ) else (
         echo [OK] Prompt regenerado en "%PROMPT_FILE%".
+        if exist "%N8N_POST_TEXT_CLIENT_PY%" (
+          python "%N8N_POST_TEXT_CLIENT_PY%" --prompt-file "%PROMPT_FILE%" --output "%POST_TEXT_FILE%"
+          if errorlevel 1 (
+            echo [WARN] No se pudo regenerar el texto de publicacion con n8n. Se conserva el caption actual.
+          ) else (
+            echo [OK] Caption regenerado en "%POST_TEXT_FILE%".
+          )
+        ) else (
+          echo [WARN] No existe cliente de caption n8n: "%N8N_POST_TEXT_CLIENT_PY%".
+        )
       )
     )
   )

@@ -27,10 +27,13 @@ set "CHANGE_COUNT_PY=%PERFIL_DIR%\change_count.py"
 set "PROMPT_AUTOMATION_PY=%PROMPT_DIR%\page_pronmt.py"
 set "DOWNLOAD_GENERATED_IMAGE_PY=%PROMPT_DIR%\download_generated_image.py"
 set "N8N_PROMPT_CLIENT_PY=%UTILS_DIR%\n8n_prompt_client.py"
+set "PUBLIC_IMG_PY=%ROOT_DIR%\n8n\public_img.py"
+set "N8N_POST_TEXT_CLIENT_PY=%UTILS_DIR%\n8n_post_text_client.py"
 
 rem --- Datos ---
 set "PROMPT_FILE=%UTILS_DIR%\prontm.txt"
 set "PROMPT_SEED_FILE=%UTILS_DIR%\prompt_seed.txt"
+set "POST_TEXT_FILE=%UTILS_DIR%\post_text.txt"
 
 rem --- Ejecutables ---
 set "DICLOAK_EXE=C:\Program Files\DICloak\DICloak.exe"

@@ -1,0 +1,619 @@
+{
+  "updatedAt": "2026-03-07T04:07:42.868Z",
+  "createdAt": "2026-03-07T04:07:16.624Z",
+  "id": "0ozmJ963WaMq3tVM",
+  "name": "PUBLICAR_IMG_LOCAL_FB",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "publicar-img-local-fb",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        0
+      ],
+      "id": "34603ac0-1ab7-4a13-b72b-c1f715233e08",
+      "name": "Webhook Imagen Local",
+      "webhookId": "publicar-img-local-fb"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "45823cba-c22a-4ff3-a61e-a53900b6986a",
+              "name": "imageBase64",
+              "value": "={{ $binary.image.data }}",
+              "type": "string"
+            },
+            {
+              "id": "368960e5-5adc-44a4-8cee-2383f10f1231",
+              "name": "postText",
+              "value": "={{ $json.post_text || $json.postText || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "2b073f60-bc58-4940-92ac-a2220cfc7b94",
+              "name": "category",
+              "value": "={{ $json.category || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "b7d90bcd-1235-4acb-b670-549fa6c83788",
+              "name": "filename",
+              "value": "={{ $json.filename || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "f332962c-025a-4ac5-aac8-f960dc2b45a6",
+              "name": "asset_id",
+              "value": "={{ $json.asset_id || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "d8a75bfb-53af-4efc-9a9f-071cbda6a339",
+              "name": "generated_at",
+              "value": "={{ $json.generated_at || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "d34653dd-c3d1-41af-9e7e-de57e18d09fb",
+              "name": "source",
+              "value": "={{ $json.source || \"chatgpt_local_bot\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -160,
+        0
+      ],
+      "id": "9d5f5b80-2262-4077-b988-bdfc1315e21b",
+      "name": "Preparar Imagen Local"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://freeimage.host/api/1/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "6d207e02198a847aa98d0a2a901485a5"
+            },
+            {
+              "name": "source",
+              "value": "={{ $json.imageBase64 }}"
+            },
+            {
+              "name": "format",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "6c080abe-46b7-44d7-b70c-66725e79f275",
+      "name": "Subir Imagen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        192,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/115406607722279/photos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.image.url }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $('Preparar Imagen Local').item.json.postText }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        544,
+        0
+      ],
+      "id": "60caef0f-e4b0-4f94-b258-8747e508b91d",
+      "name": "Publicar en Facebook IA",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "bACRgILlcPROzumK",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "log-status",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "log-fb-id",
+              "name": "facebook_post_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "log-text",
+              "name": "published_text",
+              "value": "={{ $('Preparar Imagen Local').item.json.postText }}",
+              "type": "string"
+            },
+            {
+              "id": "log-category",
+              "name": "category",
+              "value": "={{ $('Preparar Imagen Local').item.json.category }}",
+              "type": "string"
+            },
+            {
+              "id": "log-timestamp",
+              "name": "published_at",
+              "value": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f871935e-336a-48e7-aefe-89eba8fa113b",
+      "name": "Log Publicacion IA",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        832,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Imagen Local": {
+      "main": [
+        [
+          {
+            "node": "Preparar Imagen Local",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Imagen Local": {
+      "main": [
+        [
+          {
+            "node": "Subir Imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir Imagen": {
+      "main": [
+        [
+          {
+            "node": "Publicar en Facebook IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publicar en Facebook IA": {
+      "main": [
+        [
+          {
+            "node": "Log Publicacion IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "36bb716f-d539-4cc4-b5e5-e8bd2edadefd",
+  "activeVersionId": "36bb716f-d539-4cc4-b5e5-e8bd2edadefd",
+  "versionCounter": 5,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-03-07T04:07:16.624Z",
+      "createdAt": "2026-03-07T04:07:16.624Z",
+      "role": "workflow:owner",
+      "workflowId": "0ozmJ963WaMq3tVM",
+      "projectId": "bkrM241Q8UeW2zme",
+      "project": {
+        "updatedAt": "2025-12-16T17:56:12.161Z",
+        "createdAt": "2025-12-16T17:50:13.083Z",
+        "id": "bkrM241Q8UeW2zme",
+        "name": "Anderson Barbosa <andersonbarbosadev@outlook.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e404d63-0747-43e9-ac7f-cf0e72e9cb99",
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-16T17:50:13.083Z",
+            "createdAt": "2025-12-16T17:50:13.083Z",
+            "userId": "6e404d63-0747-43e9-ac7f-cf0e72e9cb99",
+            "projectId": "bkrM241Q8UeW2zme",
+            "user": {
+              "updatedAt": "2026-03-06T21:45:35.954Z",
+              "createdAt": "2025-12-16T17:50:09.786Z",
+              "id": "6e404d63-0747-43e9-ac7f-cf0e72e9cb99",
+              "email": "andersonbarbosadev@outlook.com",
+              "firstName": "Anderson",
+              "lastName": "Barbosa",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-31T08:56:04.592Z",
+                "personalization_survey_n8n_version": "2.1.4",
+                "automationGoalDevops": [
+                  "monitoring-alerting",
+                  "reporting",
+                  "cloud-infrastructure-orchestration"
+                ],
+                "companySize": "<20",
+                "companyType": "education",
+                "role": "engineering",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "jbl9P9RZN7a3pKTA",
+                "userActivatedAt": 1772833534542,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1772831871686
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-03-06",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "parentFolder": {
+    "updatedAt": "2026-02-04T15:34:18.981Z",
+    "createdAt": "2026-02-04T15:34:18.981Z",
+    "id": "PpHvIJ31zEwJyuGb",
+    "name": "BOTS-redes-noyecode.com",
+    "parentFolderId": null
+  },
+  "activeVersion": {
+    "updatedAt": "2026-03-07T04:07:16.624Z",
+    "createdAt": "2026-03-07T04:07:16.624Z",
+    "versionId": "36bb716f-d539-4cc4-b5e5-e8bd2edadefd",
+    "workflowId": "0ozmJ963WaMq3tVM",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "publicar-img-local-fb",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -480,
+          0
+        ],
+        "id": "34603ac0-1ab7-4a13-b72b-c1f715233e08",
+        "name": "Webhook Imagen Local",
+        "webhookId": "publicar-img-local-fb"
+      },
+      {
+        "parameters": {
+          "mode": "manual",
+          "duplicateItem": false,
+          "assignments": {
+            "assignments": [
+              {
+                "id": "45823cba-c22a-4ff3-a61e-a53900b6986a",
+                "name": "imageBase64",
+                "value": "={{ $binary.image.data }}",
+                "type": "string"
+              },
+              {
+                "id": "368960e5-5adc-44a4-8cee-2383f10f1231",
+                "name": "postText",
+                "value": "={{ $json.post_text || $json.postText || \"\" }}",
+                "type": "string"
+              },
+              {
+                "id": "2b073f60-bc58-4940-92ac-a2220cfc7b94",
+                "name": "category",
+                "value": "={{ $json.category || \"\" }}",
+                "type": "string"
+              },
+              {
+                "id": "b7d90bcd-1235-4acb-b670-549fa6c83788",
+                "name": "filename",
+                "value": "={{ $json.filename || \"\" }}",
+                "type": "string"
+              },
+              {
+                "id": "f332962c-025a-4ac5-aac8-f960dc2b45a6",
+                "name": "asset_id",
+                "value": "={{ $json.asset_id || \"\" }}",
+                "type": "string"
+              },
+              {
+                "id": "d8a75bfb-53af-4efc-9a9f-071cbda6a339",
+                "name": "generated_at",
+                "value": "={{ $json.generated_at || \"\" }}",
+                "type": "string"
+              },
+              {
+                "id": "d34653dd-c3d1-41af-9e7e-de57e18d09fb",
+                "name": "source",
+                "value": "={{ $json.source || \"chatgpt_local_bot\" }}",
+                "type": "string"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -160,
+          0
+        ],
+        "id": "9d5f5b80-2262-4077-b988-bdfc1315e21b",
+        "name": "Preparar Imagen Local"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://freeimage.host/api/1/upload",
+          "sendBody": true,
+          "contentType": "multipart-form-data",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "key",
+                "value": "6d207e02198a847aa98d0a2a901485a5"
+              },
+              {
+                "name": "source",
+                "value": "={{ $json.imageBase64 }}"
+              },
+              {
+                "name": "format",
+                "value": "json"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 60000
+          }
+        },
+        "id": "6c080abe-46b7-44d7-b70c-66725e79f275",
+        "name": "Subir Imagen",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          192,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://graph.facebook.com/v21.0/115406607722279/photos",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "facebookGraphApi",
+          "sendBody": true,
+          "contentType": "form-urlencoded",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "url",
+                "value": "={{ $json.image.url }}"
+              },
+              {
+                "name": "message",
+                "value": "={{ $('Preparar Imagen Local').item.json.postText }}"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          544,
+          0
+        ],
+        "id": "60caef0f-e4b0-4f94-b258-8747e508b91d",
+        "name": "Publicar en Facebook IA",
+        "credentials": {
+          "facebookGraphApi": {
+            "id": "bACRgILlcPROzumK",
+            "name": "Facebook Graph account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "log-status",
+                "name": "status",
+                "value": "success",
+                "type": "string"
+              },
+              {
+                "id": "log-fb-id",
+                "name": "facebook_post_id",
+                "value": "={{ $json.id }}",
+                "type": "string"
+              },
+              {
+                "id": "log-text",
+                "name": "published_text",
+                "value": "={{ $('Preparar Imagen Local').item.json.postText }}",
+                "type": "string"
+              },
+              {
+                "id": "log-category",
+                "name": "category",
+                "value": "={{ $('Preparar Imagen Local').item.json.category }}",
+                "type": "string"
+              },
+              {
+                "id": "log-timestamp",
+                "name": "published_at",
+                "value": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "f871935e-336a-48e7-aefe-89eba8fa113b",
+        "name": "Log Publicacion IA",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          832,
+          0
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook Imagen Local": {
+        "main": [
+          [
+            {
+              "node": "Preparar Imagen Local",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Preparar Imagen Local": {
+        "main": [
+          [
+            {
+              "node": "Subir Imagen",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Subir Imagen": {
+        "main": [
+          [
+            {
+              "node": "Publicar en Facebook IA",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Publicar en Facebook IA": {
+        "main": [
+          [
+            {
+              "node": "Log Publicacion IA",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Anderson Barbosa",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-03-07T04:08:04.735Z",
+        "id": 492,
+        "workflowId": "0ozmJ963WaMq3tVM",
+        "versionId": "36bb716f-d539-4cc4-b5e5-e8bd2edadefd",
+        "event": "activated",
+        "userId": "6e404d63-0747-43e9-ac7f-cf0e72e9cb99"
+      }
+    ]
+  },
+  "scopes": [
+    "workflow:create",
+    "workflow:delete",
+    "workflow:execute",
+    "workflow:execute-chat",
+    "workflow:list",
+    "workflow:move",
+    "workflow:publish",
+    "workflow:read",
+    "workflow:share",
+    "workflow:update"
+  ],
+  "checksum": "b433f2d126527b87f5a4f0ccda5710d7228dde48b0bc05dd7344d709152be1fa"
+}
