@@ -25,6 +25,7 @@ set "FORCE_CDP_LAUNCHER_BAT=%CDP_DIR%\forzar_cdp_post_apertura.bat"
 set "GET_DEBUG_PORT_PS1=%CDP_DIR%\obtener_puerto_perfil_cdp.ps1"
 set "CHANGE_COUNT_PY=%PERFIL_DIR%\change_count.py"
 set "PROMPT_AUTOMATION_PY=%PROMPT_DIR%\page_pronmt.py"
+set "DOWNLOAD_GENERATED_IMAGE_PY=%PROMPT_DIR%\download_generated_image.py"
 set "N8N_PROMPT_CLIENT_PY=%UTILS_DIR%\n8n_prompt_client.py"
 
 rem --- Datos ---

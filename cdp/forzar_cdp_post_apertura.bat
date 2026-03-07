@@ -51,11 +51,22 @@ if "%HAS_DEBUG_PORT%"=="0" (
 
 if exist "%PROMPT_AUTOMATION_PY%" (
   echo [INFO] Ejecutando automatizacion de pegado de prompt por CDP...
-  call :RUN_PROMPT_AUTOMATION "%PROMPT_AUTOMATION_PY%"
+  call :RUN_PYTHON_SCRIPT "%PROMPT_AUTOMATION_PY%"
   if errorlevel 1 (
     echo [WARN] No se pudo ejecutar page_pronmt.py correctamente.
   ) else (
     echo [OK] promnt pegado con exito
+    if exist "%DOWNLOAD_GENERATED_IMAGE_PY%" (
+      echo [INFO] Esperando y descargando imagen generada...
+      call :RUN_PYTHON_SCRIPT "%DOWNLOAD_GENERATED_IMAGE_PY%" 9225
+      if errorlevel 1 (
+        echo [WARN] No se pudo descargar la imagen generada.
+      ) else (
+        echo [OK] imagen descargada con exito
+      )
+    ) else (
+      echo [WARN] No existe script de descarga: "%DOWNLOAD_GENERATED_IMAGE_PY%"
+    )
   )
 ) else (
   echo [WARN] No existe script de automatizacion: "%PROMPT_AUTOMATION_PY%"
@@ -65,18 +76,27 @@ echo [INFO] Proceso completado. Cerrando esta consola...
 endlocal
 exit /b 0
 
-:RUN_PROMPT_AUTOMATION
+:RUN_PYTHON_SCRIPT
 setlocal
-set "PROMPT_AUTOMATION_FILE=%~1"
+set "PYTHON_SCRIPT_FILE=%~1"
+set "PYTHON_SCRIPT_ARG1=%~2"
 
 where python >nul 2>nul
 if not errorlevel 1 (
-  python "%PROMPT_AUTOMATION_FILE%"
+  if "%PYTHON_SCRIPT_ARG1%"=="" (
+    python "%PYTHON_SCRIPT_FILE%"
+  ) else (
+    python "%PYTHON_SCRIPT_FILE%" "%PYTHON_SCRIPT_ARG1%"
+  )
   if not errorlevel 1 (
     endlocal & exit /b 0
   )
 )
 
-py -3 "%PROMPT_AUTOMATION_FILE%"
+if "%PYTHON_SCRIPT_ARG1%"=="" (
+  py -3 "%PYTHON_SCRIPT_FILE%"
+) else (
+  py -3 "%PYTHON_SCRIPT_FILE%" "%PYTHON_SCRIPT_ARG1%"
+)
 set "RUN_RC=%ERRORLEVEL%"
 endlocal & exit /b %RUN_RC%
