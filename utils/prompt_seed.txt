@@ -21,6 +21,10 @@ Reglas claras para la imagen:
 - Bogota solo puede aparecer como contexto sutil, nunca como tema principal.
 - No usar pantallas gigantes saliendo de edificios.
 - No usar cascos VR ni escenas futuristas exageradas.
+- Formato ideal de salida: vertical 4:5, optimizado para Facebook e Instagram.
+- Dejar margenes de seguridad amplios para que el contenido no salga cortado en los bordes al publicarse.
+- No poner texto, CTA, logo, rostros o elementos clave pegados a los laterales o esquinas.
+- Mantener el contenido importante dentro de una zona segura central.
 - El texto dentro de la imagen es importante porque la pieza es para redes sociales.
 - Incluir copy publicitario corto y claro dentro de la composicion.
 - Incluir CTA comercial visible.
@@ -32,6 +36,7 @@ Reglas claras para la imagen:
 - No hacer una postal urbana ni una escena generica de ciudad.
 - Debe verse como anuncio comercial premium, moderno, creible, 4K, con valor empresarial.
 - Priorizar composiciones que ayuden a vender confianza, profesionalismo, personalizacion, automatizacion y calidad tecnica.
+- Debe verse mas profesional, con direccion de arte premium, jerarquia visual limpia, mejor balance compositivo y acabado tipo agencia para Meta Ads.
 
 Preferencia de enfoque:
 - Elegir una de estas lineas para la pieza visual:

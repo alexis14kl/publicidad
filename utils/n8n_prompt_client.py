@@ -18,7 +18,8 @@ DEFAULT_BRAND_HINT = (
     "El texto dentro de la imagen si es importante porque estas piezas son para redes sociales y captacion comercial. "
     "Incluir copy comercial claro, CTA, web, WhatsApp y el servicio protagonista cuando el formato lo permita. "
     "Evitar imagenes genericas, pantallas gigantes irreales, cascos VR innecesarios, slogans confusos o logos invasivos dentro de la imagen. "
-    "Bogota y Kennedy pueden existir como contexto sutil, pero nunca como protagonista visual principal."
+    "Bogota y Kennedy pueden existir como contexto sutil, pero nunca como protagonista visual principal. "
+    "La composicion debe sentirse como una campana corporativa de alta gama, con jerarquia visual limpia, menos ruido y mejor direccion de arte."
 )
 
 
@@ -116,7 +117,8 @@ def clean_generated_prompt(prompt: str) -> str:
     return (
         "CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA. "
         f"CONTEXTO PUBLICITARIO: {body}. "
-        "GENERA LA IMAGEN DIRECTAMENTE EN CALIDAD 4K, ESTILO PUBLICITARIO PREMIUM Y ALTA CLARIDAD GRAFICA."
+        "GENERA LA IMAGEN DIRECTAMENTE EN CALIDAD 4K, FORMATO VERTICAL 4:5 OPTIMIZADO PARA FEED DE FACEBOOK E INSTAGRAM, "
+        "ESTILO PUBLICITARIO PREMIUM, ALTA CLARIDAD GRAFICA Y RESPETANDO MARGENES DE SEGURIDAD PARA QUE NINGUN TEXTO O ELEMENTO CLAVE QUEDE CORTADO EN LOS BORDES."
     ).strip()
 
 
@@ -172,6 +174,24 @@ def enrich_idea(idea: str) -> str:
         "La pieza debe sentirse como arte publicitario para redes sociales de NoyeCode, orientado a conversion y captacion de clientes."
     )
     hints.append(
+        "Formato obligatorio: vertical 4:5 optimizado para feed de Facebook e Instagram, con composicion pensada para verse completa al publicarse."
+    )
+    hints.append(
+        "Dejar margenes de seguridad amplios en todos los lados. Ningun texto, logo, CTA, rostro o elemento clave debe quedar pegado a los bordes."
+    )
+    hints.append(
+        "Mantener todo el contenido critico dentro de una zona segura central aproximada del 80 por ciento del lienzo."
+    )
+    hints.append(
+        "No usar composicion edge-to-edge con texto o rostros cortados. Evitar que el arte dependa de las esquinas o laterales."
+    )
+    hints.append(
+        "Direccion de arte mas profesional: look corporativo premium, iluminacion cinematica controlada, paleta elegante, mejor jerarquia tipografica, profundidad realista y acabado limpio."
+    )
+    hints.append(
+        "El resultado debe parecer una pieza de agencia para Meta Ads: mas limpio, mas aspiracional, mas creible y mejor balanceado visualmente."
+    )
+    hints.append(
         "Incluir dentro de la imagen un bloque de texto publicitario corto y bien jerarquizado con: nombre del servicio, beneficio principal, CTA, sitio web noyecode.com y WhatsApp +57 301 385 9952."
     )
     hints.append(
@@ -222,6 +242,9 @@ def enrich_idea(idea: str) -> str:
         hints.append(
             "El texto recomendado dentro del arte debe resaltar ideas como: desarrollo a la medida, software personalizado, escalable, soporte experto, contactanos por WhatsApp, visita noyecode.com."
         )
+        hints.append(
+            "Para esta escena, usar una composicion mas editorial y premium: menos personas si hace falta, un foco principal claro, mejor aire visual y texto mejor distribuido en zona segura."
+        )
 
     if primary_service == "automatizaciones empresariales":
         hints.append(
@@ -239,6 +262,9 @@ def enrich_idea(idea: str) -> str:
         )
         hints.append(
             "Evitar la oficina tradicional como unica escena. Priorizar manos usando el movil, pantallas reales de app y contexto de negocio o ventas."
+        )
+        hints.append(
+            "Cuidar que la interfaz del movil no quede demasiado pegada al borde ni recortada. Mantener el celular y el copy dentro de la zona segura central."
         )
 
     if primary_service == "desarrollo desktop":
@@ -258,6 +284,9 @@ def enrich_idea(idea: str) -> str:
         )
         hints.append(
             "Enfatizar migracion, actualizacion, continuidad operativa y modernizacion visual del sistema."
+        )
+        hints.append(
+            "Usar composicion comparativa o de transformacion, pero sin partir la imagen de forma brusca ni empujar el contenido importante a los extremos."
         )
 
     if primary_service == "rpas nativos":
