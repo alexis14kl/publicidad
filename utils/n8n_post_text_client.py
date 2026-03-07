@@ -1,13 +1,19 @@
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from logger import progress_bar  # noqa: E402
+
+
 DEFAULT_PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 DEFAULT_OUTPUT_FILE = PROJECT_ROOT / "utils" / "post_text.txt"
 DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/py-post-fb-text"
@@ -253,7 +259,8 @@ def main() -> int:
     output_file = Path(args.output).expanduser().resolve()
 
     prompt_text = read_prompt(prompt_file)
-    post_text = generate_post_text(prompt_text, webhook_url=args.webhook_url, timeout=args.timeout)
+    with progress_bar("Generando caption con IA de n8n..."):
+        post_text = generate_post_text(prompt_text, webhook_url=args.webhook_url, timeout=args.timeout)
 
     if args.stdout_only:
         print(post_text)
