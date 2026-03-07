@@ -156,27 +156,161 @@ const { chromium } = require('playwright');
       return x.startsWith(`http://127.0.0.1:${cdpPort}/json`);
     };
 
-    const pickBestChatPage = () => {
-      const chatPages = context.pages().filter(p => isChatPage(p.url()));
-      if (!chatPages.length) return null;
-      const ranked = [...chatPages].sort((a, b) => {
-        const score = (p) => {
-          const url = p.url() || '';
-          if (/^https:\/\/chatgpt\.com\/c\//i.test(url)) return 3;
-          if (/^https:\/\/chatgpt\.com\/$/i.test(url)) return 2;
-          return 1;
+    const getPageSignals = async (targetPage) => {
+      try {
+        return await targetPage.evaluate(() => {
+          const editor = document.querySelector('div#prompt-textarea[contenteditable="true"], #prompt-textarea[contenteditable="true"]');
+          const style = editor ? window.getComputedStyle(editor) : null;
+          const rect = editor ? editor.getBoundingClientRect() : null;
+          return {
+            readyState: document.readyState || '',
+            visibilityState: document.visibilityState || '',
+            hasFocus: typeof document.hasFocus === 'function' ? document.hasFocus() : false,
+            composerReady: !!(
+              editor &&
+              rect &&
+              rect.width > 50 &&
+              rect.height > 20 &&
+              style &&
+              style.display !== 'none' &&
+              style.visibility !== 'hidden'
+            ),
+          };
+        });
+      } catch {
+        return {
+          readyState: '',
+          visibilityState: '',
+          hasFocus: false,
+          composerReady: false,
         };
-        return score(b) - score(a);
-      });
-      return ranked[0] || chatPages[chatPages.length - 1];
+      }
     };
 
-    let page = pickBestChatPage();
+    const waitForSessionWindowsStable = async (timeoutMs = 45000, settleMs = 4000, pollMs = 500, requireSingleChat = false) => {
+      const deadline = Date.now() + timeoutMs;
+      let lastSignature = '';
+      let stableSince = 0;
+
+      while (Date.now() < deadline) {
+        const pages = context.pages().filter(p => !p.isClosed());
+        const chatPages = pages.filter(p => isChatPage(p.url()));
+        const debugPages = pages.filter(p => isDebugPage(p.url()));
+
+        const chatSignals = [];
+        for (const chatPage of chatPages) {
+          const signals = await getPageSignals(chatPage);
+          chatSignals.push({
+            url: chatPage.url() || '',
+            readyState: signals.readyState || '',
+            visibilityState: signals.visibilityState || '',
+            hasFocus: !!signals.hasFocus,
+            composerReady: !!signals.composerReady,
+          });
+        }
+
+        const signature = JSON.stringify({
+          chatCount: chatPages.length,
+          debugCount: debugPages.length,
+          chatSignals,
+        });
+
+        const hasReadyChatPage = chatSignals.some((item) => item.composerReady);
+        const hasDebugPage = debugPages.length > 0;
+        const singleChatCondition = !requireSingleChat || chatPages.length === 1;
+
+        if (signature === lastSignature && hasReadyChatPage && hasDebugPage && singleChatCondition) {
+          if (!stableSince) {
+            stableSince = Date.now();
+          }
+          if ((Date.now() - stableSince) >= settleMs) {
+            console.log(`SESSION_WINDOWS_READY: chats=${chatPages.length} debug=${debugPages.length}`);
+            return true;
+          }
+        } else {
+          lastSignature = signature;
+          stableSince = 0;
+        }
+
+        await page.waitForTimeout(pollMs);
+      }
+      return false;
+    };
+
+    const ensureSingleChatAndDebugPage = async (preferredPage) => {
+      let keepPage = preferredPage || await pickBestChatPage();
+      if (!keepPage) {
+        keepPage = await context.newPage();
+        await keepPage.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
+      }
+
+      let debugPage = context.pages().find(p => isDebugPage(p.url()));
+      if (!debugPage) {
+        debugPage = await context.newPage();
+      }
+
+      await debugPage.goto(debugUrl, { waitUntil: 'domcontentloaded' }).catch(() => {});
+
+      const pages = context.pages().filter(p => !p.isClosed());
+      for (const candidate of pages) {
+        if (candidate === keepPage || candidate === debugPage) continue;
+        const candidateUrl = candidate.url() || '';
+        if (
+          isChatPage(candidateUrl) ||
+          isDebugPage(candidateUrl) ||
+          candidateUrl === 'about:blank' ||
+          !candidateUrl
+        ) {
+          await candidate.close({ runBeforeUnload: false }).catch(() => {});
+        }
+      }
+
+      await keepPage.bringToFront().catch(() => {});
+      await debugPage.bringToFront().catch(() => {});
+      await keepPage.bringToFront().catch(() => {});
+      return { keepPage, debugPage };
+    };
+
+    const pickBestChatPage = async () => {
+      const chatPages = context.pages().filter(p => isChatPage(p.url()));
+      if (!chatPages.length) return null;
+      const ranked = [];
+      for (const candidate of chatPages) {
+        const url = candidate.url() || '';
+        const signals = await getPageSignals(candidate);
+        let score = 0;
+        if (/^https:\/\/chatgpt\.com\/c\//i.test(url)) score += 30;
+        else if (/^https:\/\/chatgpt\.com\/$/i.test(url)) score += 20;
+        else score += 10;
+        if (signals.composerReady) score += 50;
+        if (signals.visibilityState === 'visible') score += 10;
+        if (signals.hasFocus) score += 10;
+        if (signals.readyState === 'complete') score += 5;
+        ranked.push({ page: candidate, score });
+      }
+      ranked.sort((a, b) => b.score - a.score);
+      return ranked[0]?.page || chatPages[chatPages.length - 1];
+    };
+
+    let page = await pickBestChatPage();
     if (!page) {
       page = await context.newPage();
       await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
     }
 
+    await page.bringToFront();
+
+    let sessionPages = await ensureSingleChatAndDebugPage(page);
+    page = sessionPages.keepPage;
+
+    await waitForSessionWindowsStable(45000, 4000, 500, true);
+
+    const stabilizedPage = await pickBestChatPage();
+    if (stabilizedPage) {
+      page = stabilizedPage;
+    }
+    sessionPages = await ensureSingleChatAndDebugPage(page);
+    page = sessionPages.keepPage;
     await page.bringToFront();
 
     const selectors = [
@@ -229,6 +363,33 @@ const { chromium } = require('playwright');
       }, { timeout: timeoutMs });
     };
 
+    const disableAdvancedResearchMode = async () => {
+      const candidates = [
+        page.getByRole('button', { name: /Investigaci[oó]n avanzada, pulsa para quitar/i }).first(),
+        page.getByRole('button', { name: /Advanced research, click to remove/i }).first(),
+      ];
+
+      for (const candidate of candidates) {
+        const visible = await candidate.isVisible().catch(() => false);
+        if (!visible) continue;
+        await candidate.scrollIntoViewIfNeeded().catch(() => {});
+        try {
+          await candidate.click({ timeout: 5000 });
+        } catch {
+          const handle = await candidate.elementHandle();
+          if (handle) {
+            await page.evaluate((el) => el.click(), handle);
+          } else {
+            continue;
+          }
+        }
+        await page.waitForTimeout(600);
+        console.log('ADVANCED_RESEARCH_OFF');
+        return true;
+      }
+      return false;
+    };
+
     const findVisiblePromptInput = async (timeoutMs = 15000) => {
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
@@ -263,6 +424,8 @@ const { chromium } = require('playwright');
       }
       await waitForComposerReady(45000);
     }
+    await disableAdvancedResearchMode();
+
     const target = await findVisiblePromptInput();
     if (!target) throw new Error('No se encontro input visible de prompt');
 
@@ -555,27 +718,8 @@ const { chromium } = require('playwright');
       console.log('Sin tokens para imgs.');
     }
 
-    // Asegura una pestana de debug visible y limpia el resto.
-    let debugPage = context.pages().find(p => isDebugPage(p.url()));
-    if (!debugPage) {
-      debugPage = await context.newPage();
-      await debugPage.goto(debugUrl, { waitUntil: 'domcontentloaded' });
-    } else {
-      await debugPage.bringToFront();
-      await debugPage.goto(debugUrl, { waitUntil: 'domcontentloaded' });
-    }
-
-    const allPages = context.pages();
-    for (const p of allPages) {
-      if (p === page || p === debugPage) continue;
-      const u = p.url();
-      if (isChatPage(u) || isDebugPage(u) || !u || u === 'about:blank') {
-        await p.close({ runBeforeUnload: false }).catch(() => {});
-      } else {
-        await p.close({ runBeforeUnload: false }).catch(() => {});
-      }
-    }
-
+    const finalSessionPages = await ensureSingleChatAndDebugPage(page);
+    page = finalSessionPages.keepPage;
     await page.bringToFront();
 
     console.log('PROMPT_PEGADO_OK');
