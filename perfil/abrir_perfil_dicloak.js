@@ -1475,10 +1475,6 @@ async function main() {
         while (Date.now() - openStart < WAIT_OPEN_MS) {
           if (await wasProfileWindowOpened(context, page)) {
             console.log('[OK] Se detecto nueva ventana/pestana del perfil.');
-            const debugOpened = await openProfileDebugJsonWindow(CDP_URL);
-            if (!debugOpened) {
-              process.exit(1);
-            }
             return;
           }
 
@@ -1509,10 +1505,6 @@ async function main() {
           if (after.found) {
             if (/cerrar|close/i.test(after.btnText || '')) {
               console.log('[OK] Perfil abierto correctamente.');
-              const debugOpened = await openProfileDebugJsonWindow(CDP_URL);
-              if (!debugOpened) {
-                process.exit(1);
-              }
               return;
             }
             if (/abriendo|opening/i.test(after.btnText || '')) {
@@ -1526,10 +1518,6 @@ async function main() {
           '[WARN] No hubo confirmacion visual de "Cerrar", pero el click en "Abrir perfil" se ejecuto.',
         );
         await saveDebugScreenshot(page, 'debug_dicloak_open_uncertain.png');
-        const debugOpened = await openProfileDebugJsonWindow(CDP_URL);
-        if (!debugOpened) {
-          process.exit(1);
-        }
         return;
       }
 

@@ -1,5 +1,8 @@
 {
-  "last_execution_id": 86734,
+  "last_execution_id": 86814,
+  "last_job_id": "exec_86814",
+  "last_action": "run_full_cycle",
+  "last_status": "success",
   "queue_mode": "executions",
-  "updated_at": 1773069533
+  "updated_at": 1773070553
 }

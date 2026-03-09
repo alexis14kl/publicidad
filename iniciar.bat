@@ -12,6 +12,7 @@ set "OPENAPI_PORT_HINT="
 set "OPENAPI_SECRET_HINT="
 set "CDP_URL=http://127.0.0.1:9333"
 set "FORCE_LAUNCH_STARTED=0"
+set "PROFILE_WARMUP_SEC=20"
 if not "%~1"=="" set "PROFILE_NAME=%~1"
 if not "%~2"=="" set "PROFILE_DEBUG_PORT_HINT=%~2"
 if not "%~3"=="" set "RUN_MODE=%~3"
@@ -134,13 +135,6 @@ if errorlevel 1 (
 )
 
 %LOG% step "7/10" "Abriendo perfil: %PROFILE_NAME%"
-if exist "%FORCE_CDP_LAUNCHER_BAT%" (
-  %LOG% info "Lanzando reforce CDP en paralelo: %FORCE_CDP_LAUNCHER_BAT%"
-  start "Forzar CDP Perfil (10s + reforce)" "%FORCE_CDP_LAUNCHER_BAT%"
-  set "FORCE_LAUNCH_STARTED=1"
-) else (
-  %LOG% warn "No existe launcher CDP: %FORCE_CDP_LAUNCHER_BAT%"
-)
 set "PROFILE_MAYBE_OPEN=0"
 python "%RUN_WITH_PROGRESS_PY%" "Abriendo perfil en DiCloak..." node "%SCRIPT_PATH%" "%PROFILE_NAME%" "%CDP_URL%" "%PROFILE_DEBUG_PORT_HINT%" "%OPENAPI_PORT_HINT%" "%RUN_MODE%" "%OPENAPI_SECRET_HINT%"
 if not errorlevel 1 (
@@ -172,6 +166,9 @@ if not errorlevel 1 (
     goto :FAIL_OPEN_PROFILE
   )
 )
+
+%LOG% step "7.5/10" "Esperando hidratacion de sesion del perfil..."
+python "%RUN_WITH_PROGRESS_PY%" "Esperando %PROFILE_WARMUP_SEC%s para estabilizar sesion del perfil..." timeout /t %PROFILE_WARMUP_SEC% /nobreak
 
 if exist "%FORCE_CDP_PS1%" (
   %LOG% step "8/10" "Ejecutando automatizacion clave de depuracion de perfil..."
