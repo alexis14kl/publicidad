@@ -370,6 +370,12 @@ def fetch_next_execution_job(args: argparse.Namespace, timeout_sec: int) -> dict
             continue
         candidates.append((execution_id, item))
     candidates.sort(key=lambda pair: pair[0])
+    # On first boot, consume no backlog: start listening from the newest execution onward.
+    if last_execution_id <= 0 and candidates:
+        newest_execution_id = candidates[-1][0]
+        save_state({"last_execution_id": newest_execution_id, "queue_mode": "executions"})
+        log_info(f"Worker sincronizado con n8n desde execution_id={newest_execution_id}. Esperando comandos nuevos...")
+        return None
     for execution_id, _item in candidates:
         detail = fetch_execution_detail(args, str(execution_id), timeout_sec)
         job = extract_job_from_execution(detail)
