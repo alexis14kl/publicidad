@@ -1,6 +1,75 @@
 {
+<<<<<<< HEAD
   "enabledMcpjsonServers": [
     "dicloak"
   ],
   "enableAllProjectMcpServers": true
+=======
+  "permissions": {
+    "allow": [
+      "Bash(docker compose:*)",
+      "Bash(yarn test:*)",
+      "Bash(yarn build)",
+      "Bash(yarn dev)",
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp list)",
+      "Bash(python3 -c \" import json, sys e = json.load\\(sys.stdin\\) rd = e.get\\(''data'', {}\\).get\\(''resultData'', {}\\).get\\(''runData'', {}\\) # Webhook output data print\\(''=== WEBHOOK1 OUTPUT ===''\\) webhook_data = rd.get\\(''Webhook1'', [{}]\\)[0] main_out = webhook_data.get\\(''data'', {}\\).get\\(''main'', [[]]\\) if main_out and main_out[0]: item = main_out[0][0].get\\(''json'', {}\\) print\\(json.dumps\\(item, indent=2\\)[:1000]\\) print\\(\\) print\\(''=== SOLO ENTRANTES? OUTPUT ===''\\) filter_data = rd.get\\(''Solo entrantes?'', [{}]\\)[0] main_out = filter_data.get\\(''data'', {}\\).get\\(''main'', [[], []]\\) print\\(f''Output 0 \\(TRUE\\): {len\\(main_out[0]\\) if len\\(main_out\\) > 0 else 0} items''\\) print\\(f''Output 1 \\(FALSE\\): {len\\(main_out[1]\\) if len\\(main_out\\) > 1 else 0} items''\\) \")",
+      "Bash(python3 -c \" import json, sys w = json.load\\(sys.stdin\\) # Fix the ''Solo entrantes?'' node - use same format as ''Es opcion 4?'' for node in w[''nodes'']: if node[''name''] == ''Solo entrantes?'': node[''parameters''] = { ''conditions'': { ''string'': [ { ''value1'': ''={{ $json.body.message_type }}'', ''operation'': ''equals'', ''value2'': ''incoming'' }, { ''value1'': ''={{ $json.body.content }}'', ''operation'': ''isNotEmpty'' } ] } } print\\(f''Fixed node: {node[\"\"name\"\"]}''\\) print\\(f''New params: {json.dumps\\(node[\"\"parameters\"\"], indent=2\\)}''\\) # Prepare update payload update = { ''nodes'': w[''nodes''], ''connections'': w[''connections''], ''settings'': w[''settings''] } with open\\(''/tmp/workflow_fix2.json'', ''w''\\) as f: json.dump\\(update, f, ensure_ascii=False\\) print\\(''Saved to /tmp/workflow_fix2.json''\\) \")",
+      "Bash(# Aplicar la correccion curl -s -w \"\"\\\\nHTTP_CODE:%{http_code}\"\" \\\\ -X PUT \\\\ -H \"\"Content-Type: application/json\"\" \\\\ -H \"\"X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZTQwNGQ2My0wNzQ3LTQzZTktYWM3Zi1jZjBlNzJlOWNiOTkiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcwMjE3MDI5fQ.wqjQZDY0fwUOY-O_VIOAnMx6dZlLv43hfVme4iY9Y5U\"\" \\\\ -H \"\"User-Agent: n8n-mcp-client/1.0\"\" \\\\ -d @/tmp/workflow_fix2.json \\\\ \"\"https://n8n-dev.noyecode.com/api/v1/workflows/B55XgfJcLfaG-34tAjyjv\"\")",
+      "Bash(python3 -c \" import json, sys data = sys.stdin.read\\(\\) lines = data.strip\\(\\).split\\(''\\\\n''\\) http_code = lines[-1] if ''HTTP_CODE'' in lines[-1] else ''unknown'' json_data = ''\\\\n''.join\\(lines[:-1]\\) if ''HTTP_CODE'' in lines[-1] else data try: w = json.loads\\(json_data\\) print\\(f''Status: {http_code}''\\) print\\(f''Version: {w.get\\(\"\"versionCounter\"\"\\)}''\\) print\\(f''Active: {w.get\\(\"\"active\"\"\\)}''\\) # Verify the fixed node for n in w.get\\(''nodes'', []\\): if n[''name''] == ''Solo entrantes?'': print\\(f''Solo entrantes? params: {json.dumps\\(n[\"\"parameters\"\"], indent=2\\)[:300]}''\\) except: print\\(f''Response: {data[:500]}''\\) \")",
+      "Bash(curl:*)",
+      "Bash(# Add name field and resend python3 -c \"\" import json with open\\(''/tmp/workflow_fix2.json''\\) as f: data = json.load\\(f\\) data[''name''] = ''gestion de agente whatsapp'' with open\\(''/tmp/workflow_fix2.json'', ''w''\\) as f: json.dump\\(data, f, ensure_ascii=False\\) print\\(''Added name field''\\) \"\" curl -s -w \"\"\\\\n---HTTP:%{http_code}---\"\" \\\\ -X PUT \\\\ -H \"\"Content-Type: application/json\"\" \\\\ -H \"\"X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZTQwNGQ2My0wNzQ3LTQzZTktYWM3Zi1jZjBlNzJlOWNiOTkiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcwMjE3MDI5fQ.wqjQZDY0fwUOY-O_VIOAnMx6dZlLv43hfVme4iY9Y5U\"\" \\\\ -H \"\"User-Agent: n8n-mcp-client/1.0\"\" \\\\ -d @/tmp/workflow_fix2.json \\\\ \"\"https://n8n-dev.noyecode.com/api/v1/workflows/B55XgfJcLfaG-34tAjyjv\"\")",
+      "Bash(python3 -c \" import json, sys data = sys.stdin.read\\(\\) # Find the JSON part idx = data.find\\(''{''\\) last_line = data.strip\\(\\).split\\(''\\\\n''\\)[-1] json_part = data[idx:data.rfind\\(''}''\\)+1] if idx >= 0 else '''' try: w = json.loads\\(json_part\\) print\\(f''Actualizado OK - Version: {w.get\\(\"\"versionCounter\"\"\\)}, Active: {w.get\\(\"\"active\"\"\\)}''\\) for n in w.get\\(''nodes'', []\\): if n[''name''] == ''Solo entrantes?'': print\\(f''Solo entrantes? format: {list\\(n[\"\"parameters\"\"][\"\"conditions\"\"].keys\\(\\)\\)}''\\) except Exception as e: print\\(f''Response parse error: {e}''\\) print\\(data[:300]\\) \")",
+      "Bash(python3:*)",
+      "Bash(# Test with incoming \"\"hola\"\" message sleep 2 echo \"\"=== TEST: Incoming ''hola'' ===\"\" curl -s -X POST -H \"\"Content-Type: application/json\"\" \\\\ -d ''{\"\"event\"\":\"\"message_created\"\",\"\"content\"\":\"\"hola\"\",\"\"message_type\"\":\"\"incoming\"\",\"\"account\"\":{\"\"id\"\":1},\"\"conversation\"\":{\"\"id\"\":100,\"\"messages\"\":[{\"\"id\"\":1,\"\"content\"\":\"\"hola\"\",\"\"conversation_id\"\":100,\"\"message_type\"\":\"\"incoming\"\",\"\"sender\"\":{\"\"name\"\":\"\"Test User\"\"}}]}}'' \\\\ \"\"https://n8n-dev.noyecode.com/webhook/ce9be407-4ec4-4455-82d0-af5cd335a815\"\" echo \"\"\"\" sleep 8 # Check execution curl -s -H \"\"X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZTQwNGQ2My0wNzQ3LTQzZTktYWM3Zi1jZjBlNzJlOWNiOTkiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcwMjE3MDI5fQ.wqjQZDY0fwUOY-O_VIOAnMx6dZlLv43hfVme4iY9Y5U\"\" \\\\ \"\"https://n8n-dev.noyecode.com/api/v1/executions?workflowId=B55XgfJcLfaG-34tAjyjv&limit=1\"\")",
+      "Bash(# Test 1: Incoming \"\"hola\"\" - should pass filter, go to AI Agent \\(not opcion 4\\) sleep 2 echo \"\"=== TEST 1: Incoming ''hola'' ===\"\" curl -s -X POST -H \"\"Content-Type: application/json\"\" \\\\ -d ''{\"\"event\"\":\"\"message_created\"\",\"\"content\"\":\"\"hola\"\",\"\"message_type\"\":\"\"incoming\"\",\"\"account\"\":{\"\"id\"\":1},\"\"conversation\"\":{\"\"id\"\":100,\"\"messages\"\":[{\"\"id\"\":1,\"\"content\"\":\"\"hola\"\",\"\"conversation_id\"\":100,\"\"message_type\"\":\"\"incoming\"\",\"\"sender\"\":{\"\"name\"\":\"\"Test User\"\"}}]}}'' \\\\ \"\"https://n8n-dev.noyecode.com/webhook/ce9be407-4ec4-4455-82d0-af5cd335a815\"\" echo \"\"\"\" sleep 10 # Check execution path curl -s -H \"\"X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZTQwNGQ2My0wNzQ3LTQzZTktYWM3Zi1jZjBlNzJlOWNiOTkiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcwMjE3MDI5fQ.wqjQZDY0fwUOY-O_VIOAnMx6dZlLv43hfVme4iY9Y5U\"\" \\\\ \"\"https://n8n-dev.noyecode.com/api/v1/executions?workflowId=B55XgfJcLfaG-34tAjyjv&limit=1\"\")",
+      "Bash(# Apply the restored + fixed workflow curl -s -w \"\"\\\\n---HTTP:%{http_code}---\"\" \\\\ -X PUT \\\\ -H \"\"Content-Type: application/json\"\" \\\\ -H \"\"X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZTQwNGQ2My0wNzQ3LTQzZTktYWM3Zi1jZjBlNzJlOWNiOTkiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcwMjE3MDI5fQ.wqjQZDY0fwUOY-O_VIOAnMx6dZlLv43hfVme4iY9Y5U\"\" \\\\ -H \"\"User-Agent: n8n-mcp-client/1.0\"\" \\\\ -d @/tmp/workflow_restore_fixed.json \\\\ \"\"https://n8n-dev.noyecode.com/api/v1/workflows/B55XgfJcLfaG-34tAjyjv\"\")",
+      "Bash(find:*)",
+      "Bash(lsof:*)",
+      "Bash(tee:*)",
+      "Bash(chmod:*)",
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(echo:*)",
+      "Bash(printenv:*)",
+      "Bash(env:*)",
+      "Bash(docker ps:*)",
+      "WebFetch(domain:www.facebook.com)",
+      "Bash(for exec_id in 5615 5610 5605 5599)",
+      "Bash(do)",
+      "Bash(done)",
+      "Bash(TMPDIR=/tmp curl -s \"https://n8n-dev.noyecode.com/api/v1/workflows/B55XgfJcLfaG-34tAjyjv\" -H \"X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZTQwNGQ2My0wNzQ3LTQzZTktYWM3Zi1jZjBlNzJlOWNiOTkiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcwMjE3MDI5fQ.wqjQZDY0fwUOY-O_VIOAnMx6dZlLv43hfVme4iY9Y5U\")",
+      "Bash(# Check workflow active status and get the ACTUAL current prompt curl -s -H \"\"X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZTQwNGQ2My0wNzQ3LTQzZTktYWM3Zi1jZjBlNzJlOWNiOTkiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcwMjE3MDI5fQ.wqjQZDY0fwUOY-O_VIOAnMx6dZlLv43hfVme4iY9Y5U\"\" \"\"https://n8n-dev.noyecode.com/api/v1/workflows/YPph0qQ-BJlPdDNr90KAH\"\")",
+      "Bash(npx skills add remotion-dev/skills --yes:*)",
+      "Bash(npx create-video@latest:*)",
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:deepakness.com)",
+      "WebFetch(domain:www.remotion.dev)",
+      "Bash(say:*)",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_screenshot",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_snapshot",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__click",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__fill",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__press_key",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__new_page",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__select_page",
+      "Bash(pkill:*)",
+      "Bash(# Deploy curl -s -X PUT -H \"\"X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZTQwNGQ2My0wNzQ3LTQzZTktYWM3Zi1jZjBlNzJlOWNiOTkiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcwMjE3MDI5fQ.wqjQZDY0fwUOY-O_VIOAnMx6dZlLv43hfVme4iY9Y5U\"\" -H \"\"Content-Type: application/json\"\" -d @/tmp/jira_disable_chat_payload.json \"\"https://n8n-dev.noyecode.com/api/v1/workflows/TYpUwgKuCzH0NeQxskUsS\"\" | python3 -c \"\"import json,sys; print\\(f''Deployed: {json.load\\(sys.stdin\\).get\\(\\\\\"\"active\\\\\"\"\\)}''\\)\"\" 2>&1 && \\\\ curl -s -X POST -H \"\"X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZTQwNGQ2My0wNzQ3LTQzZTktYWM3Zi1jZjBlNzJlOWNiOTkiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcwMjE3MDI5fQ.wqjQZDY0fwUOY-O_VIOAnMx6dZlLv43hfVme4iY9Y5U\"\" \"\"https://n8n-dev.noyecode.com/api/v1/workflows/TYpUwgKuCzH0NeQxskUsS/activate\"\")",
+      "WebFetch(domain:www.noyecode.com)",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__navigate_page",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__evaluate_script",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__wait_for",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__type_text",
+      "WebFetch(domain:www.aitmpl.com)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(npx claude-code-templates@latest:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "GitLab"
+  ]
+>>>>>>> 17f4891 (agentes)
 }

@@ -6,7 +6,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from service_rotation import rotate_service
-from logger import log_error, progress_bar
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -427,28 +426,26 @@ def main() -> int:
             raise ValueError("Debes enviar una idea o usar --idea-file")
 
         if args.stdout_only:
-            with progress_bar("Generando prompt con IA de n8n..."):
-                prompt = generate_prompt(
-                    idea=idea,
-                    webhook_url=args.webhook_url,
-                    timeout=args.timeout,
-                )
+            prompt = generate_prompt(
+                idea=idea,
+                webhook_url=args.webhook_url,
+                timeout=args.timeout,
+            )
             print(prompt)
             return 0
 
         output_path = Path(args.output)
-        with progress_bar("Generando prompt con IA de n8n..."):
-            prompt = generate_and_save(
-                idea=idea,
-                output_path=output_path,
-                webhook_url=args.webhook_url,
-                timeout=args.timeout,
-            )
+        prompt = generate_and_save(
+            idea=idea,
+            output_path=output_path,
+            webhook_url=args.webhook_url,
+            timeout=args.timeout,
+        )
         print(prompt)
         print(f"PROMPT_GUARDADO={output_path}")
         return 0
     except Exception as exc:
-        log_error(str(exc))
+        print(f"ERROR: {exc}")
         return 1
 
 
