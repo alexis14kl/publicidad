@@ -14,6 +14,11 @@ set "CDP_URL=http://127.0.0.1:9333"
 set "FORCE_LAUNCH_STARTED=0"
 set "PROFILE_WARMUP_SEC=20"
 if not "%~1"=="" set "PROFILE_NAME=%~1"
+
+rem --- Consultar memoria de perfiles para evitar abrir uno vencido ---
+for /f "usebackq delims=" %%P in (`python "%~dp0perfil\profile_memory.py" --best-profile "#1 Chat Gpt PRO" "#4 Chat Gpt Plus" "#2 Chat Gpt PRO"`) do (
+    if not "%%P"=="" set "PROFILE_NAME=%%P"
+)
 if not "%~2"=="" set "PROFILE_DEBUG_PORT_HINT=%~2"
 if not "%~3"=="" set "RUN_MODE=%~3"
 if not "%~4"=="" set "OPENAPI_PORT_HINT=%~4"

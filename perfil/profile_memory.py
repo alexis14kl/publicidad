@@ -122,6 +122,13 @@ def get_active_profiles(all_profiles: list[str]) -> list[str]:
     return active
 
 
+def resolve_best_profile(ordered_profiles: list[str]) -> str:
+    active = get_active_profiles(ordered_profiles)
+    if active:
+        return active[0]
+    return ordered_profiles[0] if ordered_profiles else ""
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -129,9 +136,18 @@ if __name__ == "__main__":
     parser.add_argument("--status", action="store_true", help="Mostrar estado de perfiles")
     parser.add_argument("--clear-all", action="store_true", help="Limpiar todos los vencidos")
     parser.add_argument("--clear", type=str, help="Limpiar un perfil especifico")
+    parser.add_argument(
+        "--best-profile",
+        nargs="+",
+        metavar="NAME",
+        help="Devuelve el primer perfil NO vencido de la lista dada",
+    )
     args = parser.parse_args()
 
-    if args.clear_all:
+    if args.best_profile:
+        best = resolve_best_profile(args.best_profile)
+        print(best)
+    elif args.clear_all:
         n = clear_all_expired()
         print(f"Limpiados: {n} perfiles")
     elif args.clear:
