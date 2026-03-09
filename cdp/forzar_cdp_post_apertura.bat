@@ -85,9 +85,11 @@ endlocal
 exit /b 0
 
 :CLEANUP_AND_EXIT
-%LOG% info "Cerrando DiCloak para liberar memoria..."
+%LOG% info "Cerrando DiCloak, perfil y ginsbrowser para liberar memoria..."
+taskkill /F /IM ginsbrowser.exe >nul 2>nul
+taskkill /F /IM DICloak.exe >nul 2>nul
 "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%KILLER_PS1%" -Quiet
-%LOG% ok "DiCloak cerrado. Worker sigue en background."
+%LOG% ok "DiCloak y perfil cerrados. Worker sigue en background."
 %LOG% ok "Proceso completado. Cerrando consola..."
 endlocal
 exit
