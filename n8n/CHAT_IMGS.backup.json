@@ -1,0 +1,127 @@
+{
+  "name": "CHAT_IMGS",
+  "nodes": [
+    {
+      "parameters": {
+        "multipleMethods": false,
+        "httpMethod": "POST",
+        "path": "telegram-chat-imgs",
+        "authentication": "none",
+        "responseMode": "onReceived",
+        "contentTypeNotice": "",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "id": "745d515e-3904-466b-b342-35ea63e433f3",
+      "name": "Telegram Webhook",
+      "webhookId": "a2d8d529-b424-461e-aab4-f20c54254106"
+    },
+    {
+      "parameters": {
+        "aiAgentStarterCallout": "",
+        "promptType": "define",
+        "text": "={{ $json.body?.message?.text || $json.body?.message?.caption || $json.body?.edited_message?.text || $json.body?.channel_post?.text || $json.body?.channel_post?.caption || \"\" }}",
+        "hasOutputParser": false,
+        "needsFallback": false,
+        "options": {
+          "systemMessage": "Eres un generador experto de prompts para imagen. Responde siempre con un unico prompt final, completo y listo para usar. No agregues saludos, explicaciones, listas, titulos, markdown, ni prefijos como \"Prompt:\". Devuelve solo el texto del prompt en una sola respuesta."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [208, 0],
+      "id": "da5bb958-c8cc-4155-8fab-075020c4896c",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "notice": "",
+        "model": "=llama-3.1-8b-instant",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [80, 208],
+      "id": "02a18caf-8238-442b-af48-8f1285e194dd",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "ujxI8q61jPeRlWaT",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "preBuiltAgentsCalloutHttpRequest": "",
+        "curlImport": "",
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8330436500:AAFn_2kMLSjqR-V_zQg2BacWRWx7ULOiNuw/sendMessage",
+        "authentication": "none",
+        "provideSslCertificates": false,
+        "sendQuery": false,
+        "sendHeaders": false,
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\"chat_id\": {{ $(\"Telegram Webhook\").item.json.body.message.chat.id }}, \"text\": {{ JSON.stringify($json.output) }}}",
+        "options": {},
+        "infoMessage": ""
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [560, 0],
+      "id": "d0c7692d-822c-4365-8dd1-d96c74bfd22d",
+      "name": "Send Telegram Reply"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "420f64c6-34f8-4310-80a3-101a9b12b49d",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "5zKqthFIw2-FhYBIkCKnu",
+  "tags": []
+}

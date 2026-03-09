@@ -1,0 +1,50 @@
+@echo off
+setlocal EnableExtensions
+title Worker local n8n -> bot publicitario
+
+call "%~dp0cfg\rutas.bat"
+
+if not exist "%JOB_POLLER_PY%" (
+  echo [ERROR] No existe el worker local: "%JOB_POLLER_PY%"
+  if /I not "%NO_PAUSE%"=="1" pause
+  exit /b 1
+)
+
+where python >nul 2>nul
+if errorlevel 1 (
+  echo [ERROR] Python no esta disponible en PATH.
+  if /I not "%NO_PAUSE%"=="1" pause
+  exit /b 1
+)
+
+if "%N8N_BASE_URL%"=="" set "N8N_BASE_URL=https://n8n-dev.noyecode.com"
+if "%N8N_LOGIN_EMAIL%"=="" set "N8N_LOGIN_EMAIL=andersonbarbosadev@outlook.com"
+if "%N8N_LOGIN_PASSWORD%"=="" set "N8N_LOGIN_PASSWORD=t5x]oIs{7=ISZ}sS"
+if "%N8N_BOT_QUEUE_MODE%"=="" set "N8N_BOT_QUEUE_MODE=executions"
+if "%N8N_BOT_EXECUTION_WORKFLOW_ID%"=="" set "N8N_BOT_EXECUTION_WORKFLOW_ID=5zKqthFIw2-FhYBIkCKnu"
+if "%N8N_BOT_POLL_INTERVAL%"=="" set "N8N_BOT_POLL_INTERVAL=15"
+if "%N8N_BOT_TIMEOUT%"=="" set "N8N_BOT_TIMEOUT=60"
+if "%N8N_BOT_RUN_TIMEOUT%"=="" set "N8N_BOT_RUN_TIMEOUT=7200"
+if "%N8N_BOT_WORKER_ID%"=="" set "N8N_BOT_WORKER_ID=%COMPUTERNAME%"
+
+echo [INFO] Iniciando worker local...
+echo [INFO] queue_mode=%N8N_BOT_QUEUE_MODE%
+echo [INFO] n8n_base_url=%N8N_BASE_URL%
+echo [INFO] execution_workflow_id=%N8N_BOT_EXECUTION_WORKFLOW_ID%
+echo [INFO] poll_interval=%N8N_BOT_POLL_INTERVAL%s
+echo.
+
+python "%JOB_POLLER_PY%" %*
+set "EXIT_CODE=%ERRORLEVEL%"
+
+if "%EXIT_CODE%"=="0" (
+  echo.
+  echo [OK] Worker finalizado sin error.
+) else (
+  echo.
+  echo [ERROR] El worker termino con codigo %EXIT_CODE%.
+)
+
+if /I not "%NO_PAUSE%"=="1" pause
+endlocal
+exit /b %EXIT_CODE%

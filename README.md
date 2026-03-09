@@ -53,7 +53,9 @@ publicidad/
 │   └── service_rotation.py              # Rota servicios NoyeCode (round-robin)
 │
 ├── server/
-│   └── server.py                        # MCP stub
+│   ├── server.py                        # MCP stub legado
+│   ├── bot_runner.py                    # Ejecuta acciones locales del bot con lock
+│   └── job_poller.py                    # Worker local que consulta jobs en n8n por polling
 │
 ├── img_publicitarias/                   # Imagenes generadas descargadas
 │   └── *.png
@@ -160,6 +162,46 @@ DICloak (app principal)     --> puerto 9333 (CDP)
 - **Python** - logica de negocio (prompts, descargas, publicacion, rotacion)
 - **n8n** - IA para prompts/captions + publicacion a Facebook
 - **CDP** - Chrome DevTools Protocol
+- **Polling worker** - activacion remota segura desde n8n hacia el bot local
+
+---
+
+## Activacion remota por polling
+
+El bot puede quedar escuchando comandos desde n8n sin exponer puertos locales.
+
+Modo recomendado actual: **polling sobre ejecuciones de `CHAT_IMGS`**.
+
+```bat
+set N8N_BASE_URL=https://n8n-dev.noyecode.com
+set N8N_LOGIN_EMAIL=andersonbarbosadev@outlook.com
+set N8N_LOGIN_PASSWORD=********
+set N8N_BOT_QUEUE_MODE=executions
+set N8N_BOT_EXECUTION_WORKFLOW_ID=5zKqthFIw2-FhYBIkCKnu
+
+python server\job_poller.py
+```
+
+Flujo:
+
+1. Telegram dispara el workflow `CHAT_IMGS`
+2. `CHAT_IMGS` responde al usuario: solicitud recibida
+3. `job_poller.py` consulta ejecuciones recientes de `CHAT_IMGS`
+4. Si detecta un comando `/publicar ...`, extrae `action` y `payload`
+5. `bot_runner.py` ejecuta `run_full_cycle` con lock local
+6. El estado local queda registrado en `.job_poller_state.json`
+
+Modo alterno experimental:
+
+```bat
+python server\job_poller.py --queue-mode datatable --n8n-project-id "bkrM241Q8UeW2zme" --n8n-table-id "LFM69EeeF7pa8yiO"
+```
+
+Modo legado/fallback:
+
+```bat
+python server\job_poller.py --queue-mode webhook --next-job-url "https://n8n-dev.noyecode.com/webhook/..." --update-job-url "https://n8n-dev.noyecode.com/webhook/..."
+```
 
 ---
 
@@ -181,6 +223,18 @@ iniciar.bat
 
 rem Con parametros opcionales:
 iniciar.bat "#1 Chat Gpt PRO" "" "" "" ""
+```
+
+### Arrancar el worker de Telegram/n8n
+
+```bat
+iniciar_poller.bat
+```
+
+Opcionalmente puedes hacer una sola pasada de prueba:
+
+```bat
+iniciar_poller.bat --once
 ```
 
 ---
