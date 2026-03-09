@@ -18,6 +18,7 @@ from perfil.profile_memory import (  # noqa: E402
 from utils.logger import log_info, log_warn  # noqa: E402
 
 
+INITIAL_PROFILE = "#1 Chat Gpt PRO"
 DEFAULT_TARGET_PROFILE = "#4 Chat Gpt Plus"
 FALLBACK_PROFILES = ["#4 Chat Gpt Plus", "#2 Chat Gpt PRO"]
 DEFAULT_MAIN_CDP_URL = "http://127.0.0.1:9333"
@@ -155,7 +156,12 @@ def switch_to_any_fallback(
     profiles: list[str] | None = None,
     preferred_port: int = DEFAULT_PROFILE_CDP_PORT,
     warmup_sec: int = DEFAULT_PROFILE_WARMUP_SEC,
+    current_profile: str = "",
 ) -> str:
+    if current_profile:
+        mark_profile_expired(current_profile, reason="session_expired")
+        log_warn(f"Perfil actual marcado como vencido en memoria: '{current_profile}'")
+
     all_candidates = profiles or FALLBACK_PROFILES
     candidates = get_active_profiles(all_candidates)
 

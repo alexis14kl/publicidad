@@ -1,3 +1,9 @@
 {
-  "profiles": {}
+  "profiles": {
+    "#1 Chat Gpt PRO": {
+      "status": "vencido",
+      "date": "2026-03-09T18:05:53.819923+00:00",
+      "reason": "session_expired"
+    }
+  }
 }

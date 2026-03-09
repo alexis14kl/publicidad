@@ -19,6 +19,7 @@ from perfil.account_rotation import (  # noqa: E402
     switch_to_next_available_account,
 )
 from perfil.change_count import (  # noqa: E402
+    INITIAL_PROFILE,
     close_current_profile,
     switch_to_any_fallback,
 )
@@ -122,7 +123,8 @@ def trigger_change_count(reason: str = "no_image_tokens", close_only: bool = Fal
             close_current_profile()
             log_info("Perfil actual cerrado (close_only).")
             return True
-        selected = switch_to_any_fallback()
+        current = INITIAL_PROFILE if reason == "session_expired" else ""
+        selected = switch_to_any_fallback(current_profile=current)
         log_info(f"Cambio a perfil fallback completado: {selected}")
         return True
     except Exception as exc:
