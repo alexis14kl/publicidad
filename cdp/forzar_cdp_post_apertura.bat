@@ -66,6 +66,7 @@ if exist "%PROMPT_AUTOMATION_PY%" (
             %LOG% warn "No se pudo enviar la imagen local a n8n."
           ) else (
             %LOG% ok "imagen enviada a n8n con exito"
+            goto :CLEANUP_AND_EXIT
           )
         ) else (
           %LOG% warn "No existe script de publicacion local a n8n: %PUBLIC_IMG_PY%"
@@ -82,6 +83,14 @@ if exist "%PROMPT_AUTOMATION_PY%" (
 %LOG% ok "Proceso completado. Cerrando esta consola..."
 endlocal
 exit /b 0
+
+:CLEANUP_AND_EXIT
+%LOG% info "Cerrando DiCloak para liberar memoria..."
+"%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%KILLER_PS1%" -Quiet
+%LOG% ok "DiCloak cerrado. Worker sigue en background."
+%LOG% ok "Proceso completado. Cerrando consola..."
+endlocal
+exit
 
 :RUN_PYTHON_SCRIPT
 setlocal
