@@ -200,7 +200,7 @@ def enrich_idea(idea: str) -> str:
         f"El nombre del servicio destacado dentro del arte debe ser exactamente: {primary_service}."
     )
     hints.append(
-        f"Cuando encaje con formato de redes, incluir hashtags comerciales discretos como {SERVICE_HASHTAGS.get(primary_service, '#NoyeCode #SoftwareEmpresarial #Colombia')}."
+        "NO incluir hashtags ni simbolos # dentro de la imagen. Los hashtags se agregan despues en el caption de Facebook. La imagen debe quedar limpia sin texto tipo hashtag."
     )
     hints.append(
         "Si se listan servicios complementarios, deben ir en segundo nivel visual y nunca opacar el servicio principal."
