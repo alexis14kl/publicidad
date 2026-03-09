@@ -11,6 +11,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from perfil.profile_memory import (  # noqa: E402
+    get_active_profiles,
+    mark_profile_expired,
+)
 from utils.logger import log_info, log_warn  # noqa: E402
 
 
@@ -152,7 +156,16 @@ def switch_to_any_fallback(
     preferred_port: int = DEFAULT_PROFILE_CDP_PORT,
     warmup_sec: int = DEFAULT_PROFILE_WARMUP_SEC,
 ) -> str:
-    candidates = profiles or FALLBACK_PROFILES
+    all_candidates = profiles or FALLBACK_PROFILES
+    candidates = get_active_profiles(all_candidates)
+
+    if not candidates:
+        raise RuntimeError(
+            f"Todos los perfiles estan vencidos. No se intentara abrir ninguno. "
+            f"Perfiles registrados: {all_candidates}. "
+            f"Limpia la memoria con: python perfil/profile_memory.py --clear-all"
+        )
+
     last_error = None
     for profile in candidates:
         log_info(f"Intentando perfil fallback: {profile}")
@@ -162,7 +175,9 @@ def switch_to_any_fallback(
             return profile
         except Exception as exc:
             log_warn(f"Perfil '{profile}' fallo: {exc}")
+            mark_profile_expired(profile, reason="session_expired")
             last_error = exc
+
     raise RuntimeError(
         f"Ningun perfil fallback disponible. Intentados: {candidates}. Ultimo error: {last_error}"
     )
