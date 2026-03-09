@@ -128,7 +128,7 @@ def trigger_change_count(reason: str = "no_image_tokens", close_only: bool = Fal
         log_info(f"Cambio a perfil fallback completado: {selected}")
         return True
     except Exception as exc:
-        log_warn(f"No se pudo cambiar a ningun perfil fallback: {exc}")
+        log_error(f"No se encuentra perfil disponible para generar la imagen. Todos los perfiles estan vencidos o fallaron. Detalle: {exc}")
         return False
 
 
