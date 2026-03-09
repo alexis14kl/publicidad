@@ -6,25 +6,10 @@ cd "$ROOT_DIR"
 
 PROFILE_NAME="${1:-#1 Chat Gpt PRO}"
 CDP_URL="${2:-http://127.0.0.1:9333}"
+PROFILE_DEBUG_PORT_HINT="${3:-}"
+RUN_MODE="${4:-}"
+OPENAPI_PORT_HINT="${5:-}"
+OPENAPI_SECRET_HINT="${6:-}"
 
-if ! command -v node >/dev/null 2>&1; then
-  echo "[ERROR] Node.js no esta instalado. Ejecuta primero: ./setup_mac.sh"
-  exit 1
-fi
-
-if [ ! -d node_modules/playwright ]; then
-  echo "[WARN] Dependencias no detectadas. Ejecutando setup..."
-  ./setup_mac.sh
-fi
-
-echo "[INFO] Perfil: $PROFILE_NAME"
-echo "[INFO] CDP URL: $CDP_URL"
-
-if ! curl -s --max-time 3 "${CDP_URL}/json/version" | grep -q "webSocketDebuggerUrl"; then
-  echo "[ERROR] CDP no esta disponible en ${CDP_URL}."
-  echo "[INFO] Primero ejecuta: ./terminal_mac.sh debug 9333"
-  exit 1
-fi
-
-echo "[INFO] Ejecutando apertura de perfil..."
-node force_open_profile_cdp.js "$PROFILE_NAME" "$CDP_URL"
+export DICLOAK_MAIN_CDP_URL="$CDP_URL"
+exec ./iniciar_mac.sh "$PROFILE_NAME" "$PROFILE_DEBUG_PORT_HINT" "$RUN_MODE" "$OPENAPI_PORT_HINT" "$OPENAPI_SECRET_HINT"

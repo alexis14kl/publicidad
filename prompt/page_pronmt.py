@@ -22,7 +22,6 @@ from utils.logger import log_info, log_warn, log_error  # noqa: E402
 
 PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 CHANGE_COUNT_SCRIPT = PROJECT_ROOT / "perfil" / "change_count.py"
-CDP_DEBUG_INFO = Path(os.getenv("APPDATA", "")) / "DICloak" / "cdp_debug_info.json"
 DEFAULT_PORT = 9225
 PROMPT_LOCK_FILE = PROJECT_ROOT / ".prompt_last_send.json"
 PROMPT_DEDUP_WINDOW_SEC = 90
@@ -30,6 +29,27 @@ NO_IMAGE_TOKENS_MARKER = "Sin tokens para imgs."
 PROMPT_STATUS_SUCCESS = "success"
 PROMPT_STATUS_NO_IMAGE_TOKENS = "no_image_tokens"
 MAX_ACCOUNT_ROTATION_ATTEMPTS = 20
+
+
+def _candidate_cdp_debug_info_paths() -> list[Path]:
+    candidates: list[Path] = []
+    explicit = os.getenv("DICLOAK_CDP_INFO_PATH", "").strip()
+    if explicit:
+        candidates.append(Path(explicit).expanduser())
+
+    appdata = os.getenv("APPDATA", "").strip()
+    if appdata:
+        candidates.append(Path(appdata) / "DICloak" / "cdp_debug_info.json")
+
+    home = Path.home()
+    candidates.extend(
+        [
+            home / "Library" / "Application Support" / "DICloak" / "cdp_debug_info.json",
+            home / "Library" / "Application Support" / "dicloak" / "cdp_debug_info.json",
+            home / ".config" / "DICloak" / "cdp_debug_info.json",
+        ]
+    )
+    return candidates
 
 
 def read_prompt() -> str:
@@ -76,21 +96,22 @@ def is_cdp_alive(port: int) -> bool:
 
 
 def get_port_from_debug_info() -> int:
-    if not CDP_DEBUG_INFO.exists():
-        return 0
-    try:
-        raw = CDP_DEBUG_INFO.read_text(encoding="utf-8", errors="ignore").strip()
-        if not raw:
-            return 0
-        data = json.loads(raw)
-        if isinstance(data, dict):
-            for value in data.values():
-                if isinstance(value, dict):
-                    port = int(value.get("debugPort", 0) or 0)
-                    if 0 < port <= 65535:
-                        return port
-    except Exception:
-        return 0
+    for cdp_debug_info in _candidate_cdp_debug_info_paths():
+        if not cdp_debug_info.exists():
+            continue
+        try:
+            raw = cdp_debug_info.read_text(encoding="utf-8", errors="ignore").strip()
+            if not raw:
+                continue
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                for value in data.values():
+                    if isinstance(value, dict):
+                        port = int(value.get("debugPort", 0) or 0)
+                        if 0 < port <= 65535:
+                            return port
+        except Exception:
+            continue
     return 0
 
 
