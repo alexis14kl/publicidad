@@ -166,9 +166,10 @@ def switch_to_any_fallback(
     candidates = get_active_profiles(all_candidates)
 
     if not candidates:
+        log_warn(f"No se encuentra perfil para generar la imagen. Todos vencidos: {all_candidates}")
         raise RuntimeError(
-            f"Todos los perfiles estan vencidos. No se intentara abrir ninguno. "
-            f"Perfiles registrados: {all_candidates}. "
+            f"No se encuentra perfil disponible para generar la imagen. "
+            f"Todos los perfiles estan vencidos: {all_candidates}. "
             f"Limpia la memoria con: python perfil/profile_memory.py --clear-all"
         )
 
