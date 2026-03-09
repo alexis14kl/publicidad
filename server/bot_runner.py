@@ -13,6 +13,11 @@ from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from utils.logger import log_info, log_ok, log_warn, log_error  # noqa: E402
+
 START_BAT = PROJECT_ROOT / "iniciar.bat"
 LOCK_FILE = PROJECT_ROOT / ".bot_runner.lock"
 
@@ -153,15 +158,20 @@ def main() -> int:
         try:
             payload = json.loads(sys.argv[2])
         except json.JSONDecodeError as exc:
-            print(f"ERROR: payload JSON invalido: {exc}")
+            log_error(f"Payload JSON invalido: {exc}")
             return 1
 
     try:
+        log_info(f"Ejecutando accion: {action}")
         result = execute_action(action, payload=payload)
+        if result.success:
+            log_ok(f"Accion '{action}' completada en {round(result.finished_at - result.started_at, 1)}s")
+        else:
+            log_warn(f"Accion '{action}' termino con exit_code={result.exit_code}")
         print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
         return 0 if result.success else 1
     except Exception as exc:
-        print(f"ERROR: {exc}")
+        log_error(str(exc))
         return 1
 
 

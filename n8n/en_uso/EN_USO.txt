@@ -1,0 +1,79 @@
+WORKFLOWS N8N EN USO - PROYECTO PUBLICIDAD
+
+Carpeta:
+C:\Users\NyGsoft\Desktop\publicidad\n8n\en_uso
+
+Objetivo:
+Guardar una copia de los workflows n8n que hoy estan siendo usados directa o indirectamente por el proyecto de publicidad, junto con una explicacion breve de para que sirven y donde se consumen localmente.
+
+1. PY_PROMPT_IMGS.json
+Uso:
+Genera el prompt publicitario de imagen usando IA en n8n.
+Donde se usa:
+C:\Users\NyGsoft\Desktop\publicidad\utils\n8n_prompt_client.py
+Webhook asociado:
+https://n8n-dev.noyecode.com/webhook/py-prompt-imgs
+Estado:
+En uso principal.
+
+2. PY_POST_TEXT_FB.json
+Uso:
+Genera el caption o texto de publicacion para Facebook usando IA en n8n.
+Donde se usa:
+C:\Users\NyGsoft\Desktop\publicidad\utils\n8n_post_text_client.py
+Webhook asociado:
+https://n8n-dev.noyecode.com/webhook/py-post-fb-text
+Estado:
+En uso principal.
+
+3. PUBLICAR_IMG_LOCAL_FB.json
+Uso:
+Recibe la imagen generada localmente por el bot, la prepara para el flujo de publicacion y continua la publicacion en Facebook.
+Donde se usa:
+C:\Users\NyGsoft\Desktop\publicidad\n8n\public_img.py
+Webhook asociado:
+https://n8n-dev.noyecode.com/webhook/publicar-img-local-fb
+Estado:
+En uso principal.
+
+4. CHAT_IMGS.json
+Uso:
+Workflow de Telegram que recibe mensajes/comandos del bot de Telegram y responde al usuario.
+Tambien es el workflow que hoy usa el worker local para detectar comandos por polling de ejecuciones.
+Donde se usa:
+C:\Users\NyGsoft\Desktop\publicidad\server\job_poller.py
+Flujo relacionado:
+Telegram -> CHAT_IMGS -> job_poller.py -> bot local
+Estado:
+En uso principal.
+
+5. BOT_JOB_QUEUE.json
+Uso:
+Workflow de cola para jobs del bot local.
+Sirve como base tecnica para manejar enqueue, next y update de trabajos.
+Donde se usa:
+C:\Users\NyGsoft\Desktop\publicidad\server\job_poller.py
+Estado:
+Uso tecnico / experimental. Se conserva porque forma parte de la arquitectura de activacion remota, aunque el modo recomendado actual es polling por ejecuciones de CHAT_IMGS.
+
+6. copia facebook bot.json
+Uso:
+Workflow historico/referencia del flujo automatico de publicaciones en Facebook por horarios.
+Se usa como referencia funcional del proceso publicitario en n8n y del flujo de publicacion automatica.
+Donde se relaciona:
+Proyecto de publicidad y automatizacion de publicaciones para Facebook.
+Estado:
+En uso como referencia operativa y base del flujo de publicaciones del proyecto.
+
+Notas:
+- No se incluyeron archivos auxiliares como _builder.store.js o _dataTable.store.js porque no son bots/workflows funcionales del proyecto.
+- No se incluyo CHAT_IMGS.backup.json porque es una copia de respaldo y no el archivo operativo principal.
+- No se incluyo Telegram Bot.json en esta carpeta porque el flujo operativo actual del proyecto para activacion por Telegram se esta apoyando en CHAT_IMGS.
+
+Resumen rapido de uso actual:
+- Generar prompt de imagen: PY_PROMPT_IMGS
+- Generar caption de Facebook: PY_POST_TEXT_FB
+- Publicar imagen local en Facebook: PUBLICAR_IMG_LOCAL_FB
+- Recibir activacion desde Telegram: CHAT_IMGS
+- Cola/worker del bot local: BOT_JOB_QUEUE + job_poller.py
+- Referencia de publicacion automatica historica: copia facebook bot

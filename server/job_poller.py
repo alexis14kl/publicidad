@@ -13,10 +13,12 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import HTTPCookieProcessor, Request, build_opener, urlopen
 
-from bot_runner import BotRunnerError, execute_action, get_status, is_busy
-
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from bot_runner import BotRunnerError, execute_action, get_status, is_busy  # noqa: E402
+from utils.logger import log_info, log_ok, log_warn, log_error, progress_bar  # noqa: E402
 STATE_FILE = PROJECT_ROOT / ".job_poller_state.json"
 DEFAULT_POLL_INTERVAL_SEC = 15
 DEFAULT_TIMEOUT_SEC = 60
@@ -508,23 +510,29 @@ def validate_args(args: argparse.Namespace) -> None:
 def run_once(args: argparse.Namespace) -> int:
     if is_busy():
         status = get_status()
-        print(json.dumps({"status": "busy", "runner": status}, ensure_ascii=False))
+        log_warn(f"Bot ocupado: {status.get('action', 'unknown')}")
         return 0
 
-    if args.queue_mode == "datatable":
-        job = fetch_next_table_job(args, args.timeout)
-    elif args.queue_mode == "executions":
-        job = fetch_next_execution_job(args, args.timeout)
-    else:
-        job = fetch_next_job(args.next_job_url, args.secret, args.worker_id, args.timeout)
+    with progress_bar(f"Polling n8n ({args.queue_mode})..."):
+        if args.queue_mode == "datatable":
+            job = fetch_next_table_job(args, args.timeout)
+        elif args.queue_mode == "executions":
+            job = fetch_next_execution_job(args, args.timeout)
+        else:
+            job = fetch_next_job(args.next_job_url, args.secret, args.worker_id, args.timeout)
+
     if not job:
-        print(json.dumps({"status": "idle"}, ensure_ascii=False))
+        log_info("Sin jobs pendientes. Esperando...")
         return 0
+
+    log_ok(f"Job recibido: {job['job_id']} -> {job['action']}")
 
     if args.queue_mode == "datatable":
         try:
-            result = execute_action(job["action"], payload=job.get("payload") or {}, timeout_sec=args.run_timeout)
+            with progress_bar(f"Ejecutando {job['action']}..."):
+                result = execute_action(job["action"], payload=job.get("payload") or {}, timeout_sec=args.run_timeout)
         except BotRunnerError as exc:
+            log_error(f"Job fallo: {exc}")
             update_table_job(args, job, "error", {"error": str(exc)}, args.timeout)
             save_state(
                 {
@@ -550,8 +558,10 @@ def run_once(args: argparse.Namespace) -> int:
     elif args.queue_mode == "executions":
         execution_id = int(job.get("execution_id") or 0)
         try:
-            result = execute_action(job["action"], payload=job.get("payload") or {}, timeout_sec=args.run_timeout)
+            with progress_bar(f"Ejecutando {job['action']}..."):
+                result = execute_action(job["action"], payload=job.get("payload") or {}, timeout_sec=args.run_timeout)
         except BotRunnerError as exc:
+            log_error(f"Job fallo: {exc}")
             save_state(
                 {
                     "last_execution_id": execution_id,
@@ -575,15 +585,20 @@ def run_once(args: argparse.Namespace) -> int:
             }
         )
     else:
-        outcome = process_job(
-            job,
-            update_url=args.update_job_url,
-            secret=args.secret,
-            worker_id=args.worker_id,
-            timeout_sec=args.timeout,
-            run_timeout_sec=args.run_timeout,
-        )
-    print(json.dumps(outcome, ensure_ascii=False))
+        with progress_bar(f"Ejecutando {job['action']}..."):
+            outcome = process_job(
+                job,
+                update_url=args.update_job_url,
+                secret=args.secret,
+                worker_id=args.worker_id,
+                timeout_sec=args.timeout,
+                run_timeout_sec=args.run_timeout,
+            )
+
+    if outcome.get("status") == "success":
+        log_ok(f"Job completado: {outcome.get('job_id', '')}")
+    else:
+        log_warn(f"Job termino con estado: {outcome.get('status', 'unknown')}")
     return 0
 
 
@@ -591,20 +606,24 @@ def main() -> int:
     try:
         args = parse_args()
         validate_args(args)
+        log_ok(f"Worker iniciado [{args.worker_id}] modo={args.queue_mode} intervalo={args.poll_interval}s")
+
         if args.once:
             return run_once(args)
 
+        cycle = 0
         while True:
+            cycle += 1
             try:
                 run_once(args)
             except Exception as exc:
-                print(f"ERROR: {exc}")
+                log_error(str(exc))
             time.sleep(max(3, args.poll_interval))
     except KeyboardInterrupt:
-        print("STOPPED")
+        log_warn("Worker detenido por el usuario.")
         return 0
     except Exception as exc:
-        print(f"ERROR: {exc}")
+        log_error(str(exc))
         return 1
 
 

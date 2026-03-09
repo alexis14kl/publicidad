@@ -27,22 +27,22 @@ if "%N8N_BOT_TIMEOUT%"=="" set "N8N_BOT_TIMEOUT=60"
 if "%N8N_BOT_RUN_TIMEOUT%"=="" set "N8N_BOT_RUN_TIMEOUT=7200"
 if "%N8N_BOT_WORKER_ID%"=="" set "N8N_BOT_WORKER_ID=%COMPUTERNAME%"
 
-echo [INFO] Iniciando worker local...
-echo [INFO] queue_mode=%N8N_BOT_QUEUE_MODE%
-echo [INFO] n8n_base_url=%N8N_BASE_URL%
-echo [INFO] execution_workflow_id=%N8N_BOT_EXECUTION_WORKFLOW_ID%
-echo [INFO] poll_interval=%N8N_BOT_POLL_INTERVAL%s
-echo.
+%LOG% step "1/3" "Configurando worker local..."
+%LOG% info "queue_mode=%N8N_BOT_QUEUE_MODE%"
+%LOG% info "n8n_base_url=%N8N_BASE_URL%"
+%LOG% info "execution_workflow_id=%N8N_BOT_EXECUTION_WORKFLOW_ID%"
+%LOG% info "poll_interval=%N8N_BOT_POLL_INTERVAL%s"
+%LOG% info "worker_id=%N8N_BOT_WORKER_ID%"
 
-python "%JOB_POLLER_PY%" %*
+%LOG% step "2/3" "Conectando con n8n y arrancando polling..."
+python "%RUN_WITH_PROGRESS_PY%" "Iniciando worker local..." python "%JOB_POLLER_PY%" %*
 set "EXIT_CODE=%ERRORLEVEL%"
 
+%LOG% step "3/3" "Worker detenido."
 if "%EXIT_CODE%"=="0" (
-  echo.
-  echo [OK] Worker finalizado sin error.
+  %LOG% ok "Worker finalizado sin error."
 ) else (
-  echo.
-  echo [ERROR] El worker termino con codigo %EXIT_CODE%.
+  %LOG% error "El worker termino con codigo %EXIT_CODE%."
 )
 
 if /I not "%NO_PAUSE%"=="1" pause

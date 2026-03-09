@@ -1,0 +1,357 @@
+{
+  "updatedAt": "2026-03-06T22:41:28.867Z",
+  "createdAt": "2026-03-06T21:42:55.401Z",
+  "id": "jbl9P9RZN7a3pKTA",
+  "name": "PY_PROMPT_IMGS",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "py-prompt-imgs",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "745d515e-3904-466b-b342-35ea63e433f4",
+      "name": "Python Prompt Webhook",
+      "webhookId": "py-prompt-imgs-webhook"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body?.text || $json.body?.prompt || $json.body?.idea || \"\" }}",
+        "options": {
+          "systemMessage": "Eres un generador experto de prompts para imagenes publicitarias de redes sociales de NoyeCode.\n\nTu trabajo es crear prompts claros, comerciales y utiles para generar piezas visuales que ayuden a captar clientes reales para noyecode.com y vender servicios de software de alta calidad.\n\nDatos fijos de la empresa que debes usar cuando aporten valor comercial:\n- Marca: NoyeCode\n- Responsable comercial: Gerson Javier Barbosa Romero\n- WhatsApp y telefono: +57 301 385 9952\n- Sitio web: noyecode.com\n- Ubicacion de referencia: Bogota, Kennedy, Colombia\n\nServicios que se pueden promocionar:\n- desarrollo a la medida\n- automatizaciones empresariales\n- actualizacion y modernizacion de software legacy\n- RPAs nativos\n- desarrollo Android\n- desarrollo desktop\n\nObjetivo comercial obligatorio:\n- Cada imagen debe sentirse como una pieza publicitaria real para redes sociales.\n- Debe ayudar a vender servicios de software de calidad de NoyeCode.\n- Debe transmitir confianza, profesionalismo, alto nivel tecnico, claridad comercial y resultados de negocio.\n\nReglas duras:\n- Devuelve solo el prompt final. No agregues encabezados, explicaciones ni etiquetas como \"Prompt:\".\n- Elige un solo servicio principal por pieza. Ese servicio debe ser el protagonista total del anuncio.\n- Si el usuario menciona un servicio concreto, ese debe ser el servicio principal.\n- Los demas servicios, si aparecen, deben ir solo como apoyo secundario y no competir con el servicio principal.\n- El sujeto principal debe ser el servicio, la solucion o el resultado para el cliente, no la ciudad.\n- Bogota o Kennedy solo pueden aparecer como contexto sutil, nunca como postal, nunca como protagonista.\n- Prohibido convertir la imagen en una escena generica de ciudad, skyline, edificio con pantalla gigante, casco VR, ciencia ficcion vacia o tecnologia exagerada sin relacion directa con el servicio.\n- La imagen debe verse premium, publicitaria, moderna, 4K, pulida, con buena composicion, buena iluminacion y look de campana de alto valor.\n- Puedes usar estilo moderno, 3D pulido, cinematografico o corporativo premium si ayuda a vender mejor el servicio.\n\nContenido publicitario obligatorio dentro del prompt:\n- Debes pedir que la imagen incluya texto publicitario integrado y legible, porque es una pieza para redes sociales.\n- Debes incluir un titular comercial corto.\n- Debes incluir una linea de beneficio o propuesta de valor.\n- Debes incluir llamada a la accion.\n- Debes incluir noyecode.com.\n- Debes incluir WhatsApp +57 301 385 9952.\n- Debes incluir la marca NoyeCode de forma visible y profesional.\n- Puedes incluir hashtags si ayudan al objetivo comercial, pero solo pocos y relevantes.\n\nCriterio visual:\n- Muestra escenas creibles para vender el servicio: reuniones de descubrimiento, entrega de producto, dashboards reales, automatizaciones en uso, software personalizado, modernizacion de sistemas, equipos de desarrollo colaborando con clientes, interfaces limpias, procesos empresariales mejorados, crecimiento del negocio.\n- Cuando sea desarrollo a la medida, prioriza software personalizado, colaboracion cliente-equipo, UI/UX limpia, dashboard realista, sensacion de solucion hecha para el negocio.\n- Cuando sea automatizacion o RPA, prioriza ahorro de tiempo, eficiencia operativa, procesos claros, flujos automatizados y valor empresarial visible.\n- Cuando sea modernizacion legacy, prioriza evolucion, actualizacion, estabilidad, rendimiento y transformacion tecnologica real.\n- Cuando sea Android o desktop, prioriza el producto digital claro, funcional y listo para negocio.\n\nFormato de salida esperado:\n- Escribe un unico prompt final en espanol.\n- Debe ser especifico, visual y accionable para un generador de imagenes.\n- Debe dejar claro el servicio protagonista, la escena, el estilo visual, la composicion, el texto publicitario dentro del arte y los datos de contacto.\n- No uses relleno generico ni frases vacias.\n- No repitas listas de servicios si el foco es uno solo.\n- Si el usuario da una idea muy corta, completa el anuncio con criterio publicitario profesional de NoyeCode."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        240,
+        0
+      ],
+      "id": "da5bb958-c8cc-4155-8fab-075020c4897d",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "=llama-3.1-8b-instant",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        120,
+        220
+      ],
+      "id": "02a18caf-8238-442b-af48-8f1285e194de",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "ujxI8q61jPeRlWaT",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        520,
+        0
+      ],
+      "id": "d0c7692d-822c-4365-8dd1-d96c74bfd33d",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Python Prompt Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "172990d8-d88a-4e75-a869-b3cadf3bc41c",
+  "activeVersionId": "172990d8-d88a-4e75-a869-b3cadf3bc41c",
+  "versionCounter": 25,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-03-06T21:42:55.401Z",
+      "createdAt": "2026-03-06T21:42:55.401Z",
+      "role": "workflow:owner",
+      "workflowId": "jbl9P9RZN7a3pKTA",
+      "projectId": "bkrM241Q8UeW2zme",
+      "project": {
+        "updatedAt": "2025-12-16T17:56:12.161Z",
+        "createdAt": "2025-12-16T17:50:13.083Z",
+        "id": "bkrM241Q8UeW2zme",
+        "name": "Anderson Barbosa <andersonbarbosadev@outlook.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e404d63-0747-43e9-ac7f-cf0e72e9cb99",
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-16T17:50:13.083Z",
+            "createdAt": "2025-12-16T17:50:13.083Z",
+            "userId": "6e404d63-0747-43e9-ac7f-cf0e72e9cb99",
+            "projectId": "bkrM241Q8UeW2zme",
+            "user": {
+              "updatedAt": "2026-03-09T11:06:31.647Z",
+              "createdAt": "2025-12-16T17:50:09.786Z",
+              "id": "6e404d63-0747-43e9-ac7f-cf0e72e9cb99",
+              "email": "andersonbarbosadev@outlook.com",
+              "firstName": "Anderson",
+              "lastName": "Barbosa",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-31T08:56:04.592Z",
+                "personalization_survey_n8n_version": "2.1.4",
+                "automationGoalDevops": [
+                  "monitoring-alerting",
+                  "reporting",
+                  "cloud-infrastructure-orchestration"
+                ],
+                "companySize": "<20",
+                "companyType": "education",
+                "role": "engineering",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "eW5SRNY5r4zfRjIqTw9eP",
+                "userActivatedAt": 1772907500504,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1772831871686
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-03-09",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "parentFolder": {
+    "updatedAt": "2026-02-04T15:34:18.981Z",
+    "createdAt": "2026-02-04T15:34:18.981Z",
+    "id": "PpHvIJ31zEwJyuGb",
+    "name": "BOTS-redes-noyecode.com",
+    "parentFolderId": null
+  },
+  "activeVersion": {
+    "updatedAt": "2026-03-06T22:41:28.872Z",
+    "createdAt": "2026-03-06T22:41:28.872Z",
+    "versionId": "172990d8-d88a-4e75-a869-b3cadf3bc41c",
+    "workflowId": "jbl9P9RZN7a3pKTA",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "py-prompt-imgs",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          0
+        ],
+        "id": "745d515e-3904-466b-b342-35ea63e433f4",
+        "name": "Python Prompt Webhook",
+        "webhookId": "py-prompt-imgs-webhook"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.body?.text || $json.body?.prompt || $json.body?.idea || \"\" }}",
+          "options": {
+            "systemMessage": "Eres un generador experto de prompts para imagenes publicitarias de redes sociales de NoyeCode.\n\nTu trabajo es crear prompts claros, comerciales y utiles para generar piezas visuales que ayuden a captar clientes reales para noyecode.com y vender servicios de software de alta calidad.\n\nDatos fijos de la empresa que debes usar cuando aporten valor comercial:\n- Marca: NoyeCode\n- Responsable comercial: Gerson Javier Barbosa Romero\n- WhatsApp y telefono: +57 301 385 9952\n- Sitio web: noyecode.com\n- Ubicacion de referencia: Bogota, Kennedy, Colombia\n\nServicios que se pueden promocionar:\n- desarrollo a la medida\n- automatizaciones empresariales\n- actualizacion y modernizacion de software legacy\n- RPAs nativos\n- desarrollo Android\n- desarrollo desktop\n\nObjetivo comercial obligatorio:\n- Cada imagen debe sentirse como una pieza publicitaria real para redes sociales.\n- Debe ayudar a vender servicios de software de calidad de NoyeCode.\n- Debe transmitir confianza, profesionalismo, alto nivel tecnico, claridad comercial y resultados de negocio.\n\nReglas duras:\n- Devuelve solo el prompt final. No agregues encabezados, explicaciones ni etiquetas como \"Prompt:\".\n- Elige un solo servicio principal por pieza. Ese servicio debe ser el protagonista total del anuncio.\n- Si el usuario menciona un servicio concreto, ese debe ser el servicio principal.\n- Los demas servicios, si aparecen, deben ir solo como apoyo secundario y no competir con el servicio principal.\n- El sujeto principal debe ser el servicio, la solucion o el resultado para el cliente, no la ciudad.\n- Bogota o Kennedy solo pueden aparecer como contexto sutil, nunca como postal, nunca como protagonista.\n- Prohibido convertir la imagen en una escena generica de ciudad, skyline, edificio con pantalla gigante, casco VR, ciencia ficcion vacia o tecnologia exagerada sin relacion directa con el servicio.\n- La imagen debe verse premium, publicitaria, moderna, 4K, pulida, con buena composicion, buena iluminacion y look de campana de alto valor.\n- Puedes usar estilo moderno, 3D pulido, cinematografico o corporativo premium si ayuda a vender mejor el servicio.\n\nContenido publicitario obligatorio dentro del prompt:\n- Debes pedir que la imagen incluya texto publicitario integrado y legible, porque es una pieza para redes sociales.\n- Debes incluir un titular comercial corto.\n- Debes incluir una linea de beneficio o propuesta de valor.\n- Debes incluir llamada a la accion.\n- Debes incluir noyecode.com.\n- Debes incluir WhatsApp +57 301 385 9952.\n- Debes incluir la marca NoyeCode de forma visible y profesional.\n- Puedes incluir hashtags si ayudan al objetivo comercial, pero solo pocos y relevantes.\n\nCriterio visual:\n- Muestra escenas creibles para vender el servicio: reuniones de descubrimiento, entrega de producto, dashboards reales, automatizaciones en uso, software personalizado, modernizacion de sistemas, equipos de desarrollo colaborando con clientes, interfaces limpias, procesos empresariales mejorados, crecimiento del negocio.\n- Cuando sea desarrollo a la medida, prioriza software personalizado, colaboracion cliente-equipo, UI/UX limpia, dashboard realista, sensacion de solucion hecha para el negocio.\n- Cuando sea automatizacion o RPA, prioriza ahorro de tiempo, eficiencia operativa, procesos claros, flujos automatizados y valor empresarial visible.\n- Cuando sea modernizacion legacy, prioriza evolucion, actualizacion, estabilidad, rendimiento y transformacion tecnologica real.\n- Cuando sea Android o desktop, prioriza el producto digital claro, funcional y listo para negocio.\n\nFormato de salida esperado:\n- Escribe un unico prompt final en espanol.\n- Debe ser especifico, visual y accionable para un generador de imagenes.\n- Debe dejar claro el servicio protagonista, la escena, el estilo visual, la composicion, el texto publicitario dentro del arte y los datos de contacto.\n- No uses relleno generico ni frases vacias.\n- No repitas listas de servicios si el foco es uno solo.\n- Si el usuario da una idea muy corta, completa el anuncio con criterio publicitario profesional de NoyeCode."
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 3.1,
+        "position": [
+          240,
+          0
+        ],
+        "id": "da5bb958-c8cc-4155-8fab-075020c4897d",
+        "name": "AI Agent"
+      },
+      {
+        "parameters": {
+          "model": "=llama-3.1-8b-instant",
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+        "typeVersion": 1,
+        "position": [
+          120,
+          220
+        ],
+        "id": "02a18caf-8238-442b-af48-8f1285e194de",
+        "name": "Groq Chat Model",
+        "credentials": {
+          "groqApi": {
+            "id": "ujxI8q61jPeRlWaT",
+            "name": "Groq account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "respondWith": "firstIncomingItem",
+          "options": {
+            "responseCode": 200,
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            }
+          }
+        },
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          520,
+          0
+        ],
+        "id": "d0c7692d-822c-4365-8dd1-d96c74bfd33d",
+        "name": "Respond to Webhook"
+      }
+    ],
+    "connections": {
+      "Python Prompt Webhook": {
+        "main": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Groq Chat Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Agent": {
+        "main": [
+          [
+            {
+              "node": "Respond to Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Anderson Barbosa",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-03-06T22:41:29.2Z",
+        "id": 491,
+        "workflowId": "jbl9P9RZN7a3pKTA",
+        "versionId": "172990d8-d88a-4e75-a869-b3cadf3bc41c",
+        "event": "activated",
+        "userId": "6e404d63-0747-43e9-ac7f-cf0e72e9cb99"
+      }
+    ]
+  },
+  "scopes": [
+    "workflow:create",
+    "workflow:delete",
+    "workflow:execute",
+    "workflow:execute-chat",
+    "workflow:list",
+    "workflow:move",
+    "workflow:publish",
+    "workflow:read",
+    "workflow:share",
+    "workflow:update"
+  ],
+  "checksum": "0918c41a7d1f3cd4e2d9a5d2f9495656feae4183d61e1714f89431065c357272"
+}
