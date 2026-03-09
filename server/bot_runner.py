@@ -6,6 +6,7 @@ import socket
 import subprocess
 import sys
 import time
+import ctypes
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -20,6 +21,7 @@ from utils.logger import log_info, log_ok, log_warn, log_error  # noqa: E402
 
 START_BAT = PROJECT_ROOT / "iniciar.bat"
 LOCK_FILE = PROJECT_ROOT / ".bot_runner.lock"
+DEFAULT_STALE_LOCK_SEC = 4 * 60 * 60
 
 
 class BotRunnerError(RuntimeError):
@@ -56,10 +58,65 @@ def _write_lock(payload: dict[str, Any]) -> None:
     LOCK_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _process_exists(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+        return False
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _get_stale_lock_seconds() -> int:
+    raw = str(os.getenv("BOT_RUNNER_STALE_LOCK_SEC", str(DEFAULT_STALE_LOCK_SEC))).strip()
+    try:
+        return max(60, int(raw))
+    except ValueError:
+        return DEFAULT_STALE_LOCK_SEC
+
+
+def _get_valid_lock() -> dict[str, Any]:
+    lock = _read_lock()
+    if not lock:
+        LOCK_FILE.unlink(missing_ok=True)
+        return {}
+
+    pid = int(lock.get("pid") or 0)
+    started_at = int(lock.get("started_at") or 0)
+    age_sec = max(0, int(time.time()) - started_at) if started_at else 0
+    stale_after_sec = _get_stale_lock_seconds()
+
+    if pid and _process_exists(pid):
+        return lock
+
+    if age_sec >= stale_after_sec or not pid:
+        log_warn(f"Lock huérfano detectado. Se libera automaticamente (pid={pid}, age={age_sec}s).")
+        LOCK_FILE.unlink(missing_ok=True)
+        return {}
+
+    # If the process is gone, the lock is already invalid even if it is recent.
+    log_warn(f"Lock de proceso inexistente detectado. Se libera automaticamente (pid={pid}).")
+    LOCK_FILE.unlink(missing_ok=True)
+    return {}
+
+
 @contextmanager
 def bot_execution_lock(action: str) -> Any:
-    if LOCK_FILE.exists():
-        current = _read_lock()
+    current = _get_valid_lock()
+    if current:
         owner = current.get("host") or "unknown"
         raise BotRunnerError(f"El bot ya esta ejecutandose en {owner}")
 
@@ -77,13 +134,13 @@ def bot_execution_lock(action: str) -> Any:
 
 
 def is_busy() -> bool:
-    return LOCK_FILE.exists()
+    return bool(_get_valid_lock())
 
 
 def get_status() -> dict[str, Any]:
-    if not LOCK_FILE.exists():
+    lock = _get_valid_lock()
+    if not lock:
         return {"busy": False}
-    lock = _read_lock()
     lock["busy"] = True
     return lock
 
@@ -131,20 +188,21 @@ def execute_action(action: str, payload: dict[str, Any] | None = None, timeout_s
     if not normalized:
         raise BotRunnerError("La accion no puede estar vacia")
 
-    with bot_execution_lock(normalized):
-        if normalized == "status":
-            now = time.time()
-            return RunResult(
-                action="status",
-                success=True,
-                exit_code=0,
-                started_at=now,
-                finished_at=now,
-                stdout="Bot disponible",
-                stderr="",
-                metadata={"busy": False},
-            )
+    if normalized == "status":
+        now = time.time()
+        status = get_status()
+        return RunResult(
+            action="status",
+            success=True,
+            exit_code=0,
+            started_at=now,
+            finished_at=now,
+            stdout="Bot ocupado" if status.get("busy") else "Bot disponible",
+            stderr="",
+            metadata=status,
+        )
 
+    with bot_execution_lock(normalized):
         if normalized == "run_full_cycle":
             return _run_full_cycle(payload, timeout_sec=timeout_sec)
 

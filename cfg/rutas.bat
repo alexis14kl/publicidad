@@ -32,6 +32,9 @@ set "N8N_POST_TEXT_CLIENT_PY=%UTILS_DIR%\n8n_post_text_client.py"
 set "BOT_RUNNER_PY=%SERVER_DIR%\bot_runner.py"
 set "JOB_POLLER_PY=%SERVER_DIR%\job_poller.py"
 set "START_JOB_POLLER_BAT=%ROOT_DIR%\iniciar_poller.bat"
+set "POLLER_HIDDEN_VBS=%ROOT_DIR%\iniciar_poller_oculto.vbs"
+set "INSTALL_POLLER_STARTUP_BAT=%ROOT_DIR%\instalar_inicio_poller_sesion.bat"
+set "UNINSTALL_POLLER_STARTUP_BAT=%ROOT_DIR%\desinstalar_inicio_poller_sesion.bat"
 
 set "RUN_WITH_PROGRESS_PY=%UTILS_DIR%\run_with_progress.py"
 

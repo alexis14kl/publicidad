@@ -237,6 +237,32 @@ Opcionalmente puedes hacer una sola pasada de prueba:
 iniciar_poller.bat --once
 ```
 
+### Iniciar el worker automaticamente al iniciar sesion
+
+Para este proyecto, la opcion segura es **inicio automatico en sesion de usuario**, no servicio Windows puro.
+La razon es que el flujo visual de DICloak + ChatGPT necesita escritorio interactivo.
+
+Instalar autoarranque:
+
+```bat
+instalar_inicio_poller_sesion.bat
+```
+
+Quitar autoarranque:
+
+```bat
+desinstalar_inicio_poller_sesion.bat
+```
+
+Esto crea una tarea programada llamada `NoyeCodeBotPoller` que:
+
+- arranca al iniciar sesion
+- lanza el worker oculto
+- evita abrir la consola manualmente cada vez
+
+Nota:
+- `NSSM` si sirve para workers headless, pero **no** es la mejor opcion para este bot visual tal como esta hoy, porque DICloak/ChatGPT requieren sesion interactiva.
+
 ---
 
 ## Datos del Negocio
