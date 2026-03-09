@@ -999,7 +999,51 @@ async function ensureEnvListPage(page) {
   }
 }
 
+async function clearSearchFilter(page) {
+  const selectors = [
+    'input[placeholder*="Número/Nombre/Notas"]',
+    'input[placeholder*="Numero/Nombre/Notas"]',
+    'input[placeholder*="Number/Name/Notes"]',
+    'input[placeholder*="Nombre"]',
+    'input[placeholder*="Notes"]',
+    'input[placeholder*="Name"]',
+  ];
+
+  const cleared = await page.evaluate((sels) => {
+    for (const sel of sels) {
+      const input = document.querySelector(sel);
+      if (!input) continue;
+      if (!input.value) return { cleared: false, reason: 'already_empty' };
+
+      const prev = input.value;
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      ).set;
+      nativeSetter.call(input, '');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }),
+      );
+      input.dispatchEvent(
+        new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }),
+      );
+      return { cleared: true, previous: prev };
+    }
+    return { cleared: false, reason: 'input_not_found' };
+  }, selectors);
+
+  if (cleared && cleared.cleared) {
+    console.log(`[INFO] Filtro anterior limpiado (era: "${cleared.previous}")`);
+    await page.waitForTimeout(800);
+  }
+  return cleared;
+}
+
 async function applySearchFilter(page, profileName) {
+  await clearSearchFilter(page);
+
   const candidates = [
     'input[placeholder*="Número/Nombre/Notas"]',
     'input[placeholder*="Numero/Nombre/Notas"]',
@@ -1013,17 +1057,110 @@ async function applySearchFilter(page, profileName) {
     const loc = page.locator(sel).first();
     if ((await loc.count()) === 0) continue;
     try {
+      await loc.waitFor({ state: 'visible', timeout: 5000 });
       await loc.click({ timeout: 1500 });
+      await loc.press('Control+A').catch(() => {});
+      await loc.press('Backspace').catch(() => {});
       await loc.fill('');
-      await loc.fill(profileName);
-      await loc.press('Enter');
-      await page.waitForTimeout(600);
-      return true;
+      await page.waitForTimeout(200);
+      await page.evaluate(
+        ({ selector, value }) => {
+          const input = document.querySelector(selector);
+          if (!input) return false;
+          input.focus();
+          input.value = '';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          input.value = value;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          input.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }),
+          );
+          input.dispatchEvent(
+            new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }),
+          );
+          return true;
+        },
+        { selector: sel, value: profileName },
+      );
+      await loc.press('Enter').catch(() => {});
+      await page.waitForTimeout(1000);
+      const currentValue = await loc.inputValue().catch(() => '');
+      if (normalize(currentValue).includes(normalize(profileName))) {
+        console.log(`[INFO] Buscador actualizado: ${currentValue}`);
+        return true;
+      }
     } catch (_) {
       // try next selector
     }
   }
+
+  // Fallback: si Playwright no pudo interactuar (input oculto), escribir via DOM directo
+  const domFallback = await page.evaluate(
+    ({ sels, value }) => {
+      for (const sel of sels) {
+        const input = document.querySelector(sel);
+        if (!input) continue;
+        const nativeSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype,
+          'value',
+        ).set;
+        nativeSetter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            bubbles: true,
+          }),
+        );
+        input.dispatchEvent(
+          new KeyboardEvent('keyup', {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            bubbles: true,
+          }),
+        );
+        return { ok: true, selector: sel };
+      }
+      return { ok: false };
+    },
+    { sels: candidates, value: profileName },
+  );
+
+  if (domFallback && domFallback.ok) {
+    console.log(`[INFO] Filtro aplicado via DOM directo (fallback): ${profileName}`);
+    await page.waitForTimeout(1000);
+    return true;
+  }
+
   return false;
+}
+
+async function waitForTargetRowAfterSearch(page, profileName, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const state = await findProfileRow(page, profileName);
+    if (state.found) {
+      return state;
+    }
+    await applySearchFilter(page, profileName).catch(() => false);
+    await page.waitForTimeout(800);
+  }
+  return { found: false, rows: await getVisibleRows(page) };
+}
+
+async function clearAnySelectedProfiles(page) {
+  const changed = await clearPreviousSelections(page, -1);
+  if (changed) {
+    console.log('[INFO] Selecciones previas limpiadas.');
+    await page.waitForTimeout(500);
+  }
+  return changed;
 }
 
 async function getVisibleRows(page) {
@@ -1165,6 +1302,45 @@ async function ensureRowSelected(page, rowIndex) {
   return false;
 }
 
+async function clearPreviousSelections(page, keepRowIndex = -1) {
+  return page.evaluate((targetIndex) => {
+    const clickCheckboxOff = (input) => {
+      if (!input) return false;
+      const label = input.closest('label.el-checkbox') || input.closest('label');
+      if (label) {
+        label.click();
+        return true;
+      }
+      input.click();
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    };
+
+    let changed = false;
+    const rows = Array.from(document.querySelectorAll('.el-table__row'));
+    rows.forEach((row, index) => {
+      if (index === targetIndex) return;
+      const input = row.querySelector('td.el-table_1_column_1 input[type="checkbox"]');
+      const checked = !!input?.checked || !!row.querySelector('td.el-table_1_column_1 .el-checkbox__input.is-checked');
+      if (checked) {
+        changed = clickCheckboxOff(input) || changed;
+      }
+    });
+
+    const headerInput = document.querySelector(
+      '.el-table__header-wrapper td.el-table_1_column_1 input[type="checkbox"], .el-table__header-wrapper th .el-checkbox input[type="checkbox"]',
+    );
+    const headerChecked =
+      !!headerInput?.checked ||
+      !!document.querySelector('.el-table__header-wrapper .el-checkbox__input.is-checked');
+    if (headerChecked) {
+      changed = clickCheckboxOff(headerInput) || changed;
+    }
+
+    return changed;
+  }, keepRowIndex);
+}
+
 async function closeProfileIfRunning(page, profileName) {
   const meta = await getMatchingRowMeta(page, profileName);
   if (!meta.found) return { ok: false, reason: 'row_not_found' };
@@ -1214,6 +1390,8 @@ async function clickProfileOpen(page, profileName) {
   if (!meta.found) return { ok: false, reason: 'row_not_found' };
 
   await dismissAnyDialog(page);
+  await clearPreviousSelections(page, meta.index);
+  await page.waitForTimeout(250);
   const selected = await ensureRowSelected(page, meta.index);
   const row = page.locator('.el-table__row').nth(meta.index);
   const rowOpenBtn = row.locator('td.el-table_1_column_13 button:has-text("Abrir")').first();
@@ -1431,6 +1609,7 @@ async function main() {
     if (!page) page = await context.newPage();
 
     await ensureEnvListPage(page);
+    await clearAnySelectedProfiles(page);
 
     const searchApplied = await applySearchFilter(page, PROFILE_NAME);
     if (searchApplied) {
@@ -1439,9 +1618,23 @@ async function main() {
       console.log('[WARN] No se encontro input de filtro; se intenta por filas visibles.');
     }
 
+    const initialTargetState = await waitForTargetRowAfterSearch(page, PROFILE_NAME, 12000);
+    if (!initialTargetState.found) {
+      console.error(`[ERROR] No aparecio la fila objetivo tras filtrar: ${PROFILE_NAME}`);
+      console.error(
+        `[DEBUG] Filas visibles: ${(initialTargetState.rows || [])
+          .map((r) => r.name || r.rowText || '')
+          .filter(Boolean)
+          .slice(0, 5)
+          .join(' | ')}`,
+      );
+      await saveDebugScreenshot(page, 'debug_dicloak_target_row_not_visible.png');
+      process.exit(1);
+    }
+
     const uiStart = Date.now();
     while (Date.now() - uiStart < WAIT_UI_MS) {
-      const state = await findProfileRow(page, PROFILE_NAME);
+      const state = await waitForTargetRowAfterSearch(page, PROFILE_NAME, 2500);
       if (state.found) {
         console.log(`[INFO] Perfil encontrado: ${state.name}`);
         console.log(`[INFO] Estado boton: ${state.btnText || '(sin texto)'}`);

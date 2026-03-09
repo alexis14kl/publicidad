@@ -18,10 +18,13 @@ from perfil.account_rotation import (  # noqa: E402
     mark_account_exhausted,
     switch_to_next_available_account,
 )
+from perfil.change_count import (  # noqa: E402
+    close_current_profile,
+    switch_to_any_fallback,
+)
 from utils.logger import log_info, log_warn, log_error  # noqa: E402
 
 PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
-CHANGE_COUNT_SCRIPT = PROJECT_ROOT / "perfil" / "change_count.py"
 CDP_DEBUG_INFO = Path(os.getenv("APPDATA", "")) / "DICloak" / "cdp_debug_info.json"
 DEFAULT_PORT = 9225
 PROMPT_LOCK_FILE = PROJECT_ROOT / ".prompt_last_send.json"
@@ -29,6 +32,7 @@ PROMPT_DEDUP_WINDOW_SEC = 90
 NO_IMAGE_TOKENS_MARKER = "Sin tokens para imgs."
 PROMPT_STATUS_SUCCESS = "success"
 PROMPT_STATUS_NO_IMAGE_TOKENS = "no_image_tokens"
+PROMPT_STATUS_SESSION_EXPIRED = "session_expired"
 MAX_ACCOUNT_ROTATION_ATTEMPTS = 20
 
 
@@ -111,27 +115,19 @@ def resolve_cdp_port() -> int:
     raise RuntimeError("No hay puerto CDP activo para el perfil")
 
 
-def trigger_change_count(reason: str = "no_image_tokens") -> None:
-    if not CHANGE_COUNT_SCRIPT.exists():
-        log_warn(f"No existe script de cambio de cuenta: {CHANGE_COUNT_SCRIPT}")
-        return
-
-    result = subprocess.run(
-        [sys.executable, str(CHANGE_COUNT_SCRIPT), "--reason", reason],
-        cwd=str(PROJECT_ROOT),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="ignore",
-    )
-
-    if result.stdout.strip():
-        print(result.stdout.strip())
-    if result.stderr.strip():
-        print(result.stderr.strip())
-
-    if result.returncode != 0:
-        log_warn(f"change_count.py termino con codigo {result.returncode}")
+def trigger_change_count(reason: str = "no_image_tokens", close_only: bool = False) -> bool:
+    log_info(f"trigger_change_count: reason={reason}, close_only={close_only}")
+    try:
+        if close_only:
+            close_current_profile()
+            log_info("Perfil actual cerrado (close_only).")
+            return True
+        selected = switch_to_any_fallback()
+        log_info(f"Cambio a perfil fallback completado: {selected}")
+        return True
+    except Exception as exc:
+        log_warn(f"No se pudo cambiar a ningun perfil fallback: {exc}")
+        return False
 
 
 def run_prompt_paste(cdp_port: int) -> str:
@@ -332,6 +328,74 @@ const { chromium } = require('playwright');
         .replace(/\s+/g, ' ')
         .trim();
 
+    const noImageTokenPhrases = [
+      'has alcanzado tu limite de creacion de imagenes',
+      'el limite se restablece',
+      'youve hit the team plan limit for image generations requests',
+      'you can create more images when the limit resets',
+      'no pude invocar la herramienta de generacion de imagenes',
+      'cannot generate more images',
+      'image generation limit'
+    ];
+
+    const sessionExpiredPhrases = [
+      'tu sesion ha caducado',
+      'vuelve a iniciar sesion para seguir utilizando la aplicacion',
+      'iniciar sesion',
+      'your session has expired',
+      'sign in again to continue using the app',
+      'session expired'
+    ];
+
+    const detectNoImageTokensAlert = async () => {
+      const domSignals = [
+        page.getByRole('heading', { name: /Has alcanzado tu límite de creación de imágenes/i }),
+        page.getByRole('button', { name: /notificar al administrador/i }),
+        page.getByText(/You've hit the team plan limit for image generations requests/i),
+        page.getByText(/No pude invocar la herramienta de generación de imágenes/i),
+      ];
+      for (const signal of domSignals) {
+        const visible = await signal.first().isVisible().catch(() => false);
+        if (visible) {
+          return true;
+        }
+      }
+
+      const bodyText = normalizeText(await page.evaluate(() => document.body?.innerText || ''));
+      if (noImageTokenPhrases.some((phrase) => bodyText.includes(phrase))) {
+        return true;
+      }
+      return false;
+    };
+
+    const detectSessionExpiredAlert = async () => {
+      const dialogVisible = await page.locator('[role="dialog"]').first().isVisible().catch(() => false);
+      const headingVisible = await page.getByRole('heading', { name: /Tu sesión ha caducado|Your session has expired/i }).first().isVisible().catch(() => false);
+      const buttonVisible = await page.getByRole('button', { name: /Iniciar sesión|Sign in/i }).first().isVisible().catch(() => false);
+      if (dialogVisible && (headingVisible || buttonVisible)) {
+        return true;
+      }
+
+      const domSignals = [
+        page.getByText(/Tu sesión ha caducado/i),
+        page.getByText(/Your session has expired/i),
+        page.getByRole('button', { name: /Iniciar sesión/i }),
+        page.getByRole('button', { name: /Sign in/i }),
+      ];
+      for (const signal of domSignals) {
+        const visible = await signal.first().isVisible().catch(() => false);
+        if (visible) {
+          return true;
+        }
+      }
+
+      const bodyText = normalizeText(await page.evaluate(() => document.body?.innerText || ''));
+      if (sessionExpiredPhrases.some((phrase) => bodyText.includes(phrase))) {
+        return true;
+      }
+      return false;
+    };
+
     const composerReadyInPage = async () => {
       return await page.evaluate(() => {
         const editor = document.querySelector('div#prompt-textarea[contenteditable="true"], #prompt-textarea[contenteditable="true"]');
@@ -410,6 +474,11 @@ const { chromium } = require('playwright');
       return null;
     };
 
+    if (await detectSessionExpiredAlert()) {
+      console.log('SESSION_EXPIRED');
+      return;
+    }
+
     try {
       await waitForComposerReady();
     } catch {
@@ -424,6 +493,11 @@ const { chromium } = require('playwright');
         await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
       }
       await waitForComposerReady(45000);
+    }
+
+    if (await detectSessionExpiredAlert()) {
+      console.log('SESSION_EXPIRED');
+      return;
     }
     await disableAdvancedResearchMode();
 
@@ -596,37 +670,6 @@ const { chromium } = require('playwright');
       throw new Error('No se confirmo el envio del prompt');
     }
 
-    const noImageTokenPhrases = [
-      'has alcanzado tu limite de creacion de imagenes',
-      'el limite se restablece',
-      'youve hit the team plan limit for image generations requests',
-      'you can create more images when the limit resets',
-      'no pude invocar la herramienta de generacion de imagenes',
-      'cannot generate more images',
-      'image generation limit'
-    ];
-
-    const detectNoImageTokensAlert = async () => {
-      const domSignals = [
-        page.getByRole('heading', { name: /Has alcanzado tu límite de creación de imágenes/i }),
-        page.getByRole('button', { name: /notificar al administrador/i }),
-        page.getByText(/You've hit the team plan limit for image generations requests/i),
-        page.getByText(/No pude invocar la herramienta de generación de imágenes/i),
-      ];
-      for (const signal of domSignals) {
-        const visible = await signal.first().isVisible().catch(() => false);
-        if (visible) {
-          return true;
-        }
-      }
-
-      const bodyText = normalizeText(await page.evaluate(() => document.body?.innerText || ''));
-      if (noImageTokenPhrases.some((phrase) => bodyText.includes(phrase))) {
-        return true;
-      }
-      return false;
-    };
-
     const waitForNoImageTokensAlert = async (timeoutMs = 90000, pollMs = 1000) => {
       const deadline = Date.now() + timeoutMs;
       let idleCycles = 0;
@@ -747,6 +790,8 @@ const { chromium } = require('playwright');
     if result.stderr.strip():
         print(result.stderr.strip())
 
+    if "SESSION_EXPIRED" in result.stdout:
+        return PROMPT_STATUS_SESSION_EXPIRED
     if result.returncode != 0 or "PROMPT_PEGADO_OK" not in result.stdout:
         raise RuntimeError("No se pudo pegar el prompt en ChatGPT")
 
@@ -765,6 +810,16 @@ def process_prompt_with_account_rotation(cdp_port: int) -> None:
             if last_switched_account_id:
                 clear_account_exhausted(cdp_port, last_switched_account_id)
             return
+
+        if status == PROMPT_STATUS_SESSION_EXPIRED:
+            log_warn("Sesion expirada detectada en ChatGPT. Cambiando al perfil fallback...")
+            if not trigger_change_count("session_expired"):
+                raise RuntimeError("No se pudo cambiar al perfil fallback tras la expiracion de sesion")
+            time.sleep(8)
+            cdp_port = resolve_cdp_port()
+            last_switched_account_id = ""
+            last_switched_account_label = ""
+            continue
 
         if status != PROMPT_STATUS_NO_IMAGE_TOKENS:
             raise RuntimeError(f"Estado inesperado de pegado de prompt: {status}")

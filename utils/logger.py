@@ -4,29 +4,46 @@ from contextlib import contextmanager
 import typer
 
 
+def _safe_echo(message: str, *, fg=None, bold: bool = False, dim: bool = False) -> None:
+    try:
+        typer.echo(typer.style(message, fg=fg, bold=bold, dim=dim))
+    except UnicodeEncodeError:
+        sanitized = (
+            message.encode(getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore")
+            .decode(getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore")
+        )
+        typer.echo(typer.style(sanitized, fg=fg, bold=bold, dim=dim))
+
+
 def log_info(msg: str) -> None:
-    typer.echo(typer.style(f"[INFO] {msg}", fg=typer.colors.CYAN))
+    _safe_echo(f"[INFO] {msg}", fg=typer.colors.CYAN)
 
 
 def log_ok(msg: str) -> None:
-    typer.echo(typer.style(f"[OK] {msg}", fg=typer.colors.GREEN, bold=True))
+    _safe_echo(f"[OK] {msg}", fg=typer.colors.GREEN, bold=True)
 
 
 def log_warn(msg: str) -> None:
-    typer.echo(typer.style(f"[WARN] {msg}", fg=typer.colors.YELLOW))
+    _safe_echo(f"[WARN] {msg}", fg=typer.colors.YELLOW)
 
 
 def log_error(msg: str) -> None:
-    typer.echo(typer.style(f"[ERROR] {msg}", fg=typer.colors.RED, bold=True))
+    _safe_echo(f"[ERROR] {msg}", fg=typer.colors.RED, bold=True)
 
 
 def log_step(step: str, msg: str) -> None:
     label = typer.style(f"[{step}]", fg=typer.colors.BLUE, bold=True)
-    typer.echo(f"{label} {msg}")
+    try:
+        typer.echo(f"{label} {msg}")
+    except UnicodeEncodeError:
+        sanitized = msg.encode(getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore").decode(
+            getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore"
+        )
+        typer.echo(f"{label} {sanitized}")
 
 
 def log_debug(msg: str) -> None:
-    typer.echo(typer.style(f"[DEBUG] {msg}", dim=True))
+    _safe_echo(f"[DEBUG] {msg}", dim=True)
 
 
 @contextmanager
