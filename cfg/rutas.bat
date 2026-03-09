@@ -15,6 +15,7 @@ set "UTILS_DIR=%ROOT_DIR%\utils"
 set "DEBUG_DIR=%ROOT_DIR%\debug"
 set "DOCS_DIR=%ROOT_DIR%\docs"
 set "IMG_PUBLICITARIAS_DIR=%ROOT_DIR%\img_publicitarias"
+set "LOGS_DIR=%ROOT_DIR%\logs"
 
 rem --- Scripts ---
 set "KILLER_PS1=%INICIO_DIR%\cerrar_dicloak_avanzado.ps1"
@@ -32,7 +33,9 @@ set "N8N_POST_TEXT_CLIENT_PY=%UTILS_DIR%\n8n_post_text_client.py"
 set "BOT_RUNNER_PY=%SERVER_DIR%\bot_runner.py"
 set "JOB_POLLER_PY=%SERVER_DIR%\job_poller.py"
 set "START_JOB_POLLER_BAT=%ROOT_DIR%\iniciar_poller.bat"
+set "START_JOB_POLLER_BG_BAT=%ROOT_DIR%\iniciar_poller_background.bat"
 set "POLLER_HIDDEN_VBS=%ROOT_DIR%\iniciar_poller_oculto.vbs"
+set "POLLER_HIDDEN_PS1=%ROOT_DIR%\iniciar_poller_oculto.ps1"
 set "INSTALL_POLLER_STARTUP_BAT=%ROOT_DIR%\instalar_inicio_poller_sesion.bat"
 set "UNINSTALL_POLLER_STARTUP_BAT=%ROOT_DIR%\desinstalar_inicio_poller_sesion.bat"
 
@@ -45,6 +48,7 @@ rem --- Datos ---
 set "PROMPT_FILE=%UTILS_DIR%\prontm.txt"
 set "PROMPT_SEED_FILE=%UTILS_DIR%\prompt_seed.txt"
 set "POST_TEXT_FILE=%UTILS_DIR%\post_text.txt"
+set "JOB_POLLER_LOG=%LOGS_DIR%\job_poller.log"
 
 rem --- Ejecutables ---
 set "DICLOAK_EXE=C:\Program Files\DICloak\DICloak.exe"

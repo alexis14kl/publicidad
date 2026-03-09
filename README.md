@@ -60,6 +60,9 @@ publicidad/
 ├── img_publicitarias/                   # Imagenes generadas descargadas
 │   └── *.png
 │
+├── logs/                                # Logs de procesos en segundo plano
+│   └── job_poller.log
+│
 ├── debug/                               # Screenshots de diagnostico
 │   └── *.png, *.gif
 │
@@ -259,6 +262,7 @@ Esto crea una tarea programada llamada `NoyeCodeBotPoller` que:
 - arranca al iniciar sesion
 - lanza el worker oculto
 - evita abrir la consola manualmente cada vez
+- deja trazas en `logs\\job_poller.log`
 
 Nota:
 - `NSSM` si sirve para workers headless, pero **no** es la mejor opcion para este bot visual tal como esta hoy, porque DICloak/ChatGPT requieren sesion interactiva.

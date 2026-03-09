@@ -1,0 +1,6 @@
+[09/03/2026  9:59:14,30] starting job_poller 
+[OK] Worker iniciado [DESKTOP-PPSTUGJ] modo=executions intervalo=15s
+⠙ Polling n8n (executions)... ---------------------------------------- 0:00:00
+[ERROR] No se pudo conectar con n8n: <urlopen error [WinError 10013] Intento de acceso a un socket no permitido por sus permisos de acceso>
+[09/03/2026 10:07:11,72] starting job_poller 
+[OK] Worker iniciado [DESKTOP-PPSTUGJ] modo=executions intervalo=15s

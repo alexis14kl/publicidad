@@ -1,5 +1,4 @@
 Set shell = CreateObject("WScript.Shell")
 projectRoot = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)
-q = Chr(34)
-cmd = "cmd.exe /c " & q & "set NO_PAUSE=1 && call " & q & q & projectRoot & "\iniciar_poller.bat" & q & q & q
-shell.Run cmd, 0, False
+launcher = Chr(34) & projectRoot & "\iniciar_poller_background.bat" & Chr(34)
+shell.Run launcher, 0, False
