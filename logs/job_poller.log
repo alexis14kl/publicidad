@@ -211,3 +211,9 @@
 [INFO] Sin jobs pendientes. Esperando...
 ⠸ Polling n8n (executions)... ---------------------------------------- 0:00:01
 [OK] Job recibido: exec_87913 -> run_full_cycle
+⠦ Ejecutando run_full_cycle... ---------------------------------------- 0:03:50
+[OK] Job completado: exec_87913
+⠼ Polling n8n (executions)... ---------------------------------------- 0:00:01
+[INFO] Sin jobs pendientes. Esperando...
+⠹ Polling n8n (executions)... ---------------------------------------- 0:00:00
+[INFO] Sin jobs pendientes. Esperando...
