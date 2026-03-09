@@ -2,7 +2,10 @@ $ErrorActionPreference = "Stop"
 
 $root = $PSScriptRoot
 if (-not $root) {
-    $root = "C:\Users\NyGsoft\Desktop\publicidad"
+    $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Definition)
+}
+if (-not $root -or -not (Test-Path $root)) {
+    $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 }
 
 $launcher = Join-Path $root "iniciar_poller_background.bat"

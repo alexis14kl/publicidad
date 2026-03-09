@@ -51,5 +51,12 @@ set "POST_TEXT_FILE=%UTILS_DIR%\post_text.txt"
 set "JOB_POLLER_LOG=%LOGS_DIR%\job_poller.log"
 
 rem --- Ejecutables ---
-set "DICLOAK_EXE=C:\Program Files\DICloak\DICloak.exe"
 set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+rem --- Buscar DiCloak dinamicamente ---
+set "DICLOAK_EXE="
+if exist "C:\Program Files\DICloak\DICloak.exe" set "DICLOAK_EXE=C:\Program Files\DICloak\DICloak.exe"
+if "%DICLOAK_EXE%"=="" if exist "C:\Program Files (x86)\DICloak\DICloak.exe" set "DICLOAK_EXE=C:\Program Files (x86)\DICloak\DICloak.exe"
+if "%DICLOAK_EXE%"=="" if exist "%LocalAppData%\Programs\dicloak\DICloak.exe" set "DICLOAK_EXE=%LocalAppData%\Programs\dicloak\DICloak.exe"
+if "%DICLOAK_EXE%"=="" if exist "%ProgramFiles%\DICloak\DICloak.exe" set "DICLOAK_EXE=%ProgramFiles%\DICloak\DICloak.exe"
+if "%DICLOAK_EXE%"=="" set "DICLOAK_EXE=C:\Program Files\DICloak\DICloak.exe"

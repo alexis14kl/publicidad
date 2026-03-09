@@ -5,7 +5,7 @@
 ; ============================================================
 
 #define MyAppName "noyecodito_fb"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.3.0"
 #define MyAppPublisher "NoyeCode"
 #define MyAppURL "https://noyecode.com"
 #define MyAppExeName "iniciar.bat"
@@ -29,7 +29,7 @@ DefaultDirName=C:\{#MyAppName}
 DefaultGroupName={#MyAppName}
 LicenseFile=LICENSE.txt
 OutputDir=.
-OutputBaseFilename=noyecodito_fb_setup_v1.2.0
+OutputBaseFilename=noyecodito_fb_setup_v1.3.0
 SetupIconFile=icon\noyecodito.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -125,6 +125,10 @@ Filename: "cmd.exe"; Parameters: "/c python -m pip install --upgrade pip && pyth
 Filename: "cmd.exe"; Parameters: "/c npm install"; WorkingDir: "{app}"; StatusMsg: "Instalando dependencias Node.js..."; Flags: runhidden waituntilterminated
 ; Post-instalacion: instalar Playwright browsers
 Filename: "cmd.exe"; Parameters: "/c python -m playwright install chromium"; WorkingDir: "{app}"; StatusMsg: "Instalando navegador Playwright (Chromium)..."; Flags: runhidden waituntilterminated
+; Post-instalacion: registrar worker en inicio de sesion de Windows
+Filename: "cmd.exe"; Parameters: "/c ""{app}\instalar_inicio_poller_sesion.bat"""; WorkingDir: "{app}"; StatusMsg: "Registrando worker en inicio automatico..."; Flags: runhidden waituntilterminated
+; Post-instalacion: iniciar worker en background ahora
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\iniciar_poller_oculto.ps1"""; WorkingDir: "{app}"; StatusMsg: "Iniciando worker en background..."; Flags: runhidden nowait
 ; Opcion de ejecutar al finalizar
 Filename: "{app}\iniciar.bat"; WorkingDir: "{app}"; Description: "Ejecutar {#MyAppName} ahora"; Flags: nowait postinstall skipifsilent shellexec
 
@@ -163,7 +167,9 @@ end;
 
 function IsDiCloakInstalled: Boolean;
 begin
-  Result := FileExists('C:\Program Files\DICloak\DICloak.exe');
+  Result := FileExists(ExpandConstant('{pf}\DICloak\DICloak.exe')) or
+            FileExists(ExpandConstant('{pf32}\DICloak\DICloak.exe')) or
+            FileExists(ExpandConstant('{localappdata}\Programs\dicloak\DICloak.exe'));
 end;
 
 // ---------------------------------------------------------------
@@ -372,8 +378,11 @@ begin
   if CurPageID = wpReady then
   begin
     if not IsDiCloakInstalled then
-      MsgBox('AVISO: DiCloak no esta instalado en la ruta esperada.' + #13#10#13#10 +
-             'Ruta esperada: C:\Program Files\DICloak\DICloak.exe' + #13#10#13#10 +
+      MsgBox('AVISO: DiCloak no esta instalado.' + #13#10#13#10 +
+             'Se busco en:' + #13#10 +
+             '  - C:\Program Files\DICloak\' + #13#10 +
+             '  - C:\Program Files (x86)\DICloak\' + #13#10 +
+             '  - %LocalAppData%\Programs\dicloak\' + #13#10#13#10 +
              'Instale DiCloak antes de ejecutar el bot.', mbInformation, MB_OK);
   end;
 end;
