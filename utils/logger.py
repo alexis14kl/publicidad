@@ -1,3 +1,4 @@
+import sys
 from contextlib import contextmanager
 
 import typer
@@ -30,6 +31,12 @@ def log_debug(msg: str) -> None:
 
 @contextmanager
 def progress_bar(description: str):
+    encoding = (getattr(sys.stdout, "encoding", "") or "").lower()
+    if "utf" not in encoding:
+        log_info(description)
+        yield
+        return
+
     from rich.progress import (
         BarColumn,
         Progress,

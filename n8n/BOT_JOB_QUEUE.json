@@ -1,0 +1,169 @@
+{
+  "name": "BOT_JOB_QUEUE",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bot-job-enqueue",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "id": "8c5e6d62-cf2d-4c65-9db1-8a90d9a50001",
+      "name": "Enqueue Job Webhook",
+      "webhookId": "bot-job-enqueue-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst headers = $json.headers ?? {};\nconst authHeader = headers.authorization || headers.Authorization || '';\nconst bearerSecret = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';\nconst providedSecret = body.secret || bearerSecret || '';\nconst expectedSecret = '';\nif (expectedSecret && providedSecret !== expectedSecret) {\n  return [{ json: { success: false, error: 'unauthorized' } }];\n}\n\nconst baseUrl = 'https://n8n-dev.noyecode.com';\nconst projectId = 'bkrM241Q8UeW2zme';\nconst tableId = 'LFM69EeeF7pa8yiO';\nconst browserId = 'bot-job-enqueue';\nconst loginPayload = {\n  emailOrLdapLoginId: 'andersonbarbosadev@outlook.com',\n  password: 't5x]oIs{7=ISZ}sS',\n};\n\nconst action = String(body.action || 'run_full_cycle').trim() || 'run_full_cycle';\nconst payload = body.payload && typeof body.payload === 'object' ? body.payload : {};\nconst source = String(body.source || 'telegram').trim() || 'telegram';\nconst nowIso = new Date().toISOString();\nconst jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;\n\nconst normalizeCookies = (rawCookieHeader) => {\n  if (!rawCookieHeader) return [];\n  if (Array.isArray(rawCookieHeader)) return rawCookieHeader.map((item) => String(item).split(';')[0]).filter(Boolean);\n  return String(rawCookieHeader).split(',').map((item) => item.split(';')[0].trim()).filter(Boolean);\n};\n\ntry {\n  const request = this.helpers.request;\n  const loginResponse = await request({\n    method: 'POST',\n    uri: `${baseUrl}/rest/login`,\n    body: loginPayload,\n    json: true,\n    resolveWithFullResponse: true,\n    simple: false,\n    headers: {\n      Accept: 'application/json',\n      'browser-id': browserId,\n      'User-Agent': 'n8n-bot-job-queue/1.0',\n    },\n  });\n\n  const cookies = normalizeCookies(loginResponse?.headers?.['set-cookie']);\n  if (!cookies.length) {\n    return [{ json: { success: false, error: 'login_cookie_missing' } }];\n  }\n\n  const inserted = await request({\n    method: 'POST',\n    uri: `${baseUrl}/rest/projects/${projectId}/data-tables/${tableId}/insert`,\n    body: {\n      returnType: 'all',\n      data: [\n        {\n          job_id: jobId,\n          action,\n          payload_json: JSON.stringify(payload),\n          source,\n          status: 'pending',\n          created_at: nowIso,\n          updated_at: nowIso,\n          worker_id: '',\n          attempts: 0,\n          lease_expires_at: '',\n          result_json: '',\n          error_text: '',\n        },\n      ],\n    },\n    json: true,\n    resolveWithFullResponse: true,\n    simple: false,\n    headers: {\n      Accept: 'application/json',\n      Cookie: cookies.join('; '),\n      'browser-id': browserId,\n      'User-Agent': 'n8n-bot-job-queue/1.0',\n    },\n  });\n\n  const row = Array.isArray(inserted?.body?.data) ? inserted.body.data[0] : inserted?.body?.data?.[0] || {};\n  return [{\n    json: {\n      success: true,\n      enqueued: true,\n      job: {\n        id: jobId,\n        row_id: row?.id ?? null,\n        action,\n        payload,\n        source,\n        status: 'pending',\n        createdAt: nowIso,\n        updatedAt: nowIso,\n      },\n      activeJobs: null,\n    },\n  }];\n} catch (error) {\n  return [{ json: { success: false, error: String(error?.message || error) } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [256, 0],
+      "id": "8c5e6d62-cf2d-4c65-9db1-8a90d9a50002",
+      "name": "Enqueue Job"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [528, 0],
+      "id": "8c5e6d62-cf2d-4c65-9db1-8a90d9a50003",
+      "name": "Respond Enqueue"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bot-job-next",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 224],
+      "id": "8c5e6d62-cf2d-4c65-9db1-8a90d9a50004",
+      "name": "Next Job Webhook",
+      "webhookId": "bot-job-next-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst headers = $json.headers ?? {};\nconst authHeader = headers.authorization || headers.Authorization || '';\nconst bearerSecret = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';\nconst providedSecret = body.secret || bearerSecret || '';\nconst expectedSecret = $env.N8N_BOT_SECRET || '';\nif (expectedSecret && providedSecret !== expectedSecret) {\n  return [{ json: { success: false, error: 'unauthorized' } }];\n}\n\nconst workerId = body.worker_id || body.workerId || 'worker-local';\nconst leaseMinutes = Number(body.lease_minutes || body.leaseMinutes || 5);\nconst now = Date.now();\nconst nowIso = new Date(now).toISOString();\nconst state = $getWorkflowStaticData('global');\nstate.jobs = Array.isArray(state.jobs) ? state.jobs : [];\n\nfor (const item of state.jobs) {\n  if (item.status === 'dispatched' && item.leaseExpiresAt) {\n    const expiresAt = Date.parse(item.leaseExpiresAt);\n    if (!Number.isNaN(expiresAt) && expiresAt < now) {\n      item.status = 'pending';\n      item.workerId = null;\n      item.leaseExpiresAt = null;\n      item.updatedAt = nowIso;\n    }\n  }\n}\n\nconst job = state.jobs.find((item) => item.status === 'pending');\nif (!job) {\n  return [{ json: { success: true, found: false } }];\n}\n\njob.status = 'dispatched';\njob.workerId = workerId;\njob.attempts = Number(job.attempts || 0) + 1;\njob.updatedAt = nowIso;\njob.leaseExpiresAt = new Date(now + leaseMinutes * 60 * 1000).toISOString();\n\nreturn [{ json: { success: true, found: true, job } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [256, 224],
+      "id": "8c5e6d62-cf2d-4c65-9db1-8a90d9a50005",
+      "name": "Get Next Job"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [528, 224],
+      "id": "8c5e6d62-cf2d-4c65-9db1-8a90d9a50006",
+      "name": "Respond Next"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bot-job-update",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 448],
+      "id": "8c5e6d62-cf2d-4c65-9db1-8a90d9a50007",
+      "name": "Update Job Webhook",
+      "webhookId": "bot-job-update-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst headers = $json.headers ?? {};\nconst authHeader = headers.authorization || headers.Authorization || '';\nconst bearerSecret = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';\nconst providedSecret = body.secret || bearerSecret || '';\nconst expectedSecret = $env.N8N_BOT_SECRET || '';\nif (expectedSecret && providedSecret !== expectedSecret) {\n  return [{ json: { success: false, error: 'unauthorized' } }];\n}\n\nconst jobId = body.job_id || body.jobId || body.id;\nconst status = body.status || 'unknown';\nconst workerId = body.worker_id || body.workerId || null;\nconst state = $getWorkflowStaticData('global');\nstate.jobs = Array.isArray(state.jobs) ? state.jobs : [];\n\nconst job = state.jobs.find((item) => item.id === jobId);\nif (!job) {\n  return [{ json: { success: false, error: 'job_not_found', jobId } }];\n}\n\njob.status = status;\njob.workerId = workerId || job.workerId || null;\njob.updatedAt = new Date().toISOString();\njob.result = body.result ?? job.result ?? null;\njob.error = body.error ?? null;\nif (['success', 'error', 'cancelled'].includes(status)) {\n  job.leaseExpiresAt = null;\n}\n\nreturn [{ json: { success: true, updated: true, job } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [256, 448],
+      "id": "8c5e6d62-cf2d-4c65-9db1-8a90d9a50008",
+      "name": "Update Job"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [528, 448],
+      "id": "8c5e6d62-cf2d-4c65-9db1-8a90d9a50009",
+      "name": "Respond Update"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Enqueue Job Webhook": {
+      "main": [[{ "node": "Enqueue Job", "type": "main", "index": 0 }]]
+    },
+    "Enqueue Job": {
+      "main": [[{ "node": "Respond Enqueue", "type": "main", "index": 0 }]]
+    },
+    "Next Job Webhook": {
+      "main": [[{ "node": "Get Next Job", "type": "main", "index": 0 }]]
+    },
+    "Get Next Job": {
+      "main": [[{ "node": "Respond Next", "type": "main", "index": 0 }]]
+    },
+    "Update Job Webhook": {
+      "main": [[{ "node": "Update Job", "type": "main", "index": 0 }]]
+    },
+    "Update Job": {
+      "main": [[{ "node": "Respond Update", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "00000000-0000-4000-8000-000000000001",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
+

@@ -1,0 +1,241 @@
+{
+  "name": "CHAT_IMGS",
+  "nodes": [
+    {
+      "parameters": {
+        "multipleMethods": false,
+        "httpMethod": "POST",
+        "path": "telegram-chat-imgs",
+        "authentication": "none",
+        "responseMode": "onReceived",
+        "contentTypeNotice": "",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "id": "745d515e-3904-466b-b342-35ea63e433f3",
+      "name": "Telegram Webhook",
+      "webhookId": "a2d8d529-b424-461e-aab4-f20c54254106"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? {};\nconst message = body.message || body.edited_message || body.channel_post || {};\nconst rawText = (message.text || message.caption || '').trim();\nconst normalizedText = rawText.toLowerCase();\nconst chatId = message.chat?.id || null;\nconst commandPatterns = [\n  /^\\/publicar(?:\\s+(.+))?$/i,\n  /^publicar(?:\\s+(.+))?$/i,\n  /^\\/runbot(?:\\s+(.+))?$/i,\n  /^runbot(?:\\s+(.+))?$/i,\n  /^\\/run_full_cycle(?:\\s+(.+))?$/i,\n  /^run_full_cycle(?:\\s+(.+))?$/i\n];\nlet isBotCommand = false;\nlet extraIdea = '';\nfor (const pattern of commandPatterns) {\n  const match = rawText.match(pattern);\n  if (match) {\n    isBotCommand = true;\n    extraIdea = (match[1] || '').trim();\n    break;\n  }\n}\nreturn [{\n  json: {\n    chatId,\n    messageText: rawText,\n    normalizedText,\n    isBotCommand,\n    action: 'run_full_cycle',\n    payload: extraIdea ? { idea: extraIdea } : {},\n    source: 'telegram'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [208, 0],
+      "id": "b1d1201c-2f92-4dd0-bb4c-001010101001",
+      "name": "Process Telegram Message"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "condition-bot-command",
+              "leftValue": "={{ $json.isBotCommand }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [432, 0],
+      "id": "b1d1201c-2f92-4dd0-bb4c-001010101002",
+      "name": "Is Bot Command?"
+    },
+    {
+      "parameters": {
+        "aiAgentStarterCallout": "",
+        "promptType": "define",
+        "text": "={{ $json.messageText || \"\" }}",
+        "hasOutputParser": false,
+        "needsFallback": false,
+        "options": {
+          "systemMessage": "Eres un generador experto de prompts para imagen. Responde siempre con un unico prompt final, completo y listo para usar. No agregues saludos, explicaciones, listas, titulos, markdown, ni prefijos como \"Prompt:\". Devuelve solo el texto del prompt en una sola respuesta."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [672, 160],
+      "id": "da5bb958-c8cc-4155-8fab-075020c4896c",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "notice": "",
+        "model": "=llama-3.1-8b-instant",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [544, 368],
+      "id": "02a18caf-8238-442b-af48-8f1285e194dd",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "ujxI8q61jPeRlWaT",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "preBuiltAgentsCalloutHttpRequest": "",
+        "curlImport": "",
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8330436500:AAFn_2kMLSjqR-V_zQg2BacWRWx7ULOiNuw/sendMessage",
+        "authentication": "none",
+        "provideSslCertificates": false,
+        "sendQuery": false,
+        "sendHeaders": false,
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\"chat_id\": {{ $json.chatId || $(\"Process Telegram Message\").item.json.chatId }}, \"text\": {{ JSON.stringify($json.replyText || $json.output || \"Sin respuesta\") }}}",
+        "options": {},
+        "infoMessage": ""
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [1408, 160],
+      "id": "d0c7692d-822c-4365-8dd1-d96c74bfd22d",
+      "name": "Send Telegram Reply"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n-dev.noyecode.com/webhook/bot-job-enqueue",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: $json.action, payload: $json.payload, source: $json.source, chatId: $json.chatId, secret: $env.N8N_BOT_SECRET || '' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [688, -160],
+      "id": "b1d1201c-2f92-4dd0-bb4c-001010101003",
+      "name": "Enqueue Bot Job"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Process Telegram Message').item.json;\nconst idea = base.payload?.idea ? `\\nIdea: ${base.payload.idea}` : '';\nreturn [{ json: { replyText: `Listo. Solicitud recibida. El worker local la tomara en breve.${idea}`, chatId: base.chatId } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, -160],
+      "id": "b1d1201c-2f92-4dd0-bb4c-001010101004",
+      "name": "Build Queue Reply"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Telegram Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Telegram Message": {
+      "main": [
+        [
+          {
+            "node": "Is Bot Command?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Bot Command?": {
+      "main": [
+        [
+          {
+            "node": "Build Queue Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enqueue Bot Job": {
+      "main": [
+        [
+          {
+            "node": "Build Queue Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Queue Reply": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "420f64c6-34f8-4310-80a3-101a9b12b49d",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "5zKqthFIw2-FhYBIkCKnu",
+  "tags": []
+}
