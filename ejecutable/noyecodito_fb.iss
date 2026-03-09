@@ -5,7 +5,7 @@
 ; ============================================================
 
 #define MyAppName "noyecodito_fb"
-#define MyAppVersion "1.3.0"
+#define MyAppVersion "1.4.0"
 #define MyAppPublisher "NoyeCode"
 #define MyAppURL "https://noyecode.com"
 #define MyAppExeName "iniciar.bat"
@@ -29,7 +29,7 @@ DefaultDirName=C:\{#MyAppName}
 DefaultGroupName={#MyAppName}
 LicenseFile=LICENSE.txt
 OutputDir=.
-OutputBaseFilename=noyecodito_fb_setup_v1.3.0
+OutputBaseFilename=noyecodito_fb_setup_v1.4.0
 SetupIconFile=icon\noyecodito.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -66,6 +66,7 @@ Name: "shortcuts"; Description: "Acceso directo en escritorio"; Types: full cust
 Source: "{#ProjectRoot}\iniciar.bat"; DestDir: "{app}"; Flags: ignoreversion; Components: core
 Source: "{#ProjectRoot}\package.json"; DestDir: "{app}"; Flags: ignoreversion; Components: core
 Source: "{#ProjectRoot}\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion; Components: core
+Source: "{#ProjectRoot}\.gitignore"; DestDir: "{app}"; Flags: ignoreversion; Components: core
 
 ; --- Core: configuracion ---
 Source: "{#ProjectRoot}\cfg\*"; DestDir: "{app}\cfg"; Flags: ignoreversion recursesubdirs; Components: core
@@ -119,12 +120,12 @@ Name: "{group}\Desinstalar {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\iniciar.bat"; WorkingDir: "{app}"; IconFilename: "{app}\ejecutable\icon\noyecodito.ico"; Comment: "Ejecutar {#MyAppName}"; Components: shortcuts
 
 [Run]
-; Post-instalacion: instalar dependencias Python
-Filename: "cmd.exe"; Parameters: "/c python -m pip install --upgrade pip && python -m pip install -r ""{app}\requirements.txt"""; WorkingDir: "{app}"; StatusMsg: "Instalando dependencias Python..."; Flags: runhidden waituntilterminated
-; Post-instalacion: instalar dependencias Node
-Filename: "cmd.exe"; Parameters: "/c npm install"; WorkingDir: "{app}"; StatusMsg: "Instalando dependencias Node.js..."; Flags: runhidden waituntilterminated
-; Post-instalacion: instalar Playwright browsers
-Filename: "cmd.exe"; Parameters: "/c python -m playwright install chromium"; WorkingDir: "{app}"; StatusMsg: "Instalando navegador Playwright (Chromium)..."; Flags: runhidden waituntilterminated
+; Post-instalacion: instalar dependencias Python (solo si faltan)
+Filename: "cmd.exe"; Parameters: "/c python -m pip install --upgrade pip && python -m pip install -r ""{app}\requirements.txt"""; WorkingDir: "{app}"; StatusMsg: "Instalando dependencias Python..."; Flags: runhidden waituntilterminated; Check: NeedPipInstall
+; Post-instalacion: instalar dependencias Node (solo si falta node_modules)
+Filename: "cmd.exe"; Parameters: "/c npm install"; WorkingDir: "{app}"; StatusMsg: "Instalando dependencias Node.js..."; Flags: runhidden waituntilterminated; Check: NeedNpmInstall
+; Post-instalacion: instalar Playwright browsers (solo si falta chromium)
+Filename: "cmd.exe"; Parameters: "/c python -m playwright install chromium"; WorkingDir: "{app}"; StatusMsg: "Instalando navegador Playwright (Chromium)..."; Flags: runhidden waituntilterminated; Check: NeedPlaywrightInstall
 ; Post-instalacion: registrar worker en inicio de sesion de Windows
 Filename: "cmd.exe"; Parameters: "/c ""{app}\instalar_inicio_poller_sesion.bat"""; WorkingDir: "{app}"; StatusMsg: "Registrando worker en inicio automatico..."; Flags: runhidden waituntilterminated
 ; Post-instalacion: iniciar worker en background ahora
@@ -360,6 +361,43 @@ begin
     RefreshEnvironment;
 
   DownloadPage.SetProgress(100, 100);
+end;
+
+// ---------------------------------------------------------------
+//  Checks: saltar dependencias ya instaladas en actualizaciones
+// ---------------------------------------------------------------
+function NeedPipInstall: Boolean;
+var
+  ResultCode: Integer;
+begin
+  // Si playwright ya esta instalado como modulo Python, pip ya corrio
+  Result := not (Exec('cmd.exe', '/c python -c "import playwright"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0));
+  if not Result then
+    Log('pip: dependencias Python ya instaladas, omitiendo.')
+  else
+    Log('pip: se necesita instalar dependencias Python.');
+end;
+
+function NeedNpmInstall: Boolean;
+begin
+  // Si node_modules/playwright existe, npm install ya corrio
+  Result := not DirExists(ExpandConstant('{app}\node_modules\playwright'));
+  if not Result then
+    Log('npm: node_modules ya existe, omitiendo.')
+  else
+    Log('npm: se necesita ejecutar npm install.');
+end;
+
+function NeedPlaywrightInstall: Boolean;
+var
+  ResultCode: Integer;
+begin
+  // Verificar si chromium de Playwright ya esta descargado
+  Result := not (Exec('cmd.exe', '/c python -m playwright install --dry-run chromium 2>nul | findstr "is already installed"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0));
+  if not Result then
+    Log('playwright: Chromium ya instalado, omitiendo.')
+  else
+    Log('playwright: se necesita instalar Chromium.');
 end;
 
 // ---------------------------------------------------------------

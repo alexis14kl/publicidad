@@ -57,7 +57,7 @@ if %ERRORLEVEL% EQU 0 (
     echo   COMPILACION EXITOSA
     echo ============================================
     echo.
-    echo   Instalador generado: noyecodito_fb_setup_v1.3.0.exe
+    echo   Instalador generado: noyecodito_fb_setup_v1.4.0.exe
     echo   Ubicacion: %~dp0
     echo.
 ) else (

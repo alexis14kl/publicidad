@@ -1,6 +1,6 @@
 {
   "name": "bot-publicitario-noyecode",
-  "version": "0.3.0",
+  "version": "1.4.0",
   "private": true,
   "description": "Bot de publicidad automatizada: DiCloak + ChatGPT + n8n + Facebook",
   "scripts": {
