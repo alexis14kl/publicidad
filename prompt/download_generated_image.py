@@ -27,6 +27,14 @@ def build_filename(source_url: str) -> str:
 def get_latest_downloadable_image_info(page) -> dict:
     return page.evaluate(
         """() => {
+            const comparisonButtons = Array.from(
+                document.querySelectorAll('button,[role="button"],label')
+            ).filter((el) =>
+                /la imagen 1 es mejor|image 1 is better|que imagen te gusta mas|which image do you prefer/i.test(
+                    (el.innerText || el.textContent || el.getAttribute('aria-label') || '').trim()
+                )
+            );
+
             const articleHasDownloadButton = (article) =>
                 Array.from(article.querySelectorAll('button,[role="button"],a')).some((el) =>
                     /descargar esta imagen|download this image/i.test((el.innerText || el.getAttribute('aria-label') || '').trim())
@@ -43,6 +51,7 @@ def get_latest_downloadable_image_info(page) -> dict:
                     hasDownloadButton: false,
                     imageUrl: '',
                     articleText: '',
+                    hasComparisonChoice: comparisonButtons.length > 0,
                 };
             }
 
@@ -56,7 +65,24 @@ def get_latest_downloadable_image_info(page) -> dict:
                 hasDownloadButton: articleHasDownloadButton(targetArticle),
                 imageUrl: matchingUrls[matchingUrls.length - 1] || '',
                 articleText: (targetArticle.innerText || '').slice(0, 400),
+                hasComparisonChoice: comparisonButtons.length > 0,
             };
+        }"""
+    )
+
+
+def resolve_image_comparison(page) -> bool:
+    return page.evaluate(
+        """() => {
+            const candidates = Array.from(document.querySelectorAll('button,[role="button"],label'));
+            const pick = candidates.find((el) =>
+                /la imagen 1 es mejor|image 1 is better/i.test(
+                    (el.innerText || el.textContent || el.getAttribute('aria-label') || '').trim()
+                )
+            );
+            if (!pick) return false;
+            pick.click();
+            return true;
         }"""
     )
 
@@ -64,10 +90,16 @@ def get_latest_downloadable_image_info(page) -> dict:
 def wait_for_downloadable_image(page, timeout_sec: int = DEFAULT_WAIT_TIMEOUT_SEC, poll_interval_sec: int = DEFAULT_POLL_INTERVAL_SEC) -> str:
     deadline = time.time() + timeout_sec
     last_info: dict | None = None
+    comparison_resolved = False
 
     while time.time() < deadline:
         info = get_latest_downloadable_image_info(page)
         last_info = info
+        if info.get("hasComparisonChoice") and not comparison_resolved:
+            if resolve_image_comparison(page):
+                comparison_resolved = True
+                page.wait_for_timeout(2500)
+                continue
         if info.get("foundArticle") and info.get("hasDownloadButton") and info.get("imageUrl"):
             return str(info["imageUrl"]).strip()
         page.wait_for_timeout(int(poll_interval_sec * 1000))

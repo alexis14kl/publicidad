@@ -4,3 +4,9 @@
 [ERROR] No se pudo conectar con n8n: <urlopen error [WinError 10013] Intento de acceso a un socket no permitido por sus permisos de acceso>
 [09/03/2026 10:07:11,72] starting job_poller 
 [OK] Worker iniciado [DESKTOP-PPSTUGJ] modo=executions intervalo=15s
+⠋ Polling n8n (executions)... ---------------------------------------- 0:00:02
+[OK] Job recibido: exec_86624 -> run_full_cycle
+⠸ Ejecutando run_full_cycle... ---------------------------------------- 0:07:18
+[WARN] Job termino con estado: error
+⠋ Polling n8n (executions)... ---------------------------------------- 0:00:02
+[OK] Job recibido: exec_86713 -> run_full_cycle

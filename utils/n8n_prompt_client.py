@@ -119,7 +119,8 @@ def clean_generated_prompt(prompt: str) -> str:
         "CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA. "
         f"CONTEXTO PUBLICITARIO: {body}. "
         "GENERA LA IMAGEN DIRECTAMENTE EN CALIDAD 4K, FORMATO VERTICAL 4:5 OPTIMIZADO PARA FEED DE FACEBOOK E INSTAGRAM, "
-        "ESTILO PUBLICITARIO PREMIUM, ALTA CLARIDAD GRAFICA Y RESPETANDO MARGENES DE SEGURIDAD PARA QUE NINGUN TEXTO O ELEMENTO CLAVE QUEDE CORTADO EN LOS BORDES."
+        "ESTILO PUBLICITARIO PREMIUM, ALTA CLARIDAD GRAFICA Y RESPETANDO MARGENES DE SEGURIDAD PARA QUE NINGUN TEXTO O ELEMENTO CLAVE QUEDE CORTADO EN LOS BORDES. "
+        "ENTREGA EXACTAMENTE UNA SOLA IMAGEN FINAL. NO GENERES DOS OPCIONES, NO MUESTRES VARIANTES, NO HAGAS COMPARACIONES Y NO PREGUNTES CUAL IMAGEN PREFIERO."
     ).strip()
 
 
@@ -206,6 +207,9 @@ def enrich_idea(idea: str) -> str:
     )
     hints.append(
         "Salida obligatoria: devolver una sola instruccion final lista para pegar en ChatGPT y generar la imagen de inmediato."
+    )
+    hints.append(
+        "La generacion debe producir exactamente una sola imagen final. Prohibido devolver variantes, comparativas, opciones A/B o preguntas de seleccion."
     )
     hints.append(
         "La respuesta debe empezar como una orden directa y operativa para generar imagen, no como una sugerencia."
