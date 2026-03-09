@@ -1,0 +1,21 @@
+COMANDOS DEL WORKER LOCAL
+
+1. Iniciar el worker oculto manualmente
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\NyGsoft\Desktop\publicidad\iniciar_poller_oculto.ps1"
+
+2. Instalar autoarranque al iniciar sesion
+
+C:\Users\NyGsoft\Desktop\publicidad\instalar_inicio_poller_sesion.bat
+
+3. Quitar autoarranque
+
+C:\Users\NyGsoft\Desktop\publicidad\desinstalar_inicio_poller_sesion.bat
+
+4. Iniciar el worker visible en consola
+
+C:\Users\NyGsoft\Desktop\publicidad\iniciar_poller.bat
+
+5. Log del worker
+
+C:\Users\NyGsoft\Desktop\publicidad\logs\job_poller.log

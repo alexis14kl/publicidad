@@ -14,3 +14,11 @@ rich>=14.0
 
 # Soporte de colores ANSI en terminales Windows (CMD/PowerShell)
 colorama>=0.4.6
+
+#ejecutar worked
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\NyGsoft\Desktop\publicidad\iniciar_poller_oculto.ps1"
+
+#apagar worked
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\NyGsoft\Desktop\publicidad\iniciar_poller_oculto.ps1"
+
+
