@@ -1,0 +1,56 @@
+TERMINOS Y CONDICIONES DE USO - noyecodito_fb
+================================================
+
+Ultima actualizacion: 9 de marzo de 2026
+
+Al instalar y utilizar noyecodito_fb ("el Software"), usted acepta
+los siguientes terminos y condiciones:
+
+1. LICENCIA DE USO
+   Se le otorga una licencia no exclusiva, no transferible e intransferible
+   para usar el Software en un (1) equipo. Queda prohibida la redistribucion,
+   venta, sublicencia o modificacion del Software sin autorizacion expresa
+   del autor.
+
+2. PROPIEDAD INTELECTUAL
+   El Software y todo su codigo fuente son propiedad de NoyeCode.
+   Todos los derechos reservados.
+
+3. USO PERMITIDO
+   El Software esta disenado para automatizar la generacion y publicacion
+   de contenido publicitario en redes sociales. El usuario es responsable
+   de cumplir con las politicas de cada plataforma (Facebook, ChatGPT, etc.)
+   y con las leyes aplicables en su jurisdiccion.
+
+4. REQUISITOS DEL SISTEMA
+   - Windows 10 o superior
+   - Python 3.10 o superior
+   - Node.js 18 o superior
+   - DiCloak (navegador antidetect)
+   - Conexion a internet
+
+5. LIMITACION DE RESPONSABILIDAD
+   El Software se proporciona "tal cual", sin garantias de ningun tipo.
+   NoyeCode no sera responsable por danos directos, indirectos, incidentales
+   o consecuentes derivados del uso del Software, incluyendo pero no limitado
+   a: suspension de cuentas en plataformas de terceros, perdida de datos
+   o interrupciones del servicio.
+
+6. PRIVACIDAD
+   El Software opera localmente en su equipo. No recopila ni transmite
+   datos personales a servidores de NoyeCode. Las credenciales de terceros
+   (ChatGPT, Facebook) se manejan exclusivamente en su navegador local.
+
+7. ACTUALIZACIONES
+   NoyeCode puede publicar actualizaciones del Software. La instalacion
+   de actualizaciones es responsabilidad del usuario.
+
+8. TERMINACION
+   Esta licencia se termina automaticamente si usted incumple cualquiera
+   de estos terminos. Al terminar, debera desinstalar el Software.
+
+9. CONTACTO
+   Para soporte o consultas: NoyeCode
+
+Al hacer clic en "Acepto los terminos" durante la instalacion, usted
+confirma que ha leido, entendido y aceptado estos terminos y condiciones.
