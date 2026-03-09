@@ -1,5 +1,6 @@
 import argparse
 import os
+import platform
 import subprocess
 import sys
 import time
@@ -17,6 +18,8 @@ from perfil.profile_memory import (  # noqa: E402
 )
 from utils.logger import log_info, log_warn  # noqa: E402
 
+IS_MAC = platform.system() == "Darwin"
+IS_WINDOWS = platform.system() == "Windows"
 
 INITIAL_PROFILE = "#1 Chat Gpt PRO"
 DEFAULT_TARGET_PROFILE = "#4 Chat Gpt Plus"
@@ -25,8 +28,13 @@ DEFAULT_MAIN_CDP_URL = "http://127.0.0.1:9333"
 DEFAULT_PROFILE_CDP_PORT = 9225
 DEFAULT_PROFILE_WARMUP_SEC = 20
 OPEN_PROFILE_JS = PROJECT_ROOT / "perfil" / "abrir_perfil_dicloak.js"
-FORCE_CDP_PS1 = PROJECT_ROOT / "cdp" / "forzar_cdp_perfil_dicloak.ps1"
-PS_EXE = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+
+if IS_WINDOWS:
+    FORCE_CDP_SCRIPT = PROJECT_ROOT / "cdp" / "forzar_cdp_perfil_dicloak.ps1"
+    PS_EXE = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+else:
+    FORCE_CDP_SCRIPT = PROJECT_ROOT / "run_mac" / "cdp" / "forzar_cdp_perfil.sh"
+    PS_EXE = None
 
 
 def parse_args() -> argparse.Namespace:
@@ -100,23 +108,30 @@ def _run_subprocess(command: list[str], step_name: str) -> None:
 
 def close_current_profile() -> None:
     log_info("closing_current_profile=1")
-    subprocess.run(
-        ["taskkill", "/F", "/IM", "ginsbrowser.exe"],
-        cwd=str(PROJECT_ROOT),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="ignore",
-    )
+    if IS_WINDOWS:
+        subprocess.run(
+            ["taskkill", "/F", "/IM", "ginsbrowser.exe"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+        )
+    else:
+        subprocess.run(
+            ["pkill", "-f", "ginsbrowser"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+        )
     time.sleep(2)
 
 
 def switch_to_fallback_profile(target_profile: str, preferred_port: int, warmup_sec: int) -> None:
     if not OPEN_PROFILE_JS.exists():
         raise FileNotFoundError(f"No existe script de apertura de perfil: {OPEN_PROFILE_JS}")
-    if not FORCE_CDP_PS1.exists():
-        raise FileNotFoundError(f"No existe script de forzado CDP: {FORCE_CDP_PS1}")
-    if not PS_EXE.exists():
+    if not FORCE_CDP_SCRIPT.exists():
+        raise FileNotFoundError(f"No existe script de forzado CDP: {FORCE_CDP_SCRIPT}")
+    if IS_WINDOWS and (PS_EXE is None or not PS_EXE.exists()):
         raise FileNotFoundError(f"No existe PowerShell esperado en: {PS_EXE}")
 
     close_current_profile()
@@ -131,21 +146,27 @@ def switch_to_fallback_profile(target_profile: str, preferred_port: int, warmup_
     time.sleep(max(5, warmup_sec))
 
     log_info("forcing_fallback_cdp=1")
-    _run_subprocess(
-        [
-            str(PS_EXE),
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(FORCE_CDP_PS1),
-            "-PreferredPort",
-            str(preferred_port),
-            "-TimeoutSec",
-            "45",
-        ],
-        "Forzado CDP del perfil fallback",
-    )
+    if IS_WINDOWS:
+        _run_subprocess(
+            [
+                str(PS_EXE),
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(FORCE_CDP_SCRIPT),
+                "-PreferredPort",
+                str(preferred_port),
+                "-TimeoutSec",
+                "45",
+            ],
+            "Forzado CDP del perfil fallback",
+        )
+    else:
+        _run_subprocess(
+            ["bash", str(FORCE_CDP_SCRIPT), str(preferred_port), "45"],
+            "Forzado CDP del perfil fallback",
+        )
 
     if not _wait_for_cdp(preferred_port, timeout_sec=45):
         raise RuntimeError(f"El perfil fallback no expuso CDP util en el puerto {preferred_port}")
