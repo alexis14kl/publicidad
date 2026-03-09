@@ -44,7 +44,7 @@ def _save(data: dict) -> None:
     )
 
 
-def _cleanup_expired(data: dict, ttl_sec: int = DEFAULT_TTL_SEC) -> dict:
+def _cleanup_expired(data: dict, ttl_sec: int = DEFAULT_TTL_SEC, quiet: bool = False) -> dict:
     now = datetime.now(timezone.utc)
     cleaned = {}
     for name, entry in data.get("profiles", {}).items():
@@ -62,14 +62,14 @@ def _cleanup_expired(data: dict, ttl_sec: int = DEFAULT_TTL_SEC) -> dict:
         age_sec = (now - marked_at).total_seconds()
         if age_sec < ttl_sec:
             cleaned[name] = entry
-        else:
+        elif not quiet:
             log_info(f"Perfil '{name}' expirado hace {int(age_sec)}s, limpiado automaticamente.")
     data["profiles"] = cleaned
     return data
 
 
-def get_expired_profiles() -> dict[str, dict]:
-    data = _cleanup_expired(_load())
+def get_expired_profiles(quiet: bool = False) -> dict[str, dict]:
+    data = _cleanup_expired(_load(), quiet=quiet)
     _save(data)
     return {
         name: entry
@@ -111,19 +111,20 @@ def clear_all_expired() -> int:
     return count
 
 
-def get_active_profiles(all_profiles: list[str]) -> list[str]:
-    expired = get_expired_profiles()
+def get_active_profiles(all_profiles: list[str], quiet: bool = False) -> list[str]:
+    expired = get_expired_profiles(quiet=quiet)
     active = []
     for name in all_profiles:
         if name in expired:
-            log_info(f"Perfil '{name}' omitido (vencido desde {expired[name].get('date', '?')})")
+            if not quiet:
+                log_info(f"Perfil '{name}' omitido (vencido desde {expired[name].get('date', '?')})")
         else:
             active.append(name)
     return active
 
 
-def resolve_best_profile(ordered_profiles: list[str]) -> str:
-    active = get_active_profiles(ordered_profiles)
+def resolve_best_profile(ordered_profiles: list[str], quiet: bool = False) -> str:
+    active = get_active_profiles(ordered_profiles, quiet=quiet)
     if active:
         return active[0]
     return ordered_profiles[0] if ordered_profiles else ""
@@ -145,7 +146,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.best_profile:
-        best = resolve_best_profile(args.best_profile)
+        best = resolve_best_profile(args.best_profile, quiet=True)
         print(best)
     elif args.clear_all:
         n = clear_all_expired()
