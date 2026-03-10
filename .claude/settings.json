@@ -5,7 +5,8 @@
       "Bash(node _test_rotation.js)",
       "Bash(node _debug_current.js)",
       "Bash(node _debug_dom.js)",
-      "Bash(node _test_detection.js)"
+      "Bash(node _test_detection.js)",
+      "Bash(grep -r \"secret\\\\|SECRET\\\\|key\\\\|KEY\\\\|password\\\\|PASSWORD\" /c/Users/NyGsoft/Desktop/publicidad --include=*.py --include=*.js --include=*.bat --include=*.sh --include=*.ps1)"
     ]
   }
 }

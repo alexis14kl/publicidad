@@ -3,3 +3,6 @@ img_publicitarias/
 
 # Logs
 logs/
+
+# Variables de entorno
+.env
