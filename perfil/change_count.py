@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import platform
 import subprocess
@@ -28,6 +29,7 @@ DEFAULT_MAIN_CDP_URL = "http://127.0.0.1:9333"
 DEFAULT_PROFILE_CDP_PORT = 9225
 DEFAULT_PROFILE_WARMUP_SEC = 20
 OPEN_PROFILE_JS = PROJECT_ROOT / "perfil" / "abrir_perfil_dicloak.js"
+PROFILE_DISCOVERY_TIMEOUT_MS = 45000
 
 if IS_WINDOWS:
     FORCE_CDP_SCRIPT = PROJECT_ROOT / "cdp" / "forzar_cdp_perfil_dicloak.ps1"
@@ -119,11 +121,123 @@ def close_current_profile() -> None:
         )
     else:
         subprocess.run(
-            ["pkill", "-f", "ginsbrowser"],
+            ["pkill", "-if", "GinsBrowser"],
             cwd=str(PROJECT_ROOT),
             capture_output=True,
         )
     time.sleep(2)
+
+
+def discover_chatgpt_profiles(main_cdp_url: str = DEFAULT_MAIN_CDP_URL) -> list[str]:
+    js = r"""
+const { chromium } = require('playwright');
+
+(async () => {
+  const cdpUrl = process.argv[1];
+  const browser = await chromium.connectOverCDP(cdpUrl);
+  try {
+    const context = browser.contexts()[0];
+    if (!context) throw new Error('No hay contexto CDP principal');
+
+    let page =
+      context.pages().find((p) => (p.url() || '').includes('/environment/envList')) ||
+      context.pages()[0];
+    if (!page) {
+      page = await context.newPage();
+    }
+
+    await page.bringToFront();
+    await page.evaluate(() => {
+      const href = window.location.href || '';
+      if (!href.includes('/environment/envList')) {
+        window.location.hash = '/environment/envList';
+      }
+    });
+
+    const deadline = Date.now() + Number(process.argv[2] || 45000);
+    while (Date.now() < deadline) {
+      const ready = await page.evaluate(() => {
+        const rows = document.querySelectorAll('.el-table__row').length;
+        const txt = document.body?.innerText || '';
+        return rows > 0 || txt.includes('Perfiles');
+      }).catch(() => false);
+      if (ready) break;
+      await page.waitForTimeout(500);
+    }
+
+    const profiles = await page.evaluate(() => {
+      const normalize = (s) =>
+        String(s || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const rows = Array.from(document.querySelectorAll('.el-table__row'));
+      const names = [];
+      for (const row of rows) {
+        const cells = Array.from(row.querySelectorAll('td'));
+        const rowText = normalize(row.innerText || '');
+        if (!rowText) continue;
+
+        let candidate = '';
+        for (const cell of cells) {
+          const text = normalize(cell.innerText || '');
+          if (!text) continue;
+          if (/^#?\d+\s+chat\s*gpt/i.test(text) || /chat\s*gpt/i.test(text) || /chatgpt/i.test(text)) {
+            candidate = text.split('\n')[0].trim();
+            break;
+          }
+        }
+        if (!candidate && (/chat\s*gpt/i.test(rowText) || /chatgpt/i.test(rowText))) {
+          candidate = rowText.split('\n')[0].trim();
+        }
+        if (candidate) names.push(candidate);
+      }
+      return Array.from(new Set(names));
+    });
+
+    console.log(JSON.stringify(profiles));
+  } finally {
+    await browser.close();
+  }
+})().catch((err) => {
+  console.error(String(err?.message || err));
+  process.exit(1);
+});
+"""
+
+    try:
+        result = subprocess.run(
+            ["node", "-e", js, main_cdp_url, str(PROFILE_DISCOVERY_TIMEOUT_MS)],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+        )
+        if result.returncode != 0:
+            return []
+        raw = (result.stdout or "").strip().splitlines()
+        if not raw:
+            return []
+        data = json.loads(raw[-1])
+        if not isinstance(data, list):
+            return []
+        return [str(item).strip() for item in data if str(item).strip()]
+    except Exception:
+        return []
+
+
+def build_fallback_candidates(current_profile: str = "") -> list[str]:
+    candidates: list[str] = []
+    for profile in FALLBACK_PROFILES + discover_chatgpt_profiles():
+        profile = str(profile or "").strip()
+        if not profile:
+            continue
+        if current_profile and profile == current_profile:
+            continue
+        if profile not in candidates:
+            candidates.append(profile)
+    return candidates
 
 
 def switch_to_fallback_profile(target_profile: str, preferred_port: int, warmup_sec: int) -> None:
@@ -183,7 +297,7 @@ def switch_to_any_fallback(
         mark_profile_expired(current_profile, reason="session_expired")
         log_warn(f"Perfil actual marcado como vencido en memoria: '{current_profile}'")
 
-    all_candidates = profiles or FALLBACK_PROFILES
+    all_candidates = profiles or build_fallback_candidates(current_profile=current_profile)
     candidates = get_active_profiles(all_candidates)
 
     if not candidates:

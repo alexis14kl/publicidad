@@ -39,8 +39,8 @@ fi
 
 # --- STEP 2: Matar procesos ---
 log_step "2/10 Cerrando procesos DiCloak anteriores..."
-pkill -f "DICloak" 2>/dev/null || true
-pkill -f "ginsbrowser" 2>/dev/null || true
+pkill -if "DICloak" 2>/dev/null || true
+pkill -if "GinsBrowser" 2>/dev/null || true
 sleep 1
 
 # --- STEP 3: Limpieza avanzada ---
@@ -53,7 +53,19 @@ fi
 
 # --- STEP 4: Iniciar DiCloak ---
 log_step "4/10 Iniciando DiCloak en modo debug (9333)..."
-open -a "$DICLOAK_APP" --args --remote-debugging-port=9333 --remote-allow-origins=*
+rm -f "$DICLOAK_DATA_DIR/DevToolsActivePort" "$CDP_DEBUG_INFO" 2>/dev/null || true
+open -na "$DICLOAK_APP" --args --remote-debugging-port=9333 --remote-allow-origins=* >/dev/null 2>&1 || true
+APP_READY=0
+for _ in $(seq 1 15); do
+    if ps auxww | grep -iE 'DICloak|GinsBrowser' | grep -v 'grep' >/dev/null 2>&1; then
+        APP_READY=1
+        break
+    fi
+    sleep 1
+done
+if [ "$APP_READY" -ne 1 ]; then
+  log_warn "DiCloak no fue visible de inmediato. Se valida por CDP en el siguiente paso."
+fi
 
 # --- STEP 5: Esperar CDP ---
 log_step "5/10 Esperando CDP en puerto 9333..."
@@ -71,16 +83,18 @@ if [ $CDP_OK -eq 0 ]; then
     ACTIVE_PORT_FILE="$DICLOAK_DATA_DIR/DevToolsActivePort"
     if [ -f "$ACTIVE_PORT_FILE" ]; then
         ACTIVE_PORT=$(head -1 "$ACTIVE_PORT_FILE")
-        CDP_URL="http://127.0.0.1:$ACTIVE_PORT"
-        log_info "Puerto detectado: $ACTIVE_PORT"
-        CDP_OK=0
-        for i in $(seq 1 45); do
-            if curl -s --max-time 2 "$CDP_URL/json/version" 2>/dev/null | grep -q "webSocketDebuggerUrl"; then
-                CDP_OK=1
-                break
-            fi
-            sleep 1
-        done
+        if [ -n "$ACTIVE_PORT" ]; then
+            CDP_URL="http://127.0.0.1:$ACTIVE_PORT"
+            log_info "Puerto detectado por DevToolsActivePort: $ACTIVE_PORT"
+            CDP_OK=0
+            for i in $(seq 1 45); do
+                if curl -s --max-time 2 "$CDP_URL/json/version" 2>/dev/null | grep -q "webSocketDebuggerUrl"; then
+                    CDP_OK=1
+                    break
+                fi
+                sleep 1
+            done
+        fi
     fi
     if [ $CDP_OK -eq 0 ]; then
         log_error "CDP no respondio en $CDP_URL."
@@ -105,7 +119,7 @@ else
     if [ -f "$FORCE_OPEN_JS" ]; then
         node "$FORCE_OPEN_JS" "$PROFILE_NAME" "$CDP_URL" && PROFILE_OPEN=1
     fi
-    if [ $PROFILE_OPEN -eq 0 ] && pgrep -f "ginsbrowser" >/dev/null 2>&1; then
+    if [ $PROFILE_OPEN -eq 0 ] && pgrep -if "GinsBrowser" >/dev/null 2>&1; then
         log_info "Se detecto ginsbrowser activo; se continua."
         PROFILE_OPEN=1
     fi

@@ -333,8 +333,12 @@ const { chromium } = require('playwright');
     const noImageTokenPhrases = [
       'has alcanzado tu limite de creacion de imagenes',
       'el limite se restablece',
+      'tu organizacion alcanzo el limite de caracteristicas y modelos avanzados',
+      'tu limite se restablecera despues de este horario',
+      'obtener mas acceso ahora envia una solicitud a tu administrador',
       'youve hit the team plan limit for image generations requests',
       'you can create more images when the limit resets',
+      'your organization reached the limit for advanced features and models',
       'no pude invocar la herramienta de generacion de imagenes',
       'cannot generate more images',
       'image generation limit'
@@ -353,6 +357,8 @@ const { chromium } = require('playwright');
       const domSignals = [
         page.getByRole('heading', { name: /Has alcanzado tu límite de creación de imágenes/i }),
         page.getByRole('button', { name: /notificar al administrador/i }),
+        page.getByText(/Tu organización alcanzó el límite de características y modelos avanzados/i),
+        page.getByText(/Tu organizacion alcanzo el limite de caracteristicas y modelos avanzados/i),
         page.getByText(/You've hit the team plan limit for image generations requests/i),
         page.getByText(/No pude invocar la herramienta de generación de imágenes/i),
       ];

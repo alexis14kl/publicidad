@@ -22,9 +22,9 @@ while [ $SECONDS -lt $DEADLINE ]; do
     log "[INFO] Pass $PASS"
 
     # Matar procesos DiCloak y ginsbrowser
-    pkill -f "DICloak" 2>/dev/null
-    pkill -f "ginsbrowser" 2>/dev/null
-    pkill -f "DICloakCache" 2>/dev/null
+    pkill -if "DICloak" 2>/dev/null
+    pkill -if "GinsBrowser" 2>/dev/null
+    pkill -if "DICloakCache" 2>/dev/null
 
     # Matar procesos en el puerto CDP
     PIDS=$(lsof -ti :$PORT 2>/dev/null)
@@ -36,7 +36,7 @@ while [ $SECONDS -lt $DEADLINE ]; do
     sleep 0.7
 
     # Verificar si quedo algo
-    SURVIVORS=$(pgrep -f "ginsbrowser|DICloak|DICloakCache" 2>/dev/null)
+    SURVIVORS=$(pgrep -if "GinsBrowser|DICloak|DICloakCache" 2>/dev/null)
     PORT_OWNERS=$(lsof -ti :$PORT 2>/dev/null)
 
     if [ -z "$SURVIVORS" ] && [ -z "$PORT_OWNERS" ]; then
@@ -46,5 +46,5 @@ while [ $SECONDS -lt $DEADLINE ]; do
 done
 
 echo "[ERROR] No se pudo limpiar por completo DiCloak."
-pgrep -fl "ginsbrowser|DICloak" 2>/dev/null
+pgrep -ifl "GinsBrowser|DICloak" 2>/dev/null
 exit 1

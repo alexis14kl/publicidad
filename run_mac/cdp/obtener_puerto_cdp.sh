@@ -14,6 +14,16 @@ test_cdp_port() {
     curl -s --max-time 2 "http://127.0.0.1:$1/json/version" 2>/dev/null | grep -q "webSocketDebuggerUrl"
 }
 
+extract_debug_port() {
+    python3 - "$1" <<'PY'
+import re
+import sys
+cmd = sys.argv[1]
+match = re.search(r"--remote-debugging-port(?:=| )(\d+)", cmd)
+print(match.group(1) if match else "")
+PY
+}
+
 # Buscar puerto desde cdp_debug_info.json
 if [ -f "$CDP_INFO" ]; then
     PORT=$(python3 -c "
@@ -36,9 +46,9 @@ except:
     fi
 fi
 
-# Fallback: buscar en el comando de ginsbrowser
-CMD=$(ps aux | grep -i "ginsbrowser" | grep -v grep | grep -v "\-\-type=" | head -1)
-PORT=$(echo "$CMD" | grep -oP '\-\-remote-debugging-port[= ](\d+)' | grep -oP '\d+')
+# Fallback: buscar en el comando del proceso principal de GinsBrowser
+CMD=$(ps auxww | grep -i "GinsBrowser" | grep -v grep | grep -v "\-\-type=" | head -1)
+PORT=$(extract_debug_port "$CMD")
 
 if [ -n "$PORT" ] && test_cdp_port "$PORT"; then
     echo "DEBUG_PORT=$PORT"

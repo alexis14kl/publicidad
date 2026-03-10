@@ -1,10 +1,16 @@
 import sys
 from contextlib import contextmanager
 
-import typer
+try:
+    import typer
+except ModuleNotFoundError:
+    typer = None
 
 
 def _safe_echo(message: str, *, fg=None, bold: bool = False, dim: bool = False) -> None:
+    if typer is None:
+        print(message)
+        return
     try:
         typer.echo(typer.style(message, fg=fg, bold=bold, dim=dim))
     except UnicodeEncodeError:
@@ -16,22 +22,25 @@ def _safe_echo(message: str, *, fg=None, bold: bool = False, dim: bool = False) 
 
 
 def log_info(msg: str) -> None:
-    _safe_echo(f"[INFO] {msg}", fg=typer.colors.CYAN)
+    _safe_echo(f"[INFO] {msg}", fg=None if typer is None else typer.colors.CYAN)
 
 
 def log_ok(msg: str) -> None:
-    _safe_echo(f"[OK] {msg}", fg=typer.colors.GREEN, bold=True)
+    _safe_echo(f"[OK] {msg}", fg=None if typer is None else typer.colors.GREEN, bold=True)
 
 
 def log_warn(msg: str) -> None:
-    _safe_echo(f"[WARN] {msg}", fg=typer.colors.YELLOW)
+    _safe_echo(f"[WARN] {msg}", fg=None if typer is None else typer.colors.YELLOW)
 
 
 def log_error(msg: str) -> None:
-    _safe_echo(f"[ERROR] {msg}", fg=typer.colors.RED, bold=True)
+    _safe_echo(f"[ERROR] {msg}", fg=None if typer is None else typer.colors.RED, bold=True)
 
 
 def log_step(step: str, msg: str) -> None:
+    if typer is None:
+        print(f"[{step}] {msg}")
+        return
     label = typer.style(f"[{step}]", fg=typer.colors.BLUE, bold=True)
     try:
         typer.echo(f"{label} {msg}")
@@ -48,6 +57,10 @@ def log_debug(msg: str) -> None:
 
 @contextmanager
 def progress_bar(description: str):
+    if typer is None:
+        log_info(description)
+        yield
+        return
     encoding = (getattr(sys.stdout, "encoding", "") or "").lower()
     if "utf" not in encoding:
         log_info(description)

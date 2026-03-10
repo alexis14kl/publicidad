@@ -48,6 +48,7 @@ export PROMPT_FILE="$UTILS_DIR/prontm.txt"
 export PROMPT_SEED_FILE="$UTILS_DIR/prompt_seed.txt"
 export POST_TEXT_FILE="$UTILS_DIR/post_text.txt"
 export JOB_POLLER_LOG="$LOGS_DIR/job_poller.log"
+export APPDATA="$HOME/Library/Application Support"
 
 # --- DiCloak (buscar dinamicamente) ---
 export DICLOAK_APP=""
@@ -55,6 +56,10 @@ if [ -d "/Applications/DICloak.app" ]; then
     DICLOAK_APP="/Applications/DICloak.app"
 elif [ -d "$HOME/Applications/DICloak.app" ]; then
     DICLOAK_APP="$HOME/Applications/DICloak.app"
+fi
+export DICLOAK_BIN=""
+if [ -n "$DICLOAK_APP" ] && [ -x "$DICLOAK_APP/Contents/MacOS/DICloak" ]; then
+    DICLOAK_BIN="$DICLOAK_APP/Contents/MacOS/DICloak"
 fi
 
 # --- DiCloak data dir ---

@@ -47,6 +47,14 @@ if [ $HAS_DEBUG -eq 0 ]; then
     [ $? -eq 0 ] && log_ok "Reforce ejecutado." || log_warn "Reforce devolvio error."
 fi
 
+PROFILE_PORT=""
+if [ -f "$GET_DEBUG_PORT_SH" ]; then
+    PROFILE_PORT=$(bash "$GET_DEBUG_PORT_SH" 15 | awk -F= '/^DEBUG_PORT=/{print $2; exit}')
+fi
+[ -z "$PROFILE_PORT" ] && PROFILE_PORT="9225"
+export CDP_PROFILE_PORT="$PROFILE_PORT"
+log_info "Puerto CDP del perfil en uso: $CDP_PROFILE_PORT"
+
 # Pegar prompt en ChatGPT
 if [ -f "$PROMPT_AUTOMATION_PY" ]; then
     log_info "Ejecutando automatizacion de pegado de prompt por CDP..."
@@ -58,7 +66,7 @@ if [ -f "$PROMPT_AUTOMATION_PY" ]; then
 
         if [ -f "$DOWNLOAD_GENERATED_IMAGE_PY" ]; then
             echo "Esperando y descargando imagen generada..."
-            python3 "$DOWNLOAD_GENERATED_IMAGE_PY" 9225
+            python3 "$DOWNLOAD_GENERATED_IMAGE_PY" "$CDP_PROFILE_PORT"
             if [ $? -ne 0 ]; then
                 log_warn "No se pudo descargar la imagen generada."
             else

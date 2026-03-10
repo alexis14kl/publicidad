@@ -1,15 +1,30 @@
 import argparse
 import json
+from contextlib import contextmanager
 from pathlib import Path
+import sys
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from logger import log_error, progress_bar
-from service_rotation import rotate_service
-
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+try:
+    from utils.logger import log_error, progress_bar
+except ModuleNotFoundError:
+    def log_error(message: str) -> None:
+        print(f"[ERROR] {message}", file=sys.stderr)
+
+    @contextmanager
+    def progress_bar(description: str):
+        print(f"[INFO] {description}")
+        yield
+
+from utils.service_rotation import rotate_service
+
+
 DEFAULT_PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 DEFAULT_IDEA_FILE = PROJECT_ROOT / "utils" / "prompt_seed.txt"
 DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/py-prompt-imgs"
