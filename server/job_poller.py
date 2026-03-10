@@ -20,7 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from bot_runner import BotRunnerError, execute_action, get_status, is_busy  # noqa: E402
 from utils.logger import log_info, log_ok, log_warn, log_error, progress_bar  # noqa: E402
 STATE_FILE = PROJECT_ROOT / ".job_poller_state.json"
-DEFAULT_POLL_INTERVAL_SEC = 15
+DEFAULT_POLL_INTERVAL_SEC = 5
 DEFAULT_TIMEOUT_SEC = 60
 DEFAULT_RUN_TIMEOUT_SEC = 7200
 DEFAULT_N8N_BASE_URL = "https://n8n-dev.noyecode.com"
@@ -28,6 +28,8 @@ DEFAULT_PROJECT_ID = "bkrM241Q8UeW2zme"
 DEFAULT_TABLE_ID = "LFM69EeeF7pa8yiO"
 DEFAULT_EXECUTION_WORKFLOW_ID = "5zKqthFIw2-FhYBIkCKnu"
 DEFAULT_EXECUTION_FETCH_LIMIT = 50
+DEFAULT_N8N_SESSION_TTL_SEC = 600
+_N8N_SESSION_CACHE: dict[str, Any] = {}
 
 
 class JobPollerError(RuntimeError):
@@ -112,6 +114,35 @@ def make_n8n_opener(base_url: str, email: str, password: str) -> tuple[Any, str]
     return opener, browser_id
 
 
+def invalidate_n8n_session() -> None:
+    _N8N_SESSION_CACHE.clear()
+
+
+def get_n8n_session(base_url: str, email: str, password: str) -> tuple[Any, str]:
+    now = time.time()
+    opener = _N8N_SESSION_CACHE.get("opener")
+    browser_id = _N8N_SESSION_CACHE.get("browser_id")
+    expires_at = float(_N8N_SESSION_CACHE.get("expires_at") or 0)
+    session_key = (base_url.rstrip("/"), email, password)
+    if (
+        opener is not None
+        and browser_id
+        and expires_at > now
+        and _N8N_SESSION_CACHE.get("session_key") == session_key
+    ):
+        return opener, str(browser_id)
+    opener, browser_id = make_n8n_opener(base_url, email, password)
+    _N8N_SESSION_CACHE.update(
+        {
+            "opener": opener,
+            "browser_id": browser_id,
+            "expires_at": now + DEFAULT_N8N_SESSION_TTL_SEC,
+            "session_key": session_key,
+        }
+    )
+    return opener, browser_id
+
+
 def n8n_request(
     opener: Any,
     browser_id: str,
@@ -140,6 +171,27 @@ def n8n_request(
         raise JobPollerError(f"HTTP {exc.code} desde {url}: {body[:300]}") from exc
     except URLError as exc:
         raise JobPollerError(f"No se pudo conectar con {url}: {exc}") from exc
+
+
+def n8n_request_with_session(
+    base_url: str,
+    email: str,
+    password: str,
+    method: str,
+    url: str,
+    timeout_sec: int,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    opener, browser_id = get_n8n_session(base_url, email, password)
+    try:
+        return n8n_request(opener, browser_id, method, url, timeout_sec, payload=payload)
+    except JobPollerError as exc:
+        message = str(exc)
+        if "HTTP 401" in message or "HTTP 403" in message:
+            invalidate_n8n_session()
+            opener, browser_id = get_n8n_session(base_url, email, password)
+            return n8n_request(opener, browser_id, method, url, timeout_sec, payload=payload)
+        raise
 
 
 def load_state() -> dict[str, Any]:
@@ -297,12 +349,18 @@ def update_job(update_url: str, secret: str, worker_id: str, job_id: str, status
 
 
 def fetch_next_table_job(args: argparse.Namespace, timeout_sec: int) -> dict[str, Any] | None:
-    opener, browser_id = make_n8n_opener(args.n8n_base_url, args.n8n_login_email, args.n8n_login_password)
     rows_url = (
         f"{args.n8n_base_url.rstrip('/')}/rest/projects/{args.n8n_project_id}"
         f"/data-tables/{args.n8n_table_id}/rows"
     )
-    data = n8n_request(opener, browser_id, "GET", rows_url, timeout_sec=timeout_sec)
+    data = n8n_request_with_session(
+        args.n8n_base_url,
+        args.n8n_login_email,
+        args.n8n_login_password,
+        "GET",
+        rows_url,
+        timeout_sec=timeout_sec,
+    )
     rows = data.get("data", {}).get("data", [])
     if not isinstance(rows, list):
         return None
@@ -338,20 +396,40 @@ def fetch_next_table_job(args: argparse.Namespace, timeout_sec: int) -> dict[str
             "updated_at": utc_now_iso(),
         },
     }
-    n8n_request(opener, browser_id, "PATCH", rows_url, timeout_sec=timeout_sec, payload=claim_payload)
+    n8n_request_with_session(
+        args.n8n_base_url,
+        args.n8n_login_email,
+        args.n8n_login_password,
+        "PATCH",
+        rows_url,
+        timeout_sec=timeout_sec,
+        payload=claim_payload,
+    )
     return normalize_table_job({**row, "status": "running", "worker_id": args.worker_id, "attempts": attempts, "lease_expires_at": lease_expires_at})
 
 
 def fetch_execution_detail(args: argparse.Namespace, execution_id: str, timeout_sec: int) -> dict[str, Any]:
-    opener, browser_id = make_n8n_opener(args.n8n_base_url, args.n8n_login_email, args.n8n_login_password)
     url = f"{args.n8n_base_url.rstrip('/')}/rest/executions/{execution_id}"
-    return n8n_request(opener, browser_id, "GET", url, timeout_sec=timeout_sec)
+    return n8n_request_with_session(
+        args.n8n_base_url,
+        args.n8n_login_email,
+        args.n8n_login_password,
+        "GET",
+        url,
+        timeout_sec=timeout_sec,
+    )
 
 
 def fetch_next_execution_job(args: argparse.Namespace, timeout_sec: int) -> dict[str, Any] | None:
-    opener, browser_id = make_n8n_opener(args.n8n_base_url, args.n8n_login_email, args.n8n_login_password)
     list_url = f"{args.n8n_base_url.rstrip('/')}/rest/executions?limit={args.execution_fetch_limit}"
-    data = n8n_request(opener, browser_id, "GET", list_url, timeout_sec=timeout_sec)
+    data = n8n_request_with_session(
+        args.n8n_base_url,
+        args.n8n_login_email,
+        args.n8n_login_password,
+        "GET",
+        list_url,
+        timeout_sec=timeout_sec,
+    )
     results = data.get("data", {}).get("results", [])
     if not isinstance(results, list):
         return None
@@ -389,7 +467,6 @@ def update_table_job(args: argparse.Namespace, job: dict[str, Any], status: str,
     row_id = job.get("row_id")
     if row_id in (None, ""):
         raise JobPollerError("El job de Data Table no trae row_id")
-    opener, browser_id = make_n8n_opener(args.n8n_base_url, args.n8n_login_email, args.n8n_login_password)
     rows_url = (
         f"{args.n8n_base_url.rstrip('/')}/rest/projects/{args.n8n_project_id}"
         f"/data-tables/{args.n8n_table_id}/rows"
@@ -419,7 +496,15 @@ def update_table_job(args: argparse.Namespace, job: dict[str, Any], status: str,
         },
         "data": row_data,
     }
-    return n8n_request(opener, browser_id, "PATCH", rows_url, timeout_sec=timeout_sec, payload=payload)
+    return n8n_request_with_session(
+        args.n8n_base_url,
+        args.n8n_login_email,
+        args.n8n_login_password,
+        "PATCH",
+        rows_url,
+        timeout_sec=timeout_sec,
+        payload=payload,
+    )
 
 
 def process_job(job: dict[str, Any], update_url: str, secret: str, worker_id: str, timeout_sec: int, run_timeout_sec: int) -> dict[str, Any]:

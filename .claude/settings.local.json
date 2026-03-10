@@ -1,6 +1,12 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(node _debug_send.js)",
+      "Bash(node _debug_send2.js)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "dicloak"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }

@@ -130,7 +130,7 @@ const { chromium } = require('playwright');
       if (menuVisible) return true;
 
       const profileButton = page
-        .locator('[data-testid="accounts-profile-button"][aria-label="Abrir el menú de perfil"], [data-testid="accounts-profile-button"][aria-label="Abrir el menu de perfil"]')
+        .locator('[data-testid="accounts-profile-button"]')
         .last();
 
       const visible = await profileButton.isVisible().catch(() => false);
@@ -180,10 +180,19 @@ const { chromium } = require('playwright');
         const text = (el.innerText || '').trim();
         const normalized = normalize(text);
         const textTokens = tokenizeMeaningful(text);
-        const looksCurrent =
-          el.getAttribute('aria-checked') === 'true' ||
-          el.getAttribute('data-state') === 'checked' ||
-          (currentTokens.length > 0 && textTokens.length > 0 && textTokens.every((token) => currentTokens.includes(token)));
+
+        // Detectar cuenta activa por multiples señales
+        const ariaChecked = el.getAttribute('aria-checked') === 'true';
+        const dataChecked = el.getAttribute('data-state') === 'checked';
+        // ChatGPT 2025+: item activo NO tiene gap-1.5 en su class y tiene icono checkmark (.trailing svg.icon-sm)
+        const noGapClass = !el.className.includes('gap-1.5');
+        const hasCheckmark = el.querySelector('.trailing svg.icon-sm') !== null;
+        // Fallback: tokens del perfil actual coinciden con tokens del item
+        const tokenMatch = currentTokens.length > 0 && textTokens.length > 0 &&
+          (textTokens.every((t) => currentTokens.includes(t)) || currentTokens.every((t) => textTokens.includes(t)));
+
+        const looksCurrent = ariaChecked || dataChecked || (noGapClass && hasCheckmark) || tokenMatch;
+
         return {
           index,
           accountId: `slot:${index}|label:${normalized || 'sin_texto'}`,
@@ -210,7 +219,14 @@ const { chromium } = require('playwright');
       };
     }, exhaustedIds);
 
+    console.error('[ROTATION] Cuentas totales: ' + info.items.length +
+      ', disponibles (no actual): ' + info.available.length +
+      ', candidatas (no agotadas): ' + info.candidates.length);
+
     if (!info.candidates.length) {
+      console.error('[ROTATION] Sin candidatas. Items: ' + JSON.stringify(info.items.map(i => ({
+        label: i.label, current: i.looksCurrent, excluded: i.excluded
+      }))));
       console.log(JSON.stringify({
         switched: false,
         availableCount: info.available.length,
@@ -230,11 +246,25 @@ const { chromium } = require('playwright');
       await page.evaluate((el) => el.click(), handle);
     }
 
+    console.error('[ROTATION] Click en cuenta: ' + chosen.label);
     await page.waitForTimeout(4000);
+
+    // Navegar a chat limpio tras cambiar cuenta
+    console.error('[ROTATION] Navegando a chat limpio...');
+    await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // Esperar a que el composer este listo
+    await page.waitForFunction(() => {
+      const editor = document.querySelector('#prompt-textarea[contenteditable="true"]');
+      return editor && editor.offsetParent !== null;
+    }, { timeout: 15000 }).catch(() => {
+      console.error('[ROTATION] Composer no listo tras navegacion, continuando...');
+    });
+    console.error('[ROTATION] Cuenta cambiada OK: ' + chosen.label);
 
     console.log(JSON.stringify({
       switched: true,
       availableCount: info.available.length,
+      candidateCount: info.candidates.length,
       selectedAccountId: chosen.accountId,
       selectedAccountLabel: chosen.label,
       reason: 'account_switched',

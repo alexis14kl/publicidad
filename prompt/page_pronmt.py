@@ -650,9 +650,13 @@ const { chromium } = require('playwright');
       try {
         await sendBtn.click({ timeout: 5000 });
       } catch {
-        const handle = await sendBtn.elementHandle();
-        if (handle) {
-          await page.evaluate((el) => el.click(), handle);
+        try {
+          const handle = await sendBtn.elementHandle({ timeout: 5000 });
+          if (handle) {
+            await page.evaluate((el) => el.click(), handle);
+          }
+        } catch {
+          console.error('[SEND] click y elementHandle fallaron, intentando Enter');
         }
       }
       submitted = await waitForSubmissionStart();
@@ -711,48 +715,22 @@ const { chromium } = require('playwright');
     };
 
     const clickProfileMenu = async () => {
-      const selectors = [
-        '[data-testid="accounts-profile-button"][aria-label="Abrir el menú de perfil"]',
-        '[data-testid="accounts-profile-button"][aria-label="Abrir el menu de perfil"]',
-      ];
+      const loc = page.locator('[data-testid="accounts-profile-button"]').last();
+      const visible = await loc.isVisible().catch(() => false);
+      if (!visible) return false;
 
-      for (const selector of selectors) {
-        const loc = page.locator(selector).last();
-        const count = await loc.count().catch(() => 0);
-        if (!count) continue;
-        const visible = await loc.isVisible().catch(() => false);
-        if (!visible) continue;
-        await loc.scrollIntoViewIfNeeded().catch(() => {});
-        try {
-          await loc.click({ timeout: 5000 });
-        } catch {
-          const handle = await loc.elementHandle();
-          if (handle) {
-            await page.evaluate((el) => el.click(), handle);
-          } else {
-            continue;
-          }
+      await loc.scrollIntoViewIfNeeded().catch(() => {});
+      try {
+        await loc.click({ timeout: 5000 });
+      } catch {
+        const handle = await loc.elementHandle();
+        if (handle) {
+          await page.evaluate((el) => el.click(), handle);
+        } else {
+          return false;
         }
-        return true;
       }
-
-      const labelLoc = page.getByLabel(/Abrir el men[uú] de perfil/i).last();
-      const labelVisible = await labelLoc.isVisible().catch(() => false);
-      if (labelVisible) {
-        await labelLoc.scrollIntoViewIfNeeded().catch(() => {});
-        try {
-          await labelLoc.click({ timeout: 5000 });
-        } catch {
-          const handle = await labelLoc.elementHandle();
-          if (handle) {
-            await page.evaluate((el) => el.click(), handle);
-          } else {
-            return false;
-          }
-        }
-        return true;
-      }
-      return false;
+      return true;
     };
 
     if (await waitForNoImageTokensAlert()) {
@@ -830,17 +808,19 @@ def process_prompt_with_account_rotation(cdp_port: int) -> None:
             mark_account_exhausted(cdp_port, last_switched_account_id, last_switched_account_label)
             log_info(f"Cuenta agotada marcada temporalmente: {last_switched_account_label or last_switched_account_id}")
 
+        log_info("Iniciando cambio de perfil...")
         switch_result = switch_to_next_available_account(cdp_port)
-        log_info(f"Cuentas disponibles para rotacion: {switch_result.available_count}")
+        log_info(f"Cuentas disponibles: {switch_result.available_count} | Razon: {switch_result.reason}")
 
         if not switch_result.switched:
+            log_warn("No se encontro cuenta disponible para rotar")
             trigger_change_count("no_viable_account")
             raise RuntimeError("No se encontro una cuenta disponible que pueda seguir intentando")
 
         last_switched_account_id = switch_result.selected_account_id
         last_switched_account_label = switch_result.selected_account_label
-        log_info(f"Cambiando a cuenta: {last_switched_account_label or last_switched_account_id}")
-        time.sleep(5)
+        log_info(f"Perfil cambiado a: {last_switched_account_label or last_switched_account_id}")
+        time.sleep(3)
 
     trigger_change_count("rotation_attempts_exhausted")
     raise RuntimeError("Se agotaron los intentos de rotacion de cuenta")
