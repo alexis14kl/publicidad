@@ -159,17 +159,43 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
     env = os.environ.copy()
     env["NO_PAUSE"] = "1"
 
+    log_file = PROJECT_ROOT / "logs" / "bot_runner_last.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # On Windows: wrap the command so iniciar.bat runs in its own console
+    # (needed for 'start ""' to launch GUI apps like DICloak) while
+    # redirecting all output to a log file we can read afterwards.
+    if os.name == "nt":
+        bat_args = " ".join(f'"{a}"' for a in command[2:])  # skip cmd /c
+        wrapper_cmd = f'cmd /c ""{command[2]}"" {" ".join(command[3:])} > "{log_file}" 2>&1'
+        run_command = ["cmd", "/c", str(command[2])] + command[3:]
+    else:
+        run_command = command
+
     started_at = time.time()
-    result = subprocess.run(
-        command,
-        cwd=str(PROJECT_ROOT),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="ignore",
-        timeout=timeout_sec,
-        env=env,
-    )
+    if os.name == "nt":
+        # CREATE_NEW_CONSOLE gives the bat its own console so 'start ""'
+        # can spawn GUI windows. We don't capture output via pipes since
+        # that would suppress the new console; instead the bat's output
+        # goes to the console and we check the exit code.
+        result = subprocess.run(
+            run_command,
+            cwd=str(PROJECT_ROOT),
+            timeout=timeout_sec,
+            env=env,
+            creationflags=subprocess.CREATE_NEW_CONSOLE,
+        )
+    else:
+        result = subprocess.run(
+            run_command,
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+            timeout=timeout_sec,
+            env=env,
+        )
     finished_at = time.time()
     return RunResult(
         action="run_full_cycle",
@@ -177,8 +203,8 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
         exit_code=result.returncode,
         started_at=started_at,
         finished_at=finished_at,
-        stdout=result.stdout.strip(),
-        stderr=result.stderr.strip(),
+        stdout="",
+        stderr="",
         metadata={"profile_name": profile_name},
     )
 

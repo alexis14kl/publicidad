@@ -83,7 +83,10 @@ if errorlevel 1 (
 )
 
 %LOG% step "4/10" "Iniciando DICloak en modo debug (9333)..."
-start "" "%DICLOAK_EXE%" --remote-debugging-port=9333 --remote-allow-origins=*
+wmic process call create "%DICLOAK_EXE% --remote-debugging-port=9333 --remote-allow-origins=*" >nul 2>nul
+if errorlevel 1 (
+  start "" "%DICLOAK_EXE%" --remote-debugging-port=9333 --remote-allow-origins=*
+)
 
 %LOG% step "5/10" "Esperando CDP en puerto 9333..."
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^

@@ -6,7 +6,23 @@
       "Bash(node _debug_current.js)",
       "Bash(node _debug_dom.js)",
       "Bash(node _test_detection.js)",
-      "Bash(grep -r \"secret\\\\|SECRET\\\\|key\\\\|KEY\\\\|password\\\\|PASSWORD\" /c/Users/NyGsoft/Desktop/publicidad --include=*.py --include=*.js --include=*.bat --include=*.sh --include=*.ps1)"
+      "Bash(grep -r \"secret\\\\|SECRET\\\\|key\\\\|KEY\\\\|password\\\\|PASSWORD\" /c/Users/NyGsoft/Desktop/publicidad --include=*.py --include=*.js --include=*.bat --include=*.sh --include=*.ps1)",
+      "Bash(curl -s http://127.0.0.1:9333/json)",
+      "Bash(python3 -c \":*)",
+      "Bash(python _debug_n8n.py)",
+      "Bash(node _debug_n8n.js)",
+      "Bash(node _debug_n8n2.js)",
+      "Bash(node _fix_activate.js)",
+      "Bash(node _fix_activate2.js)",
+      "Bash(node _fix_activate3.js)",
+      "Bash(node _fix_workflows.js)",
+      "Bash(find c:UsersNyGsoftDesktoppublicidad -type f \\\\\\(-name *.txt -o -name *.out -o -name *log* \\\\\\))",
+      "Bash(schtasks /query /tn \"NoyeCodeBotPoller\")",
+      "Bash(git -C \"c:\\\\Users\\\\NyGsoft\\\\Desktop\\\\publicidad\" log --oneline -10)",
+      "Bash(tasklist)",
+      "Bash(wmic process:*)",
+      "Bash(taskkill //PID 16176 //F)",
+      "Bash(taskkill //PID 21364 //F)"
     ]
   }
 }

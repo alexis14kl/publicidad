@@ -26,7 +26,7 @@ DEFAULT_RUN_TIMEOUT_SEC = 7200
 DEFAULT_N8N_BASE_URL = "https://n8n-dev.noyecode.com"
 DEFAULT_PROJECT_ID = "bkrM241Q8UeW2zme"
 DEFAULT_TABLE_ID = "LFM69EeeF7pa8yiO"
-DEFAULT_EXECUTION_WORKFLOW_ID = "5zKqthFIw2-FhYBIkCKnu"
+DEFAULT_EXECUTION_WORKFLOW_ID = "eW5SRNY5r4zfRjIqTw9eP"
 DEFAULT_EXECUTION_FETCH_LIMIT = 50
 DEFAULT_N8N_SESSION_TTL_SEC = 600
 _N8N_SESSION_CACHE: dict[str, Any] = {}
@@ -576,7 +576,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=int, default=int(_env("N8N_BOT_TIMEOUT", str(DEFAULT_TIMEOUT_SEC)) or DEFAULT_TIMEOUT_SEC))
     parser.add_argument("--run-timeout", type=int, default=int(_env("N8N_BOT_RUN_TIMEOUT", str(DEFAULT_RUN_TIMEOUT_SEC)) or DEFAULT_RUN_TIMEOUT_SEC))
     parser.add_argument("--worker-id", default=_env("N8N_BOT_WORKER_ID", socket.gethostname()))
-    parser.add_argument("--queue-mode", choices=["webhook", "datatable", "executions"], default=_env("N8N_BOT_QUEUE_MODE", "executions") or "executions")
+    parser.add_argument("--queue-mode", choices=["webhook", "datatable", "executions"], default=_env("N8N_BOT_QUEUE_MODE", "datatable") or "datatable")
     parser.add_argument("--once", action="store_true", help="Hace un solo ciclo de polling.")
     return parser.parse_args()
 

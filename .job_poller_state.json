@@ -1,8 +1,7 @@
 {
-  "last_execution_id": 88751,
-  "last_job_id": "exec_88751",
+  "last_job_id": "job_20260310_161818_kqaiz7",
   "last_action": "run_full_cycle",
   "last_status": "success",
-  "queue_mode": "executions",
-  "updated_at": 1773097410
+  "queue_mode": "datatable",
+  "updated_at": 1773174050
 }
