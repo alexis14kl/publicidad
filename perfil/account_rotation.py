@@ -247,11 +247,21 @@ const { chromium } = require('playwright');
     }
 
     console.error('[ROTATION] Click en cuenta: ' + chosen.label);
-    await page.waitForTimeout(4000);
 
-    // Navegar a chat limpio tras cambiar cuenta
-    console.error('[ROTATION] Navegando a chat limpio...');
-    await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // Esperar a que la pagina recargue tras el cambio de cuenta
+    await page.waitForTimeout(3000);
+    await page.waitForLoadState('domcontentloaded').catch(() => {});
+    console.error('[ROTATION] Pagina recargada, navegando a chat limpio...');
+
+    // Navegar a chat limpio (si ya estamos en chatgpt.com, usar evaluate para evitar conflicto de navegacion)
+    try {
+      await page.evaluate(() => { window.location.href = 'https://chatgpt.com/'; });
+      await page.waitForLoadState('domcontentloaded', { timeout: 20000 });
+    } catch {
+      console.error('[ROTATION] Navegacion por evaluate fallo, intentando goto...');
+      await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+    }
+
     // Esperar a que el composer este listo
     await page.waitForFunction(() => {
       const editor = document.querySelector('#prompt-textarea[contenteditable="true"]');
