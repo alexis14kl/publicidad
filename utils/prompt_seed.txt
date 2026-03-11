@@ -20,13 +20,15 @@ Servicios para promocionar (elegir uno como protagonista, mencionar 2-3 mas como
 - dashboards y analisis de datos en tiempo real
 
 IMPORTANTE sobre el logo y texto:
-- El nombre "NoyeCode" debe aparecer escrito en texto grande y claro, en tipografia sans-serif bold, color naranja (#fd9102).
-- Escribir "NoyeCode" como texto plano, NO intentar dibujar un logo grafico ni un icono ni un emblema.
-- Usar la palabra exacta "NoyeCode" sin modificarla. No agregar simbolos alrededor del nombre.
-- El sitio web "noyecode.com" debe aparecer mas pequeno, tambien en texto plano.
-- El numero "+57 301 385 9952" debe aparecer como texto legible.
-- Todo el texto debe ser nitido, bien espaciado y 100% legible.
-- Minimizar la cantidad total de texto. Maximo: nombre, servicio principal, CTA de 3-4 palabras, web y telefono.
+- NO dibujar el logo de NoyeCode. El logo real tiene llaves de codigo { }, nodos de red y tipografia muy especifica que DALL-E no puede replicar. Si se intenta, sale mal y arruina la imagen.
+- En su lugar, dejar una ZONA LIMPIA en la parte superior de la imagen (franja de color solido oscuro o gradiente sin elementos) donde el logo real se superpondra despues en post-produccion.
+- La zona limpia para el logo debe ser aproximadamente 15% de la altura superior, centrada, sin texto ni graficos encima.
+- El texto "noyecode.com" SI puede aparecer en la zona inferior como texto plano pequeno en blanco.
+- El numero "+57 301 385 9952" SI puede aparecer como texto plano pequeno en blanco en la zona inferior.
+- El nombre del servicio principal SI debe aparecer como texto grande y claro en la imagen.
+- Un CTA corto de 3-4 palabras SI debe aparecer (ej: "Cotiza gratis hoy", "Agenda tu demo", "Escríbenos hoy").
+- Minimizar la cantidad total de texto. Solo: servicio principal, CTA, web y telefono. NO escribir "NoyeCode" como texto, el logo real se agrega despues.
+- Todo el texto debe ser nitido, bien espaciado, 100% legible, en tipografia sans-serif moderna.
 
 Paleta de colores obligatoria:
 - Color principal: naranja vibrante (#fd9102) para acentos, titulos y elementos destacados.
@@ -37,11 +39,12 @@ Paleta de colores obligatoria:
 
 Composicion y layout:
 - Formato vertical 4:5 (optimizado para feed de Instagram y Facebook).
-- Zona superior (20% de la imagen): nombre "NoyeCode" centrado, grande y claro.
-- Zona central (50%): escena visual principal del servicio.
-- Zona inferior (30%): bloque de texto con servicio, CTA, web y telefono sobre franja oscura semitransparente.
+- Zona superior (15% de la imagen): franja limpia de color solido oscuro o gradiente, SIN texto ni graficos. Esta zona se reserva para superponer el logo real en post-produccion.
+- Zona central (55%): escena visual principal del servicio, fotografica y de alta calidad.
+- Zona inferior (30%): franja oscura semitransparente con texto del servicio principal (grande), CTA, noyecode.com y +57 301 385 9952.
 - Margenes de seguridad amplios: ningun elemento a menos de 8% del borde.
-- Jerarquia visual clara: titulo > escena > datos de contacto.
+- Jerarquia visual clara: escena visual > nombre del servicio > datos de contacto.
+- La transicion entre la zona del logo y la escena debe ser suave (gradiente, no corte duro).
 
 Escena visual (elegir una linea al azar):
 1. Profesional en oficina moderna usando laptop con dashboard SaaS en pantalla, graficos de analytics visibles, ambiente corporativo iluminado con luz calida lateral.
@@ -69,6 +72,7 @@ Reglas estrictas para el prompt de salida:
 - Debe ser un solo parrafo continuo de 80-150 palabras.
 - NO incluir encabezados, explicaciones, opciones ni preguntas.
 - NO pedir "dos versiones" ni "variantes".
-- Especificar el texto exacto que debe aparecer en la imagen entre comillas.
+- Especificar el texto exacto que debe aparecer en la imagen entre comillas dobles.
+- NUNCA pedir que dibuje el logo de NoyeCode ni escriba "NoyeCode". Solo pedir la zona limpia superior para el logo.
 - Incluir al final: "vertical 4:5 aspect ratio, 4K resolution, photorealistic commercial advertisement"
 - El prompt debe producir UNA sola imagen final.

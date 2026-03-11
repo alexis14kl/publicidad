@@ -4,7 +4,10 @@ rem  Rutas centralizadas del proyecto
 rem  Todas relativas a ROOT_DIR (raiz del proyecto)
 rem =============================================
 
-set "ROOT_DIR=%~dp0.."
+rem --- Resolver ruta absoluta sin ".." residual ---
+pushd "%~dp0.."
+set "ROOT_DIR=%CD%"
+popd
 set "CFG_DIR=%ROOT_DIR%\cfg"
 set "INICIO_DIR=%ROOT_DIR%\inicio"
 set "PERFIL_DIR=%ROOT_DIR%\perfil"
