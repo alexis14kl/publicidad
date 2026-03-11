@@ -420,7 +420,7 @@ const { chromium } = require('playwright');
       }).catch(() => false);
     };
 
-    const waitForComposerReady = async (timeoutMs = 30000) => {
+    const waitForComposerReady = async (timeoutMs = 50000) => {
       await page.waitForFunction(() => {
         const editor = document.querySelector('div#prompt-textarea[contenteditable="true"], #prompt-textarea[contenteditable="true"]');
         const form = document.querySelector('form[data-type="unified-composer"], form.group\\/composer');

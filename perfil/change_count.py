@@ -22,9 +22,9 @@ from utils.logger import log_info, log_warn  # noqa: E402
 IS_MAC = platform.system() == "Darwin"
 IS_WINDOWS = platform.system() == "Windows"
 
-INITIAL_PROFILE = "#1 Chat Gpt PRO"
-DEFAULT_TARGET_PROFILE = "#4 Chat Gpt Plus"
-FALLBACK_PROFILES = ["#4 Chat Gpt Plus", "#2 Chat Gpt PRO"]
+INITIAL_PROFILE = "Chat Gpt PRO"
+DEFAULT_TARGET_PROFILE = "Chat Gpt Plus"
+FALLBACK_PROFILES = ["Chat Gpt Plus", "Chat Gpt PRO"]
 DEFAULT_MAIN_CDP_URL = "http://127.0.0.1:9333"
 DEFAULT_PROFILE_CDP_PORT = 9225
 DEFAULT_PROFILE_WARMUP_SEC = 20
@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--target-profile",
         default=DEFAULT_TARGET_PROFILE,
-        help="Nombre exacto del perfil fallback en DiCloak.",
+        help="Nombre o fragmento del perfil fallback en DiCloak.",
     )
     parser.add_argument(
         "--preferred-port",
@@ -85,6 +85,37 @@ def _wait_for_cdp(port: int, timeout_sec: int = 45) -> bool:
             pass
         time.sleep(1)
     return False
+
+
+def _resolve_live_cdp_port(preferred_port: int) -> int:
+    candidates: list[int] = []
+    if preferred_port > 0:
+        candidates.append(preferred_port)
+
+    appdata = os.environ.get("APPDATA", "").strip()
+    if appdata:
+        info_path = Path(appdata) / "DICloak" / "cdp_debug_info.json"
+        try:
+            if info_path.exists():
+                data = json.loads(info_path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    for value in data.values():
+                        if not isinstance(value, dict):
+                            continue
+                        port = int(value.get("debugPort", 0) or 0)
+                        if port > 0 and port not in candidates:
+                            candidates.append(port)
+        except Exception:
+            pass
+
+    for port in [9225, 9226, 9227, 9228, 9229, 9230]:
+        if port not in candidates:
+            candidates.append(port)
+
+    for port in candidates:
+        if _wait_for_cdp(port, timeout_sec=5):
+            return port
+    return 0
 
 
 def _run_subprocess(command: list[str], step_name: str) -> None:
@@ -282,9 +313,11 @@ def switch_to_fallback_profile(target_profile: str, preferred_port: int, warmup_
             "Forzado CDP del perfil fallback",
         )
 
-    if not _wait_for_cdp(preferred_port, timeout_sec=45):
+    live_port = _resolve_live_cdp_port(preferred_port)
+    if not live_port:
         raise RuntimeError(f"El perfil fallback no expuso CDP util en el puerto {preferred_port}")
-    log_info("fallback_cdp_ready=1")
+    os.environ["CDP_PROFILE_PORT"] = str(live_port)
+    log_info(f"fallback_cdp_ready=1 port={live_port}")
 
 
 def switch_to_any_fallback(

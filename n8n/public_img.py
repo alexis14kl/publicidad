@@ -1,13 +1,14 @@
 import argparse
 import base64
+import io
 import json
 import re
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 IMG_PUBLICITARIAS_DIR = PROJECT_ROOT / "img_publicitarias"
@@ -17,6 +18,7 @@ DEFAULT_TIMEOUT_SEC = 60
 DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/publicar-img-local-fb"
 FREEIMAGE_UPLOAD_URL = "https://freeimage.host/api/1/upload"
 FREEIMAGE_API_KEY = "6d207e02198a847aa98d0a2a901485a5"
+DEFAULT_BRAND_LOGO_PATH = IMG_PUBLICITARIAS_DIR / "Black and White Illustrated Letter M Initial Logo.png"
 
 
 class PublicImageError(RuntimeError):
@@ -31,6 +33,7 @@ def find_latest_image(image_dir: Path) -> Path:
         path
         for path in image_dir.iterdir()
         if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
+        and not path.stem.endswith("_logo")
     ]
     if not candidates:
         raise PublicImageError(f"No hay imagenes publicitarias en {image_dir}")
@@ -38,7 +41,7 @@ def find_latest_image(image_dir: Path) -> Path:
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
-def read_text_if_exists(path: Path | None) -> str:
+def read_text_if_exists(path: Optional[Path]) -> str:
     if path is None or not path.exists():
         return ""
     return path.read_text(encoding="utf-8", errors="ignore").strip()
@@ -69,8 +72,10 @@ def build_metadata(
     category: str,
     post_text: str,
     prompt_text: str,
+    image_base64: Optional[str] = None,
 ) -> dict[str, str]:
-    image_base64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
+    if not image_base64:
+        image_base64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
     return {
         "source": "chatgpt_local_bot",
         "filename": image_path.name,
@@ -81,6 +86,49 @@ def build_metadata(
         "prompt_text": prompt_text.strip(),
         "imageBase64": image_base64,
     }
+
+
+def add_brand_logo_overlay(
+    image_path: Path,
+    logo_path: Path,
+) -> str:
+    try:
+        from PIL import Image
+    except Exception as exc:  # pragma: no cover
+        raise PublicImageError("Pillow no esta disponible para insertar el logo de marca") from exc
+
+    if not logo_path.exists():
+        raise PublicImageError(f"No existe el logo configurado: {logo_path}")
+
+    with Image.open(image_path).convert("RGBA") as base_img, Image.open(logo_path).convert("RGBA") as logo_img:
+        # Convierte fondo negro/gris muy oscuro del logo en transparencia.
+        px = logo_img.load()
+        for yy in range(logo_img.height):
+            for xx in range(logo_img.width):
+                r, g, b, a = px[xx, yy]
+                if a == 0:
+                    continue
+                if r < 30 and g < 30 and b < 30:
+                    px[xx, yy] = (r, g, b, 0)
+
+        # Recorta al contenido real para evitar "cuadro negro" residual.
+        alpha = logo_img.split()[-1]
+        bbox = alpha.getbbox()
+        if bbox:
+            logo_img = logo_img.crop(bbox)
+
+        target_logo_width = max(1, int(base_img.width * 0.34))
+        scale = target_logo_width / max(1, logo_img.width)
+        target_logo_height = max(1, int(logo_img.height * scale))
+        logo_resized = logo_img.resize((target_logo_width, target_logo_height), Image.LANCZOS)
+
+        x = (base_img.width - target_logo_width) // 2
+        y = max(0, int(base_img.height * 0.005))
+        base_img.alpha_composite(logo_resized, (x, y))
+
+        output = io.BytesIO()
+        base_img.save(output, format="PNG", optimize=True)
+        return base64.b64encode(output.getvalue()).decode("ascii")
 
 
 def upload_to_freeimage(image_base64: str, timeout_sec: int) -> str:
@@ -191,6 +239,16 @@ def parse_args() -> argparse.Namespace:
         help="Archivo desde donde leer el prompt visual usado para generar la imagen.",
     )
     parser.add_argument(
+        "--brand-logo-path",
+        default=str(DEFAULT_BRAND_LOGO_PATH),
+        help="Ruta del logo oficial a superponer en la parte superior antes de publicar.",
+    )
+    parser.add_argument(
+        "--skip-brand-logo",
+        action="store_true",
+        help="No superpone el logo oficial local.",
+    )
+    parser.add_argument(
         "--timeout",
         type=int,
         default=DEFAULT_TIMEOUT_SEC,
@@ -216,11 +274,17 @@ def main() -> int:
         post_text = read_text_if_exists(Path(args.post_text_file).expanduser().resolve())
 
     prompt_text = read_text_if_exists(Path(args.prompt_file).expanduser().resolve()) if args.prompt_file else ""
+    logo_path = Path(args.brand_logo_path).expanduser().resolve() if args.brand_logo_path else DEFAULT_BRAND_LOGO_PATH
+    image_base64 = None
+    if not args.skip_brand_logo:
+        image_base64 = add_brand_logo_overlay(image_path=image_path, logo_path=logo_path)
+
     metadata = build_metadata(
         image_path=image_path,
         category=args.category,
         post_text=post_text,
         prompt_text=prompt_text,
+        image_base64=image_base64,
     )
     metadata["image_url"] = upload_to_freeimage(metadata["imageBase64"], args.timeout)
 

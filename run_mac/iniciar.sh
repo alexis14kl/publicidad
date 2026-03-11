@@ -13,7 +13,7 @@ CDP_URL="http://127.0.0.1:9333"
 PROFILE_WARMUP_SEC=20
 
 # Consultar memoria de perfiles para evitar abrir uno vencido
-BEST=$(python3 "$ROOT_DIR/perfil/profile_memory.py" --best-profile "#1 Chat Gpt PRO" "#4 Chat Gpt Plus" "#2 Chat Gpt PRO" 2>/dev/null)
+BEST=$(python3 "$ROOT_DIR/perfil/profile_memory.py" --best-profile "#1 Chat Gpt PRO" "#4 Chat Gpt Plus" "#2 Chat Gpt PRO" "#5 Chat Gpt PRO" "#3 Chat Gpt PRO" 2>/dev/null)
 [ -n "$BEST" ] && PROFILE_NAME="$BEST"
 
 # Verificar DiCloak
@@ -166,7 +166,7 @@ fi
 # --- STEP 9: Detectar puerto real ---
 if [ -f "$GET_DEBUG_PORT_SH" ]; then
     log_step "9/10 Detectando puerto real del perfil..."
-    bash "$GET_DEBUG_PORT_SH" 120 --open
+    bash "$GET_DEBUG_PORT_SH" 120
 fi
 
 # --- STEP 10: Listo ---

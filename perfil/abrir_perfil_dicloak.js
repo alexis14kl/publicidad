@@ -1576,6 +1576,25 @@ async function saveDebugScreenshot(page, name) {
   }
 }
 
+async function ensureChatGptHomePage(context) {
+  const chatPages = context.pages().filter((p) => /^https:\/\/chatgpt\.com\//i.test(p.url() || ''));
+  if (!chatPages.length) return false;
+
+  const targetPage =
+    chatPages.find((p) => /^https:\/\/chatgpt\.com\/?$/i.test(p.url() || '')) ||
+    chatPages[chatPages.length - 1];
+
+  try {
+    await targetPage.bringToFront();
+    if (!/^https:\/\/chatgpt\.com\/?$/i.test(targetPage.url() || '')) {
+      await targetPage.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded' });
+    }
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 async function main() {
   console.log(`[INFO] Perfil objetivo: ${PROFILE_NAME}`);
   if (DEBUG_ONLY_MODE) {
@@ -1667,6 +1686,7 @@ async function main() {
         let retriedAfterFailure = false;
         while (Date.now() - openStart < WAIT_OPEN_MS) {
           if (await wasProfileWindowOpened(context, page)) {
+            await ensureChatGptHomePage(context);
             console.log('[OK] Se detecto nueva ventana/pestana del perfil.');
             return;
           }
@@ -1697,6 +1717,7 @@ async function main() {
           const after = await findProfileRow(page, PROFILE_NAME);
           if (after.found) {
             if (/cerrar|close/i.test(after.btnText || '')) {
+              await ensureChatGptHomePage(context);
               console.log('[OK] Perfil abierto correctamente.');
               return;
             }

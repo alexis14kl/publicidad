@@ -47,6 +47,42 @@ test_cdp_port() {
     curl -s --max-time 2 "http://127.0.0.1:$port/json/version" 2>/dev/null | grep -q "webSocketDebuggerUrl"
 }
 
+find_live_port() {
+    local port=""
+
+    if [ -f "$CDP_INFO" ]; then
+        port=$(python3 - "$CDP_INFO" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    if isinstance(data, dict):
+        for value in data.values():
+            if isinstance(value, dict) and value.get("debugPort"):
+                print(value["debugPort"])
+                break
+except Exception:
+    pass
+PY
+)
+        if [ -n "$port" ] && test_cdp_port "$port"; then
+            echo "$port"
+            return 0
+        fi
+    fi
+
+    for port in "$PREFERRED_PORT" 9225 9226 9227 9228 9229 9230; do
+        if [ -n "$port" ] && test_cdp_port "$port"; then
+            echo "$port"
+            return 0
+        fi
+    done
+    return 1
+}
+
 get_free_port() {
     local start=$1
     local span=${2:-200}
@@ -92,6 +128,14 @@ print(json.dumps(data, indent=2))
 }
 
 # --- Main ---
+LIVE_PORT="$(find_live_port || true)"
+if [ -n "$LIVE_PORT" ]; then
+    WS_URL=$(curl -s "http://127.0.0.1:$LIVE_PORT/json/version" | python3 -c "import json,sys; print(json.load(sys.stdin).get('webSocketDebuggerUrl',''))" 2>/dev/null)
+    echo "DEBUG_PORT=$LIVE_PORT"
+    [ -n "$WS_URL" ] && echo "DEBUG_WS=$WS_URL"
+    exit 0
+fi
+
 MAIN_PID=$(get_main_gins_pid)
 if [ -z "$MAIN_PID" ]; then
     echo "ERROR=NO_MAIN_GINS_PROCESS"
@@ -117,8 +161,8 @@ fi
 # Necesita reiniciar con debug port
 TARGET_PORT=$(get_free_port "$PREFERRED_PORT")
 
-# Matar ginsbrowser actual
-pkill -f "ginsbrowser" 2>/dev/null
+# Matar solo el proceso principal visible antes de relanzar
+kill -TERM "$MAIN_PID" 2>/dev/null || true
 sleep 1
 
 # Reconstruir comando con debug port
@@ -132,24 +176,35 @@ fi
 NEW_PID=$(python3 - "$NEW_CMD" <<'PY'
 import os
 import re
+import shlex
 import subprocess
 import sys
 
 cmd = sys.argv[1]
-match = re.match(r"^(.*?/Contents/MacOS/GinsBrowser)(?:\s+(.*))?$", cmd)
-if not match:
+marker = ".app/Contents/MacOS/GinsBrowser"
+marker_index = cmd.find(marker)
+if marker_index == -1:
+    marker = "/Contents/MacOS/GinsBrowser"
+    marker_index = cmd.find(marker)
+
+if marker_index == -1:
     print("", end="")
     raise SystemExit(1)
 
-exe_path = match.group(1)
-rest = match.group(2) or ""
+exe_end = marker_index + len(marker)
+exe_path = cmd[:exe_end].strip()
+rest = cmd[exe_end:].strip()
+
+if exe_path.endswith(".app"):
+    exe_path = os.path.join(exe_path, "Contents", "MacOS", "GinsBrowser")
 args = [exe_path]
 
 def is_url(token: str) -> bool:
     return token.startswith("http://") or token.startswith("https://")
 
-if rest:
-    raw_parts = rest.split()
+rest_tokens = shlex.split(rest) if rest else []
+if rest_tokens:
+    raw_parts = rest_tokens
     rebuilt = []
     i = 0
     while i < len(raw_parts):

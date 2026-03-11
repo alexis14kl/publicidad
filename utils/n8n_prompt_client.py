@@ -177,6 +177,22 @@ def enrich_idea(idea: str) -> str:
         "Incluir dentro de la imagen un bloque de texto publicitario corto y bien jerarquizado con: nombre del servicio, beneficio principal, CTA, sitio web noyecode.com y WhatsApp +57 301 385 9952."
     )
     hints.append(
+        "No incluir logos, isotipos, emblemas ni marcas de agua de ningun tipo dentro de la imagen generada."
+    )
+    hints.append(
+        "Reservar espacio limpio en la parte superior para insertar despues el logo oficial local de NoyeCode en postproceso."
+    )
+    hints.append(
+        "Reservar una franja superior libre de al menos 18 por ciento de la altura total. "
+        "No poner ningun titular ni texto importante en esa franja."
+    )
+    hints.append(
+        "Ubicar el titular principal mas abajo: iniciar el bloque de texto desde aproximadamente 22 a 25 por ciento de la altura."
+    )
+    hints.append(
+        "No dibujar texto que imite el logo de marca ni variantes de logotipo."
+    )
+    hints.append(
         f"El nombre del servicio destacado dentro del arte debe ser exactamente: {primary_service}."
     )
     hints.append(
