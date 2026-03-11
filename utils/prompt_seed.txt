@@ -9,14 +9,14 @@ Datos fijos de empresa:
 - Ubicacion: Bogota, Kennedy, Colombia
 
 Logo oficial de NoyeCode (debe aparecer en la imagen):
-- Tipo: emblema geometrico abstracto, moderno y minimalista.
-- Color principal del logo: naranja vibrante (#fd9102) sobre fondo oscuro o transparente.
-- Forma: simbolo cuadrado compuesto por curvas entrelazadas y formas geometricas abstractas que crean un patron sofisticado con simetria vertical. Usa el espacio negativo de forma inteligente para dar profundidad y modernidad.
-- No contiene texto dentro del simbolo; el nombre "NoyeCode" se coloca al lado o debajo en tipografia sans-serif limpia y moderna, en blanco o naranja segun el fondo.
-- Colores de marca: naranja (#fd9102) como acento principal, fondos oscuros (#222222, #333333) o blancos, grises de soporte.
-- Ubicacion sugerida en la pieza: esquina superior izquierda o centrado en la parte superior, con tamano moderado que sea visible pero no invada la composicion.
-- El logo debe verse nitido, profesional y alineado con la estetica tech/startup de la marca.
-- IMPORTANTE: representar el logo como un emblema geometrico naranja abstracto y elegante; NO inventar letras, iconos genericos ni formas que no correspondan al logo real.
+- Tipo: logo tipografico con simbolo de codigo, monocromatico naranja.
+- Color unico del logo: naranja vibrante (#fd9102).
+- Forma: el logo consiste en dos llaves de programacion estilizadas { } en naranja que enmarcan el texto "NoyeCode" escrito en tipografia sans-serif moderna y limpia. Entre las llaves y el texto hay tres puntos decorativos alineados verticalmente (como indicador de codigo). Todo el conjunto es horizontal, compacto y equilibrado.
+- El texto "NoyeCode" es parte integral del logo, no se separa del simbolo.
+- Colores de marca: naranja (#fd9102) como color principal, fondos oscuros (#222222, #333333) o blancos para contraste.
+- Ubicacion sugerida en la pieza: parte superior (centrado o esquina superior izquierda), con tamano moderado, visible pero sin invadir la composicion.
+- El logo debe verse nitido, profesional, tech y moderno.
+- IMPORTANTE: el logo es { NoyeCode } con llaves de codigo naranja y tipografia sans-serif. NO inventar otros iconos, escudos, circulos ni formas que no correspondan. Es un logo de codigo/developer estilizado.
 
 Servicios que si se deben promocionar:
 - desarrollo a la medida
