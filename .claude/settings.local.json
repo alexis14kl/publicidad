@@ -4,7 +4,8 @@
       "Bash(node _debug_send.js)",
       "Bash(node _debug_send2.js)",
       "Bash(taskkill //F //IM powershell.exe)",
-      "Bash(taskkill //F //IM cmd.exe)"
+      "Bash(taskkill //F //IM cmd.exe)",
+      "Bash(pip install:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

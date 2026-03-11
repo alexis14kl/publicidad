@@ -5,6 +5,9 @@ title Forzar CDP Perfil (Post Apertura)
 rem --- Cargar rutas centralizadas ---
 call "%~dp0..\cfg\rutas.bat"
 
+rem --- MODO DESARROLLO: poner DEV_MODE=1 para que no cierre perfil ni consola ---
+if not defined DEV_MODE set "DEV_MODE=0"
+
 set "CDP_INFO_JSON=%APPDATA%\DICloak\cdp_debug_info.json"
 
 set "HAS_DEBUG_PORT=0"
@@ -122,6 +125,13 @@ rem --- Paso 1: Cerrar pestanas de ChatGPT via CDP (evita restauracion de sesion
   "} catch {};" ^
   "exit 0" >nul 2>nul
 
+if /I "%DEV_MODE%"=="1" (
+  %LOG% ok "=== MODO DESARROLLO: perfil y consola quedan abiertos ==="
+  %LOG% info "Para cerrar manualmente: taskkill /F /IM ginsbrowser.exe && taskkill /F /IM DICloak.exe"
+  endlocal
+  exit /b 0
+)
+
 rem --- Paso 2: Matar navegador del perfil (ginsbrowser = Chromium de DICloak) ---
 %LOG% info "Cerrando DiCloak, perfil y ginsbrowser para liberar memoria..."
 taskkill /F /IM ginsbrowser.exe >nul 2>nul
@@ -135,7 +145,6 @@ rem --- Paso 4: Limpieza avanzada (servicios, hijos, puerto 9333) ---
 %LOG% ok "DiCloak y perfil cerrados. Worker sigue en background."
 
 rem --- Paso 5: Cerrar esta ventana de consola ---
-rem NOTA: comentar "exit" para modo desarrollo (la consola queda abierta)
 %LOG% ok "Proceso completado. Cerrando consola..."
 endlocal
 exit

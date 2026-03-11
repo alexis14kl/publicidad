@@ -12,8 +12,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from dotenv import dotenv_values
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ENV_FILE = PROJECT_ROOT / ".env"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -158,6 +161,11 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
 
     env = os.environ.copy()
     env["NO_PAUSE"] = "1"
+    # Cargar variables del .env para que lleguen al bat (DEV_MODE, etc.)
+    if ENV_FILE.exists():
+        for key, value in dotenv_values(ENV_FILE).items():
+            if value is not None:
+                env[key] = value
 
     log_file = PROJECT_ROOT / "logs" / "bot_runner_last.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
