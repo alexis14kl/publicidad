@@ -14,12 +14,33 @@ CDP_INFO="$DICLOAK_DATA/cdp_debug_info.json"
 # Buscar proceso principal de ginsbrowser (sin --type=)
 get_main_gins_pid() {
     ps auxww | grep -i "GinsBrowser" | grep -v "grep" | grep -v "\-\-type=" | awk '{print $2}' | head -1
+    ps auxww | grep -i "GinsBrowser" | grep -v "grep" | grep -v "\-\-type=" | awk '{print $2}' | head -1
 }
 
 get_main_gins_cmd() {
     MAIN_PID=$(get_main_gins_pid)
     [ -z "$MAIN_PID" ] && return 1
     ps -o command= -p "$MAIN_PID" 2>/dev/null
+}
+
+extract_env_id() {
+    python3 - "$1" <<'PY'
+import re
+import sys
+cmd = sys.argv[1]
+match = re.search(r"\.DICloakCache/(\d{10,})/", cmd)
+print(match.group(1) if match else "")
+PY
+}
+
+extract_debug_port() {
+    python3 - "$1" <<'PY'
+import re
+import sys
+cmd = sys.argv[1]
+match = re.search(r"--remote-debugging-port(?:=| )(\d+)", cmd)
+print(match.group(1) if match else "")
+PY
 }
 
 extract_env_id() {
@@ -176,35 +197,24 @@ fi
 NEW_PID=$(python3 - "$NEW_CMD" <<'PY'
 import os
 import re
-import shlex
 import subprocess
 import sys
 
 cmd = sys.argv[1]
-marker = ".app/Contents/MacOS/GinsBrowser"
-marker_index = cmd.find(marker)
-if marker_index == -1:
-    marker = "/Contents/MacOS/GinsBrowser"
-    marker_index = cmd.find(marker)
-
-if marker_index == -1:
+match = re.match(r"^(.*?/Contents/MacOS/GinsBrowser)(?:\s+(.*))?$", cmd)
+if not match:
     print("", end="")
     raise SystemExit(1)
 
-exe_end = marker_index + len(marker)
-exe_path = cmd[:exe_end].strip()
-rest = cmd[exe_end:].strip()
-
-if exe_path.endswith(".app"):
-    exe_path = os.path.join(exe_path, "Contents", "MacOS", "GinsBrowser")
+exe_path = match.group(1)
+rest = match.group(2) or ""
 args = [exe_path]
 
 def is_url(token: str) -> bool:
     return token.startswith("http://") or token.startswith("https://")
 
-rest_tokens = shlex.split(rest) if rest else []
-if rest_tokens:
-    raw_parts = rest_tokens
+if rest:
+    raw_parts = rest.split()
     rebuilt = []
     i = 0
     while i < len(raw_parts):

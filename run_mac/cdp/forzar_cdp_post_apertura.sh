@@ -51,18 +51,9 @@ PROFILE_PORT=""
 if [ -f "$GET_DEBUG_PORT_SH" ]; then
     PROFILE_PORT=$(bash "$GET_DEBUG_PORT_SH" 15 | awk -F= '/^DEBUG_PORT=/{print $2; exit}')
 fi
-if [ -n "$PROFILE_PORT" ]; then
-    if curl -s --max-time 2 "http://127.0.0.1:$PROFILE_PORT/json/version" 2>/dev/null | grep -q "webSocketDebuggerUrl"; then
-        export CDP_PROFILE_PORT="$PROFILE_PORT"
-        log_info "Puerto CDP del perfil en uso: $CDP_PROFILE_PORT"
-    else
-        PROFILE_PORT=""
-    fi
-fi
-
-if [ -z "$PROFILE_PORT" ]; then
-    log_warn "No se detecto un puerto CDP util para el perfil."
-fi
+[ -z "$PROFILE_PORT" ] && PROFILE_PORT="9225"
+export CDP_PROFILE_PORT="$PROFILE_PORT"
+log_info "Puerto CDP del perfil en uso: $CDP_PROFILE_PORT"
 
 # Pegar prompt en ChatGPT
 if [ -f "$PROMPT_AUTOMATION_PY" ]; then
@@ -75,6 +66,7 @@ if [ -f "$PROMPT_AUTOMATION_PY" ]; then
 
         if [ -f "$DOWNLOAD_GENERATED_IMAGE_PY" ]; then
             echo "Esperando y descargando imagen generada..."
+            python3 "$DOWNLOAD_GENERATED_IMAGE_PY" "$CDP_PROFILE_PORT"
             python3 "$DOWNLOAD_GENERATED_IMAGE_PY" "$CDP_PROFILE_PORT"
             if [ $? -ne 0 ]; then
                 log_warn "No se pudo descargar la imagen generada."
