@@ -14,6 +14,11 @@ Servicios que si se deben promocionar:
 - RPAs nativos
 - desarrollo Android
 - desarrollo desktop
+- apps empresariales para trabajo en campo (control de empleados, seguimiento GPS, reportes en tiempo real, gestion de clientes, gestion de tecnicos)
+- software a medida para negocios (CRM, ERP, sistema de inventario, sistema de ventas, gestion de proyectos)
+- apps sin programar / no-code (apps de negocio, automatizar procesos, dashboards personalizados, sistemas internos)
+- soporte tecnico informatico (diagnostico, mantenimiento, reparacion, soporte remoto, redes)
+- dashboards y analisis de datos (metricas, ventas, empleados, productividad, reportes en tiempo real)
 
 Reglas claras para la imagen:
 - La imagen debe promocionar un servicio o producto de NoyeCode, no la ciudad.
@@ -45,6 +50,17 @@ Preferencia de enfoque:
   3. modernizacion de sistema legacy mostrando evolucion a plataforma moderna
   4. RPA nativo resolviendo tareas repetitivas en entorno empresarial
   5. app Android o software desktop profesional en uso real
+  6. app empresarial para campo: smartphone mostrando dashboard de tracking de empleados, mapa GPS, analytics en tiempo real, UI SaaS moderna
+  7. software para empresas: dashboard SaaS moderno en laptop y tablet, graficos de analytics, interfaz de gestion de equipo, estetica startup tech
+  8. plataforma no-code: interfaz de app builder drag-and-drop en laptop, emprendedor creando app movil sin programar, estetica startup limpia
+  9. soporte tecnico IT: tecnico trabajando en laptop, interfaz de diagnostico digital en pantalla, concepto de servicio tech profesional
+  10. dashboard empresarial: analytics en laptop, graficos, metricas y visualizacion de datos, interfaz SaaS futurista corporativa
+
+Estilo visual requerido:
+- advertising banner, marketing design, tech startup branding, ultra detailed, cinematic lighting, depth of field, 4k
+- Siempre incluir elementos de interfaz UI realistas y glowing
+- Fondos con gradientes corporativos limpios
+- Composicion con espacio para texto publicitario
 
 Salida esperada:
 - devolver un prompt listo para generador de imagen
