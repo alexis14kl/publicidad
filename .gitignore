@@ -22,6 +22,11 @@ __pycache__/
 .prompt_last_send.json
 .service_rotation_state.json
 memory/profile/
+.mcp_server_state.json
+.mcp.json
+
+lib/
+facebook-ads-mcp-server.dxt
 
 # Debug assets
 debug/
