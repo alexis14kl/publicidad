@@ -5,6 +5,7 @@ import { StatusCard } from './components/StatusCard'
 import { ControlPanel } from './components/ControlPanel'
 import { LastJobCard } from './components/LastJobCard'
 import { DualLogViewer } from './components/DualLogViewer'
+import { SettingsPage } from './components/SettingsPage'
 import { useBotStatus } from './hooks/useBotStatus'
 import { usePollerProcess } from './hooks/usePollerProcess'
 import { useLogTail } from './hooks/useLogTail'
@@ -275,6 +276,7 @@ function MarketingCampaignModal({
 }
 
 export default function App() {
+  const [page, setPage] = useState<'home' | 'settings'>('home')
   const [marketingOpen, setMarketingOpen] = useState(false)
   const botStatus = useBotStatus()
   const poller = usePollerProcess()
@@ -282,9 +284,17 @@ export default function App() {
   const { lines: botLines, clearLines: clearBotLines } = useBotLogTail()
   const lastJob = useLastJob()
 
+  if (page === 'settings') {
+    return (
+      <div className="app">
+        <SettingsPage onBack={() => setPage('home')} />
+      </div>
+    )
+  }
+
   return (
     <div className="app">
-      <Header status={botStatus} />
+      <Header status={botStatus} onOpenSettings={() => setPage('settings')} />
       <div className="top-actions">
         <button className="btn btn--marketing" onClick={() => setMarketingOpen(true)}>
           Abrir Agente Marketing

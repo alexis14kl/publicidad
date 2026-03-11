@@ -19,6 +19,8 @@ export const runMarketingCampaignPreview = (payload: MarketingCampaignPayload): 
   api().runMarketingCampaignPreview(payload)
 export const readLogLines = (count?: number): Promise<string[]> => api().readLogLines(count)
 export const getEnvConfig = (): Promise<Record<string, string>> => api().getEnvConfig()
+export const saveEnvConfig = (config: Record<string, string>) => api().saveEnvConfig(config)
+export const resetBotState = () => api().resetBotState()
 export const onLogNewLines = (cb: (lines: string[]) => void) => api().onLogNewLines(cb)
 export const onBotLogLines = (cb: (lines: string[]) => void) => api().onBotLogLines(cb)
 export const onMarketingRunUpdate = (cb: (update: MarketingRunUpdate) => void) => api().onMarketingRunUpdate(cb)

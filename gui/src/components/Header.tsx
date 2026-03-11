@@ -2,6 +2,7 @@ import type { BotStatus } from '../lib/types'
 
 interface HeaderProps {
   status: BotStatus
+  onOpenSettings?: () => void
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -10,7 +11,7 @@ const STATUS_LABELS: Record<string, string> = {
   executing: 'Ejecutando',
 }
 
-export function Header({ status }: HeaderProps) {
+export function Header({ status, onOpenSettings }: HeaderProps) {
   return (
     <header className="header">
       <div className="header-left">
@@ -20,9 +21,16 @@ export function Header({ status }: HeaderProps) {
           <span className="header-subtitle">NoyeCode</span>
         </div>
       </div>
-      <div className="header-status">
-        <span className={`status-dot status-dot--${status.status}`} />
-        <span className="status-label">{STATUS_LABELS[status.status]}</span>
+      <div className="header-right">
+        <div className="header-status">
+          <span className={`status-dot status-dot--${status.status}`} />
+          <span className="status-label">{STATUS_LABELS[status.status]}</span>
+        </div>
+        {onOpenSettings && (
+          <button className="btn btn--ghost btn--icon" onClick={onOpenSettings} title="Configuraciones">
+            &#9881;
+          </button>
+        )}
       </div>
     </header>
   )
