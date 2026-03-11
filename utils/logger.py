@@ -7,18 +7,29 @@ except ModuleNotFoundError:
     typer = None
 
 
+def _is_tty() -> bool:
+    return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+
 def _safe_echo(message: str, *, fg=None, bold: bool = False, dim: bool = False) -> None:
     if typer is None:
         print(message)
         return
     try:
-        typer.echo(typer.style(message, fg=fg, bold=bold, dim=dim))
+        # Skip ANSI styling when stdout is piped (GUI, file, etc.)
+        if _is_tty():
+            typer.echo(typer.style(message, fg=fg, bold=bold, dim=dim))
+        else:
+            print(message, flush=True)
     except UnicodeEncodeError:
         sanitized = (
             message.encode(getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore")
             .decode(getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore")
         )
-        typer.echo(typer.style(sanitized, fg=fg, bold=bold, dim=dim))
+        if _is_tty():
+            typer.echo(typer.style(sanitized, fg=fg, bold=bold, dim=dim))
+        else:
+            print(sanitized, flush=True)
 
 
 def log_info(msg: str) -> None:
