@@ -85,8 +85,23 @@ endlocal
 exit /b 0
 
 :CLEANUP_AND_EXIT
+rem =========================================================================
+rem  CLEANUP POST-CICLO
+rem  Este bloque se ejecuta tras publicar la imagen exitosamente.
+rem  1) Cierra pestanas de chatgpt.com via CDP para que la proxima apertura
+rem     del perfil no restaure chats viejos (evita prompt duplicado visual).
+rem  2) Mata ginsbrowser.exe (navegador del perfil DICloak).
+rem  3) Mata DICloak.exe (gestor de perfiles).
+rem  4) Ejecuta limpieza avanzada (servicios, procesos hijo, puerto 9333).
+rem  5) Cierra esta ventana de consola.
+rem
+rem  MODO DESARROLLO: para depurar sin que se cierre todo, comenta las
+rem  lineas de taskkill y el "exit" final. Asi el perfil y la consola
+rem  quedan abiertos para inspeccion manual.
+rem =========================================================================
+
+rem --- Paso 1: Cerrar pestanas de ChatGPT via CDP (evita restauracion de sesion) ---
 %LOG% info "Limpiando sesion del perfil antes de cerrar..."
-rem --- Navegar todas las pestanas a about:blank para que la proxima apertura no restaure chats viejos ---
 "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -Command ^
   "$cdp=Join-Path $env:APPDATA 'DICloak\cdp_debug_info.json';" ^
   "if (!(Test-Path $cdp)) { exit 0 };" ^
@@ -106,11 +121,21 @@ rem --- Navegar todas las pestanas a about:blank para que la proxima apertura no
   "  }" ^
   "} catch {};" ^
   "exit 0" >nul 2>nul
+
+rem --- Paso 2: Matar navegador del perfil (ginsbrowser = Chromium de DICloak) ---
 %LOG% info "Cerrando DiCloak, perfil y ginsbrowser para liberar memoria..."
 taskkill /F /IM ginsbrowser.exe >nul 2>nul
+
+rem --- Paso 3: Matar DICloak (gestor de perfiles antidetect) ---
 taskkill /F /IM DICloak.exe >nul 2>nul
+
+rem --- Paso 4: Limpieza avanzada (servicios, hijos, puerto 9333) ---
 "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%KILLER_PS1%" -Quiet
+
 %LOG% ok "DiCloak y perfil cerrados. Worker sigue en background."
+
+rem --- Paso 5: Cerrar esta ventana de consola ---
+rem NOTA: comentar "exit" para modo desarrollo (la consola queda abierta)
 %LOG% ok "Proceso completado. Cerrando consola..."
 endlocal
 exit

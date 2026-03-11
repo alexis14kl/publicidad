@@ -238,17 +238,38 @@ const { chromium } = require('playwright');
     const chosen = info.candidates[0];
     const chosenLocator = page.locator('[role="menuitemradio"]').nth(chosen.index);
     await chosenLocator.scrollIntoViewIfNeeded().catch(() => {});
+
+    // Click en la cuenta: puede disparar navegacion inmediata (?account_switch=true)
+    // por eso usamos Promise.all para no perder la navegacion
+    let clickDone = false;
     try {
-      await chosenLocator.click({ timeout: 5000 });
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {}),
+        chosenLocator.click({ timeout: 5000, noWaitAfter: true }),
+      ]);
+      clickDone = true;
     } catch {
-      const handle = await chosenLocator.elementHandle();
-      if (!handle) throw new Error('No se pudo resolver la cuenta a seleccionar');
-      await page.evaluate((el) => el.click(), handle);
+      // Si click fallo, intentar evaluate directo antes de que navegue
+      try {
+        const handle = await chosenLocator.elementHandle({ timeout: 3000 });
+        if (handle) {
+          await page.evaluate((el) => el.click(), handle);
+          clickDone = true;
+        }
+      } catch {}
+    }
+
+    if (!clickDone) {
+      // Ultimo intento: click por JS directo en el indice
+      await page.evaluate((idx) => {
+        const items = document.querySelectorAll('[role="menuitemradio"]');
+        if (items[idx]) items[idx].click();
+      }, chosen.index);
     }
 
     console.error('[ROTATION] Click en cuenta: ' + chosen.label);
 
-    // Esperar a que la pagina recargue tras el cambio de cuenta
+    // Esperar a que la pagina termine de cargar tras el cambio
     await page.waitForTimeout(3000);
     await page.waitForLoadState('domcontentloaded').catch(() => {});
     console.error('[ROTATION] Pagina recargada, navegando a chat limpio...');
