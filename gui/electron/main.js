@@ -3,8 +3,43 @@ const path = require('path')
 const fs = require('fs')
 const { spawn, exec } = require('child_process')
 
-// Project root is two levels up from gui/electron/
-const PROJECT_ROOT = path.resolve(__dirname, '..', '..')
+function isPackagedMac() {
+  return process.platform === 'darwin' && app.isPackaged
+}
+
+function exists(p) {
+  try {
+    fs.accessSync(p)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function ensureMacRuntimeProjectRoot() {
+  if (!isPackagedMac()) {
+    return path.resolve(__dirname, '..', '..')
+  }
+
+  // In packaged macOS builds we ship backend under Resources/backend.
+  // Copy once to userData so logs/state remain writable.
+  const bundledRoot = path.join(process.resourcesPath, 'backend')
+  const runtimeRoot = path.join(app.getPath('userData'), 'backend')
+  const runtimeMarker = path.join(runtimeRoot, 'server', 'job_poller.py')
+
+  if (!exists(runtimeMarker)) {
+    if (!exists(path.join(bundledRoot, 'server', 'job_poller.py'))) {
+      throw new Error(`Backend no encontrado en ${bundledRoot}`)
+    }
+    fs.mkdirSync(runtimeRoot, { recursive: true })
+    fs.cpSync(bundledRoot, runtimeRoot, { recursive: true, force: true })
+  }
+
+  fs.mkdirSync(path.join(runtimeRoot, 'logs'), { recursive: true })
+  return runtimeRoot
+}
+
+const PROJECT_ROOT = ensureMacRuntimeProjectRoot()
 
 // State
 let mainWindow = null
@@ -90,6 +125,18 @@ function getProjectEnv() {
 }
 
 function findPython() {
+  if (process.platform === 'darwin') {
+    // Finder-launched apps often miss shell PATH, so probe known absolute paths.
+    const darwinCandidates = [
+      '/opt/homebrew/bin/python3',
+      '/usr/local/bin/python3',
+      '/usr/bin/python3',
+    ]
+    for (const absPath of darwinCandidates) {
+      if (exists(absPath)) return absPath
+    }
+  }
+
   // Try common Python binary names
   const candidates = process.platform === 'win32'
     ? ['python', 'python3', 'py']
@@ -299,6 +346,9 @@ ipcMain.handle('start-poller', async () => {
   if (!pythonBin) {
     return { success: false, error: 'Python no encontrado en PATH' }
   }
+  if (!fs.existsSync(pollerPath)) {
+    return { success: false, error: `No se encontro job_poller.py en: ${pollerPath}` }
+  }
 
   try {
     // The poller writes its own logs to logs/job_poller.log via Python logger.
@@ -315,6 +365,12 @@ ipcMain.handle('start-poller', async () => {
       pollerProcess = null
     })
 
+    // Detect fast-fail so GUI can report immediate startup errors.
+    await new Promise(resolve => setTimeout(resolve, 900))
+    if (!pollerProcess || pollerProcess.exitCode !== null) {
+      return { success: false, error: 'Poller termino inmediatamente al iniciar (revisa logs/job_poller.log)' }
+    }
+
     return { success: true, pid: pollerProcess.pid }
   } catch (err) {
     return { success: false, error: err.message }
@@ -322,6 +378,14 @@ ipcMain.handle('start-poller', async () => {
 })
 
 ipcMain.handle('stop-poller', async () => {
+  // macOS requirement: keep poller alive while bot is executing
+  if (process.platform === 'darwin') {
+    const lock = readJsonFile(path.join(PROJECT_ROOT, '.bot_runner.lock'))
+    if (lock && lock.pid) {
+      return { success: false, error: 'No se puede detener el poller mientras el bot este ejecutando' }
+    }
+  }
+
   const poller = await isPollerAlive()
   if (!poller.running) {
     return { success: false, error: 'Poller no esta corriendo' }

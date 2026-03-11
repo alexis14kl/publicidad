@@ -12,7 +12,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from dotenv import dotenv_values
+try:
+    from dotenv import dotenv_values as _dotenv_values  # type: ignore
+except Exception:
+    _dotenv_values = None
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -26,6 +29,39 @@ START_BAT = PROJECT_ROOT / "iniciar.bat"  # legacy, kept as fallback
 ORCHESTRATOR_PY = PROJECT_ROOT / "orchestrator.py"
 LOCK_FILE = PROJECT_ROOT / ".bot_runner.lock"
 DEFAULT_STALE_LOCK_SEC = 4 * 60 * 60
+
+
+def _fallback_dotenv_values(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    try:
+        content = path.read_text(encoding="utf-8")
+    except Exception:
+        return values
+
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            continue
+        if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+            value = value[1:-1]
+        values[key] = value
+    return values
+
+
+def load_env_values(path: Path) -> dict[str, str]:
+    if _dotenv_values is not None:
+        loaded = _dotenv_values(path)
+        return {str(k): str(v) for k, v in loaded.items() if v is not None}
+    return _fallback_dotenv_values(path)
 
 
 class BotRunnerError(RuntimeError):
@@ -157,9 +193,7 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
     env["NO_PAUSE"] = "1"
     # Cargar variables del .env para que lleguen al proceso (DEV_MODE, etc.)
     if ENV_FILE.exists():
-        for key, value in dotenv_values(ENV_FILE).items():
-            if value is not None:
-                env[key] = value
+        env.update(load_env_values(ENV_FILE))
 
     log_file = PROJECT_ROOT / "logs" / "bot_runner_last.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)

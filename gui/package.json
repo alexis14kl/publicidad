@@ -38,7 +38,65 @@
       "target": "nsis"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "extraResources": [
+        {
+          "from": "../server",
+          "to": "backend/server"
+        },
+        {
+          "from": "../utils",
+          "to": "backend/utils"
+        },
+        {
+          "from": "../run_mac",
+          "to": "backend/run_mac"
+        },
+        {
+          "from": "../cfg",
+          "to": "backend/cfg"
+        },
+        {
+          "from": "../cdp",
+          "to": "backend/cdp"
+        },
+        {
+          "from": "../inicio",
+          "to": "backend/inicio"
+        },
+        {
+          "from": "../perfil",
+          "to": "backend/perfil"
+        },
+        {
+          "from": "../prompt",
+          "to": "backend/prompt"
+        },
+        {
+          "from": "../n8n",
+          "to": "backend/n8n"
+        },
+        {
+          "from": "../memory",
+          "to": "backend/memory"
+        },
+        {
+          "from": "../logs",
+          "to": "backend/logs"
+        },
+        {
+          "from": "../.job_poller_state.json",
+          "to": "backend/.job_poller_state.json"
+        },
+        {
+          "from": "../.prompt_last_send.json",
+          "to": "backend/.prompt_last_send.json"
+        },
+        {
+          "from": "../.service_rotation_state.json",
+          "to": "backend/.service_rotation_state.json"
+        }
+      ]
     }
   }
 }
