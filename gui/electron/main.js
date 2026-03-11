@@ -380,6 +380,9 @@ ipcMain.handle('start-poller', async () => {
 ipcMain.handle('stop-poller', async () => {
   // macOS requirement: keep poller alive while bot is executing
   if (process.platform === 'darwin') {
+    if (botProcess && botProcess.exitCode === null) {
+      return { success: false, error: 'No se puede detener el poller mientras el bot este ejecutando' }
+    }
     const lock = readJsonFile(path.join(PROJECT_ROOT, '.bot_runner.lock'))
     if (lock && lock.pid) {
       return { success: false, error: 'No se puede detener el poller mientras el bot este ejecutando' }
