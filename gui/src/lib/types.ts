@@ -54,6 +54,8 @@ export interface ElectronAPI {
   runMarketingCampaignPreview: (payload: MarketingCampaignPayload) => Promise<CommandResult>
   readLogLines: (count?: number) => Promise<string[]>
   getEnvConfig: () => Promise<Record<string, string>>
+  saveEnvConfig: (config: Record<string, string>) => Promise<CommandResult>
+  resetBotState: () => Promise<{ success: boolean; deleted: string[] }>
   onLogNewLines: (callback: (lines: string[]) => void) => () => void
   onBotLogLines: (callback: (lines: string[]) => void) => () => void
   onMarketingRunUpdate: (callback: (update: MarketingRunUpdate) => void) => () => void

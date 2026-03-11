@@ -15,12 +15,12 @@ DEFAULT_IDEA_FILE = PROJECT_ROOT / "utils" / "prompt_seed.txt"
 DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/py-prompt-imgs"
 DEFAULT_BRAND_HINT = (
     "Pieza publicitaria para NoyeCode enfocada en captar clientes reales de software. "
-    "Debe verse premium, moderna, comercial, confiable y lista para campanas digitales. "
-    "El texto dentro de la imagen si es importante porque estas piezas son para redes sociales y captacion comercial. "
-    "Incluir copy comercial claro, CTA, web, WhatsApp y el servicio protagonista cuando el formato lo permita. "
-    "Evitar imagenes genericas, pantallas gigantes irreales, cascos VR innecesarios, slogans confusos o logos invasivos dentro de la imagen. "
-    "Bogota y Kennedy pueden existir como contexto sutil, pero nunca como protagonista visual principal. "
-    "La composicion debe sentirse como una campana corporativa de alta gama, con jerarquia visual limpia, menos ruido y mejor direccion de arte."
+    "Debe verse como DISENO GRAFICO PREMIUM para redes sociales, NO como fotografia realista. "
+    "NO usar personas reales, manos, rostros, oficinas, escritorios ni escenas fotograficas. "
+    "Usar fondo limpio con gradiente elegante y composicion minimalista con dispositivos (laptop, smartphone, tablet). "
+    "El texto dentro de la imagen si es importante: incluir copy comercial claro, CTA, web y WhatsApp. "
+    "Evitar imagenes genericas, pantallas gigantes irreales, cascos VR innecesarios, slogans confusos o logos invasivos. "
+    "La composicion debe sentirse como arte publicitario de agencia para Meta Ads, con jerarquia visual limpia y mejor direccion de arte."
 )
 
 
@@ -118,6 +118,11 @@ def clean_generated_prompt(prompt: str) -> str:
     return (
         "CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA. "
         f"CONTEXTO PUBLICITARIO: {body}. "
+        "REGLA CRITICA: La parte superior del 15 por ciento de la imagen DEBE ser una barra plana de color solido oscuro #1a1a2e, "
+        "completamente vacia sin logos, iconos, texto, simbolos ni decoracion. Este espacio esta reservado. "
+        "ESTILO: Diseno grafico publicitario premium, NO fotografia realista. NO personas, NO oficinas, NO rostros. "
+        "Solo mockups de dispositivos con interfaces limpias sobre fondo con gradiente elegante. "
+        "NO escribir NoyeCode ni ninguna variacion del nombre de la marca dentro de la imagen. "
         "GENERA LA IMAGEN DIRECTAMENTE EN CALIDAD 4K, FORMATO VERTICAL 4:5 OPTIMIZADO PARA FEED DE FACEBOOK E INSTAGRAM, "
         "ESTILO PUBLICITARIO PREMIUM, ALTA CLARIDAD GRAFICA Y RESPETANDO MARGENES DE SEGURIDAD PARA QUE NINGUN TEXTO O ELEMENTO CLAVE QUEDE CORTADO EN LOS BORDES. "
         "ENTREGA EXACTAMENTE UNA SOLA IMAGEN FINAL. NO GENERES DOS OPCIONES, NO MUESTRES VARIANTES, NO HAGAS COMPARACIONES Y NO PREGUNTES CUAL IMAGEN PREFIERO."
@@ -160,20 +165,31 @@ def enrich_idea(idea: str) -> str:
         "No cambiarlo por otro servicio y no mezclar el protagonismo con otro producto."
     )
     hints.append(
-        "La imagen debe vender un servicio concreto de NoyeCode, no una postal de ciudad. "
-        "El sujeto principal debe ser el producto, el servicio o el resultado de negocio."
+        "REGLA CRITICA DE COMPOSICION: La parte superior del 15% de la imagen DEBE quedar como una barra plana de color solido oscuro #1a1a2e, "
+        "completamente vacia, sin logos, iconos, texto, simbolos, marcas de agua ni decoracion alguna. "
+        "Este espacio esta reservado para superponer el logo real despues."
     )
     hints.append(
-        "No centrar la composicion en la ciudad de Bogota, edificios urbanos o calles, salvo que el usuario lo pida de forma explicita."
+        "ESTILO OBLIGATORIO: La imagen debe parecer DISENO GRAFICO publicitario para social media, NO fotografia realista. "
+        "NO incluir personas reales, manos, rostros humanos, oficinas, escritorios ni escenas fotograficas. "
+        "Usar composicion minimalista con gradientes elegantes y mockups de dispositivos (laptop, smartphone, tablet) con interfaces SaaS limpias en pantalla."
+    )
+    hints.append(
+        "La imagen debe vender un servicio concreto de NoyeCode, no una postal de ciudad. "
+        "El sujeto principal debe ser el mockup del producto digital con interfaz creible."
+    )
+    hints.append(
+        "No centrar la composicion en la ciudad de Bogota, edificios urbanos o calles."
     )
     hints.append(
         "No usar como recurso repetitivo pantallas gigantes en fachadas, codigo flotando en edificios ni escenas futuristas poco creibles."
     )
     hints.append(
-        "Priorizar escenas comerciales creibles: reuniones con clientes, demo de producto, dashboards reales, software en uso, automatizacion operativa, modernizacion tecnológica y resultados empresariales."
+        "Priorizar mockups de dispositivos con dashboards, graficos, metricas y tablas segun el servicio. "
+        "La interfaz en pantalla debe apoyar el mensaje comercial."
     )
     hints.append(
-        "La pieza debe sentirse como arte publicitario para redes sociales de NoyeCode, orientado a conversion y captacion de clientes."
+        "La pieza debe sentirse como arte publicitario de diseno grafico para redes sociales de NoyeCode, orientado a conversion y captacion de clientes."
     )
     hints.append(
         "Formato obligatorio: vertical 4:5 optimizado para feed de Facebook e Instagram, con composicion pensada para verse completa al publicarse."
@@ -188,10 +204,12 @@ def enrich_idea(idea: str) -> str:
         "No usar composicion edge-to-edge con texto o rostros cortados. Evitar que el arte dependa de las esquinas o laterales."
     )
     hints.append(
-        "Direccion de arte mas profesional: look corporativo premium, iluminacion cinematica controlada, paleta elegante, mejor jerarquia tipografica, profundidad realista y acabado limpio."
+        "Direccion de arte: look de diseno grafico premium, paleta elegante (naranja #fd9102, fondo oscuro #1a1a2e a #16213e), "
+        "mejor jerarquia tipografica, composicion minimalista y acabado limpio de agencia."
     )
     hints.append(
-        "El resultado debe parecer una pieza de agencia para Meta Ads: mas limpio, mas aspiracional, mas creible y mejor balanceado visualmente."
+        "El resultado debe parecer una pieza de diseno grafico de agencia para Meta Ads: limpio, moderno, minimalista y bien balanceado visualmente. "
+        "NO debe parecer foto de stock ni fotografia realista."
     )
     hints.append(
         "Incluir dentro de la imagen un bloque de texto publicitario corto y bien jerarquizado con: nombre del servicio, beneficio principal, CTA, sitio web noyecode.com y WhatsApp +57 301 385 9952."
@@ -221,52 +239,48 @@ def enrich_idea(idea: str) -> str:
         "No responder como asesor de prompts. No dar sugerencias. No explicar. No listar opciones. Solo entregar la instruccion final de generacion."
     )
     hints.append(
-        "Cada respuesta debe variar el contexto visual principal para evitar escenas repetidas. Alternar entre reunion comercial, demo de producto, uso real del software, automatizacion en operacion, equipo con cliente, transformacion de sistema legacy, entorno movil Android o entorno desktop, segun el servicio principal."
+        "Cada respuesta debe variar el contexto visual para evitar escenas repetidas. Alternar entre: "
+        "laptop en angulo 3/4 con dashboard, smartphone con app de campo, laptop y tablet mostrando la misma plataforma, "
+        "laptop con workflow de automatizacion, composicion hero con laptop y smartphone, monitor con analytics en tiempo real. "
+        "Siempre mockups de dispositivos, nunca personas ni oficinas."
     )
     hints.append(
-        "No repetir siempre la misma composicion de oficina con mesa y dashboard. Cambiar encuadre, tipo de escena, foco visual y ambiente segun el objetivo comercial."
+        "No repetir siempre la misma composicion. Cambiar encuadre del dispositivo, angulo, tipo de interfaz en pantalla y estilo de gradiente del fondo."
     )
 
     if primary_service == "desarrollo a la medida":
         hints.append(
             "Servicio clave: desarrollo a la medida. "
-            "Mostrar una solucion de software creada especificamente para una empresa: "
-            "equipo de trabajo profesional, reunion de descubrimiento o entrega de producto, "
-            "interfaces UI/UX limpias en laptops o pantallas reales, dashboards elegantes, "
-            "colaboracion entre negocio y tecnologia, sensacion de software personalizado, escalable y de alto valor."
+            "Mostrar un mockup de laptop o tablet con interfaz UI/UX limpia, dashboards elegantes y "
+            "sensacion de software personalizado, escalable y de alto valor."
         )
         hints.append(
-            "Composicion recomendada: escena corporativa moderna, personas reales o semi-realistas, "
-            "producto digital visible, ambiente premium, iluminacion cinematica suave, profundidad de campo, "
-            "4K, con texto publicitario integrado de forma elegante en el arte."
+            "Composicion recomendada: fondo con gradiente oscuro elegante, mockup de dispositivo con producto digital visible, "
+            "tipografia bold moderna, 4K, con texto publicitario integrado de forma elegante."
         )
         hints.append(
-            "Evitar monitores desproporcionados, hologramas exagerados, interfaces imposibles o recursos visuales caricaturescos. "
-            "Preferir escenas creibles de venta consultiva, demostracion de producto y confianza empresarial."
+            "Evitar monitores desproporcionados, hologramas exagerados, interfaces imposibles o recursos visuales caricaturescos."
         )
         hints.append(
-            "El texto recomendado dentro del arte debe resaltar ideas como: desarrollo a la medida, software personalizado, escalable, soporte experto, contactanos por WhatsApp, visita noyecode.com."
-        )
-        hints.append(
-            "Para esta escena, usar una composicion mas editorial y premium: menos personas si hace falta, un foco principal claro, mejor aire visual y texto mejor distribuido en zona segura."
+            "El texto dentro del arte debe resaltar: desarrollo a la medida, software personalizado, CTA corto, noyecode.com y WhatsApp."
         )
 
     if primary_service == "automatizaciones empresariales":
         hints.append(
-            "Si la pieza es sobre automatizaciones, reflejar eficiencia operativa, integraciones entre sistemas, "
-            "flujos conectados, paneles de control y ahorro de tiempo para empresas."
+            "Si la pieza es sobre automatizaciones, mostrar mockup de laptop con workflow de automatizacion limpio y profesional, "
+            "flujos conectados, paneles de control y visualizacion de eficiencia operativa."
         )
         hints.append(
-            "Variar la escena entre procesos empresariales, equipos operando con menos friccion, tableros reales, integraciones activas y resultados visibles de ahorro de tiempo."
+            "Variar entre mockups de workflows, diagramas de integracion en pantalla, dashboards de procesos y tableros de productividad."
         )
 
     if primary_service == "desarrollo android":
         hints.append(
-            "Si la pieza es sobre desarrollo Android, mostrar app movil profesional en uso real, "
-            "interfaz pulida, experiencia de usuario clara y contexto comercial."
+            "Si la pieza es sobre desarrollo Android, mostrar mockup de smartphone con app movil profesional, "
+            "interfaz pulida con metricas, mapas o tareas segun el servicio."
         )
         hints.append(
-            "Evitar la oficina tradicional como unica escena. Priorizar manos usando el movil, pantallas reales de app y contexto de negocio o ventas."
+            "NO mostrar manos ni personas. Solo el dispositivo como mockup limpio sobre fondo con gradiente."
         )
         hints.append(
             "Cuidar que la interfaz del movil no quede demasiado pegada al borde ni recortada. Mantener el celular y el copy dentro de la zona segura central."
@@ -274,11 +288,11 @@ def enrich_idea(idea: str) -> str:
 
     if primary_service == "desarrollo desktop":
         hints.append(
-            "Si la pieza es sobre desarrollo desktop, mostrar una aplicacion empresarial robusta en escritorio, "
-            "paneles limpios, productividad, control operativo y entorno profesional."
+            "Si la pieza es sobre desarrollo desktop, mostrar mockup de laptop o monitor con aplicacion empresarial robusta, "
+            "paneles limpios, dashboards de productividad y control operativo."
         )
         hints.append(
-            "Cambiar la escena hacia uso de software en operacion, control de procesos, estaciones de trabajo y valor empresarial medible."
+            "Usar composicion de mockup de dispositivo sobre fondo gradiente, sin personas ni oficinas."
         )
 
     if primary_service == "modernizacion de software legacy":

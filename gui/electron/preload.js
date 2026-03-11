@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runMarketingCampaignPreview: (payload) => ipcRenderer.invoke('run-marketing-campaign-preview', payload),
   readLogLines: (count) => ipcRenderer.invoke('read-log-lines', count),
   getEnvConfig: () => ipcRenderer.invoke('get-env-config'),
+  saveEnvConfig: (config) => ipcRenderer.invoke('save-env-config', config),
+  resetBotState: () => ipcRenderer.invoke('reset-bot-state'),
   onLogNewLines: (callback) => {
     const handler = (_event, lines) => callback(lines)
     ipcRenderer.on('log-new-lines', handler)

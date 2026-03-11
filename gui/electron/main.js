@@ -366,16 +366,77 @@ ipcMain.handle('read-log-lines', async (_event, count = 200) => {
 })
 
 ipcMain.handle('get-env-config', async () => {
-  const env = parseEnvFile(path.join(PROJECT_ROOT, '.env'))
-  const sanitized = {}
-  for (const [key, value] of Object.entries(env)) {
-    if (key.toLowerCase().includes('password') || key.toLowerCase().includes('secret')) {
-      sanitized[key] = '********'
-    } else {
-      sanitized[key] = value
-    }
+  return parseEnvFile(path.join(PROJECT_ROOT, '.env'))
+})
+
+ipcMain.handle('reset-bot-state', async () => {
+  const stateFiles = [
+    '.bot_runner.lock',
+    '.account_rotation_state.json',
+    '.job_poller_state.json',
+    '.prompt_last_send.json',
+    '.service_rotation_state.json',
+  ]
+  const logFiles = [
+    path.join('logs', 'bot_runner_last.log'),
+    path.join('logs', 'job_poller.log'),
+  ]
+  const memoryFiles = [
+    path.join('memory', 'profile', 'memory_profile_change.json'),
+  ]
+
+  const deleted = []
+  const allFiles = [...stateFiles, ...logFiles, ...memoryFiles]
+
+  for (const file of allFiles) {
+    const fullPath = path.join(PROJECT_ROOT, file)
+    try {
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath)
+        deleted.push(file)
+      }
+    } catch { /* ignore locked files */ }
   }
-  return sanitized
+
+  return { success: true, deleted }
+})
+
+ipcMain.handle('save-env-config', async (_event, config) => {
+  try {
+    const envPath = path.join(PROJECT_ROOT, '.env')
+    let content = ''
+    try {
+      content = fs.readFileSync(envPath, 'utf-8')
+    } catch { /* file may not exist */ }
+
+    // Update existing keys preserving comments and structure
+    const updatedKeys = new Set()
+    const lines = content.split('\n')
+    const newLines = lines.map((line) => {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) return line
+      const eqIndex = trimmed.indexOf('=')
+      if (eqIndex === -1) return line
+      const key = trimmed.substring(0, eqIndex).trim()
+      if (key in config) {
+        updatedKeys.add(key)
+        return `${key}=${config[key]}`
+      }
+      return line
+    })
+
+    // Append new keys not in the original file
+    for (const [key, value] of Object.entries(config)) {
+      if (!updatedKeys.has(key)) {
+        newLines.push(`${key}=${value}`)
+      }
+    }
+
+    fs.writeFileSync(envPath, newLines.join('\n'), 'utf-8')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
 })
 
 ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) => {
