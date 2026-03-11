@@ -4,15 +4,26 @@ from contextlib import contextmanager
 import typer
 
 
+def _is_tty() -> bool:
+    return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+
 def _safe_echo(message: str, *, fg=None, bold: bool = False, dim: bool = False) -> None:
     try:
-        typer.echo(typer.style(message, fg=fg, bold=bold, dim=dim))
+        # Skip ANSI styling when stdout is piped (GUI, file, etc.)
+        if _is_tty():
+            typer.echo(typer.style(message, fg=fg, bold=bold, dim=dim))
+        else:
+            print(message, flush=True)
     except UnicodeEncodeError:
         sanitized = (
             message.encode(getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore")
             .decode(getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore")
         )
-        typer.echo(typer.style(sanitized, fg=fg, bold=bold, dim=dim))
+        if _is_tty():
+            typer.echo(typer.style(sanitized, fg=fg, bold=bold, dim=dim))
+        else:
+            print(sanitized, flush=True)
 
 
 def log_info(msg: str) -> None:
@@ -32,14 +43,17 @@ def log_error(msg: str) -> None:
 
 
 def log_step(step: str, msg: str) -> None:
-    label = typer.style(f"[{step}]", fg=typer.colors.BLUE, bold=True)
-    try:
-        typer.echo(f"{label} {msg}")
-    except UnicodeEncodeError:
-        sanitized = msg.encode(getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore").decode(
-            getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore"
-        )
-        typer.echo(f"{label} {sanitized}")
+    if _is_tty():
+        label = typer.style(f"[{step}]", fg=typer.colors.BLUE, bold=True)
+        try:
+            typer.echo(f"{label} {msg}")
+        except UnicodeEncodeError:
+            sanitized = msg.encode(getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore").decode(
+                getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore"
+            )
+            typer.echo(f"{label} {sanitized}")
+    else:
+        print(f"[{step}] {msg}", flush=True)
 
 
 def log_debug(msg: str) -> None:
@@ -48,6 +62,13 @@ def log_debug(msg: str) -> None:
 
 @contextmanager
 def progress_bar(description: str):
+    # Skip rich animations when stdout is piped (e.g. from GUI)
+    # Rich spinners/bars produce garbage in non-TTY output
+    if not sys.stdout.isatty():
+        log_info(description)
+        yield
+        return
+
     encoding = (getattr(sys.stdout, "encoding", "") or "").lower()
     if "utf" not in encoding:
         log_info(description)

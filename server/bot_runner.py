@@ -180,7 +180,12 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
             f"No existe orquestador: ni {ORCHESTRATOR_PY} ni {START_BAT}"
         )
 
+    # Force UTF-8 output from Python subprocesses
+    env["PYTHONIOENCODING"] = "utf-8"
+
     started_at = time.time()
+    collected_stdout = ""
+    collected_stderr = ""
     try:
         if os.name == "nt" and command[0] == "cmd":
             # Legacy bat path: needs its own console for 'start ""'
@@ -192,14 +197,32 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
                 creationflags=subprocess.CREATE_NEW_CONSOLE,
             )
         else:
-            # Python orchestrator: works on all platforms
-            result = subprocess.run(
+            # Stream output line-by-line to both stdout and log file
+            proc = subprocess.Popen(
                 command,
                 cwd=str(PROJECT_ROOT),
-                timeout=timeout_sec,
                 env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                bufsize=1,
+                encoding="utf-8",
+                errors="replace",
             )
+            with open(log_file, "w", encoding="utf-8") as lf:
+                lines: list[str] = []
+                for line in proc.stdout:
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+                    lf.write(line)
+                    lf.flush()
+                    lines.append(line)
+                proc.wait(timeout=timeout_sec)
+                collected_stdout = "".join(lines)
+
+            result = proc
     except subprocess.TimeoutExpired:
+        if "proc" in dir() and proc.poll() is None:
+            proc.kill()
         raise BotRunnerError(f"Timeout ({timeout_sec}s) ejecutando orquestador")
 
     finished_at = time.time()
@@ -209,8 +232,8 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
         exit_code=result.returncode,
         started_at=started_at,
         finished_at=finished_at,
-        stdout="",
-        stderr="",
+        stdout=collected_stdout[-5000:] if collected_stdout else "",
+        stderr=collected_stderr[-5000:] if collected_stderr else "",
         metadata={"profile_name": profile_name},
     )
 
