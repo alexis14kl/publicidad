@@ -175,8 +175,34 @@ if not errorlevel 1 (
   )
 )
 
-%LOG% step "7.5/10" "Esperando hidratacion de sesion del perfil..."
-python "%RUN_WITH_PROGRESS_PY%" "Esperando %PROFILE_WARMUP_SEC%s para estabilizar sesion del perfil..." timeout /t %PROFILE_WARMUP_SEC% /nobreak
+%LOG% step "7.5/10" "Esperando que el perfil cargue completamente..."
+python "%RUN_WITH_PROGRESS_PY%" "Polling carga del perfil (max 45s)..." "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ok=$false; $ports=@();" ^
+  "1..45 | ForEach-Object {" ^
+  "  $gp = Get-Process ginsbrowser -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id;" ^
+  "  if (-not $gp) { Start-Sleep -Seconds 1; return };" ^
+  "  $ports = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $gp -contains $_.OwningProcess } | Select-Object -ExpandProperty LocalPort -Unique);" ^
+  "  foreach ($p in $ports) {" ^
+  "    try {" ^
+  "      $r = Invoke-WebRequest -UseBasicParsing -Uri \"http://127.0.0.1:$p/json/list\" -TimeoutSec 2;" ^
+  "      if ($r.StatusCode -ge 200 -and $r.Content -match 'title') { $ok=$true; break }" ^
+  "    } catch {}" ^
+  "  };" ^
+  "  if ($ok) { break };" ^
+  "  Start-Sleep -Seconds 1" ^
+  "};" ^
+  "if ($ok) { Write-Host '[OK] Perfil cargado - CDP respondiendo.'; exit 0 }" ^
+  "elseif ($ports.Count -gt 0) { Write-Host '[OK] Perfil activo con puertos LISTEN.'; exit 0 }" ^
+  "else {" ^
+  "  $gp2 = Get-Process ginsbrowser -ErrorAction SilentlyContinue;" ^
+  "  if ($gp2) { Write-Host '[OK] ginsbrowser activo (sin CDP aun).'; exit 0 }" ^
+  "  else { Write-Host '[WARN] ginsbrowser no detectado.'; exit 1 }" ^
+  "}"
+if errorlevel 1 (
+  %LOG% warn "No se confirmo la carga del perfil. Continuando de todos modos..."
+) else (
+  %LOG% ok "Perfil cargado y listo."
+)
 
 if exist "%FORCE_CDP_PS1%" (
   %LOG% step "8/10" "Ejecutando automatizacion clave de depuracion de perfil..."
