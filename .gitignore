@@ -15,6 +15,17 @@ __pycache__/
 # Claude settings
 .claude/
 
+# Runtime state files (auto-generated per machine)
+.account_rotation_state.json
+.job_poller_state.json
+.prompt_last_send.json
+.service_rotation_state.json
+memory/profile/
+
+# Auto-generated prompts and text (regenerated each run)
+utils/prontm.txt
+utils/post_text.txt
+
 # GUI build artifacts
 gui/node_modules/
 gui/dist/
