@@ -125,10 +125,10 @@ def post_opening_automation(cdp_port: int = 9225) -> int:
     log_info("Esperando 10s antes de forzar CDP del perfil...")
     time.sleep(10)
 
-    # Step 1: Force CDP
+    # Step 1: Force CDP (longer timeout to let ginsbrowser fully start)
     try:
         from cdp.force_cdp import force_cdp
-        result = force_cdp(preferred_port=cdp_port, timeout_sec=30)
+        result = force_cdp(preferred_port=cdp_port, timeout_sec=60)
         log_ok("Forzado CDP ejecutado.")
     except RuntimeError as e:
         log_warn(f"El forzado CDP devolvio error: {e}")
@@ -136,10 +136,10 @@ def post_opening_automation(cdp_port: int = 9225) -> int:
 
     # Step 2: Retry if no debug port detected
     if not _has_debug_port():
-        log_warn("No se detecto debugPort tras primer intento. Reforce en 10 segundos...")
-        time.sleep(10)
+        log_warn("No se detecto debugPort tras primer intento. Reforce en 15 segundos...")
+        time.sleep(15)
         try:
-            result = force_cdp(preferred_port=cdp_port, timeout_sec=30)
+            result = force_cdp(preferred_port=cdp_port, timeout_sec=60)
             log_ok("Reforce ejecutado.")
         except RuntimeError as e:
             log_warn(f"Reforce devolvio error: {e}")
