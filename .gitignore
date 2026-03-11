@@ -6,3 +6,10 @@ logs/
 
 # Variables de entorno
 .env
+
+# GUI
+gui/node_modules/
+gui/dist/
+gui/dist-electron/
+gui/dist-types/
+gui/release/
