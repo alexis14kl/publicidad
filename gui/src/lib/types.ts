@@ -20,6 +20,29 @@ export interface CommandResult {
   pid?: number
 }
 
+export interface MarketingCampaignPayload {
+  budget: string
+  startDate: string
+  endDate: string
+}
+
+export interface MarketingRunUpdate {
+  type: 'status' | 'log' | 'done'
+  status?: 'idle' | 'running' | 'success' | 'warning' | 'error'
+  line?: string
+  summary?: string
+  preview?: {
+    objective: string
+    url: string
+    country: string
+    formFields: string[]
+    budget: string
+    startDate: string
+    endDate: string
+    mcpAvailable: boolean
+  }
+}
+
 export interface ElectronAPI {
   getBotStatus: () => Promise<BotStatus>
   getLastJob: () => Promise<LastJob | null>
@@ -28,10 +51,12 @@ export interface ElectronAPI {
   startPoller: () => Promise<CommandResult>
   stopPoller: () => Promise<CommandResult>
   isPollerRunning: () => Promise<boolean>
+  runMarketingCampaignPreview: (payload: MarketingCampaignPayload) => Promise<CommandResult>
   readLogLines: (count?: number) => Promise<string[]>
   getEnvConfig: () => Promise<Record<string, string>>
   onLogNewLines: (callback: (lines: string[]) => void) => () => void
   onBotLogLines: (callback: (lines: string[]) => void) => () => void
+  onMarketingRunUpdate: (callback: (update: MarketingRunUpdate) => void) => () => void
 }
 
 declare global {

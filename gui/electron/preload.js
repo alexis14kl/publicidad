@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startPoller: () => ipcRenderer.invoke('start-poller'),
   stopPoller: () => ipcRenderer.invoke('stop-poller'),
   isPollerRunning: () => ipcRenderer.invoke('is-poller-running'),
+  runMarketingCampaignPreview: (payload) => ipcRenderer.invoke('run-marketing-campaign-preview', payload),
   readLogLines: (count) => ipcRenderer.invoke('read-log-lines', count),
   getEnvConfig: () => ipcRenderer.invoke('get-env-config'),
   onLogNewLines: (callback) => {
@@ -19,5 +20,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (_event, lines) => callback(lines)
     ipcRenderer.on('bot-log-lines', handler)
     return () => ipcRenderer.removeListener('bot-log-lines', handler)
+  },
+  onMarketingRunUpdate: (callback) => {
+    const handler = (_event, update) => callback(update)
+    ipcRenderer.on('marketing-run-update', handler)
+    return () => ipcRenderer.removeListener('marketing-run-update', handler)
   },
 })

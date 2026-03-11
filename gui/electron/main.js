@@ -14,6 +14,7 @@ let logWatcherInterval = null
 let botLogWatcherInterval = null
 let lastLogSize = 0
 let lastBotLogSize = 0
+let marketingRunInProgress = false
 
 // ─── Window ───────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,15 @@ function killProcessTree(pid) {
       }
     }
   } catch { /* ignore */ }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function emitMarketingUpdate(update) {
+  if (!mainWindow) return
+  mainWindow.webContents.send('marketing-run-update', update)
 }
 
 /**
@@ -366,6 +376,69 @@ ipcMain.handle('get-env-config', async () => {
     }
   }
   return sanitized
+})
+
+ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) => {
+  if (marketingRunInProgress) {
+    return { success: false, error: 'Ya hay una ejecucion del agente de marketing en curso' }
+  }
+
+  const budget = String(payload.budget || '').trim()
+  const startDate = String(payload.startDate || '').trim()
+  const endDate = String(payload.endDate || '').trim()
+
+  if (!budget || !startDate || !endDate) {
+    return { success: false, error: 'Faltan presupuesto y/o fechas para ejecutar el agente' }
+  }
+
+  marketingRunInProgress = true
+  emitMarketingUpdate({ type: 'status', status: 'running', summary: 'Ejecutando agente de marketing...' })
+
+  const preview = {
+    objective: 'Clientes potenciales',
+    url: 'noyecode.com',
+    country: 'Colombia',
+    formFields: ['Nombre', 'Apellido', 'Correo', 'Numero de telefono'],
+    budget,
+    startDate,
+    endDate,
+    mcpAvailable: false,
+  }
+
+  const steps = [
+    '[1/6] Iniciando agente de marketing...',
+    '[2/6] Cargando reglas activas para Facebook Ads...',
+    `[3/6] Preparando campaña con presupuesto ${budget} y ventana ${startDate} -> ${endDate}...`,
+    '[4/6] Aplicando objetivo leads, URL noyecode.com y formulario de contacto...',
+    '[5/6] Verificando disponibilidad del MCP de Facebook Ads...',
+    '[6/6] MCP no disponible en esta sesion. Se genera previsualizacion local y se detiene antes de publicar.',
+  ]
+
+  try {
+    for (const line of steps) {
+      emitMarketingUpdate({ type: 'log', line })
+      await sleep(650)
+    }
+
+    emitMarketingUpdate({
+      type: 'done',
+      status: 'warning',
+      summary: 'Previsualizacion generada. Falta una integracion MCP activa para crear/publicar la campaña real.',
+      preview,
+    })
+
+    return { success: true }
+  } catch (err) {
+    emitMarketingUpdate({
+      type: 'done',
+      status: 'error',
+      summary: `La ejecucion del agente fallo: ${err.message || err}`,
+      preview,
+    })
+    return { success: false, error: err.message }
+  } finally {
+    marketingRunInProgress = false
+  }
 })
 
 // ─── Log Watcher ──────────────────────────────────────────────────────────────
