@@ -1,11 +1,11 @@
 {
   "mcpServers": {
     "fb-ads-mcp-server": {
-      "command": "python",
+      "command": "/Users/ipadmini/publicidad/utils/AgenteMarketing/MCP/fb-ads-mcp-server/.venv/bin/python",
       "args": [
-        "/path/to/your/fb-ads-mcp-server/server.py",
+        "/Users/ipadmini/publicidad/utils/AgenteMarketing/MCP/fb-ads-mcp-server/server.py",
         "--fb-token",
-        "YOUR_META_ACCESS_TOKEN"
+        "EAALTDIaJuDIBQ6c1ENDUEbLYc6yMsFlIA14SShhOB6mz0y5dl9AqMPSNtngRTrHJHiR1YN2p0tl7HOXZAEsVJcf8ppYNO8yBYxNP0LfPkeOoM7blz4EyYdKcU63BPUdW8d7dR2jxJ8lWZC2BQwZCWB0BvSZBX2AtoKlvpZBcShnlpfZBZB3Lwa4wZAu6jgHurNLGl8tXjUrMvPUZBK1jMHKPSOZBOJx36TtpZCoEUAIPBEHqIDAvJJrX43QwR0cYwkTL0KnxvqWlnNZC2G1jEYccNR6trZB2avUnBFbDCSIHMbL4ZD"
       ]
     }
   }
