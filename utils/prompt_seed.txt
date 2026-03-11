@@ -1,71 +1,70 @@
-Genera un unico prompt en ingles listo para DALL-E que produzca una pieza publicitaria premium para NoyeCode.
+Genera un unico prompt en ingles listo para DALL-E que produzca una pieza publicitaria para redes sociales al estilo de un anuncio de Facebook/Instagram de empresa tech.
 
 Datos de empresa (usar en el texto dentro de la imagen):
 - Empresa: NoyeCode
 - Slogan: "Tu Casa de Desarrollo de Software"
 - Telefono/WhatsApp: +57 301 385 9952
 - Sitio web: noyecode.com
-- Ubicacion: Bogota, Colombia
 
-Servicios para promocionar (elegir uno como protagonista, mencionar 2-3 mas como secundarios):
-- desarrollo de software a la medida
-- automatizaciones empresariales
-- modernizacion de software legacy
+Servicios para promocionar (elegir UNO como protagonista):
+- Desarrollo de software a la medida
+- Automatizaciones empresariales
+- Apps empresariales para campo (GPS, tracking, reportes)
+- Software para negocios (CRM, ERP, inventario, ventas)
+- Apps no-code (automatizar procesos, dashboards)
+- Dashboards y analisis de datos en tiempo real
+- Desarrollo Android y desktop
+- Soporte tecnico informatico
 - RPAs nativos
-- desarrollo Android y desktop
-- apps empresariales para campo (GPS, tracking, reportes)
-- software para negocios (CRM, ERP, inventario, ventas)
-- apps no-code (automatizar procesos, dashboards, sistemas internos)
-- soporte tecnico informatico
-- dashboards y analisis de datos en tiempo real
+- Modernizacion de software legacy
 
-IMPORTANTE sobre el logo y texto:
-- NO dibujar el logo de NoyeCode. El logo real tiene llaves de codigo { }, nodos de red y tipografia muy especifica que DALL-E no puede replicar. Si se intenta, sale mal y arruina la imagen.
-- En su lugar, dejar una ZONA LIMPIA en la parte superior de la imagen (franja de color solido oscuro o gradiente sin elementos) donde el logo real se superpondra despues en post-produccion.
-- La zona limpia para el logo debe ser aproximadamente 15% de la altura superior, centrada, sin texto ni graficos encima.
-- El texto "noyecode.com" SI puede aparecer en la zona inferior como texto plano pequeno en blanco.
-- El numero "+57 301 385 9952" SI puede aparecer como texto plano pequeno en blanco en la zona inferior.
-- El nombre del servicio principal SI debe aparecer como texto grande y claro en la imagen.
-- Un CTA corto de 3-4 palabras SI debe aparecer (ej: "Cotiza gratis hoy", "Agenda tu demo", "Escríbenos hoy").
-- Minimizar la cantidad total de texto. Solo: servicio principal, CTA, web y telefono. NO escribir "NoyeCode" como texto, el logo real se agrega despues.
-- Todo el texto debe ser nitido, bien espaciado, 100% legible, en tipografia sans-serif moderna.
+ESTILO VISUAL OBLIGATORIO (muy importante, seguir al pie de la letra):
+La imagen NO debe parecer una foto realista. Debe ser una PIEZA DE DISENO GRAFICO estilo anuncio de Facebook, como los que hacen empresas tech (Base44, AgentUI, SIC Colombia). Caracteristicas clave:
+- Fondo: gradiente simple y limpio (oscuro a claro, o azul oscuro a negro, o naranja sutil a oscuro). NO fondos fotograficos complejos.
+- Texto: grande, bold, legible, como protagonista principal de la imagen. Tipografia sans-serif gruesa moderna.
+- Dispositivos: incluir 1-2 mockups de dispositivos (laptop, smartphone o tablet) mostrando una interfaz/dashboard de software con datos ficticios pero realistas (graficos, tablas, metricas, sidebar de navegacion).
+- Los mockups de dispositivos deben verse como capturas reales de un SaaS moderno con UI oscura o clara, profesional.
 
-Paleta de colores obligatoria:
-- Color principal: naranja vibrante (#fd9102) para acentos, titulos y elementos destacados.
-- Fondo: gradiente oscuro elegante (de #1a1a2e a #16213e) o gradiente oscuro a naranja sutil.
-- Texto principal: blanco (#ffffff) sobre fondo oscuro.
-- Acentos secundarios: naranja claro, dorado suave o azul corporativo oscuro.
-- NO usar colores neon, rosa, verde lima ni combinaciones estridentes.
-
-Composicion y layout:
+LAYOUT Y COMPOSICION:
 - Formato vertical 4:5 (optimizado para feed de Instagram y Facebook).
-- Zona superior (15% de la imagen): franja limpia de color solido oscuro o gradiente, SIN texto ni graficos. Esta zona se reserva para superponer el logo real en post-produccion.
-- Zona central (55%): escena visual principal del servicio, fotografica y de alta calidad.
-- Zona inferior (30%): franja oscura semitransparente con texto del servicio principal (grande), CTA, noyecode.com y +57 301 385 9952.
-- Margenes de seguridad amplios: ningun elemento a menos de 8% del borde.
-- Jerarquia visual clara: escena visual > nombre del servicio > datos de contacto.
-- La transicion entre la zona del logo y la escena debe ser suave (gradiente, no corte duro).
+- Zona superior (15%): franja de color solido oscuro, COMPLETAMENTE LIMPIA, sin texto ni graficos. Se reserva para el logo en post-produccion.
+- Zona de titulo (20-25%): texto principal del servicio en grande, bold, blanco o naranja. Puede incluir un subtitulo corto de 1 linea.
+- Zona central (35-40%): mockup de dispositivo(s) mostrando interfaz de software. Este es el elemento visual principal.
+- Zona inferior (15-20%): CTA corto + noyecode.com + +57 301 385 9952 en texto pequeno.
+- Margenes amplios: nada a menos del 8% del borde.
 
-Escena visual (elegir una linea al azar):
-1. Profesional en oficina moderna usando laptop con dashboard SaaS en pantalla, graficos de analytics visibles, ambiente corporativo iluminado con luz calida lateral.
-2. Equipo de 2-3 personas en mesa de trabajo revisando tablet y laptop con interfaz de software moderno, ambiente colaborativo profesional.
-3. Smartphone en primer plano mostrando app empresarial con mapa GPS y metricas, fondo desenfocado de oficina moderna.
-4. Laptop abierta sobre escritorio minimalista mostrando interfaz de CRM/ERP moderno con graficos, taza de cafe al lado, planta decorativa, luz natural.
-5. Pantalla de computador mostrando interfaz drag-and-drop de app builder, manos de persona trabajando, estetica startup limpia.
-6. Tecnico IT profesional con laptop mostrando interfaz de diagnostico, ambiente de oficina tech.
-7. Vista cenital de escritorio con laptop, tablet y smartphone mostrando dashboards sincronizados, estetica flat lay tech premium.
-8. Dos profesionales mirando monitor grande con dashboard de analytics en tiempo real, graficos de barras y lineas, ambiente de sala de juntas moderna.
-9. Mano sosteniendo smartphone con app de tracking de empleados, mapa con pins, fondo urbano desenfocado.
-10. Laptop con interfaz de automatizacion de procesos (nodos conectados tipo workflow), escritorio ordenado, luz cinematica.
+TEXTO DENTRO DE LA IMAGEN:
+- Titulo principal: una frase corta y directa en espanol que venda el servicio (ej: "Tu negocio merece su propio software", "Automatiza tu empresa hoy", "Control total de tu operacion", "Apps a la medida de tu negocio"). Maximo 8-10 palabras.
+- Subtitulo opcional: 1 linea corta complementaria (ej: "Sin programar. Sin esperar meses.", "Desde Bogota para toda Latinoamerica").
+- CTA: boton o texto destacado (ej: "Cotiza gratis", "Agenda tu demo", "Escribenos hoy").
+- Contacto: "noyecode.com" y "+57 301 385 9952" en pequeno abajo.
+- NO escribir "NoyeCode" como texto en ninguna parte. El logo se agrega despues.
+- Todo el texto debe ser NITIDO, bien espaciado, 100% legible.
 
-Estilo fotografico y de renderizado (incluir estas palabras clave en el prompt):
-- photorealistic, commercial photography, advertising campaign
-- soft cinematic lighting, warm side light, subtle depth of field
-- clean minimalist composition, negative space for text
-- corporate tech aesthetic, premium quality, magazine advertisement
-- sharp focus on screens and devices, realistic UI on screens
-- color grading: warm orange tones with cool dark shadows
-- NO usar: ilustracion cartoon, 3D render plastico, neon excesivo, cyberpunk, futurismo exagerado, cascos VR
+PALETA DE COLORES:
+- Principal: naranja vibrante (#fd9102) para titulos, acentos, botones CTA.
+- Fondo: gradiente oscuro elegante (#1a1a2e a #16213e) o gradiente oscuro a naranja sutil. Tambien se acepta fondo claro/blanco con acentos naranja si el servicio lo amerita.
+- Texto: blanco sobre fondo oscuro, o negro sobre fondo claro.
+- NO usar: neon, rosa, verde lima, cyberpunk, colores estridentes.
+
+ESCENAS DE DISPOSITIVOS (elegir una al azar):
+1. Laptop abierta en angulo 3/4 mostrando dashboard SaaS oscuro con sidebar, graficos de barras, metricas KPI, tabla de datos.
+2. Smartphone en primer plano mostrando app movil con mapa GPS, lista de tareas y metricas, con laptop desenfocada atras mostrando panel de control.
+3. Laptop y tablet lado a lado mostrando la misma plataforma en diferentes vistas (dashboard general y detalle de registro).
+4. Laptop frontal mostrando interfaz drag-and-drop de automatizacion con nodos conectados tipo workflow.
+5. Multiples dispositivos (laptop + phone + tablet) en composicion tipo "hero shot" mostrando dashboards sincronizados.
+6. Laptop mostrando CRM moderno con lista de contactos, pipeline de ventas y graficos.
+7. Smartphone grande mostrando app de tracking con mapa y pins de ubicacion, estadisticas en overlay.
+8. Monitor/laptop mostrando dashboard de analytics con graficos de lineas, tortas y barras en tiempo real.
+
+ESTILO DE RENDERIZADO (palabras clave para el prompt):
+- clean graphic design, social media advertisement, Facebook ad style
+- bold modern typography, sans-serif heavy font
+- smooth gradient background, minimalist composition
+- device mockup with realistic software UI on screen
+- flat design elements, corporate tech aesthetic
+- professional, premium quality, clean layout
+- NO usar: photorealistic photography, cinematic lighting, depth of field, bokeh, personas reales, oficinas reales
 
 Reglas estrictas para el prompt de salida:
 - El prompt debe estar 100% en ingles.
@@ -73,6 +72,7 @@ Reglas estrictas para el prompt de salida:
 - NO incluir encabezados, explicaciones, opciones ni preguntas.
 - NO pedir "dos versiones" ni "variantes".
 - Especificar el texto exacto que debe aparecer en la imagen entre comillas dobles.
-- NUNCA pedir que dibuje el logo de NoyeCode ni escriba "NoyeCode". Solo pedir la zona limpia superior para el logo.
-- Incluir al final: "vertical 4:5 aspect ratio, 4K resolution, photorealistic commercial advertisement"
+- NUNCA pedir que dibuje el logo de NoyeCode ni escriba "NoyeCode".
+- Pedir explicitamente la zona limpia superior de color solido oscuro para el logo.
+- Incluir al final: "vertical 4:5 aspect ratio, 4K resolution, social media advertisement, clean graphic design"
 - El prompt debe producir UNA sola imagen final.
