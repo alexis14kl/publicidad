@@ -239,8 +239,8 @@ const { chromium } = require('playwright');
     const chosenLocator = page.locator('[role="menuitemradio"]').nth(chosen.index);
     await chosenLocator.scrollIntoViewIfNeeded().catch(() => {});
 
-    // Click en la cuenta: puede disparar navegacion inmediata (?account_switch=true)
-    // por eso usamos Promise.all para no perder la navegacion
+    // Click en la cuenta: SIEMPRE dispara navegacion inmediata (?account_switch=true)
+    // Cualquier metodo de click que cause navegacion se considera exitoso.
     let clickDone = false;
     try {
       await Promise.all([
@@ -248,39 +248,64 @@ const { chromium } = require('playwright');
         chosenLocator.click({ timeout: 5000, noWaitAfter: true }),
       ]);
       clickDone = true;
-    } catch {
-      // Si click fallo, intentar evaluate directo antes de que navegue
-      try {
-        const handle = await chosenLocator.elementHandle({ timeout: 3000 });
-        if (handle) {
-          await page.evaluate((el) => el.click(), handle);
-          clickDone = true;
+    } catch (clickErr) {
+      // Navigation-destroyed context means the click DID trigger navigation = success
+      if (String(clickErr).includes('context was destroyed') || String(clickErr).includes('navigation')) {
+        console.error('[ROTATION] Click causo navegacion (esperado). Continuando...');
+        clickDone = true;
+      } else {
+        // Real click failure, try evaluate fallback
+        try {
+          const handle = await chosenLocator.elementHandle({ timeout: 3000 });
+          if (handle) {
+            await page.evaluate((el) => el.click(), handle);
+            clickDone = true;
+          }
+        } catch (evalErr) {
+          if (String(evalErr).includes('context was destroyed') || String(evalErr).includes('navigation')) {
+            clickDone = true;
+          }
         }
-      } catch {}
+      }
     }
 
     if (!clickDone) {
       // Ultimo intento: click por JS directo en el indice
-      await page.evaluate((idx) => {
-        const items = document.querySelectorAll('[role="menuitemradio"]');
-        if (items[idx]) items[idx].click();
-      }, chosen.index);
+      try {
+        await page.evaluate((idx) => {
+          const items = document.querySelectorAll('[role="menuitemradio"]');
+          if (items[idx]) items[idx].click();
+        }, chosen.index);
+        clickDone = true;
+      } catch (lastErr) {
+        // Navigation = the click worked
+        if (String(lastErr).includes('context was destroyed') || String(lastErr).includes('navigation')) {
+          clickDone = true;
+        } else {
+          throw lastErr;
+        }
+      }
     }
 
     console.error('[ROTATION] Click en cuenta: ' + chosen.label);
 
-    // Esperar a que la pagina termine de cargar tras el cambio
-    await page.waitForTimeout(3000);
+    // Esperar a que la pagina termine de cargar tras el cambio de cuenta
+    await page.waitForTimeout(4000);
     await page.waitForLoadState('domcontentloaded').catch(() => {});
     console.error('[ROTATION] Pagina recargada, navegando a chat limpio...');
 
-    // Navegar a chat limpio (si ya estamos en chatgpt.com, usar evaluate para evitar conflicto de navegacion)
+    // Navegar a chat limpio
     try {
-      await page.evaluate(() => { window.location.href = 'https://chatgpt.com/'; });
-      await page.waitForLoadState('domcontentloaded', { timeout: 20000 });
+      await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded', timeout: 20000 });
     } catch {
-      console.error('[ROTATION] Navegacion por evaluate fallo, intentando goto...');
-      await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+      console.error('[ROTATION] goto fallo, intentando evaluate...');
+      try {
+        await page.evaluate(() => { window.location.href = 'https://chatgpt.com/'; });
+        await page.waitForLoadState('domcontentloaded', { timeout: 20000 });
+      } catch {
+        console.error('[ROTATION] Navegacion por evaluate tambien fallo, esperando...');
+        await page.waitForTimeout(5000);
+      }
     }
 
     // Esperar a que el composer este listo
