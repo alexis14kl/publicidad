@@ -16,3 +16,8 @@ rich>=14.0
 # Soporte de colores ANSI en terminales Windows (CMD/PowerShell)
 colorama>=0.4.6
 
+# Carga de variables desde .env para runners y worker
+python-dotenv>=1.0
+
+# Manipulacion de imagenes para overlay del logo
+Pillow>=11.0
