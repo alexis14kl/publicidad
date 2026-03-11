@@ -697,7 +697,8 @@ def main() -> int:
     try:
         args = parse_args()
         validate_args(args)
-        log_ok(f"Worker iniciado [{args.worker_id}] modo={args.queue_mode} intervalo={args.poll_interval}s")
+        dev_mode = _env("DEV_MODE", "0")
+        log_ok(f"Worker iniciado [{args.worker_id}] modo={args.queue_mode} intervalo={args.poll_interval}s DEV_MODE={dev_mode}")
 
         if args.once:
             return run_once(args)

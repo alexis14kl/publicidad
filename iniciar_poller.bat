@@ -4,6 +4,13 @@ title Worker local n8n -> bot publicitario
 
 call "%~dp0cfg\rutas.bat"
 
+rem --- Cargar variables del .env al entorno ---
+if exist "%ROOT_DIR%\.env" (
+  for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ROOT_DIR%\.env") do (
+    if not "%%A"=="" if not "%%B"=="" set "%%A=%%B"
+  )
+)
+
 if not exist "%JOB_POLLER_PY%" (
   echo [ERROR] No existe el worker local: "%JOB_POLLER_PY%"
   if /I not "%NO_PAUSE%"=="1" pause

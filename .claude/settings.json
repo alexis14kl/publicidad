@@ -22,7 +22,8 @@
       "Bash(tasklist)",
       "Bash(wmic process:*)",
       "Bash(taskkill //PID 16176 //F)",
-      "Bash(taskkill //PID 21364 //F)"
+      "Bash(taskkill //PID 21364 //F)",
+      "Bash(python -c \":*)"
     ]
   }
 }

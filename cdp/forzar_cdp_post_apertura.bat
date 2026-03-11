@@ -5,6 +5,13 @@ title Forzar CDP Perfil (Post Apertura)
 rem --- Cargar rutas centralizadas ---
 call "%~dp0..\cfg\rutas.bat"
 
+rem --- Cargar variables del .env al entorno ---
+if exist "%ROOT_DIR%\.env" (
+  for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ROOT_DIR%\.env") do (
+    if not "%%A"=="" if not "%%B"=="" set "%%A=%%B"
+  )
+)
+
 rem --- MODO DESARROLLO: poner DEV_MODE=1 para que no cierre perfil ni consola ---
 if not defined DEV_MODE set "DEV_MODE=0"
 
@@ -25,7 +32,7 @@ if not exist "%FORCE_CDP_PS1%" (
 
 %LOG% info "Ejecutando forzado CDP..."
 %LOG% debug "powershell -NoProfile -ExecutionPolicy Bypass -File %FORCE_CDP_PS1% -PreferredPort 9225 -TimeoutSec 30 -OpenDebugWindow"
-python "%RUN_WITH_PROGRESS_PY%" "Forzando CDP del perfil..." "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%FORCE_CDP_PS1%" -PreferredPort 9225 -TimeoutSec 30 -OpenDebugWindow
+python "%RUN_WITH_PROGRESS_PY%" "Forzando CDP del perfil..." "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%FORCE_CDP_PS1%" -PreferredPort 9225 -TimeoutSec 30
 
 if errorlevel 1 (
   %LOG% warn "El forzado CDP devolvio error."
@@ -42,12 +49,21 @@ if not errorlevel 1 (
 if "%HAS_DEBUG_PORT%"=="0" (
   %LOG% warn "No se detecto debugPort tras primer intento. Reforce en 10 segundos..."
   python "%RUN_WITH_PROGRESS_PY%" "Esperando 10s antes de reforzar CDP..." timeout /t 10 /nobreak
-  python "%RUN_WITH_PROGRESS_PY%" "Reforzando CDP del perfil..." "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%FORCE_CDP_PS1%" -PreferredPort 9225 -TimeoutSec 30 -OpenDebugWindow
+  python "%RUN_WITH_PROGRESS_PY%" "Reforzando CDP del perfil..." "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%FORCE_CDP_PS1%" -PreferredPort 9225 -TimeoutSec 30
   if errorlevel 1 (
     %LOG% warn "Reforce devolvio error."
   ) else (
     %LOG% ok "Reforce ejecutado."
   )
+)
+
+rem --- Esperar a que CDP este listo antes de pegar prompt ---
+%LOG% info "Verificando que CDP responda antes de pegar prompt..."
+python -c "import time,urllib.request;deadline=time.time()+30;ok=False;exec('while time.time()<deadline:\n try:\n  with urllib.request.urlopen(\"http://127.0.0.1:9225/json/version\",timeout=3) as r:\n   if b\"webSocket\" in r.read(): ok=True; break\n except: pass\n time.sleep(2)');exit(0 if ok else 1)"
+if errorlevel 1 (
+  %LOG% warn "CDP no responde en puerto 9225. El prompt puede fallar."
+) else (
+  %LOG% ok "CDP listo en puerto 9225."
 )
 
 if exist "%PROMPT_AUTOMATION_PY%" (
@@ -63,6 +79,15 @@ if exist "%PROMPT_AUTOMATION_PY%" (
         %LOG% warn "No se pudo descargar la imagen generada."
       ) else (
         %LOG% ok "imagen descargada con exito"
+        if exist "%OVERLAY_LOGO_PY%" (
+          %LOG% info "Superponiendo logo real de NoyeCode sobre la imagen..."
+          python "%RUN_WITH_PROGRESS_PY%" "Aplicando logo NoyeCode..." python "%OVERLAY_LOGO_PY%" "%IMG_PUBLICITARIAS_DIR%"
+          if errorlevel 1 (
+            %LOG% warn "No se pudo superponer el logo. Se enviara la imagen sin logo."
+          ) else (
+            %LOG% ok "Logo superpuesto con exito"
+          )
+        )
         if exist "%PUBLIC_IMG_PY%" (
           python "%RUN_WITH_PROGRESS_PY%" "Enviando imagen a n8n para publicacion..." python "%PUBLIC_IMG_PY%"
           if errorlevel 1 (
@@ -144,10 +169,10 @@ rem --- Paso 4: Limpieza avanzada (servicios, hijos, puerto 9333) ---
 
 %LOG% ok "DiCloak y perfil cerrados. Worker sigue en background."
 
-rem --- Paso 5: Cerrar esta ventana de consola ---
-%LOG% ok "Proceso completado. Cerrando consola..."
+rem --- Paso 5: Finalizar bat (regresa al proceso padre) ---
+%LOG% ok "Proceso completado."
 endlocal
-exit
+exit /b 0
 
 :RUN_PYTHON_SCRIPT
 setlocal
