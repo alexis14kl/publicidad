@@ -29,7 +29,8 @@
       "Bash(cargo --version)",
       "Bash(npm --version)",
       "Bash(python -c \"from cfg.platform import *; print\\(''platform OK''\\); print\\(''IS_WINDOWS='', IS_WINDOWS\\); print\\(''dicloak='', find_dicloak_exe\\(\\)\\); print\\(''orchestrator exists='', \\(PROJECT_ROOT / ''orchestrator.py''\\).exists\\(\\)\\)\")",
-      "Bash(python -c \"from server.bot_runner import _run_full_cycle, RunResult; print\\(''bot_runner imports OK''\\)\")"
+      "Bash(python -c \"from server.bot_runner import _run_full_cycle, RunResult; print\\(''bot_runner imports OK''\\)\")",
+      "Bash(python -c \"from cdp.force_cdp import force_cdp; from cdp.post_opening import post_opening_automation; print\\(''Imports OK''\\)\")"
     ]
   }
 }

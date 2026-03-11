@@ -135,7 +135,8 @@ def force_cdp(
 
     # Kill current ginsbrowser
     kill_process_by_name(get_browser_process_name(), force=True)
-    time.sleep(1)
+    # Wait for process to fully die and release profile locks
+    time.sleep(3)
 
     # Build new command
     base_cmd = cmd
@@ -149,7 +150,53 @@ def force_cdp(
         base_cmd = f"{base_cmd} --remote-debugging-port={target_port}"
 
     # Launch detached
-    proc = launch_detached(base_cmd)
+    launch_detached(base_cmd)
+
+    # Verify ginsbrowser actually started (wait up to 8s)
+    browser_up = False
+    for _ in range(16):
+        time.sleep(0.5)
+        new_procs = get_process_list()
+        new_main = _find_main_gins_process(new_procs)
+        if new_main:
+            browser_up = True
+            break
+
+    if not browser_up:
+        # Fallback: try launching with list-form command to avoid CIM issues
+        log_warn("CIM no lanzo ginsbrowser. Intentando con Popen directo...")
+        import subprocess
+        exe_path_parsed = _parse_exe_path(base_cmd)
+        if exe_path_parsed:
+            # Extract args from the command line after the exe
+            # Remove the quoted exe portion from the base_cmd
+            args_str = base_cmd
+            if args_str.startswith('"'):
+                close_idx = args_str.index('"', 1)
+                args_str = args_str[close_idx + 1:].strip()
+            elif exe_path_parsed in args_str:
+                args_str = args_str[len(exe_path_parsed):].strip()
+            try:
+                if IS_WINDOWS:
+                    flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                    subprocess.Popen(
+                        f'"{exe_path_parsed}" {args_str}',
+                        shell=True,
+                        creationflags=flags,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                else:
+                    import shlex
+                    subprocess.Popen(
+                        [exe_path_parsed] + shlex.split(args_str),
+                        start_new_session=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                time.sleep(3)
+            except Exception as e:
+                log_warn(f"Fallback Popen tambien fallo: {e}")
 
     # Poll for CDP
     deadline = time.time() + timeout_sec
@@ -167,15 +214,9 @@ def force_cdp(
     ws_url = ver.get("webSocketDebuggerUrl", "") if ver else ""
 
     # Get new PID
-    new_pid = 0
-    if proc and hasattr(proc, "pid"):
-        new_pid = proc.pid
-    else:
-        # Try to find it from process list
-        new_procs = get_process_list()
-        new_main = _find_main_gins_process(new_procs)
-        if new_main:
-            new_pid = new_main["pid"]
+    new_procs = get_process_list()
+    new_main = _find_main_gins_process(new_procs)
+    new_pid = new_main["pid"] if new_main else 0
 
     path_out = upsert_cdp_debug_info(
         env_id=env_id, port=target_port,
