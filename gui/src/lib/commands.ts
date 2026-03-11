@@ -1,4 +1,10 @@
-import type { BotStatus, LastJob, CommandResult } from './types'
+import type {
+  BotStatus,
+  LastJob,
+  CommandResult,
+  MarketingCampaignPayload,
+  MarketingRunUpdate,
+} from './types'
 
 const api = () => window.electronAPI
 
@@ -9,7 +15,10 @@ export const stopBot = (): Promise<CommandResult> => api().stopBot()
 export const startPoller = (): Promise<CommandResult> => api().startPoller()
 export const stopPoller = (): Promise<CommandResult> => api().stopPoller()
 export const isPollerRunning = (): Promise<boolean> => api().isPollerRunning()
+export const runMarketingCampaignPreview = (payload: MarketingCampaignPayload): Promise<CommandResult> =>
+  api().runMarketingCampaignPreview(payload)
 export const readLogLines = (count?: number): Promise<string[]> => api().readLogLines(count)
 export const getEnvConfig = (): Promise<Record<string, string>> => api().getEnvConfig()
 export const onLogNewLines = (cb: (lines: string[]) => void) => api().onLogNewLines(cb)
 export const onBotLogLines = (cb: (lines: string[]) => void) => api().onBotLogLines(cb)
+export const onMarketingRunUpdate = (cb: (update: MarketingRunUpdate) => void) => api().onMarketingRunUpdate(cb)
