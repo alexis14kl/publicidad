@@ -1,82 +1,74 @@
-Crear una sola imagen publicitaria premium para NoyeCode enfocada en captar clientes de software.
+Genera un unico prompt en ingles listo para DALL-E que produzca una pieza publicitaria premium para NoyeCode.
 
-Datos fijos de empresa:
+Datos de empresa (usar en el texto dentro de la imagen):
 - Empresa: NoyeCode
-- Slogan: "Tu Casa de Desarrollo de Software - Desarrollo a Medida con NoCode + IA"
-- Responsable comercial: Gerson Javier Barbosa Romero
-- Telefono: +57 301 385 9952
+- Slogan: "Tu Casa de Desarrollo de Software"
+- Telefono/WhatsApp: +57 301 385 9952
 - Sitio web: noyecode.com
-- Ubicacion: Bogota, Kennedy, Colombia
+- Ubicacion: Bogota, Colombia
 
-Logo oficial de NoyeCode (debe aparecer en la imagen):
-- Tipo: logo tipografico con simbolo de codigo, monocromatico naranja.
-- Color unico del logo: naranja vibrante (#fd9102).
-- Forma: el logo consiste en dos llaves de programacion estilizadas { } en naranja que enmarcan el texto "NoyeCode" escrito en tipografia sans-serif moderna y limpia. Entre las llaves y el texto hay tres puntos decorativos alineados verticalmente (como indicador de codigo). Todo el conjunto es horizontal, compacto y equilibrado.
-- El texto "NoyeCode" es parte integral del logo, no se separa del simbolo.
-- Colores de marca: naranja (#fd9102) como color principal, fondos oscuros (#222222, #333333) o blancos para contraste.
-- Ubicacion sugerida en la pieza: parte superior (centrado o esquina superior izquierda), con tamano moderado, visible pero sin invadir la composicion.
-- El logo debe verse nitido, profesional, tech y moderno.
-- IMPORTANTE: el logo es { NoyeCode } con llaves de codigo naranja y tipografia sans-serif. NO inventar otros iconos, escudos, circulos ni formas que no correspondan. Es un logo de codigo/developer estilizado.
-
-Servicios que si se deben promocionar:
-- desarrollo a la medida
+Servicios para promocionar (elegir uno como protagonista, mencionar 2-3 mas como secundarios):
+- desarrollo de software a la medida
 - automatizaciones empresariales
-- actualizacion y modernizacion de software legacy
+- modernizacion de software legacy
 - RPAs nativos
-- desarrollo Android
-- desarrollo desktop
-- apps empresariales para trabajo en campo (control de empleados, seguimiento GPS, reportes en tiempo real, gestion de clientes, gestion de tecnicos)
-- software a medida para negocios (CRM, ERP, sistema de inventario, sistema de ventas, gestion de proyectos)
-- apps sin programar / no-code (apps de negocio, automatizar procesos, dashboards personalizados, sistemas internos)
-- soporte tecnico informatico (diagnostico, mantenimiento, reparacion, soporte remoto, redes)
-- dashboards y analisis de datos (metricas, ventas, empleados, productividad, reportes en tiempo real)
+- desarrollo Android y desktop
+- apps empresariales para campo (GPS, tracking, reportes)
+- software para negocios (CRM, ERP, inventario, ventas)
+- apps no-code (automatizar procesos, dashboards, sistemas internos)
+- soporte tecnico informatico
+- dashboards y analisis de datos en tiempo real
 
-Reglas claras para la imagen:
-- La imagen debe promocionar un servicio o producto de NoyeCode, no la ciudad.
-- El protagonista visual debe ser el servicio, el software, el equipo con el cliente o el resultado de negocio.
-- Bogota solo puede aparecer como contexto sutil, nunca como tema principal.
-- No usar pantallas gigantes saliendo de edificios.
-- No usar cascos VR ni escenas futuristas exageradas.
-- Formato ideal de salida: vertical 4:5, optimizado para Facebook e Instagram.
-- Dejar margenes de seguridad amplios para que el contenido no salga cortado en los bordes al publicarse.
-- No poner texto, CTA, rostros o elementos clave pegados a los laterales o esquinas.
-- El logo de NoyeCode si debe aparecer, pero dentro de la zona segura (no pegado al borde extremo).
-- Mantener el contenido importante dentro de una zona segura central.
-- El texto dentro de la imagen es importante porque la pieza es para redes sociales.
-- Incluir copy publicitario corto y claro dentro de la composicion.
-- Incluir CTA comercial visible.
-- Incluir sitio web: noyecode.com
-- Incluir WhatsApp o telefono comercial: +57 301 385 9952
-- Incluir el servicio principal destacado de la pieza.
-- Incluir un bloque secundario breve con otros servicios de la empresa cuando el diseno lo permita.
-- Incluir hashtags comerciales de Facebook/Instagram cuando encajen con el formato del arte.
-- No hacer una postal urbana ni una escena generica de ciudad.
-- Debe verse como anuncio comercial premium, moderno, creible, 4K, con valor empresarial.
-- Priorizar composiciones que ayuden a vender confianza, profesionalismo, personalizacion, automatizacion y calidad tecnica.
-- Debe verse mas profesional, con direccion de arte premium, jerarquia visual limpia, mejor balance compositivo y acabado tipo agencia para Meta Ads.
+IMPORTANTE sobre el logo y texto:
+- El nombre "NoyeCode" debe aparecer escrito en texto grande y claro, en tipografia sans-serif bold, color naranja (#fd9102).
+- Escribir "NoyeCode" como texto plano, NO intentar dibujar un logo grafico ni un icono ni un emblema.
+- Usar la palabra exacta "NoyeCode" sin modificarla. No agregar simbolos alrededor del nombre.
+- El sitio web "noyecode.com" debe aparecer mas pequeno, tambien en texto plano.
+- El numero "+57 301 385 9952" debe aparecer como texto legible.
+- Todo el texto debe ser nitido, bien espaciado y 100% legible.
+- Minimizar la cantidad total de texto. Maximo: nombre, servicio principal, CTA de 3-4 palabras, web y telefono.
 
-Preferencia de enfoque:
-- Elegir una de estas lineas para la pieza visual:
-  1. reunion cliente + equipo de desarrollo mostrando software a la medida
-  2. automatizacion empresarial con dashboards reales, integraciones y eficiencia operativa
-  3. modernizacion de sistema legacy mostrando evolucion a plataforma moderna
-  4. RPA nativo resolviendo tareas repetitivas en entorno empresarial
-  5. app Android o software desktop profesional en uso real
-  6. app empresarial para campo: smartphone mostrando dashboard de tracking de empleados, mapa GPS, analytics en tiempo real, UI SaaS moderna
-  7. software para empresas: dashboard SaaS moderno en laptop y tablet, graficos de analytics, interfaz de gestion de equipo, estetica startup tech
-  8. plataforma no-code: interfaz de app builder drag-and-drop en laptop, emprendedor creando app movil sin programar, estetica startup limpia
-  9. soporte tecnico IT: tecnico trabajando en laptop, interfaz de diagnostico digital en pantalla, concepto de servicio tech profesional
-  10. dashboard empresarial: analytics en laptop, graficos, metricas y visualizacion de datos, interfaz SaaS futurista corporativa
+Paleta de colores obligatoria:
+- Color principal: naranja vibrante (#fd9102) para acentos, titulos y elementos destacados.
+- Fondo: gradiente oscuro elegante (de #1a1a2e a #16213e) o gradiente oscuro a naranja sutil.
+- Texto principal: blanco (#ffffff) sobre fondo oscuro.
+- Acentos secundarios: naranja claro, dorado suave o azul corporativo oscuro.
+- NO usar colores neon, rosa, verde lima ni combinaciones estridentes.
 
-Estilo visual requerido:
-- advertising banner, marketing design, tech startup branding, ultra detailed, cinematic lighting, depth of field, 4k
-- Siempre incluir elementos de interfaz UI realistas y glowing
-- Fondos con gradientes corporativos limpios
-- Composicion con espacio para texto publicitario
+Composicion y layout:
+- Formato vertical 4:5 (optimizado para feed de Instagram y Facebook).
+- Zona superior (20% de la imagen): nombre "NoyeCode" centrado, grande y claro.
+- Zona central (50%): escena visual principal del servicio.
+- Zona inferior (30%): bloque de texto con servicio, CTA, web y telefono sobre franja oscura semitransparente.
+- Margenes de seguridad amplios: ningun elemento a menos de 8% del borde.
+- Jerarquia visual clara: titulo > escena > datos de contacto.
 
-Salida esperada:
-- devolver un prompt listo para generador de imagen
-- sin encabezados
-- sin explicaciones
-- incluir texto comercial dentro de la imagen por defecto
-- incluir sitio web, WhatsApp y llamada a la accion
+Escena visual (elegir una linea al azar):
+1. Profesional en oficina moderna usando laptop con dashboard SaaS en pantalla, graficos de analytics visibles, ambiente corporativo iluminado con luz calida lateral.
+2. Equipo de 2-3 personas en mesa de trabajo revisando tablet y laptop con interfaz de software moderno, ambiente colaborativo profesional.
+3. Smartphone en primer plano mostrando app empresarial con mapa GPS y metricas, fondo desenfocado de oficina moderna.
+4. Laptop abierta sobre escritorio minimalista mostrando interfaz de CRM/ERP moderno con graficos, taza de cafe al lado, planta decorativa, luz natural.
+5. Pantalla de computador mostrando interfaz drag-and-drop de app builder, manos de persona trabajando, estetica startup limpia.
+6. Tecnico IT profesional con laptop mostrando interfaz de diagnostico, ambiente de oficina tech.
+7. Vista cenital de escritorio con laptop, tablet y smartphone mostrando dashboards sincronizados, estetica flat lay tech premium.
+8. Dos profesionales mirando monitor grande con dashboard de analytics en tiempo real, graficos de barras y lineas, ambiente de sala de juntas moderna.
+9. Mano sosteniendo smartphone con app de tracking de empleados, mapa con pins, fondo urbano desenfocado.
+10. Laptop con interfaz de automatizacion de procesos (nodos conectados tipo workflow), escritorio ordenado, luz cinematica.
+
+Estilo fotografico y de renderizado (incluir estas palabras clave en el prompt):
+- photorealistic, commercial photography, advertising campaign
+- soft cinematic lighting, warm side light, subtle depth of field
+- clean minimalist composition, negative space for text
+- corporate tech aesthetic, premium quality, magazine advertisement
+- sharp focus on screens and devices, realistic UI on screens
+- color grading: warm orange tones with cool dark shadows
+- NO usar: ilustracion cartoon, 3D render plastico, neon excesivo, cyberpunk, futurismo exagerado, cascos VR
+
+Reglas estrictas para el prompt de salida:
+- El prompt debe estar 100% en ingles.
+- Debe ser un solo parrafo continuo de 80-150 palabras.
+- NO incluir encabezados, explicaciones, opciones ni preguntas.
+- NO pedir "dos versiones" ni "variantes".
+- Especificar el texto exacto que debe aparecer en la imagen entre comillas.
+- Incluir al final: "vertical 4:5 aspect ratio, 4K resolution, photorealistic commercial advertisement"
+- El prompt debe producir UNA sola imagen final.

@@ -1,12 +1,3 @@
 {
-  "accounts": {
-    "chatgpt:9225:slot:0|label:chatgpt pro": {
-      "label": "ChatGPT Pro",
-      "ts": 1773152468.6599581
-    },
-    "chatgpt:9225:slot:1|label:chatgpt pro": {
-      "label": "ChatGPT Pro",
-      "ts": 1773152492.9962776
-    }
-  }
+  "accounts": {}
 }
