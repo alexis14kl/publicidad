@@ -177,26 +177,27 @@ if not errorlevel 1 (
 
 %LOG% step "7.5/10" "Esperando que el perfil cargue completamente..."
 python "%RUN_WITH_PROGRESS_PY%" "Polling carga del perfil (max 45s)..." "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$ok=$false; $ports=@();" ^
+  "$loaded=$false;" ^
   "1..45 | ForEach-Object {" ^
-  "  $gp = Get-Process ginsbrowser -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id;" ^
-  "  if (-not $gp) { Start-Sleep -Seconds 1; return };" ^
-  "  $ports = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $gp -contains $_.OwningProcess } | Select-Object -ExpandProperty LocalPort -Unique);" ^
-  "  foreach ($p in $ports) {" ^
+  "  $procs = @(Get-Process ginsbrowser -ErrorAction SilentlyContinue);" ^
+  "  if ($procs.Count -eq 0) { Start-Sleep -Seconds 1; return };" ^
+  "  foreach ($proc in $procs) {" ^
   "    try {" ^
-  "      $r = Invoke-WebRequest -UseBasicParsing -Uri \"http://127.0.0.1:$p/json/list\" -TimeoutSec 2;" ^
-  "      if ($r.StatusCode -ge 200 -and $r.Content -match 'title') { $ok=$true; break }" ^
+  "      $t = $proc.MainWindowTitle;" ^
+  "      if ($t -and $t.Length -gt 2) {" ^
+  "        Write-Host \"[OK] Ventana: $t\";" ^
+  "        $loaded=$true; break" ^
+  "      }" ^
   "    } catch {}" ^
   "  };" ^
-  "  if ($ok) { break };" ^
+  "  if ($loaded) { break };" ^
   "  Start-Sleep -Seconds 1" ^
   "};" ^
-  "if ($ok) { Write-Host '[OK] Perfil cargado - CDP respondiendo.'; exit 0 }" ^
-  "elseif ($ports.Count -gt 0) { Write-Host '[OK] Perfil activo con puertos LISTEN.'; exit 0 }" ^
+  "if ($loaded) { Write-Host '[OK] Perfil cargado.'; exit 0 }" ^
   "else {" ^
-  "  $gp2 = Get-Process ginsbrowser -ErrorAction SilentlyContinue;" ^
-  "  if ($gp2) { Write-Host '[OK] ginsbrowser activo (sin CDP aun).'; exit 0 }" ^
-  "  else { Write-Host '[WARN] ginsbrowser no detectado.'; exit 1 }" ^
+  "  $a = Get-Process ginsbrowser -ErrorAction SilentlyContinue;" ^
+  "  if ($a) { Write-Host '[OK] ginsbrowser activo (titulo pendiente).'; exit 0 }" ^
+  "  else { Write-Host '[WARN] ginsbrowser no encontrado.'; exit 1 }" ^
   "}"
 if errorlevel 1 (
   %LOG% warn "No se confirmo la carga del perfil. Continuando de todos modos..."
