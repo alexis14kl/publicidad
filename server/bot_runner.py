@@ -22,7 +22,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from utils.logger import log_info, log_ok, log_warn, log_error  # noqa: E402
 
-START_BAT = PROJECT_ROOT / "iniciar.bat"
+START_BAT = PROJECT_ROOT / "iniciar.bat"  # legacy, kept as fallback
+ORCHESTRATOR_PY = PROJECT_ROOT / "orchestrator.py"
 LOCK_FILE = PROJECT_ROOT / ".bot_runner.lock"
 DEFAULT_STALE_LOCK_SEC = 4 * 60 * 60
 
@@ -149,19 +150,12 @@ def get_status() -> dict[str, Any]:
 
 
 def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResult:
-    if not START_BAT.exists():
-        raise BotRunnerError(f"No existe iniciar.bat en {START_BAT}")
-
     payload = payload or {}
     profile_name = str(payload.get("profile_name", "")).strip()
 
-    command = ["cmd", "/c", str(START_BAT)]
-    if profile_name:
-        command.append(profile_name)
-
     env = os.environ.copy()
     env["NO_PAUSE"] = "1"
-    # Cargar variables del .env para que lleguen al bat (DEV_MODE, etc.)
+    # Cargar variables del .env para que lleguen al proceso (DEV_MODE, etc.)
     if ENV_FILE.exists():
         for key, value in dotenv_values(ENV_FILE).items():
             if value is not None:
@@ -170,40 +164,44 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
     log_file = PROJECT_ROOT / "logs" / "bot_runner_last.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # On Windows: wrap the command so iniciar.bat runs in its own console
-    # (needed for 'start ""' to launch GUI apps like DICloak) while
-    # redirecting all output to a log file we can read afterwards.
-    if os.name == "nt":
-        bat_args = " ".join(f'"{a}"' for a in command[2:])  # skip cmd /c
-        wrapper_cmd = f'cmd /c ""{command[2]}"" {" ".join(command[3:])} > "{log_file}" 2>&1'
-        run_command = ["cmd", "/c", str(command[2])] + command[3:]
+    # Prefer Python orchestrator (cross-platform) over legacy bat
+    if ORCHESTRATOR_PY.exists():
+        command = [sys.executable, str(ORCHESTRATOR_PY)]
+        if profile_name:
+            command.append(profile_name)
+        log_info(f"Usando orquestador Python: {ORCHESTRATOR_PY.name}")
+    elif START_BAT.exists() and os.name == "nt":
+        command = ["cmd", "/c", str(START_BAT)]
+        if profile_name:
+            command.append(profile_name)
+        log_info("Usando orquestador legacy: iniciar.bat")
     else:
-        run_command = command
+        raise BotRunnerError(
+            f"No existe orquestador: ni {ORCHESTRATOR_PY} ni {START_BAT}"
+        )
 
     started_at = time.time()
-    if os.name == "nt":
-        # CREATE_NEW_CONSOLE gives the bat its own console so 'start ""'
-        # can spawn GUI windows. We don't capture output via pipes since
-        # that would suppress the new console; instead the bat's output
-        # goes to the console and we check the exit code.
-        result = subprocess.run(
-            run_command,
-            cwd=str(PROJECT_ROOT),
-            timeout=timeout_sec,
-            env=env,
-            creationflags=subprocess.CREATE_NEW_CONSOLE,
-        )
-    else:
-        result = subprocess.run(
-            run_command,
-            cwd=str(PROJECT_ROOT),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="ignore",
-            timeout=timeout_sec,
-            env=env,
-        )
+    try:
+        if os.name == "nt" and command[0] == "cmd":
+            # Legacy bat path: needs its own console for 'start ""'
+            result = subprocess.run(
+                command,
+                cwd=str(PROJECT_ROOT),
+                timeout=timeout_sec,
+                env=env,
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
+        else:
+            # Python orchestrator: works on all platforms
+            result = subprocess.run(
+                command,
+                cwd=str(PROJECT_ROOT),
+                timeout=timeout_sec,
+                env=env,
+            )
+    except subprocess.TimeoutExpired:
+        raise BotRunnerError(f"Timeout ({timeout_sec}s) ejecutando orquestador")
+
     finished_at = time.time()
     return RunResult(
         action="run_full_cycle",

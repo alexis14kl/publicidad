@@ -27,7 +27,7 @@ La imagen NO debe parecer una foto realista. Debe ser una PIEZA DE DISENO GRAFIC
 
 LAYOUT Y COMPOSICION:
 - Formato vertical 4:5 (optimizado para feed de Instagram y Facebook).
-- Zona superior (15%): franja de color solido oscuro, COMPLETAMENTE LIMPIA, sin texto ni graficos. Se reserva para el logo en post-produccion.
+- Zona superior (15%): franja de color solido oscuro (#1a1a2e), COMPLETAMENTE VACIA. NO dibujar NINGUN logo, icono, simbolo, marca de agua, texto ni grafico en esta zona. Debe ser SOLO color plano uniforme sin ningun elemento visual. Esta zona se usa en post-produccion para superponer un logo externo.
 - Zona de titulo (20-25%): texto principal del servicio en grande, bold, blanco o naranja. Puede incluir un subtitulo corto de 1 linea.
 - Zona central (35-40%): mockup de dispositivo(s) mostrando interfaz de software. Este es el elemento visual principal.
 - Zona inferior (15-20%): CTA corto + noyecode.com + +57 301 385 9952 en texto pequeno.
@@ -38,7 +38,9 @@ TEXTO DENTRO DE LA IMAGEN:
 - Subtitulo opcional: 1 linea corta complementaria (ej: "Sin programar. Sin esperar meses.", "Desde Bogota para toda Latinoamerica").
 - CTA: boton o texto destacado (ej: "Cotiza gratis", "Agenda tu demo", "Escribenos hoy").
 - Contacto: "noyecode.com" y "+57 301 385 9952" en pequeno abajo.
-- NO escribir "NoyeCode" como texto en ninguna parte. El logo se agrega despues.
+- PROHIBIDO escribir "NoyeCode", "Noye Code", "NOYECODE" o cualquier variacion como texto en ninguna parte de la imagen.
+- PROHIBIDO dibujar cualquier logo, icono corporativo, simbolo de llaves {}, nodos o marca en la zona superior. La zona superior debe ser SOLO color solido plano.
+- El logo se agrega externamente en post-produccion. DALL-E NO debe intentar dibujarlo.
 - Todo el texto debe ser NITIDO, bien espaciado, 100% legible.
 
 PALETA DE COLORES:
@@ -72,7 +74,8 @@ Reglas estrictas para el prompt de salida:
 - NO incluir encabezados, explicaciones, opciones ni preguntas.
 - NO pedir "dos versiones" ni "variantes".
 - Especificar el texto exacto que debe aparecer en la imagen entre comillas dobles.
-- NUNCA pedir que dibuje el logo de NoyeCode ni escriba "NoyeCode".
-- Pedir explicitamente la zona limpia superior de color solido oscuro para el logo.
+- NUNCA pedir que dibuje el logo de NoyeCode ni escriba "NoyeCode" ni ningun logo/icono/simbolo corporativo.
+- Pedir EXPLICITAMENTE que la zona superior (top 15%) sea SOLO color solido plano oscuro (#1a1a2e) sin NINGUN elemento visual, texto, logo, icono ni decoracion. Insistir con "completely empty solid color bar, no logos, no icons, no text, no symbols, no watermarks".
+- Incluir la frase: "The top 15% of the image must be a completely empty flat solid dark color bar with absolutely no logos, icons, text, symbols, or any visual elements whatsoever."
 - Incluir al final: "vertical 4:5 aspect ratio, 4K resolution, social media advertisement, clean graphic design"
 - El prompt debe producir UNA sola imagen final.

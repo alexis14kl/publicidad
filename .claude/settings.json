@@ -23,7 +23,11 @@
       "Bash(wmic process:*)",
       "Bash(taskkill //PID 16176 //F)",
       "Bash(taskkill //PID 21364 //F)",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "Bash(ls -la /c/Users/NyGsoft/Desktop/publicidad/*.bat /c/Users/NyGsoft/Desktop/publicidad/*.ps1)",
+      "Bash(find /c/Users/NyGsoft/Desktop/publicidad -maxdepth 2 -type f -name *.py)",
+      "Bash(cargo --version)",
+      "Bash(npm --version)"
     ]
   }
 }
