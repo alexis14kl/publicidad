@@ -16,11 +16,15 @@ __pycache__/
 .claude/
 
 # Runtime state files (auto-generated per machine)
+.bot_runner.lock
 .account_rotation_state.json
 .job_poller_state.json
 .prompt_last_send.json
 .service_rotation_state.json
 memory/profile/
+
+# Debug assets
+debug/
 
 # Auto-generated prompts and text (regenerated each run)
 utils/prontm.txt
