@@ -90,11 +90,25 @@ def get_port_from_debug_info() -> int:
             return 0
         data = json.loads(raw)
         if isinstance(data, dict):
-            for value in data.values():
-                if isinstance(value, dict):
-                    port = int(value.get("debugPort", 0) or 0)
-                    if 0 < port <= 65535:
-                        return port
+            preferred_ports: list[int] = []
+            fallback_ports: list[int] = []
+            unknown_ports: list[int] = []
+
+            for key, value in data.items():
+                if not isinstance(value, dict):
+                    continue
+                port = int(value.get("debugPort", 0) or 0)
+                if not (0 < port <= 65535):
+                    continue
+                if port == DEFAULT_PORT and key != "unknown_env":
+                    preferred_ports.append(port)
+                elif key != "unknown_env":
+                    fallback_ports.append(port)
+                else:
+                    unknown_ports.append(port)
+
+            for port in preferred_ports + fallback_ports + unknown_ports:
+                return port
     except Exception:
         return 0
     return 0
@@ -107,12 +121,12 @@ def resolve_cdp_port() -> int:
         if is_cdp_alive(p):
             return p
 
+    if is_cdp_alive(DEFAULT_PORT):
+        return DEFAULT_PORT
+
     p = get_port_from_debug_info()
     if p and is_cdp_alive(p):
         return p
-
-    if is_cdp_alive(DEFAULT_PORT):
-        return DEFAULT_PORT
 
     raise RuntimeError("No hay puerto CDP activo para el perfil")
 

@@ -13,6 +13,7 @@ Logic:
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -26,6 +27,7 @@ from cfg.platform import (
     find_free_port,
     get_cdp_version,
     get_process_list,
+    is_port_in_use,
     kill_process_by_name,
     get_browser_process_name,
     launch_detached,
@@ -111,6 +113,46 @@ def _parse_user_data_dir(cmdline: str) -> str:
     return m.group(1) or m.group(2) or m.group(3) or ""
 
 
+def _extract_mac_exe_path(cmdline: str) -> str:
+    cmd = str(cmdline or "").strip()
+    if not cmd:
+        return ""
+    if " --" in cmd:
+        return cmd.split(" --", 1)[0].strip()
+    return cmd
+
+
+def _extract_mac_flag_value(cmdline: str, flag_name: str) -> str:
+    cmd = str(cmdline or "")
+    pattern = rf"--{re.escape(flag_name)}=(.*?)(?=\s+--[A-Za-z]|\s+https?://|$)"
+    m = re.search(pattern, cmd, re.IGNORECASE)
+    return (m.group(1) if m else "").strip()
+
+
+def _extract_mac_urls(cmdline: str) -> list[str]:
+    return re.findall(r"https?://\S+", str(cmdline or ""))
+
+
+def _build_mac_launch_command(cmdline: str, debug_port: int) -> list[str]:
+    exe_path = _extract_mac_exe_path(cmdline)
+    if not exe_path:
+        return []
+
+    args: list[str] = []
+    for raw_flag in ("no-first-run", "devtools-flags", "no-sandbox"):
+        if re.search(rf"--{re.escape(raw_flag)}(?:\s|$)", cmdline, re.IGNORECASE):
+            args.append(f"--{raw_flag}")
+
+    for key in ("load-extension", "launch-key", "user-data-dir", "user-agent", "lang", "proxy-server"):
+        value = _extract_mac_flag_value(cmdline, key)
+        if value:
+            args.append(f"--{key}={value}")
+
+    args.extend(_extract_mac_urls(cmdline))
+    args.append(f"--remote-debugging-port={debug_port}")
+    return [exe_path, *args]
+
+
 def force_cdp(
     env_id: str = "",
     preferred_port: int = 9225,
@@ -138,20 +180,34 @@ def force_cdp(
     if debug_match:
         existing_port = int(debug_match.group(1))
         if test_cdp_port(existing_port):
-            ver = get_cdp_version(existing_port)
-            ws_url = ver.get("webSocketDebuggerUrl", "") if ver else ""
-            path_out = upsert_cdp_debug_info(
-                env_id=env_id, port=existing_port,
-                ws_url=ws_url, pid=main["pid"], serial=serial_number,
-            )
-            log_ok(f"Puerto existente detectado: {existing_port}")
-            return {
-                "DEBUG_PORT": str(existing_port),
-                "CDP_JSON_PATH": str(path_out),
-            }
+            if existing_port != preferred_port:
+                log_info(
+                    f"Puerto CDP existente detectado en {existing_port}, "
+                    f"pero se normalizara a {preferred_port}."
+                )
+            else:
+                ver = get_cdp_version(existing_port)
+                ws_url = ver.get("webSocketDebuggerUrl", "") if ver else ""
+                path_out = upsert_cdp_debug_info(
+                    env_id=env_id, port=existing_port,
+                    ws_url=ws_url, pid=main["pid"], serial=serial_number,
+                )
+                log_ok(f"Puerto existente detectado: {existing_port}")
+                return {
+                    "DEBUG_PORT": str(existing_port),
+                    "CDP_JSON_PATH": str(path_out),
+                }
 
     # Need to restart with debug port
-    target_port = find_free_port(start=preferred_port, span=120)
+    target_port = preferred_port
+    if is_port_in_use(preferred_port) and not test_cdp_port(preferred_port):
+        fallback_port = find_free_port(start=preferred_port + 1, span=119)
+        log_warn(
+            f"El puerto preferido {preferred_port} esta ocupado por otro proceso. "
+            f"Se usara temporalmente {fallback_port}."
+        )
+        target_port = fallback_port
+
     log_info(f"Reiniciando ginsbrowser con --remote-debugging-port={target_port}")
 
     # Kill current ginsbrowser
@@ -170,8 +226,23 @@ def force_cdp(
     else:
         base_cmd = f"{base_cmd} --remote-debugging-port={target_port}"
 
-    # Launch detached
-    launch_detached(base_cmd)
+    # Launch detached. macOS needs a list-form command because the raw command
+    # line coming from `ps` contains paths with spaces and unquoted values.
+    if IS_WINDOWS:
+        launch_detached(base_cmd)
+    else:
+        mac_cmd = _build_mac_launch_command(cmd, target_port)
+        if not mac_cmd:
+            raise RuntimeError("MAC_LAUNCH_COMMAND_NOT_RESOLVED")
+        try:
+            subprocess.Popen(
+                mac_cmd,
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception as e:
+            raise RuntimeError(f"MAC_LAUNCH_FAILED {e}") from e
 
     # Verify ginsbrowser actually started (wait up to 8s)
     browser_up = False
@@ -186,19 +257,16 @@ def force_cdp(
     if not browser_up:
         # Fallback: try launching with list-form command to avoid CIM issues
         log_warn("CIM no lanzo ginsbrowser. Intentando con Popen directo...")
-        import subprocess
-        exe_path_parsed = _parse_exe_path(base_cmd)
-        if exe_path_parsed:
-            # Extract args from the command line after the exe
-            # Remove the quoted exe portion from the base_cmd
-            args_str = base_cmd
-            if args_str.startswith('"'):
-                close_idx = args_str.index('"', 1)
-                args_str = args_str[close_idx + 1:].strip()
-            elif exe_path_parsed in args_str:
-                args_str = args_str[len(exe_path_parsed):].strip()
-            try:
-                if IS_WINDOWS:
+        try:
+            if IS_WINDOWS:
+                exe_path_parsed = _parse_exe_path(base_cmd)
+                if exe_path_parsed:
+                    args_str = base_cmd
+                    if args_str.startswith('"'):
+                        close_idx = args_str.index('"', 1)
+                        args_str = args_str[close_idx + 1:].strip()
+                    elif exe_path_parsed in args_str:
+                        args_str = args_str[len(exe_path_parsed):].strip()
                     flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
                     subprocess.Popen(
                         f'"{exe_path_parsed}" {args_str}',
@@ -207,17 +275,18 @@ def force_cdp(
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                     )
-                else:
-                    import shlex
+            else:
+                mac_cmd = _build_mac_launch_command(cmd, target_port)
+                if mac_cmd:
                     subprocess.Popen(
-                        [exe_path_parsed] + shlex.split(args_str),
+                        mac_cmd,
                         start_new_session=True,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                     )
-                time.sleep(3)
-            except Exception as e:
-                log_warn(f"Fallback Popen tambien fallo: {e}")
+            time.sleep(3)
+        except Exception as e:
+            log_warn(f"Fallback Popen tambien fallo: {e}")
 
     # Poll for CDP
     deadline = time.time() + timeout_sec

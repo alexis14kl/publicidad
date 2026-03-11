@@ -34,6 +34,18 @@ def _get_port_from_json(env_id: str = "") -> int | None:
     if not data:
         return None
 
+    # Always prefer the canonical fixed port if present in the JSON.
+    preferred_entries: list[tuple[str, dict]] = []
+    fallback_entries: list[tuple[str, dict]] = []
+
+    for key, entry in data.items():
+        if not isinstance(entry, dict):
+            continue
+        if int(entry.get("debugPort", 0) or 0) == 9225:
+            preferred_entries.append((key, entry))
+        else:
+            fallback_entries.append((key, entry))
+
     # Try specific env_id first
     if env_id and env_id in data:
         entry = data[env_id]
@@ -41,8 +53,16 @@ def _get_port_from_json(env_id: str = "") -> int | None:
         if port and test_cdp_port(port):
             return port
 
-    # Try all entries
-    for key, entry in data.items():
+    # Prefer explicit profile entries before unknown_env leftovers.
+    ordered_entries = [
+        *[(k, v) for (k, v) in preferred_entries if k != "unknown_env"],
+        *[(k, v) for (k, v) in preferred_entries if k == "unknown_env"],
+        *[(k, v) for (k, v) in fallback_entries if k != "unknown_env"],
+        *[(k, v) for (k, v) in fallback_entries if k == "unknown_env"],
+    ]
+
+    # Try all entries in priority order
+    for key, entry in ordered_entries:
         if not isinstance(entry, dict):
             continue
         port = int(entry.get("debugPort", 0))
@@ -142,6 +162,11 @@ def detect_debug_port(
     deadline = time.time() + timeout_sec
 
     while time.time() < deadline:
+        # Prefer the canonical fixed port used by the project.
+        if test_cdp_port(9225):
+            log_info("Puerto detectado desde preferencia canonica: 9225")
+            return 9225
+
         # Try JSON first
         port = _get_port_from_json(env_id)
         if port:
