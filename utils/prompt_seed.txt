@@ -2,10 +2,21 @@ Crear una sola imagen publicitaria premium para NoyeCode enfocada en captar clie
 
 Datos fijos de empresa:
 - Empresa: NoyeCode
+- Slogan: "Tu Casa de Desarrollo de Software - Desarrollo a Medida con NoCode + IA"
 - Responsable comercial: Gerson Javier Barbosa Romero
 - Telefono: +57 301 385 9952
 - Sitio web: noyecode.com
 - Ubicacion: Bogota, Kennedy, Colombia
+
+Logo oficial de NoyeCode (debe aparecer en la imagen):
+- Tipo: emblema geometrico abstracto, moderno y minimalista.
+- Color principal del logo: naranja vibrante (#fd9102) sobre fondo oscuro o transparente.
+- Forma: simbolo cuadrado compuesto por curvas entrelazadas y formas geometricas abstractas que crean un patron sofisticado con simetria vertical. Usa el espacio negativo de forma inteligente para dar profundidad y modernidad.
+- No contiene texto dentro del simbolo; el nombre "NoyeCode" se coloca al lado o debajo en tipografia sans-serif limpia y moderna, en blanco o naranja segun el fondo.
+- Colores de marca: naranja (#fd9102) como acento principal, fondos oscuros (#222222, #333333) o blancos, grises de soporte.
+- Ubicacion sugerida en la pieza: esquina superior izquierda o centrado en la parte superior, con tamano moderado que sea visible pero no invada la composicion.
+- El logo debe verse nitido, profesional y alineado con la estetica tech/startup de la marca.
+- IMPORTANTE: representar el logo como un emblema geometrico naranja abstracto y elegante; NO inventar letras, iconos genericos ni formas que no correspondan al logo real.
 
 Servicios que si se deben promocionar:
 - desarrollo a la medida
@@ -28,7 +39,8 @@ Reglas claras para la imagen:
 - No usar cascos VR ni escenas futuristas exageradas.
 - Formato ideal de salida: vertical 4:5, optimizado para Facebook e Instagram.
 - Dejar margenes de seguridad amplios para que el contenido no salga cortado en los bordes al publicarse.
-- No poner texto, CTA, logo, rostros o elementos clave pegados a los laterales o esquinas.
+- No poner texto, CTA, rostros o elementos clave pegados a los laterales o esquinas.
+- El logo de NoyeCode si debe aparecer, pero dentro de la zona segura (no pegado al borde extremo).
 - Mantener el contenido importante dentro de una zona segura central.
 - El texto dentro de la imagen es importante porque la pieza es para redes sociales.
 - Incluir copy publicitario corto y claro dentro de la composicion.
