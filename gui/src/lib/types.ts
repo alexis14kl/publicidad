@@ -31,6 +31,7 @@ export interface ElectronAPI {
   readLogLines: (count?: number) => Promise<string[]>
   getEnvConfig: () => Promise<Record<string, string>>
   onLogNewLines: (callback: (lines: string[]) => void) => () => void
+  onBotLogLines: (callback: (lines: string[]) => void) => () => void
 }
 
 declare global {

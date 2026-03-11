@@ -9,8 +9,11 @@ const PROJECT_ROOT = path.resolve(__dirname, '..', '..')
 // State
 let mainWindow = null
 let pollerProcess = null
+let botProcess = null
 let logWatcherInterval = null
+let botLogWatcherInterval = null
 let lastLogSize = 0
+let lastBotLogSize = 0
 
 // ─── Window ───────────────────────────────────────────────────────────────────
 
@@ -33,8 +36,10 @@ function createWindow() {
 
   // In dev mode load from vite server, in prod load built files
   if (process.env.VITE_DEV_SERVER_URL) {
+    // Disable cache so Electron always gets fresh files from Vite
+    mainWindow.webContents.session.clearCache()
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
-    // mainWindow.webContents.openDevTools()
+    mainWindow.webContents.openDevTools()
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
@@ -199,10 +204,15 @@ ipcMain.handle('start-bot', async (_event, profileName) => {
     }
   }
 
+  if (botProcess && botProcess.exitCode === null) {
+    return { success: false, error: 'Bot ya esta ejecutando (proceso GUI)' }
+  }
+
   const env = getProjectEnv()
   env['NO_PAUSE'] = '1'
+  // Force UTF-8 output from Python
+  env['PYTHONIOENCODING'] = 'utf-8'
 
-  // Use bot_runner.py (cross-platform) — it picks orchestrator.py or iniciar.bat
   const botRunnerPath = path.join(PROJECT_ROOT, 'server', 'bot_runner.py')
   const pythonBin = findPython()
   if (!pythonBin) {
@@ -215,14 +225,33 @@ ipcMain.handle('start-bot', async (_event, profileName) => {
   const args = [botRunnerPath, 'run_full_cycle', payload]
 
   try {
-    const child = spawn(pythonBin, args, {
+    botProcess = spawn(pythonBin, args, {
       cwd: PROJECT_ROOT,
       env,
-      detached: true,
-      stdio: 'ignore',
+      stdio: ['ignore', 'pipe', 'pipe'],
     })
-    child.unref()
-    return { success: true, pid: child.pid }
+
+    const emitBotLines = (data) => {
+      if (!mainWindow) return
+      const lines = data.toString('utf-8').split('\n').filter(l => l.trim())
+      if (lines.length > 0) {
+        mainWindow.webContents.send('bot-log-lines', lines)
+      }
+    }
+
+    botProcess.stdout.on('data', emitBotLines)
+    botProcess.stderr.on('data', emitBotLines)
+
+    botProcess.on('exit', (code) => {
+      if (mainWindow) {
+        mainWindow.webContents.send('bot-log-lines', [
+          `[INFO] Bot finalizo con codigo: ${code}`
+        ])
+      }
+      botProcess = null
+    })
+
+    return { success: true, pid: botProcess.pid }
   } catch (err) {
     return { success: false, error: err.message }
   }
@@ -231,17 +260,31 @@ ipcMain.handle('start-bot', async (_event, profileName) => {
 ipcMain.handle('stop-bot', async () => {
   const lockPath = path.join(PROJECT_ROOT, '.bot_runner.lock')
   const lockData = readJsonFile(lockPath)
+  let killed = false
 
+  // Kill from lock file PID
   if (lockData && lockData.pid) {
     try {
       killProcessTree(lockData.pid)
+      killed = true
     } catch { /* ignore */ }
     try {
       fs.unlinkSync(lockPath)
     } catch { /* ignore */ }
-    return { success: true }
   }
-  return { success: false, error: 'Bot no esta ejecutando' }
+
+  // Also kill our GUI-spawned bot process
+  if (botProcess && botProcess.exitCode === null) {
+    try {
+      killProcessTree(botProcess.pid)
+      killed = true
+    } catch { /* ignore */ }
+    botProcess = null
+  }
+
+  return killed
+    ? { success: true }
+    : { success: false, error: 'Bot no esta ejecutando' }
 })
 
 ipcMain.handle('start-poller', async () => {
@@ -371,11 +414,54 @@ function startLogWatcher() {
   }, 500)
 }
 
+function startBotLogWatcher() {
+  const logPath = path.join(PROJECT_ROOT, 'logs', 'bot_runner_last.log')
+
+  try {
+    lastBotLogSize = fs.statSync(logPath).size
+  } catch {
+    lastBotLogSize = 0
+  }
+
+  botLogWatcherInterval = setInterval(() => {
+    if (!mainWindow) return
+
+    try {
+      const stat = fs.statSync(logPath)
+
+      if (stat.size < lastBotLogSize) {
+        lastBotLogSize = 0
+      }
+
+      if (stat.size > lastBotLogSize) {
+        const bytesToRead = stat.size - lastBotLogSize
+        let fd
+        try {
+          fd = fs.openSync(logPath, fs.constants.O_RDONLY | 0, 0o444)
+          const buffer = Buffer.alloc(bytesToRead)
+          fs.readSync(fd, buffer, 0, bytesToRead, lastBotLogSize)
+          fs.closeSync(fd)
+          fd = null
+
+          const newLines = buffer.toString('utf-8').split('\n').filter(l => l.trim())
+          if (newLines.length > 0) {
+            mainWindow.webContents.send('bot-log-lines', newLines)
+          }
+          lastBotLogSize = stat.size
+        } catch (readErr) {
+          if (fd) try { fs.closeSync(fd) } catch {}
+        }
+      }
+    } catch { /* file may not exist yet */ }
+  }, 500)
+}
+
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
   createWindow()
   startLogWatcher()
+  startBotLogWatcher()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -384,6 +470,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (logWatcherInterval) clearInterval(logWatcherInterval)
+  if (botLogWatcherInterval) clearInterval(botLogWatcherInterval)
 
   // Only kill the poller if we spawned it (don't kill external pollers)
   if (pollerProcess && pollerProcess.exitCode === null) {

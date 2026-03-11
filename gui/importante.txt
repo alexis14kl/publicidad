@@ -1,0 +1,1 @@
+recostruir app cd "c:/Users/NyGsoft/Desktop/publicidad/gui" && npm run build:frontend 2>&1

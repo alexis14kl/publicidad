@@ -15,4 +15,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('log-new-lines', handler)
     return () => ipcRenderer.removeListener('log-new-lines', handler)
   },
+  onBotLogLines: (callback) => {
+    const handler = (_event, lines) => callback(lines)
+    ipcRenderer.on('bot-log-lines', handler)
+    return () => ipcRenderer.removeListener('bot-log-lines', handler)
+  },
 })
