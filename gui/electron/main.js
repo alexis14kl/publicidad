@@ -118,12 +118,54 @@ function killProcessTree(pid) {
   } catch { /* ignore */ }
 }
 
+/**
+ * Detect external job_poller.py processes (not started by this GUI).
+ * Returns array of PIDs running job_poller.py.
+ */
+function findPollerPids() {
+  return new Promise((resolve) => {
+    if (process.platform === 'win32') {
+      exec(
+        'powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like \'*job_poller*\' -and $_.Name -like \'*python*\' } | Select-Object -ExpandProperty ProcessId"',
+        { timeout: 8000 },
+        (err, stdout) => {
+          if (err || !stdout.trim()) return resolve([])
+          const pids = stdout.trim().split(/\r?\n/).map(s => parseInt(s.trim(), 10)).filter(n => n > 0)
+          resolve(pids)
+        }
+      )
+    } else {
+      exec("pgrep -f 'job_poller\\.py'", { timeout: 5000 }, (err, stdout) => {
+        if (err || !stdout.trim()) return resolve([])
+        const pids = stdout.trim().split(/\n/).map(s => parseInt(s.trim(), 10)).filter(n => n > 0)
+        resolve(pids)
+      })
+    }
+  })
+}
+
+/**
+ * Check if the poller is running — either our child or an external process.
+ */
+async function isPollerAlive() {
+  // Check our own child first
+  if (pollerProcess && pollerProcess.exitCode === null) {
+    return { running: true, source: 'gui', pids: [pollerProcess.pid] }
+  }
+  // Check for external poller processes
+  const externalPids = await findPollerPids()
+  if (externalPids.length > 0) {
+    return { running: true, source: 'external', pids: externalPids }
+  }
+  return { running: false, source: null, pids: [] }
+}
+
 // ─── IPC Handlers ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('get-bot-status', async () => {
   const lockPath = path.join(PROJECT_ROOT, '.bot_runner.lock')
   const lockData = readJsonFile(lockPath)
-  const pollerRunning = pollerProcess !== null && pollerProcess.exitCode === null
+  const poller = await isPollerAlive()
 
   if (lockData && lockData.pid) {
     return {
@@ -136,7 +178,7 @@ ipcMain.handle('get-bot-status', async () => {
   }
 
   return {
-    status: pollerRunning ? 'online' : 'offline',
+    status: poller.running ? 'online' : 'offline',
     action: null,
     started_at: null,
     host: null,
@@ -203,8 +245,9 @@ ipcMain.handle('stop-bot', async () => {
 })
 
 ipcMain.handle('start-poller', async () => {
-  if (pollerProcess && pollerProcess.exitCode === null) {
-    return { success: false, error: 'Poller ya esta corriendo' }
+  const poller = await isPollerAlive()
+  if (poller.running) {
+    return { success: false, error: `Poller ya esta corriendo (${poller.source}, PIDs: ${poller.pids.join(',')})` }
   }
 
   const env = getProjectEnv()
@@ -236,13 +279,16 @@ ipcMain.handle('start-poller', async () => {
 })
 
 ipcMain.handle('stop-poller', async () => {
-  if (!pollerProcess || pollerProcess.exitCode !== null) {
+  const poller = await isPollerAlive()
+  if (!poller.running) {
     return { success: false, error: 'Poller no esta corriendo' }
   }
 
-  const pid = pollerProcess.pid
   try {
-    killProcessTree(pid)
+    // Kill all poller PIDs (whether GUI-spawned or external)
+    for (const pid of poller.pids) {
+      killProcessTree(pid)
+    }
     pollerProcess = null
     return { success: true }
   } catch (err) {
@@ -251,7 +297,8 @@ ipcMain.handle('stop-poller', async () => {
 })
 
 ipcMain.handle('is-poller-running', async () => {
-  return pollerProcess !== null && pollerProcess.exitCode === null
+  const poller = await isPollerAlive()
+  return poller.running
 })
 
 ipcMain.handle('read-log-lines', async (_event, count = 200) => {
@@ -338,6 +385,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (logWatcherInterval) clearInterval(logWatcherInterval)
 
+  // Only kill the poller if we spawned it (don't kill external pollers)
   if (pollerProcess && pollerProcess.exitCode === null) {
     killProcessTree(pollerProcess.pid)
   }
