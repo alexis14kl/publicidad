@@ -23,10 +23,11 @@ from perfil.change_count import (  # noqa: E402
     close_current_profile,
     switch_to_any_fallback,
 )
+from cfg.platform import CDP_DEBUG_INFO_JSON  # noqa: E402
 from utils.logger import log_info, log_warn, log_error  # noqa: E402
 
 PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
-CDP_DEBUG_INFO = Path(os.getenv("APPDATA", "")) / "DICloak" / "cdp_debug_info.json"
+CDP_DEBUG_INFO = CDP_DEBUG_INFO_JSON
 DEFAULT_PORT = 9225
 PROMPT_LOCK_FILE = PROJECT_ROOT / ".prompt_last_send.json"
 PROMPT_DEDUP_WINDOW_SEC = 90

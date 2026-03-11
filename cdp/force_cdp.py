@@ -36,13 +36,30 @@ from utils.logger import log_info, log_ok, log_warn, log_error
 
 
 def _find_main_gins_process(procs: list[dict]) -> dict | None:
-    """Find the main ginsbrowser process (not a --type= child)."""
-    browser_name = get_browser_process_name()
+    """Find the main profile browser process.
+
+    On Windows the process name is stable (`ginsbrowser.exe`), but on macOS the
+    actual `comm` name exposed by `ps` can vary even when the full command line
+    still contains the embedded ginsbrowser path and the profile arguments.
+    """
+    browser_name = get_browser_process_name().lower()
     candidates = []
     for p in procs:
-        name = p.get("name", "")
-        cmd = p.get("cmdline", "")
-        if name.lower() != browser_name.lower():
+        name = str(p.get("name", "")).lower()
+        cmd = str(p.get("cmdline", ""))
+        cmd_lower = cmd.lower()
+
+        matches_windows_name = name == browser_name
+        matches_mac_cmd = (
+            not IS_WINDOWS
+            and (
+                "ginsbrowser" in cmd_lower
+                or "--user-data-dir" in cmd_lower
+                or ".dicloakcache" in cmd_lower
+            )
+        )
+
+        if not (matches_windows_name or matches_mac_cmd):
             continue
         if "--type=" in cmd:
             continue
@@ -52,10 +69,14 @@ def _find_main_gins_process(procs: list[dict]) -> dict | None:
         return None
 
     # Prefer processes with --user-data-dir and longer command lines
-    def _score(p: dict) -> tuple[int, int]:
-        cmd = p.get("cmdline", "")
-        has_udd = 1 if "--user-data-dir" in cmd.lower() else 0
-        return (has_udd, len(cmd))
+    def _score(p: dict) -> tuple[int, int, int, int]:
+        cmd = str(p.get("cmdline", ""))
+        cmd_lower = cmd.lower()
+        name = str(p.get("name", "")).lower()
+        has_udd = 1 if "--user-data-dir" in cmd_lower else 0
+        has_cache = 1 if ".dicloakcache" in cmd_lower else 0
+        has_gins = 1 if ("ginsbrowser" in cmd_lower or "ginsbrowser" in name) else 0
+        return (has_udd, has_cache, has_gins, len(cmd))
 
     candidates.sort(key=_score, reverse=True)
     return candidates[0]
