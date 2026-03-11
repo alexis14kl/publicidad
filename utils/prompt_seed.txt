@@ -1,81 +1,123 @@
-Genera un unico prompt en ingles listo para DALL-E que produzca una pieza publicitaria para redes sociales al estilo de un anuncio de Facebook/Instagram de empresa tech.
+Genera un unico prompt en ingles, listo para DALL-E, para crear UNA sola pieza publicitaria vertical de alto impacto para Facebook e Instagram de una empresa de tecnologia. El resultado debe verse como diseno grafico premium para redes sociales, no como fotografia real.
 
-Datos de empresa (usar en el texto dentro de la imagen):
+Datos de la empresa:
 - Empresa: NoyeCode
-- Slogan: "Tu Casa de Desarrollo de Software"
+- Slogan de referencia: "Tu Casa de Desarrollo de Software"
 - Telefono/WhatsApp: +57 301 385 9952
 - Sitio web: noyecode.com
 
-Servicios para promocionar (elegir UNO como protagonista):
+Objetivo de marketing:
+- Vender un solo servicio por imagen.
+- Priorizar claridad, atractivo visual y conversion.
+- La promesa debe sentirse moderna, confiable y orientada a resultados.
+- El anuncio debe captar atencion en menos de 2 segundos.
+
+Servicio protagonista:
+Elige SOLO UNO de estos servicios como enfoque principal:
 - Desarrollo de software a la medida
 - Automatizaciones empresariales
 - Apps empresariales para campo (GPS, tracking, reportes)
 - Software para negocios (CRM, ERP, inventario, ventas)
-- Apps no-code (automatizar procesos, dashboards)
+- Apps no-code para automatizar procesos y dashboards
 - Dashboards y analisis de datos en tiempo real
 - Desarrollo Android y desktop
 - Soporte tecnico informatico
 - RPAs nativos
 - Modernizacion de software legacy
 
-ESTILO VISUAL OBLIGATORIO (muy importante, seguir al pie de la letra):
-La imagen NO debe parecer una foto realista. Debe ser una PIEZA DE DISENO GRAFICO estilo anuncio de Facebook, como los que hacen empresas tech (Base44, AgentUI, SIC Colombia). Caracteristicas clave:
-- Fondo: gradiente simple y limpio (oscuro a claro, o azul oscuro a negro, o naranja sutil a oscuro). NO fondos fotograficos complejos.
-- Texto: grande, bold, legible, como protagonista principal de la imagen. Tipografia sans-serif gruesa moderna.
-- Dispositivos: incluir 1-2 mockups de dispositivos (laptop, smartphone o tablet) mostrando una interfaz/dashboard de software con datos ficticios pero realistas (graficos, tablas, metricas, sidebar de navegacion).
-- Los mockups de dispositivos deben verse como capturas reales de un SaaS moderno con UI oscura o clara, profesional.
+Enfoque visual obligatorio:
+- Debe parecer un anuncio grafico para social media de empresa tech moderna.
+- NO debe parecer foto realista.
+- NO usar personas reales, manos, rostros, oficinas, escritorios ni escenas fotograficas.
+- Usar fondo limpio con gradiente elegante y composicion minimalista.
+- Incluir 1 o 2 dispositivos maximo (laptop, smartphone o tablet).
+- En la pantalla de los dispositivos debe verse una interfaz SaaS creible, moderna y ordenada con dashboards, graficos, metricas, tablas o mapas segun el servicio.
+- La interfaz en pantalla debe apoyar el mensaje comercial, no robar protagonismo al titulo.
 
-LAYOUT Y COMPOSICION:
-- Formato vertical 4:5 (optimizado para feed de Instagram y Facebook).
-- Zona superior (15%): franja de color solido oscuro (#1a1a2e), COMPLETAMENTE VACIA. NO dibujar NINGUN logo, icono, simbolo, marca de agua, texto ni grafico en esta zona. Debe ser SOLO color plano uniforme sin ningun elemento visual. Esta zona se usa en post-produccion para superponer un logo externo.
-- Zona de titulo (20-25%): texto principal del servicio en grande, bold, blanco o naranja. Puede incluir un subtitulo corto de 1 linea.
-- Zona central (35-40%): mockup de dispositivo(s) mostrando interfaz de software. Este es el elemento visual principal.
-- Zona inferior (15-20%): CTA corto + noyecode.com + +57 301 385 9952 en texto pequeno.
-- Margenes amplios: nada a menos del 8% del borde.
+Composicion:
+- Formato vertical 4:5.
+- Margenes amplios y jerarquia visual clara.
+- La parte superior del 15% debe quedar totalmente vacia, como una barra plana de color solido oscuro #1a1a2e.
+- Esa franja superior no debe contener logos, iconos, texto, simbolos, marcas de agua ni decoracion.
+- Debe existir una zona clara para:
+  titulo principal corto,
+  subtitulo opcional muy breve,
+  mockup del producto,
+  CTA corto,
+  web y telefono en pequeno.
 
-TEXTO DENTRO DE LA IMAGEN:
-- Titulo principal: una frase corta y directa en espanol que venda el servicio (ej: "Tu negocio merece su propio software", "Automatiza tu empresa hoy", "Control total de tu operacion", "Apps a la medida de tu negocio"). Maximo 8-10 palabras.
-- Subtitulo opcional: 1 linea corta complementaria (ej: "Sin programar. Sin esperar meses.", "Desde Bogota para toda Latinoamerica").
-- CTA: boton o texto destacado (ej: "Cotiza gratis", "Agenda tu demo", "Escribenos hoy").
-- Contacto: "noyecode.com" y "+57 301 385 9952" en pequeno abajo.
-- PROHIBIDO escribir "NoyeCode", "Noye Code", "NOYECODE" o cualquier variacion como texto en ninguna parte de la imagen.
-- PROHIBIDO dibujar cualquier logo, icono corporativo, simbolo de llaves {}, nodos o marca en la zona superior. La zona superior debe ser SOLO color solido plano.
-- El logo se agrega externamente en post-produccion. DALL-E NO debe intentar dibujarlo.
-- Todo el texto debe ser NITIDO, bien espaciado, 100% legible.
+Texto dentro de la imagen:
+- Todo el texto visible dentro de la imagen debe estar en espanol.
+- Usar muy poco texto para maximizar legibilidad.
+- Titulo principal: maximo 6 palabras, directo y vendedor.
+- Subtitulo opcional: maximo 8 palabras.
+- CTA: maximo 3 palabras.
+- Contacto al pie: "noyecode.com" y "+57 301 385 9952".
+- NO escribir "NoyeCode", "Noye Code", "NOYECODE" ni ninguna variacion dentro de la imagen.
+- NO pedir slogans largos ni bloques de texto.
+- El texto debe verse nitido, bien espaciado y facil de leer.
 
-PALETA DE COLORES:
-- Principal: naranja vibrante (#fd9102) para titulos, acentos, botones CTA.
-- Fondo: gradiente oscuro elegante (#1a1a2e a #16213e) o gradiente oscuro a naranja sutil. Tambien se acepta fondo claro/blanco con acentos naranja si el servicio lo amerita.
-- Texto: blanco sobre fondo oscuro, o negro sobre fondo claro.
-- NO usar: neon, rosa, verde lima, cyberpunk, colores estridentes.
+Mensajes sugeridos de alto impacto:
+Elige una combinacion coherente segun el servicio:
+- "Automatiza tu operacion"
+- "Control total de tu negocio"
+- "Software hecho para crecer"
+- "Tu proceso, pero mejor"
+- "Gestiona todo en un solo lugar"
+- "Convierte datos en decisiones"
+- "Cotiza hoy"
+- "Agenda tu demo"
+- "Escribenos hoy"
 
-ESCENAS DE DISPOSITIVOS (elegir una al azar):
-1. Laptop abierta en angulo 3/4 mostrando dashboard SaaS oscuro con sidebar, graficos de barras, metricas KPI, tabla de datos.
-2. Smartphone en primer plano mostrando app movil con mapa GPS, lista de tareas y metricas, con laptop desenfocada atras mostrando panel de control.
-3. Laptop y tablet lado a lado mostrando la misma plataforma en diferentes vistas (dashboard general y detalle de registro).
-4. Laptop frontal mostrando interfaz drag-and-drop de automatizacion con nodos conectados tipo workflow.
-5. Multiples dispositivos (laptop + phone + tablet) en composicion tipo "hero shot" mostrando dashboards sincronizados.
-6. Laptop mostrando CRM moderno con lista de contactos, pipeline de ventas y graficos.
-7. Smartphone grande mostrando app de tracking con mapa y pins de ubicacion, estadisticas en overlay.
-8. Monitor/laptop mostrando dashboard de analytics con graficos de lineas, tortas y barras en tiempo real.
+Paleta de color:
+- Principal: naranja vibrante #fd9102.
+- Fondo recomendado: gradiente oscuro elegante entre #1a1a2e y #16213e.
+- Alternativa valida: fondo claro premium con acentos naranja si mejora la legibilidad.
+- Evitar colores neon, cyberpunk, verde lima, rosa intenso o mezclas estridentes.
 
-ESTILO DE RENDERIZADO (palabras clave para el prompt):
-- clean graphic design, social media advertisement, Facebook ad style
-- bold modern typography, sans-serif heavy font
-- smooth gradient background, minimalist composition
-- device mockup with realistic software UI on screen
-- flat design elements, corporate tech aesthetic
-- professional, premium quality, clean layout
-- NO usar: photorealistic photography, cinematic lighting, depth of field, bokeh, personas reales, oficinas reales
+Escenas sugeridas para dispositivos:
+Elige SOLO UNA:
+- Laptop en angulo 3/4 mostrando dashboard con KPIs, tabla y sidebar.
+- Smartphone mostrando app de campo con mapa, tareas y metricas.
+- Laptop y tablet mostrando la misma plataforma en dos vistas.
+- Laptop mostrando workflow de automatizacion limpio y profesional.
+- Composicion hero con laptop y smartphone mostrando dashboards sincronizados.
+- Laptop mostrando CRM con pipeline, contactos y resumen comercial.
+- Smartphone mostrando tracking con mapa y estadisticas.
+- Monitor o laptop mostrando analytics en tiempo real.
 
-Reglas estrictas para el prompt de salida:
-- El prompt debe estar 100% en ingles.
-- Debe ser un solo parrafo continuo de 80-150 palabras.
-- NO incluir encabezados, explicaciones, opciones ni preguntas.
-- NO pedir "dos versiones" ni "variantes".
-- Especificar el texto exacto que debe aparecer en la imagen entre comillas dobles.
-- NUNCA pedir que dibuje el logo de NoyeCode ni escriba "NoyeCode" ni ningun logo/icono/simbolo corporativo.
-- Pedir EXPLICITAMENTE que la zona superior (top 15%) sea SOLO color solido plano oscuro (#1a1a2e) sin NINGUN elemento visual, texto, logo, icono ni decoracion. Insistir con "completely empty solid color bar, no logos, no icons, no text, no symbols, no watermarks".
-- Incluir la frase: "The top 15% of the image must be a completely empty flat solid dark color bar with absolutely no logos, icons, text, symbols, or any visual elements whatsoever."
-- Incluir al final: "vertical 4:5 aspect ratio, 4K resolution, social media advertisement, clean graphic design"
-- El prompt debe producir UNA sola imagen final.
+Palabras clave visuales recomendadas para el prompt:
+- clean graphic design
+- social media advertisement
+- premium SaaS ad
+- bold modern typography
+- minimalist composition
+- smooth gradient background
+- realistic device mockup with clean software UI
+- corporate tech aesthetic
+- high contrast hierarchy
+- ultra legible text
+
+Evitar explicitamente en el prompt:
+- photorealistic photography
+- cinematic lighting
+- depth of field
+- bokeh
+- real humans
+- office photography
+- cluttered layout
+- too much text
+- logo generation
+- watermarks
+
+Reglas estrictas para el prompt final:
+- El prompt final debe estar 100% en ingles.
+- Debe ser un solo parrafo continuo.
+- Debe medir entre 90 y 140 palabras.
+- No incluir encabezados, listas, explicaciones, opciones ni preguntas.
+- Debe especificar entre comillas dobles el texto exacto a mostrar en la imagen.
+- Debe pedir solo una imagen final.
+- Debe dejar claro que el anuncio es una pieza grafica publicitaria limpia y moderna para redes sociales.
+- Debe incluir literalmente esta frase en ingles: "The top 15% of the image must be a completely empty flat solid dark color bar with absolutely no logos, icons, text, symbols, watermarks, or any visual elements whatsoever."
+- Debe insistir en que no se genere ningun logo ni se escriba el nombre de la marca dentro de la imagen.
+- Debe terminar con: "vertical 4:5 aspect ratio, 4K resolution, social media advertisement, clean graphic design"
