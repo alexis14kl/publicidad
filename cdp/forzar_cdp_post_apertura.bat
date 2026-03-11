@@ -85,6 +85,27 @@ endlocal
 exit /b 0
 
 :CLEANUP_AND_EXIT
+%LOG% info "Limpiando sesion del perfil antes de cerrar..."
+rem --- Navegar todas las pestanas a about:blank para que la proxima apertura no restaure chats viejos ---
+"%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$cdp=Join-Path $env:APPDATA 'DICloak\cdp_debug_info.json';" ^
+  "if (!(Test-Path $cdp)) { exit 0 };" ^
+  "try {" ^
+  "  $j=Get-Content $cdp -Raw | ConvertFrom-Json;" ^
+  "  $port=$null;" ^
+  "  foreach($p in $j.PSObject.Properties){ if($p.Value.debugPort){ $port=[int]$p.Value.debugPort; break } };" ^
+  "  if (!$port) { exit 0 };" ^
+  "  $tabs=(Invoke-WebRequest -UseBasicParsing -Uri \"http://127.0.0.1:$port/json/list\" -TimeoutSec 3).Content | ConvertFrom-Json;" ^
+  "  foreach($t in $tabs){" ^
+  "    if ($t.type -eq 'page' -and $t.url -match 'chatgpt'){" ^
+  "      $ws=$t.webSocketDebuggerUrl;" ^
+  "      if ($ws) {" ^
+  "        try { Invoke-WebRequest -UseBasicParsing -Uri \"http://127.0.0.1:$port/json/close/$($t.id)\" -TimeoutSec 2 | Out-Null } catch {}" ^
+  "      }" ^
+  "    }" ^
+  "  }" ^
+  "} catch {};" ^
+  "exit 0" >nul 2>nul
 %LOG% info "Cerrando DiCloak, perfil y ginsbrowser para liberar memoria..."
 taskkill /F /IM ginsbrowser.exe >nul 2>nul
 taskkill /F /IM DICloak.exe >nul 2>nul
