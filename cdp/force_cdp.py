@@ -313,6 +313,26 @@ def force_cdp(
         ws_url=ws_url, pid=new_pid, serial=serial_number,
     )
 
+    # Minimizar ginsbrowser despues del relanzamiento con depuracion
+    time.sleep(3)
+    try:
+        import pygetwindow as gw
+        import psutil
+        # Obtener PIDs de ginsbrowser para identificar sus ventanas
+        gins_pids = set()
+        for proc in psutil.process_iter(["name", "pid"]):
+            name = (proc.info["name"] or "").lower()
+            if "ginsbrowser" in name or "dicloak" in name:
+                gins_pids.add(proc.info["pid"])
+        for w in gw.getAllWindows():
+            title = w.title.lower()
+            if ("ginsbrowser" in title or "dicloak" in title
+                    or "chatgpt" in title or "127.0.0.1" in title):
+                if not w.isMinimized:
+                    w.minimize()
+    except Exception:
+        pass
+
     log_ok(f"CDP forzado en puerto {target_port}")
     return {
         "DEBUG_PORT": str(target_port),

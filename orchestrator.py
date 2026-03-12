@@ -52,23 +52,24 @@ from cfg.platform import FORCE_OPEN_JS
 from utils.logger import log_info, log_ok, log_warn, log_error, log_step, log_debug
 
 
-def _minimize_dicloak_window(retries: int = 5, delay: float = 2.0) -> None:
-    """Minimiza la ventana de DICloak usando pygetwindow (cross-platform)."""
+def _minimize_window(keyword: str, retries: int = 5, delay: float = 2.0) -> None:
+    """Minimiza ventanas cuyo titulo contenga *keyword* (cross-platform)."""
     try:
         import pygetwindow as gw
     except ImportError:
-        log_warn("pygetwindow no instalado. DICloak quedara visible.")
+        log_warn(f"pygetwindow no instalado. {keyword} quedara visible.")
         return
-    for attempt in range(retries):
-        wins = [w for w in gw.getAllWindows() if "dicloak" in w.title.lower()]
+    kw = keyword.lower()
+    for _ in range(retries):
+        wins = [w for w in gw.getAllWindows() if kw in w.title.lower()]
         for w in wins:
             if not w.isMinimized:
                 w.minimize()
         if wins:
-            log_ok("Ventana de DICloak minimizada.")
+            log_ok(f"Ventana de {keyword} minimizada.")
             return
         time.sleep(delay)
-    log_warn("No se encontro ventana de DICloak para minimizar.")
+    log_warn(f"No se encontro ventana de {keyword} para minimizar.")
 
 
 def _run_python(script: Path, *args: str, timeout: int = 300) -> int:
@@ -244,7 +245,7 @@ def run_orchestrator(
 
         launch_cmd = f'"{dicloak_exe}" --remote-debugging-port=9333 --remote-allow-origins=*'
         launch_detached(launch_cmd)
-        _minimize_dicloak_window()
+        _minimize_window("dicloak")
     else:
         log_step("3/10", "DICloak ya activo, saltando inicio.")
 
@@ -321,6 +322,9 @@ def run_orchestrator(
     # -----------------------------------------------------------------------
     log_step("6.5/10", "Esperando que el perfil cargue completamente...")
     _wait_for_profile_load(timeout_sec=45)
+    _minimize_window("ginsbrowser")
+    _minimize_window("chatgpt")
+    _minimize_window("dicloak")
 
     # -----------------------------------------------------------------------
     # Step 8/10: Post-opening automation (in background thread)
