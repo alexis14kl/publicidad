@@ -31,6 +31,15 @@ const FIELDS: FieldDef[] = [
   { key: 'FREEIMAGE_API_KEY', label: 'API Key', group: 'FreeImage', type: 'password' },
   { key: 'FREEIMAGE_UPLOAD_URL', label: 'Upload URL', group: 'FreeImage', type: 'text' },
 
+  // Meta Ads
+  {
+    key: 'FB_ACCESS_TOKEN',
+    label: 'Access Token',
+    group: 'Meta Ads',
+    type: 'password',
+    placeholder: 'EAAB...'
+  },
+
   // CDP
   { key: 'CDP_DICLOAK_URL', label: 'DICloak URL', group: 'CDP', type: 'text', placeholder: 'http://127.0.0.1:9333' },
   { key: 'CDP_CHATGPT_PORT', label: 'Puerto ChatGPT', group: 'CDP', type: 'number', placeholder: '9225' },

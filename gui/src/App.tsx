@@ -259,6 +259,46 @@ function MarketingCampaignModal({
                     </span>
                   </div>
                 </div>
+
+                {!!preview.process?.length && (
+                  <>
+                    <div className="card-header" style={{ marginTop: 16 }}>
+                      <span className="card-icon">&#128260;</span>
+                      <span className="card-title">Proceso Completo de Creacion</span>
+                    </div>
+                    <div className="job-grid">
+                      {preview.process.map((step, index) => (
+                        <div key={step.id} className="job-item">
+                          <span className="job-label">
+                            Paso {index + 1}: {step.title}
+                          </span>
+                          <span className="job-value">{step.detail}</span>
+                          <span
+                            className={`job-badge ${
+                              step.status === 'success'
+                                ? 'badge--success'
+                                : step.status === 'warning'
+                                  ? 'badge--warn'
+                                  : step.status === 'error'
+                                    ? 'badge--error'
+                                    : ''
+                            }`}
+                          >
+                            {step.status === 'success'
+                              ? 'Validado'
+                              : step.status === 'warning'
+                                ? 'Pendiente por requisitos'
+                                : step.status === 'error'
+                                  ? 'Error'
+                                  : step.status === 'running'
+                                    ? 'En curso'
+                                    : 'Siguiente'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
