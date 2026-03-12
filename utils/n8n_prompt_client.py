@@ -14,13 +14,9 @@ DEFAULT_PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 DEFAULT_IDEA_FILE = PROJECT_ROOT / "utils" / "prompt_seed.txt"
 DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/py-prompt-imgs"
 DEFAULT_BRAND_HINT = (
-    "Pieza publicitaria de OFERTA para NoyeCode enfocada en captar clientes reales de software. "
-    "Debe verse como DISENO GRAFICO PREMIUM de oferta para redes sociales, NO como fotografia realista. "
-    "NO usar personas reales, manos, rostros, oficinas, escritorios ni escenas fotograficas. "
-    "Usar fondo limpio con gradiente elegante y composicion minimalista con dispositivos (laptop, smartphone, tablet). "
-    "IMPORTANTE: El texto comercial debe incluir un GANCHO DE OFERTA claro (cotizacion gratis, descuento, demo sin costo, precio desde, cupos limitados). "
-    "Incluir CTA urgente, web noyecode.com y WhatsApp +57 301 385 9952. "
-    "La composicion debe sentirse como arte publicitario de agencia para Meta Ads orientado a CONVERSION y captacion de clientes."
+    "Anuncio de OFERTA para NoyeCode. Estilo: diseno grafico premium para redes sociales, NO fotografia. "
+    "Mockups de dispositivos con interfaces SaaS sobre gradiente oscuro #1a1a2e a #16213e. "
+    "Incluir gancho de oferta, CTA urgente, web noyecode.com y WhatsApp +57 301 385 9952."
 )
 
 
@@ -35,6 +31,33 @@ SERVICE_HASHTAGS = {
     "rpas nativos": "#NoyeCode #RPAsNativos #Automatizacion #EficienciaOperativa",
     "desarrollo android": "#NoyeCode #DesarrolloAndroid #AppsEmpresariales #TransformacionDigital",
     "desarrollo desktop": "#NoyeCode #DesarrolloDesktop #SoftwareEmpresarial #Productividad",
+}
+
+# Hints especificos por servicio: breves y enfocados en la escena visual
+_SERVICE_SCENE_HINTS = {
+    "desarrollo a la medida": (
+        "Mockup de laptop o tablet con interfaz UI/UX personalizada, dashboards elegantes. "
+        "Texto destacado: el nombre del servicio y beneficio de software a la medida."
+    ),
+    "automatizaciones empresariales": (
+        "Mockup de laptop con workflow de automatizacion limpio, flujos conectados, paneles de eficiencia. "
+        "Variar entre diagramas de integracion, dashboards de procesos y tableros de productividad."
+    ),
+    "desarrollo android": (
+        "Mockup de smartphone con app movil profesional, interfaz con metricas o mapas. "
+        "Solo dispositivo como mockup limpio, sin manos ni personas."
+    ),
+    "desarrollo desktop": (
+        "Mockup de laptop o monitor con aplicacion empresarial robusta, paneles de productividad."
+    ),
+    "modernizacion de software legacy": (
+        "Representar evolucion tecnologica sutil: software antiguo transformandose en plataforma moderna. "
+        "Enfatizar migracion y continuidad operativa."
+    ),
+    "rpas nativos": (
+        "Mostrar automatizacion de tareas repetitivas en flujos empresariales, tableros claros y procesos conectados. "
+        "Evitar robots humanoides. Representar RPA como eficiencia operativa."
+    ),
 }
 
 
@@ -61,73 +84,59 @@ def looks_like_generic_service_seed(text: str) -> bool:
 
 
 def clean_generated_prompt(prompt: str) -> str:
+    """Limpia el prompt de n8n y lo prepara para ChatGPT/DALL-E.
+
+    Estrategia: el prompt de n8n ya viene en ingles y bien formado.
+    Solo necesitamos:
+    1. Limpiar prefijos conversacionales que la IA de n8n pueda agregar
+    2. Agregar un wrapper MINIMO en ingles (no espanol) para ChatGPT
+    3. Reforzar las 2 reglas criticas: zona de logo y full bleed
+    """
     text = " ".join(str(prompt).strip().split())
     lower = text.lower()
 
+    # Quitar prefijos tipo "Prompt:", "Prompt final:", etc.
     markers = ["prompt:", "prompt final:", "prompt para imagen:"]
     for marker in markers:
         idx = lower.find(marker)
         if idx != -1:
             text = text[idx + len(marker):].strip()
+            lower = text.lower()
             break
 
-    text = text.strip(" -\n\r\t")
-
-    lower = text.lower()
-    if lower.startswith("creame una imagen de alta definicion grafica: contexto:"):
-        body = text[len("CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA: contexto:"):].strip()
-    elif lower.startswith("creame una imagen de alta definicion grafica:"):
-        body = text[len("CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA:"):].strip()
-    elif lower.startswith("genera una imagen; contexto:"):
-        body = text[len("Genera una imagen; contexto:"):].strip()
-    elif lower.startswith("genera una imagen:"):
-        body = text[len("Genera una imagen:"):].strip()
-    elif lower.startswith("genera una imagen"):
-        body = text[len("Genera una imagen"):].lstrip(" :;,-")
-    elif lower.startswith("crea una imagen"):
-        body = text[len("Crea una imagen"):].lstrip(" :;,-")
-    elif lower.startswith("imagina una escena"):
-        body = "una escena" + text[len("Imagina una escena"):]
-    elif lower.startswith("imagina una imagen"):
-        body = text[len("Imagina una imagen"):].lstrip(" :;,-")
-    elif lower.startswith("imagina "):
-        body = text[len("Imagina "):].lstrip(" :;,-")
-    elif lower.startswith("una imagen "):
-        body = text[len("una imagen "):].lstrip(" :;,-")
-    elif lower.startswith("la imagen "):
-        body = text[len("La imagen "):].lstrip(" :;,-")
-    else:
-        body = text
-
-    advisory_prefixes = [
-        "aqui tienes",
-        "te sugiero",
-        "te propongo",
-        "puedes usar",
-        "este prompt",
-        "prompt final",
-        "prompt para imagen",
+    # Quitar prefijos conversacionales en espanol
+    conversational_prefixes = [
+        "aqui tienes", "te sugiero", "te propongo", "puedes usar",
+        "este prompt", "prompt final", "prompt para imagen",
+        "creame una imagen de alta definicion grafica: contexto:",
+        "creame una imagen de alta definicion grafica:",
+        "genera una imagen; contexto:",
+        "genera una imagen:", "genera una imagen",
+        "crea una imagen", "imagina una escena",
+        "imagina una imagen", "imagina ",
+        "una imagen ", "la imagen ",
     ]
-    lowered_body = body.lower()
-    for prefix in advisory_prefixes:
-        if lowered_body.startswith(prefix):
-            body = body[len(prefix):].lstrip(" :;,-")
-            lowered_body = body.lower()
+    # Ordenar por longitud descendente para que los prefijos mas largos se prueben primero
+    conversational_prefixes.sort(key=len, reverse=True)
+    changed = True
+    while changed:
+        changed = False
+        lowered = text.lower()
+        for prefix in conversational_prefixes:
+            if lowered.startswith(prefix):
+                text = text[len(prefix):].lstrip(" :;,-")
+                changed = True
+                break
 
-    body = body.strip(" ;:-")
+    text = text.strip(" ;:-\n\r\t")
+
+    # Wrapper minimo en INGLES para ChatGPT - no duplicar lo que n8n ya dijo
     return (
-        "CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA DE OFERTA PUBLICITARIA. "
-        f"CONTEXTO PUBLICITARIO: {body}. "
-        "ZONA DE LOGO: El 15 por ciento superior de la imagen debe ser COMPLETAMENTE VACIO, solo el gradiente oscuro del fondo visible. "
-        "Ningun texto, icono, grafico ni elemento en esa zona. Todo el contenido del anuncio empieza DEBAJO del 15 por ciento superior. "
-        "FULL BLEED: El fondo con gradiente debe llenar el 100 por ciento del lienzo de borde a borde, sin margenes internos, sin bordes negros, sin espacios vacios. "
-        "ESTILO: Diseno grafico publicitario premium de OFERTA, NO fotografia realista. NO personas, NO oficinas, NO rostros. "
-        "Mockups de dispositivos con interfaces limpias sobre fondo con gradiente elegante que llega hasta los bordes. "
-        "Incluir texto de oferta visible: gancho comercial, CTA urgente, web y WhatsApp. "
-        "NO escribir NoyeCode ni ninguna variacion del nombre de la marca dentro de la imagen. "
-        "GENERA LA IMAGEN DIRECTAMENTE EN CALIDAD 4K, FORMATO VERTICAL 4:5 OPTIMIZADO PARA FEED DE FACEBOOK E INSTAGRAM, "
-        "FULL BLEED SIN MARGENES INTERNOS, ALTA CLARIDAD GRAFICA. "
-        "ENTREGA EXACTAMENTE UNA SOLA IMAGEN FINAL. NO GENERES DOS OPCIONES, NO MUESTRES VARIANTES, NO HAGAS COMPARACIONES Y NO PREGUNTES CUAL IMAGEN PREFIERO."
+        f"Generate this image now: {text} "
+        "CRITICAL: The top 15% of the image must be completely empty dark gradient only - "
+        "no text, no icons, no elements of any kind. Logo is added programmatically later. "
+        "Full-bleed, no black bars, no margins. "
+        "Deliver exactly ONE final image, vertical 4:5, 4K resolution."
     ).strip()
 
 
@@ -158,171 +167,48 @@ def select_primary_service(text: str) -> str:
 
 
 def enrich_idea(idea: str) -> str:
+    """Enriquece la idea con hints CONCISOS antes de enviar a n8n.
+
+    Principio: maximo 6 hints cortos. Cada hint aporta informacion unica.
+    No repetir conceptos. n8n ya tiene el prompt_seed.txt con las reglas base.
+    """
     base = " ".join(idea.strip().split())
     primary_service = select_primary_service(base)
-    hints: list[str] = [DEFAULT_BRAND_HINT]
+    hints: list[str] = []
 
+    # Hint 1: Contexto de marca (corto)
+    hints.append(DEFAULT_BRAND_HINT)
+
+    # Hint 2: Servicio obligatorio
     hints.append(
-        f"Servicio principal obligatorio de esta pieza: {primary_service}. "
-        "No cambiarlo por otro servicio y no mezclar el protagonismo con otro producto."
-    )
-    hints.append(
-        "REGLA CRITICA DE COMPOSICION - ZONA DE LOGO: El 15% superior de la imagen debe ser COMPLETAMENTE VACIO, "
-        "solo el gradiente oscuro del fondo (#1a1a2e) visible ahi. NINGUN texto, icono, grafico ni elemento puede aparecer en esa zona. "
-        "El logo real de la empresa se superpone ahi despues programaticamente. "
-        "Todo el contenido del anuncio (titulos, mockups, CTA, contacto) debe empezar DEBAJO del 15% superior."
-    )
-    hints.append(
-        "REGLA CRITICA - FULL BLEED: La imagen debe llenar el 100% del lienzo de BORDE A BORDE. "
-        "El fondo con gradiente debe extenderse hasta los 4 bordes sin margenes internos, sin bordes negros, sin espacios vacios en los laterales. "
-        "La imagen debe verse perfecta en el contenedor de Facebook e Instagram sin barras negras ni areas vacias."
-    )
-    hints.append(
-        "ESTILO OBLIGATORIO: La imagen debe parecer DISENO GRAFICO publicitario de OFERTA para social media, NO fotografia realista. "
-        "NO incluir personas reales, manos, rostros humanos, oficinas, escritorios ni escenas fotograficas. "
-        "Usar composicion minimalista con gradientes elegantes y mockups de dispositivos (laptop, smartphone, tablet) con interfaces SaaS limpias en pantalla."
-    )
-    hints.append(
-        "La imagen debe vender un servicio concreto de NoyeCode con ENFOQUE EN OFERTA Y CONVERSION. "
-        "Incluir un gancho comercial visible: cotizacion gratis, descuento, demo sin costo, precio desde, cupos limitados. "
-        "El sujeto principal debe ser el mockup del producto digital con interfaz creible."
-    )
-    hints.append(
-        "No centrar la composicion en la ciudad de Bogota, edificios urbanos o calles."
-    )
-    hints.append(
-        "No usar como recurso repetitivo pantallas gigantes en fachadas, codigo flotando en edificios ni escenas futuristas poco creibles."
-    )
-    hints.append(
-        "Priorizar mockups de dispositivos con dashboards, graficos, metricas y tablas segun el servicio. "
-        "La interfaz en pantalla debe apoyar el mensaje comercial."
-    )
-    hints.append(
-        "La pieza debe sentirse como arte publicitario de OFERTA de NoyeCode para redes sociales, "
-        "orientado a conversion y captacion de clientes con gancho comercial claro y CTA urgente."
-    )
-    hints.append(
-        "Formato obligatorio: vertical 4:5 (1080x1350px logico) optimizado para feed de Facebook e Instagram. "
-        "El diseno debe ser FULL BLEED: fondo de borde a borde, sin margenes internos ni bordes negros. "
-        "El texto y elementos importantes deben tener un pequeno margen del borde para no cortarse, pero el fondo debe llegar hasta el borde."
-    )
-    hints.append(
-        "Direccion de arte: look de diseno grafico premium de OFERTA, paleta elegante (naranja #fd9102, fondo oscuro gradiente de #1a1a2e a #16213e). "
-        "El gradiente superior debe fluir suavemente hacia #1a1a2e para que el area del logo se integre sin cortes. "
-        "Mejor jerarquia tipografica, composicion minimalista y acabado limpio de agencia."
-    )
-    hints.append(
-        "El resultado debe parecer un anuncio de oferta de agencia para Meta Ads: limpio, moderno, minimalista y orientado a conversion. "
-        "NO debe parecer foto de stock ni fotografia realista."
-    )
-    hints.append(
-        "Incluir dentro de la imagen un bloque de texto publicitario corto y bien jerarquizado con: "
-        "gancho de oferta (ej: 'Cotizacion GRATIS', 'Demo sin costo', 'Desde $XXX'), "
-        "nombre del servicio, beneficio principal, CTA urgente, sitio web noyecode.com y WhatsApp +57 301 385 9952."
-    )
-    hints.append(
-        f"El nombre del servicio destacado dentro del arte debe ser exactamente: {primary_service}."
-    )
-    hints.append(
-        "NO incluir hashtags ni simbolos # dentro de la imagen. Los hashtags se agregan despues en el caption de Facebook. La imagen debe quedar limpia sin texto tipo hashtag."
-    )
-    hints.append(
-        "Si se listan servicios complementarios, deben ir en segundo nivel visual y nunca opacar el servicio principal."
-    )
-    hints.append(
-        "Salida obligatoria: devolver una sola instruccion final lista para pegar en ChatGPT y generar la imagen de inmediato."
-    )
-    hints.append(
-        "La generacion debe producir exactamente una sola imagen final. Prohibido devolver variantes, comparativas, opciones A/B o preguntas de seleccion."
-    )
-    hints.append(
-        "La respuesta debe empezar como una orden directa y operativa para generar imagen, no como una sugerencia."
-    )
-    hints.append(
-        "Prohibido empezar con frases como 'Imagina', 'Visualiza', 'Una imagen de', 'La imagen debe', 'Aqui tienes', 'Te sugiero' o cualquier explicacion."
-    )
-    hints.append(
-        "No responder como asesor de prompts. No dar sugerencias. No explicar. No listar opciones. Solo entregar la instruccion final de generacion."
-    )
-    hints.append(
-        "Cada respuesta debe variar el contexto visual para evitar escenas repetidas. Alternar entre: "
-        "laptop en angulo 3/4 con dashboard, smartphone con app de campo, laptop y tablet mostrando la misma plataforma, "
-        "laptop con workflow de automatizacion, composicion hero con laptop y smartphone, monitor con analytics en tiempo real. "
-        "Siempre mockups de dispositivos, nunca personas ni oficinas."
-    )
-    hints.append(
-        "No repetir siempre la misma composicion. Cambiar encuadre del dispositivo, angulo, tipo de interfaz en pantalla y estilo de gradiente del fondo."
+        f"Servicio protagonista de esta pieza: {primary_service}. "
+        "No cambiarlo ni mezclar con otros servicios."
     )
 
-    if primary_service == "desarrollo a la medida":
-        hints.append(
-            "Servicio clave: desarrollo a la medida. "
-            "Mostrar un mockup de laptop o tablet con interfaz UI/UX limpia, dashboards elegantes y "
-            "sensacion de software personalizado, escalable y de alto valor."
-        )
-        hints.append(
-            "Composicion recomendada: fondo con gradiente oscuro elegante, mockup de dispositivo con producto digital visible, "
-            "tipografia bold moderna, 4K, con texto publicitario integrado de forma elegante."
-        )
-        hints.append(
-            "Evitar monitores desproporcionados, hologramas exagerados, interfaces imposibles o recursos visuales caricaturescos."
-        )
-        hints.append(
-            "El texto dentro del arte debe resaltar: desarrollo a la medida, software personalizado, CTA corto, noyecode.com y WhatsApp."
-        )
+    # Hint 3: Escena visual especifica del servicio
+    scene_hint = _SERVICE_SCENE_HINTS.get(primary_service)
+    if scene_hint:
+        hints.append(scene_hint)
 
-    if primary_service == "automatizaciones empresariales":
-        hints.append(
-            "Si la pieza es sobre automatizaciones, mostrar mockup de laptop con workflow de automatizacion limpio y profesional, "
-            "flujos conectados, paneles de control y visualizacion de eficiencia operativa."
-        )
-        hints.append(
-            "Variar entre mockups de workflows, diagramas de integracion en pantalla, dashboards de procesos y tableros de productividad."
-        )
+    # Hint 4: Zona de logo (la regla mas critica, una sola vez)
+    hints.append(
+        "ZONA DE LOGO: 15% superior de la imagen COMPLETAMENTE VACIO (solo gradiente oscuro). "
+        "Todo el contenido empieza debajo de esa zona."
+    )
 
-    if primary_service == "desarrollo android":
-        hints.append(
-            "Si la pieza es sobre desarrollo Android, mostrar mockup de smartphone con app movil profesional, "
-            "interfaz pulida con metricas, mapas o tareas segun el servicio."
-        )
-        hints.append(
-            "NO mostrar manos ni personas. Solo el dispositivo como mockup limpio sobre fondo con gradiente."
-        )
-        hints.append(
-            "Cuidar que la interfaz del movil no quede demasiado pegada al borde ni recortada. Mantener el celular y el copy dentro de la zona segura central."
-        )
+    # Hint 5: Variedad visual
+    hints.append(
+        "Variar la composicion: alternar angulos de dispositivo, tipo de interfaz y estilo de gradiente. "
+        "No repetir siempre la misma escena."
+    )
 
-    if primary_service == "desarrollo desktop":
-        hints.append(
-            "Si la pieza es sobre desarrollo desktop, mostrar mockup de laptop o monitor con aplicacion empresarial robusta, "
-            "paneles limpios, dashboards de productividad y control operativo."
-        )
-        hints.append(
-            "Usar composicion de mockup de dispositivo sobre fondo gradiente, sin personas ni oficinas."
-        )
+    # Hint 6: Restricciones clave (una sola vez, consolidadas)
+    hints.append(
+        "NO incluir: personas, oficinas, logos de marca, hashtags, fotografia realista. "
+        "SI incluir: texto de oferta en espanol, CTA, contacto al pie."
+    )
 
-    if primary_service == "modernizacion de software legacy":
-        hints.append(
-            "Si la pieza trata de modernizacion legacy, representar evolucion tecnologica: "
-            "antes y despues sutil, software antiguo transformandose en plataforma moderna, "
-            "sin verse caotico ni demasiado tecnico."
-        )
-        hints.append(
-            "Enfatizar migracion, actualizacion, continuidad operativa y modernizacion visual del sistema."
-        )
-        hints.append(
-            "Usar composicion comparativa o de transformacion, pero sin partir la imagen de forma brusca ni empujar el contenido importante a los extremos."
-        )
-
-    if primary_service == "rpas nativos":
-        hints.append(
-            "Si la pieza es sobre RPAs nativos, mostrar automatizacion de tareas repetitivas en flujos empresariales reales, con tableros claros, procesos conectados y sensacion de eficiencia operativa."
-        )
-        hints.append(
-            "Evitar robots humanoides. Representar el RPA como inteligencia operativa aplicada al negocio."
-        )
-
-    return f"{base}\n\nDirectrices internas para enriquecer la escena:\n- " + "\n- ".join(hints)
+    return f"{base}\n\nDirectrices:\n- " + "\n- ".join(hints)
 
 
 def _read_json_response(resp: Any) -> dict[str, Any]:

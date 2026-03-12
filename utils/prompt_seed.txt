@@ -1,141 +1,30 @@
-Genera un unico prompt en ingles, listo para DALL-E, para crear UNA sola pieza publicitaria vertical de alto impacto para Facebook e Instagram de una empresa de tecnologia. El resultado debe verse como diseno grafico premium para redes sociales, no como fotografia real.
+Genera UN SOLO prompt en ingles listo para DALL-E. El prompt debe tener entre 80 y 120 palabras en un solo parrafo continuo. No incluir explicaciones, opciones ni preguntas.
 
-Datos de la empresa:
-- Empresa: NoyeCode
-- Slogan de referencia: "Tu Casa de Desarrollo de Software"
-- Telefono/WhatsApp: +57 301 385 9952
-- Sitio web: noyecode.com
+EMPRESA: NoyeCode | Web: noyecode.com | WhatsApp: +57 301 385 9952
 
-Objetivo de marketing:
-- Vender un solo servicio por imagen con enfoque en OFERTAS y CONVERSION.
-- La imagen debe funcionar como un anuncio de venta directa que motive al usuario a contactar.
-- Incluir ganchos comerciales: precios desde, descuentos, cotizacion gratis, demo sin costo, cupos limitados.
-- La promesa debe sentirse moderna, confiable y orientada a resultados.
-- El anuncio debe captar atencion en menos de 2 segundos y generar accion inmediata.
+SERVICIO A PROMOCIONAR: Se te indicara cual servicio usar. No lo cambies.
 
-Servicio protagonista:
-Elige SOLO UNO de estos servicios como enfoque principal:
-- Desarrollo de software a la medida
-- Automatizaciones empresariales
-- Apps empresariales para campo (GPS, tracking, reportes)
-- Software para negocios (CRM, ERP, inventario, ventas)
-- Apps no-code para automatizar procesos y dashboards
-- Dashboards y analisis de datos en tiempo real
-- Desarrollo Android y desktop
-- Soporte tecnico informatico
-- RPAs nativos
-- Modernizacion de software legacy
+QUE GENERAR:
+Un anuncio vertical 4:5 de oferta de software para Facebook/Instagram. Estilo: diseno grafico premium (NO fotografia). Mockup de dispositivo con interfaz SaaS limpia. Fondo: gradiente oscuro #1a1a2e a #16213e de borde a borde.
 
-Enfoque visual obligatorio:
-- Debe parecer un anuncio grafico de oferta para social media de empresa tech moderna.
-- NO debe parecer foto realista.
-- NO usar personas reales, manos, rostros, oficinas, escritorios ni escenas fotograficas.
-- Usar fondo limpio con gradiente elegante y composicion minimalista.
-- Incluir 1 o 2 dispositivos maximo (laptop, smartphone o tablet).
-- En la pantalla de los dispositivos debe verse una interfaz SaaS creible, moderna y ordenada con dashboards, graficos, metricas, tablas o mapas segun el servicio.
-- La interfaz en pantalla debe apoyar el mensaje comercial, no robar protagonismo al titulo.
-- La imagen debe llenar TODO el lienzo de borde a borde, sin margenes internos, sin bordes negros, sin espacios vacios en los laterales. El fondo con gradiente debe extenderse hasta los 4 bordes del lienzo.
+LAYOUT CRITICO (respetar estrictamente):
+- FRANJA SUPERIOR (15% del alto): COMPLETAMENTE VACIA, solo gradiente oscuro. Cero texto, cero iconos, cero graficos. El logo se agrega despues.
+- ZONA DE CONTENIDO (85% inferior): titulo de oferta, servicio, mockup, CTA, contacto al pie.
 
-Composicion y layout (MUY IMPORTANTE):
-- Formato vertical 4:5 (1080x1350px logico).
-- La imagen debe ocupar el 100% del lienzo sin margenes internos. El gradiente de fondo debe llegar hasta los 4 bordes.
-- ZONA DE LOGO (parte superior): Los primeros 15% superiores de la imagen deben ser una zona COMPLETAMENTE VACIA con solo el gradiente oscuro del fondo (#1a1a2e). Sin texto, sin iconos, sin elementos graficos. Esta zona es exclusiva para superponer el logo real de la empresa despues. El contenido del anuncio empieza DEBAJO de esta zona.
-- ZONA DE CONTENIDO (85% inferior): Aqui va todo el contenido del anuncio distribuido con buena jerarquia:
-  1. Titulo/gancho de oferta (texto grande y llamativo)
-  2. Nombre del servicio
-  3. Mockup del dispositivo con interfaz
-  4. CTA (boton o texto destacado)
-  5. Contacto: web y telefono en pequeno al pie
+TEXTO EN LA IMAGEN:
+- Todo en espanol. Maximo 5 elementos de texto.
+- Titulo: gancho de oferta (max 6 palabras). Ej: "Cotizacion GRATIS hoy", "Demo sin costo".
+- Servicio: nombre corto.
+- CTA: max 4 palabras urgentes.
+- Pie: "noyecode.com" y "+57 301 385 9952".
+- PROHIBIDO escribir "NoyeCode" o variaciones del nombre de marca.
 
-Texto dentro de la imagen:
-- Todo el texto visible dentro de la imagen debe estar en espanol.
-- Usar muy poco texto para maximizar legibilidad.
-- Titulo principal: maximo 6 palabras, directo y vendedor, con gancho de oferta.
-- Subtitulo opcional: maximo 8 palabras con beneficio concreto.
-- CTA: maximo 4 palabras, urgente y accionable.
-- Contacto al pie: "noyecode.com" y "+57 301 385 9952".
-- NO escribir "NoyeCode", "Noye Code", "NOYECODE" ni ninguna variacion dentro de la imagen.
-- NO pedir slogans largos ni bloques de texto.
-- El texto debe verse nitido, bien espaciado y facil de leer.
-- Todo el texto y elementos graficos deben empezar DEBAJO del 15% superior de la imagen.
+PALETA: naranja #fd9102 para acentos, fondo gradiente oscuro.
 
-Mensajes sugeridos de alto impacto (orientados a oferta y conversion):
-Elige una combinacion coherente segun el servicio:
-- "Cotizacion GRATIS hoy"
-- "Automatiza y ahorra 70%"
-- "Tu software desde $XXX USD"
-- "Demo gratis sin compromiso"
-- "Primera consulta GRATIS"
-- "Moderniza tu sistema hoy"
-- "Ahorra tiempo y dinero"
-- "Resultados en 30 dias"
-- "Cupos limitados este mes"
-- "Escribenos ahora"
-- "Agenda tu demo gratis"
-- "Impulsa tu negocio hoy"
-
-Paleta de color:
-- Principal: naranja vibrante #fd9102.
-- Fondo recomendado: gradiente oscuro elegante entre #1a1a2e y #16213e que llene TODO el lienzo de borde a borde.
-- Alternativa valida: fondo claro premium con acentos naranja si mejora la legibilidad.
-- Evitar colores neon, cyberpunk, verde lima, rosa intenso o mezclas estridentes.
-
-Adaptacion a Facebook e Instagram:
-- La imagen debe verse perfecta en el feed de Facebook sin bordes negros ni espacios vacios.
-- El contenido debe llenar todo el contenedor de imagen de Facebook.
-- Pensar en como se ve la imagen en movil: texto legible, contraste alto, composicion centrada.
-- No dejar areas grandes vacias excepto la zona del logo (15% superior).
-
-Escenas sugeridas para dispositivos:
-Elige SOLO UNA:
-- Laptop en angulo 3/4 mostrando dashboard con KPIs, tabla y sidebar.
-- Smartphone mostrando app de campo con mapa, tareas y metricas.
-- Laptop y tablet mostrando la misma plataforma en dos vistas.
-- Laptop mostrando workflow de automatizacion limpio y profesional.
-- Composicion hero con laptop y smartphone mostrando dashboards sincronizados.
-- Laptop mostrando CRM con pipeline, contactos y resumen comercial.
-- Smartphone mostrando tracking con mapa y estadisticas.
-- Monitor o laptop mostrando analytics en tiempo real.
-
-Palabras clave visuales recomendadas para el prompt:
-- clean graphic design
-- social media advertisement
-- premium SaaS ad
-- bold modern typography
-- minimalist composition
-- smooth gradient background edge to edge
-- realistic device mockup with clean software UI
-- corporate tech aesthetic
-- high contrast hierarchy
-- ultra legible text
-- special offer design
-- conversion-focused ad
-- full bleed design no margins
-
-Evitar explicitamente en el prompt:
-- photorealistic photography
-- cinematic lighting
-- depth of field
-- bokeh
-- real humans
-- office photography
-- cluttered layout
-- too much text
-- logo generation
-- watermarks
-- internal margins or borders
-- black bars or empty edges
-- content in the top 15% area
-
-Reglas estrictas para el prompt final:
-- El prompt final debe estar 100% en ingles.
-- Debe ser un solo parrafo continuo.
-- Debe medir entre 100 y 150 palabras.
-- No incluir encabezados, listas, explicaciones, opciones ni preguntas.
-- Debe especificar entre comillas dobles el texto exacto a mostrar en la imagen.
-- Debe pedir solo una imagen final.
-- Debe dejar claro que el anuncio es una pieza grafica publicitaria limpia y moderna para redes sociales con enfoque en oferta y conversion.
-- Debe incluir literalmente esta frase en ingles: "The top 15% of the image must be completely empty with only the dark gradient background visible, no text, no icons, no graphics, no elements of any kind in that zone, as the company logo will be overlaid there later. All ad content starts below the 15% mark."
-- Debe incluir: "The design must be full-bleed with the gradient background extending edge to edge with no internal margins, no black bars, and no empty borders."
-- Debe insistir en que no se genere ningun logo ni se escriba el nombre de la marca dentro de la imagen.
-- Debe terminar con: "vertical 4:5 aspect ratio, 4K resolution, full-bleed social media advertisement, clean graphic design, conversion-focused offer ad"
+REGLAS DEL PROMPT FINAL:
+- 100% en ingles, un parrafo, 80-120 palabras.
+- Especificar entre comillas el texto exacto en espanol que va dentro de la imagen.
+- Incluir esta frase literal: "The top 15 percent of the image must be completely empty dark gradient only, no text or elements, reserved for logo overlay. All content starts below that zone."
+- Incluir: "Full-bleed design, gradient background edge to edge, no margins, no black bars."
+- Terminar con: "vertical 4:5, 4K, full-bleed social media ad, clean graphic design, conversion-focused"
+- NO pedir fotos realistas, personas, oficinas, logos ni hashtags.
