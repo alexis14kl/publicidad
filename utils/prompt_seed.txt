@@ -22,7 +22,7 @@ LAYOUT CRITICO (respetar estrictamente):
 TEXTO EN LA IMAGEN:
 - Todo en espanol. Maximo 6 elementos de texto.
 - Titulo principal: gancho de oferta GRANDE y llamativo (max 6 palabras). Ejemplos: "Creamos Tu Web Moderna", "Automatiza Tu Negocio", "Tu App a Tu Medida". Tipografia bold gruesa, color morado oscuro o blanco con sombra.
-- Subtitulo de oferta: en badge naranja o morado, texto urgente. Ej: "GRATIS para los primeros 10", "Oferta Limitada", "50% de Descuento".
+- Subtitulo de oferta: en badge naranja o morado, texto urgente. Ej: "Consulta Gratis", "Cotiza Sin Costo", "Asesoria Personalizada", "Oferta Limitada". NUNCA decir que el servicio es gratis, solo la consulta o cotizacion.
 - Beneficios: 2-3 bullet points cortos con checks verdes.
 - CTA: en barra o boton naranja/verde al pie. Ej: "Escribenos con tu idea", "Cotiza Gratis HOY".
 - Contacto al pie: "noyecode.com" y "WhatsApp: +57 301 385 9952" en barra inferior.
