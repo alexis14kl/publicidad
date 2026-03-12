@@ -52,12 +52,12 @@ from cfg.platform import FORCE_OPEN_JS
 from utils.logger import log_info, log_ok, log_warn, log_error, log_step, log_debug
 
 
-def _minimize_dicloak_window(retries: int = 5, delay: float = 2.0) -> None:
-    """Minimiza la ventana de DICloak usando pygetwindow (cross-platform)."""
+def _minimize_window(keyword: str, retries: int = 5, delay: float = 2.0) -> None:
+    """Minimiza ventanas cuyo titulo contenga *keyword* (cross-platform)."""
     try:
         import pygetwindow as gw
     except ImportError:
-        log_warn("pygetwindow no instalado. DICloak quedara visible.")
+        log_warn(f"pygetwindow no instalado. {keyword} quedara visible.")
         return
     kw = keyword.lower()
     for _ in range(retries):
@@ -66,7 +66,7 @@ def _minimize_dicloak_window(retries: int = 5, delay: float = 2.0) -> None:
             if not w.isMinimized:
                 w.minimize()
         if wins:
-            log_ok("Ventana de DICloak minimizada.")
+            log_ok(f"Ventana de {keyword} minimizada.")
             return
         time.sleep(delay)
     log_warn(f"No se encontro ventana de {keyword} para minimizar.")
@@ -245,7 +245,7 @@ def run_orchestrator(
 
         launch_cmd = f'"{dicloak_exe}" --remote-debugging-port=9333 --remote-allow-origins=*'
         launch_detached(launch_cmd)
-        _minimize_dicloak_window()
+        _minimize_window("dicloak")
     else:
         log_step("3/10", "DICloak ya activo, saltando inicio.")
 
