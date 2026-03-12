@@ -34,17 +34,18 @@ Enfoque visual obligatorio:
 - Incluir 1 o 2 dispositivos maximo (laptop, smartphone o tablet).
 - En la pantalla de los dispositivos debe verse una interfaz SaaS creible, moderna y ordenada con dashboards, graficos, metricas, tablas o mapas segun el servicio.
 - La interfaz en pantalla debe apoyar el mensaje comercial, no robar protagonismo al titulo.
+- La imagen debe llenar TODO el lienzo de borde a borde, sin margenes internos, sin bordes negros, sin espacios vacios en los laterales. El fondo con gradiente debe extenderse hasta los 4 bordes del lienzo.
 
-Composicion:
-- Formato vertical 4:5.
-- Margenes amplios y jerarquia visual clara.
-- La parte superior del 12% de la imagen debe ser un area oscura que se integre suavemente con el fondo del diseno (NO una barra cortada ni un parche separado). Usar el mismo tono del gradiente superior del fondo para que fluya naturalmente. Esta zona se usara para superponer el logo despues, asi que no poner nada ahi.
-- Debe existir una zona clara para:
-  titulo principal corto con oferta o gancho comercial,
-  subtitulo con beneficio concreto,
-  mockup del producto,
-  CTA urgente y directo,
-  web y telefono en pequeno.
+Composicion y layout (MUY IMPORTANTE):
+- Formato vertical 4:5 (1080x1350px logico).
+- La imagen debe ocupar el 100% del lienzo sin margenes internos. El gradiente de fondo debe llegar hasta los 4 bordes.
+- ZONA DE LOGO (parte superior): Los primeros 15% superiores de la imagen deben ser una zona COMPLETAMENTE VACIA con solo el gradiente oscuro del fondo (#1a1a2e). Sin texto, sin iconos, sin elementos graficos. Esta zona es exclusiva para superponer el logo real de la empresa despues. El contenido del anuncio empieza DEBAJO de esta zona.
+- ZONA DE CONTENIDO (85% inferior): Aqui va todo el contenido del anuncio distribuido con buena jerarquia:
+  1. Titulo/gancho de oferta (texto grande y llamativo)
+  2. Nombre del servicio
+  3. Mockup del dispositivo con interfaz
+  4. CTA (boton o texto destacado)
+  5. Contacto: web y telefono en pequeno al pie
 
 Texto dentro de la imagen:
 - Todo el texto visible dentro de la imagen debe estar en espanol.
@@ -56,6 +57,7 @@ Texto dentro de la imagen:
 - NO escribir "NoyeCode", "Noye Code", "NOYECODE" ni ninguna variacion dentro de la imagen.
 - NO pedir slogans largos ni bloques de texto.
 - El texto debe verse nitido, bien espaciado y facil de leer.
+- Todo el texto y elementos graficos deben empezar DEBAJO del 15% superior de la imagen.
 
 Mensajes sugeridos de alto impacto (orientados a oferta y conversion):
 Elige una combinacion coherente segun el servicio:
@@ -74,10 +76,15 @@ Elige una combinacion coherente segun el servicio:
 
 Paleta de color:
 - Principal: naranja vibrante #fd9102.
-- Fondo recomendado: gradiente oscuro elegante entre #1a1a2e y #16213e.
+- Fondo recomendado: gradiente oscuro elegante entre #1a1a2e y #16213e que llene TODO el lienzo de borde a borde.
 - Alternativa valida: fondo claro premium con acentos naranja si mejora la legibilidad.
-- La parte superior del fondo debe fluir naturalmente hacia el tono mas oscuro (#1a1a2e) para que el area del logo se integre sin cortes visibles.
 - Evitar colores neon, cyberpunk, verde lima, rosa intenso o mezclas estridentes.
+
+Adaptacion a Facebook e Instagram:
+- La imagen debe verse perfecta en el feed de Facebook sin bordes negros ni espacios vacios.
+- El contenido debe llenar todo el contenedor de imagen de Facebook.
+- Pensar en como se ve la imagen en movil: texto legible, contraste alto, composicion centrada.
+- No dejar areas grandes vacias excepto la zona del logo (15% superior).
 
 Escenas sugeridas para dispositivos:
 Elige SOLO UNA:
@@ -96,13 +103,14 @@ Palabras clave visuales recomendadas para el prompt:
 - premium SaaS ad
 - bold modern typography
 - minimalist composition
-- smooth gradient background
+- smooth gradient background edge to edge
 - realistic device mockup with clean software UI
 - corporate tech aesthetic
 - high contrast hierarchy
 - ultra legible text
 - special offer design
 - conversion-focused ad
+- full bleed design no margins
 
 Evitar explicitamente en el prompt:
 - photorealistic photography
@@ -115,16 +123,19 @@ Evitar explicitamente en el prompt:
 - too much text
 - logo generation
 - watermarks
-- harsh color bar that looks like a patch
+- internal margins or borders
+- black bars or empty edges
+- content in the top 15% area
 
 Reglas estrictas para el prompt final:
 - El prompt final debe estar 100% en ingles.
 - Debe ser un solo parrafo continuo.
-- Debe medir entre 90 y 140 palabras.
+- Debe medir entre 100 y 150 palabras.
 - No incluir encabezados, listas, explicaciones, opciones ni preguntas.
 - Debe especificar entre comillas dobles el texto exacto a mostrar en la imagen.
 - Debe pedir solo una imagen final.
 - Debe dejar claro que el anuncio es una pieza grafica publicitaria limpia y moderna para redes sociales con enfoque en oferta y conversion.
-- Debe incluir literalmente esta frase en ingles: "The top 12% of the image must smoothly blend into the dark gradient background color without any visible hard edge or patch effect, leaving that area completely empty of any text, icons, logos or visual elements."
+- Debe incluir literalmente esta frase en ingles: "The top 15% of the image must be completely empty with only the dark gradient background visible, no text, no icons, no graphics, no elements of any kind in that zone, as the company logo will be overlaid there later. All ad content starts below the 15% mark."
+- Debe incluir: "The design must be full-bleed with the gradient background extending edge to edge with no internal margins, no black bars, and no empty borders."
 - Debe insistir en que no se genere ningun logo ni se escriba el nombre de la marca dentro de la imagen.
-- Debe terminar con: "vertical 4:5 aspect ratio, 4K resolution, social media advertisement, clean graphic design, conversion-focused offer ad"
+- Debe terminar con: "vertical 4:5 aspect ratio, 4K resolution, full-bleed social media advertisement, clean graphic design, conversion-focused offer ad"

@@ -118,15 +118,15 @@ def clean_generated_prompt(prompt: str) -> str:
     return (
         "CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA DE OFERTA PUBLICITARIA. "
         f"CONTEXTO PUBLICITARIO: {body}. "
-        "REGLA CRITICA: La parte superior del 12 por ciento de la imagen debe integrarse suavemente con el gradiente oscuro del fondo, "
-        "fluyendo naturalmente hacia el tono #1a1a2e sin ningun borde duro ni efecto de parche. "
-        "Esa zona debe quedar completamente vacia sin logos, iconos, texto, simbolos ni decoracion. "
+        "ZONA DE LOGO: El 15 por ciento superior de la imagen debe ser COMPLETAMENTE VACIO, solo el gradiente oscuro del fondo visible. "
+        "Ningun texto, icono, grafico ni elemento en esa zona. Todo el contenido del anuncio empieza DEBAJO del 15 por ciento superior. "
+        "FULL BLEED: El fondo con gradiente debe llenar el 100 por ciento del lienzo de borde a borde, sin margenes internos, sin bordes negros, sin espacios vacios. "
         "ESTILO: Diseno grafico publicitario premium de OFERTA, NO fotografia realista. NO personas, NO oficinas, NO rostros. "
-        "Solo mockups de dispositivos con interfaces limpias sobre fondo con gradiente elegante. "
+        "Mockups de dispositivos con interfaces limpias sobre fondo con gradiente elegante que llega hasta los bordes. "
         "Incluir texto de oferta visible: gancho comercial, CTA urgente, web y WhatsApp. "
         "NO escribir NoyeCode ni ninguna variacion del nombre de la marca dentro de la imagen. "
         "GENERA LA IMAGEN DIRECTAMENTE EN CALIDAD 4K, FORMATO VERTICAL 4:5 OPTIMIZADO PARA FEED DE FACEBOOK E INSTAGRAM, "
-        "ESTILO PUBLICITARIO PREMIUM DE OFERTA, ALTA CLARIDAD GRAFICA Y RESPETANDO MARGENES DE SEGURIDAD PARA QUE NINGUN TEXTO O ELEMENTO CLAVE QUEDE CORTADO EN LOS BORDES. "
+        "FULL BLEED SIN MARGENES INTERNOS, ALTA CLARIDAD GRAFICA. "
         "ENTREGA EXACTAMENTE UNA SOLA IMAGEN FINAL. NO GENERES DOS OPCIONES, NO MUESTRES VARIANTES, NO HAGAS COMPARACIONES Y NO PREGUNTES CUAL IMAGEN PREFIERO."
     ).strip()
 
@@ -167,10 +167,15 @@ def enrich_idea(idea: str) -> str:
         "No cambiarlo por otro servicio y no mezclar el protagonismo con otro producto."
     )
     hints.append(
-        "REGLA CRITICA DE COMPOSICION: La parte superior del 12% de la imagen debe integrarse suavemente con el gradiente oscuro del fondo, "
-        "fluyendo naturalmente hacia el tono #1a1a2e sin ningun borde duro, corte visible ni efecto de parche. "
-        "Esa zona debe quedar completamente vacia, sin logos, iconos, texto, simbolos ni decoracion. "
-        "El logo real se superpone despues programaticamente."
+        "REGLA CRITICA DE COMPOSICION - ZONA DE LOGO: El 15% superior de la imagen debe ser COMPLETAMENTE VACIO, "
+        "solo el gradiente oscuro del fondo (#1a1a2e) visible ahi. NINGUN texto, icono, grafico ni elemento puede aparecer en esa zona. "
+        "El logo real de la empresa se superpone ahi despues programaticamente. "
+        "Todo el contenido del anuncio (titulos, mockups, CTA, contacto) debe empezar DEBAJO del 15% superior."
+    )
+    hints.append(
+        "REGLA CRITICA - FULL BLEED: La imagen debe llenar el 100% del lienzo de BORDE A BORDE. "
+        "El fondo con gradiente debe extenderse hasta los 4 bordes sin margenes internos, sin bordes negros, sin espacios vacios en los laterales. "
+        "La imagen debe verse perfecta en el contenedor de Facebook e Instagram sin barras negras ni areas vacias."
     )
     hints.append(
         "ESTILO OBLIGATORIO: La imagen debe parecer DISENO GRAFICO publicitario de OFERTA para social media, NO fotografia realista. "
@@ -197,16 +202,9 @@ def enrich_idea(idea: str) -> str:
         "orientado a conversion y captacion de clientes con gancho comercial claro y CTA urgente."
     )
     hints.append(
-        "Formato obligatorio: vertical 4:5 optimizado para feed de Facebook e Instagram, con composicion pensada para verse completa al publicarse."
-    )
-    hints.append(
-        "Dejar margenes de seguridad amplios en todos los lados. Ningun texto, logo, CTA, rostro o elemento clave debe quedar pegado a los bordes."
-    )
-    hints.append(
-        "Mantener todo el contenido critico dentro de una zona segura central aproximada del 80 por ciento del lienzo."
-    )
-    hints.append(
-        "No usar composicion edge-to-edge con texto o rostros cortados. Evitar que el arte dependa de las esquinas o laterales."
+        "Formato obligatorio: vertical 4:5 (1080x1350px logico) optimizado para feed de Facebook e Instagram. "
+        "El diseno debe ser FULL BLEED: fondo de borde a borde, sin margenes internos ni bordes negros. "
+        "El texto y elementos importantes deben tener un pequeno margen del borde para no cortarse, pero el fondo debe llegar hasta el borde."
     )
     hints.append(
         "Direccion de arte: look de diseno grafico premium de OFERTA, paleta elegante (naranja #fd9102, fondo oscuro gradiente de #1a1a2e a #16213e). "

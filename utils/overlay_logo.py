@@ -11,7 +11,7 @@ LOGO_SVG = PROJECT_ROOT / "utils" / "logoapporange.svg"
 
 # Color de la barra superior (debe coincidir con la paleta del prompt)
 HEADER_COLOR = (26, 26, 46, 255)  # #1a1a2e RGBA
-HEADER_RATIO = 0.12  # 12% del alto de la imagen
+HEADER_RATIO = 0.15  # 15% del alto de la imagen
 LOGO_WIDTH_RATIO = 0.35  # logo ocupa 35% del ancho (antes 60%)
 
 
@@ -47,6 +47,13 @@ def overlay_logo(image_path: str | Path) -> Path:
     scale = target_w / logo.size[0]
     target_h = int(logo.size[1] * scale)
     logo_resized = logo.resize((target_w, target_h), Image.LANCZOS)
+
+    # Limpiar pixeles semi-transparentes (anti-aliasing del SVG) que causan
+    # un halo/sombra visible sobre el fondo oscuro.
+    # Forzar alpha binario: opaco (>=128) o transparente (<128)
+    alpha = logo_resized.split()[3]
+    alpha = alpha.point(lambda a: 255 if a >= 128 else 0)
+    logo_resized.putalpha(alpha)
 
     # Centrar horizontal y verticalmente dentro de la barra de header
     x = (bg_w - target_w) // 2
