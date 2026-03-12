@@ -40,6 +40,12 @@ export interface MarketingRunUpdate {
     startDate: string
     endDate: string
     mcpAvailable: boolean
+    process?: {
+      id: string
+      title: string
+      detail: string
+      status: 'pending' | 'running' | 'success' | 'warning' | 'error'
+    }[]
   }
 }
 

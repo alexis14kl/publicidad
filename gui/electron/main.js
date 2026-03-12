@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const https = require('https')
 const { spawn, exec } = require('child_process')
 
 // Project root is two levels up from gui/electron/
@@ -128,9 +129,339 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function getFacebookAdsMcpInfo() {
+  const env = getProjectEnv()
+  const serverPath = path.join(PROJECT_ROOT, 'utils', 'AgenteMarketing', 'MCP', 'fb-ads-mcp-server', 'server.py')
+  const token =
+    env.FB_ACCESS_TOKEN ||
+    env.FACEBOOK_ACCESS_TOKEN ||
+    env.META_ACCESS_TOKEN ||
+    ''
+
+  return {
+    serverPath,
+    serverExists: fs.existsSync(serverPath),
+    pythonBin: findPython(),
+    token,
+  }
+}
+
+function validateMetaToken(token) {
+  return new Promise((resolve) => {
+    if (!token) {
+      resolve({
+        ok: false,
+        reason: 'No hay token configurado en FB_ACCESS_TOKEN, FACEBOOK_ACCESS_TOKEN o META_ACCESS_TOKEN.',
+      })
+      return
+    }
+
+    const url = new URL('https://graph.facebook.com/v22.0/me/adaccounts')
+    url.searchParams.set('limit', '1')
+    url.searchParams.set('fields', 'id,name')
+    url.searchParams.set('access_token', token)
+
+    const request = https.get(
+      url,
+      {
+        timeout: 8000,
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'noyecode-facebook-ads-preflight/1.0',
+        },
+      },
+      (response) => {
+        let body = ''
+        response.setEncoding('utf8')
+        response.on('data', (chunk) => {
+          body += chunk
+        })
+        response.on('end', () => {
+          try {
+            const data = body ? JSON.parse(body) : {}
+            if (response.statusCode >= 200 && response.statusCode < 300 && !data.error) {
+              const count = Array.isArray(data.data) ? data.data.length : 0
+              resolve({
+                ok: true,
+                reason: count > 0
+                  ? `Token valido. Meta devolvio ${count} cuenta(s) en la verificacion rapida.`
+                  : 'Token valido. La verificacion contra Meta respondio correctamente.',
+              })
+              return
+            }
+
+            const message = data?.error?.message || `HTTP ${response.statusCode}`
+            resolve({
+              ok: false,
+              reason: `Meta rechazo la verificacion del token: ${message}`,
+            })
+          } catch (error) {
+            resolve({
+              ok: false,
+              reason: `No se pudo interpretar la respuesta de Meta: ${error.message || error}`,
+            })
+          }
+        })
+      }
+    )
+
+    request.on('timeout', () => {
+      request.destroy(new Error('timeout'))
+    })
+
+    request.on('error', (error) => {
+      resolve({
+        ok: false,
+        reason: `No se pudo verificar Meta Graph API: ${error.message || error}`,
+      })
+    })
+  })
+}
+
+function facebookApiRequest(method, pathName, params = {}, token = '') {
+  return new Promise((resolve, reject) => {
+    const url = new URL(`https://graph.facebook.com/v22.0/${pathName.replace(/^\/+/, '')}`)
+    const headers = {
+      Accept: 'application/json',
+      'User-Agent': 'noyecode-facebook-ads-mcp/1.0',
+    }
+
+    let body = null
+    if (method === 'GET') {
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== null && value !== '') {
+          url.searchParams.set(key, String(value))
+        }
+      }
+      if (token) {
+        url.searchParams.set('access_token', token)
+      }
+    } else {
+      const form = new URLSearchParams()
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== null && value !== '') {
+          form.set(key, typeof value === 'string' ? value : JSON.stringify(value))
+        }
+      }
+      if (token) {
+        form.set('access_token', token)
+      }
+      body = form.toString()
+      headers['Content-Type'] = 'application/x-www-form-urlencoded'
+      headers['Content-Length'] = Buffer.byteLength(body)
+    }
+
+    const request = https.request(
+      url,
+      { method, timeout: 15000, headers },
+      (response) => {
+        let raw = ''
+        response.setEncoding('utf8')
+        response.on('data', (chunk) => {
+          raw += chunk
+        })
+        response.on('end', () => {
+          try {
+            const data = raw ? JSON.parse(raw) : {}
+            if (response.statusCode >= 200 && response.statusCode < 300 && !data.error) {
+              resolve(data)
+              return
+            }
+            reject(new Error(data?.error?.message || `HTTP ${response.statusCode}`))
+          } catch (error) {
+            reject(new Error(`Respuesta invalida de Meta: ${error.message || error}`))
+          }
+        })
+      }
+    )
+
+    request.on('timeout', () => {
+      request.destroy(new Error('timeout'))
+    })
+    request.on('error', reject)
+    if (body) {
+      request.write(body)
+    }
+    request.end()
+  })
+}
+
+async function getPrimaryAdAccount(token) {
+  const result = await facebookApiRequest(
+    'GET',
+    'me/adaccounts',
+    {
+      limit: 1,
+      fields: 'id,account_id,name,account_status,currency',
+    },
+    token
+  )
+
+  const account = Array.isArray(result?.data) ? result.data[0] : null
+  if (!account) {
+    throw new Error('El token no devolvio cuentas publicitarias disponibles.')
+  }
+  return account
+}
+
+function buildDraftCampaignName(preview) {
+  const stamp = new Date().toISOString().replace('T', ' ').slice(0, 16)
+  return `Borrador Leads ${preview.startDate} a ${preview.endDate} | ${preview.budget} | ${stamp}`
+}
+
+async function createDraftCampaign(preview, token) {
+  const account = await getPrimaryAdAccount(token)
+  const campaignName = buildDraftCampaignName(preview)
+  const accountNode = String(account.id || '').trim()
+  if (!accountNode) {
+    throw new Error('Meta no devolvio el identificador de la cuenta publicitaria.')
+  }
+
+  const created = await facebookApiRequest(
+    'POST',
+    `${accountNode}/campaigns`,
+    {
+      name: campaignName,
+      objective: 'OUTCOME_LEADS',
+      status: 'PAUSED',
+      special_ad_categories: [],
+    },
+    token
+  )
+
+  return {
+    account,
+    campaignId: created?.id || '',
+    campaignName,
+  }
+}
+
+async function runFacebookAdsMcpPreflight() {
+  const env = getProjectEnv()
+  const info = getFacebookAdsMcpInfo()
+  const issues = []
+
+  if (!info.serverExists) {
+    issues.push(`No existe el servidor MCP en ${info.serverPath}`)
+  }
+  if (!info.pythonBin) {
+    issues.push('Python no esta disponible en PATH para ejecutar el MCP.')
+  }
+  if (!info.token) {
+    issues.push('No existe token de Meta Ads en variables de entorno.')
+  }
+
+  let tokenValidation = {
+    ok: false,
+    reason: 'No se ejecuto validacion remota del token.',
+  }
+
+  if (info.serverExists && info.pythonBin && info.token) {
+    tokenValidation = await validateMetaToken(info.token)
+    if (!tokenValidation.ok) {
+      issues.push(tokenValidation.reason)
+    }
+  }
+
+  return {
+    ready: issues.length === 0,
+    issues,
+    tokenValidation,
+    details: {
+      serverPath: info.serverPath,
+      serverExists: info.serverExists,
+      pythonBin: info.pythonBin || '',
+      hasToken: Boolean(info.token),
+      businessWebsite: env.BUSINESS_WEBSITE || 'noyecode.com',
+    },
+  }
+}
+
 function emitMarketingUpdate(update) {
   if (!mainWindow) return
   mainWindow.webContents.send('marketing-run-update', update)
+}
+
+async function openMetaAdsManager(creation = null) {
+  const accountId = String(creation?.account?.account_id || '').trim()
+  const campaignId = String(creation?.campaignId || '').trim()
+  const targetUrl =
+    accountId && campaignId
+      ? `https://www.facebook.com/adsmanager/manage/campaigns?act=${encodeURIComponent(accountId)}&selected_campaign_ids=${encodeURIComponent(campaignId)}`
+      : 'https://adsmanager.facebook.com/'
+  try {
+    await shell.openExternal(targetUrl)
+    return { ok: true, url: targetUrl }
+  } catch (error) {
+    return {
+      ok: false,
+      url: targetUrl,
+      reason: error?.message || String(error),
+    }
+  }
+}
+
+function buildCampaignProcess(preflight, preview, creation = null) {
+  const ready = Boolean(preflight?.ready)
+  const issuesText = Array.isArray(preflight?.issues) && preflight.issues.length > 0
+    ? preflight.issues.join(' | ')
+    : 'Sin observaciones.'
+  const created = Boolean(creation?.campaignId)
+
+  return [
+    {
+      id: 'preflight',
+      title: 'Preflight del MCP',
+      detail: ready
+        ? 'Servidor MCP detectado, Python disponible y token validado contra Meta.'
+        : `Faltan requisitos: ${issuesText}`,
+      status: ready ? 'success' : 'warning',
+    },
+    {
+      id: 'account',
+      title: 'Seleccion de cuenta publicitaria',
+      detail: created
+        ? `Cuenta seleccionada: ${creation.account?.name || creation.account?.id || 'Sin nombre'}`
+        : ready
+        ? 'Listo para consultar cuentas publicitarias disponibles con list_ad_accounts.'
+        : 'Bloqueado hasta completar el preflight.',
+      status: created ? 'success' : ready ? 'pending' : 'warning',
+    },
+    {
+      id: 'campaign',
+      title: 'Creacion de campana',
+      detail: created
+        ? `Campana borrador creada en Meta con ID ${creation.campaignId}. Nombre: ${creation.campaignName}.`
+        : `Se crearia una campana con objetivo ${preview.objective} para ${preview.country}.`,
+      status: created ? 'success' : ready ? 'pending' : 'warning',
+    },
+    {
+      id: 'adset',
+      title: 'Creacion del conjunto de anuncios',
+      detail: `Se configuraria presupuesto ${preview.budget} y fechas ${preview.startDate} -> ${preview.endDate}.`,
+      status: ready ? 'pending' : 'warning',
+    },
+    {
+      id: 'creative',
+      title: 'Creacion del creativo',
+      detail: `Se asociaria la URL ${preview.url} y el formulario ${preview.formFields.join(', ')}.`,
+      status: ready ? 'pending' : 'warning',
+    },
+    {
+      id: 'ad',
+      title: 'Creacion del anuncio',
+      detail: 'Se enlazarian campana, ad set y creativo en un anuncio listo para revision/publicacion.',
+      status: ready ? 'pending' : 'warning',
+    },
+    {
+      id: 'publish',
+      title: 'Revision final y publicacion',
+      detail: ready
+        ? 'El siguiente paso seria ejecutar la creacion real y validar la respuesta de Meta Ads.'
+        : 'Pendiente hasta habilitar credenciales y preflight completo.',
+      status: ready ? 'pending' : 'warning',
+    },
+  ]
 }
 
 /**
@@ -457,36 +788,83 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
 
   const preview = {
     objective: 'Clientes potenciales',
-    url: 'noyecode.com',
+    url: getProjectEnv().BUSINESS_WEBSITE || 'noyecode.com',
     country: 'Colombia',
     formFields: ['Nombre', 'Apellido', 'Correo', 'Numero de telefono'],
     budget,
     startDate,
     endDate,
     mcpAvailable: false,
+    process: [],
   }
 
-  const steps = [
-    '[1/6] Iniciando agente de marketing...',
-    '[2/6] Cargando reglas activas para Facebook Ads...',
-    `[3/6] Preparando campaña con presupuesto ${budget} y ventana ${startDate} -> ${endDate}...`,
-    '[4/6] Aplicando objetivo leads, URL noyecode.com y formulario de contacto...',
-    '[5/6] Verificando disponibilidad del MCP de Facebook Ads...',
-    '[6/6] MCP no disponible en esta sesion. Se genera previsualizacion local y se detiene antes de publicar.',
-  ]
-
   try {
-    for (const line of steps) {
+    const preflightSteps = [
+      '[1/6] Iniciando agente de marketing...',
+      '[2/6] Cargando reglas activas para Facebook Ads...',
+      `[3/6] Preparando campaña con presupuesto ${budget} y ventana ${startDate} -> ${endDate}...`,
+      `[4/6] Aplicando objetivo leads, URL ${preview.url} y formulario de contacto...`,
+      '[5/6] Verificando disponibilidad del MCP de Facebook Ads...',
+    ]
+
+    for (const line of preflightSteps) {
       emitMarketingUpdate({ type: 'log', line })
       await sleep(650)
     }
 
+    const preflight = await runFacebookAdsMcpPreflight()
+    preview.mcpAvailable = preflight.ready
+    preview.process = buildCampaignProcess(preflight, preview)
+
     emitMarketingUpdate({
-      type: 'done',
-      status: 'warning',
-      summary: 'Previsualizacion generada. Falta una integracion MCP activa para crear/publicar la campaña real.',
-      preview,
+      type: 'log',
+      line: preflight.ready
+        ? `[6/6] Preflight MCP correcto. ${preflight.tokenValidation.reason}`
+        : `[6/6] Preflight MCP incompleto. ${preflight.issues[0] || 'Faltan requisitos para publicar.'}`,
     })
+    await sleep(650)
+
+    if (preflight.ready) {
+      emitMarketingUpdate({
+        type: 'log',
+        line: '[REAL] Creando campaña real en Meta Ads como borrador (PAUSED)...',
+      })
+      await sleep(650)
+
+      const creation = await createDraftCampaign(preview, getFacebookAdsMcpInfo().token)
+      preview.process = buildCampaignProcess(preflight, preview, creation)
+
+      emitMarketingUpdate({
+        type: 'log',
+        line: `[REAL] Campaña borrador creada correctamente. ID ${creation.campaignId} en cuenta ${creation.account?.name || creation.account?.id}.`,
+      })
+      await sleep(650)
+
+      const browserOpen = await openMetaAdsManager(creation)
+      emitMarketingUpdate({
+        type: 'log',
+        line: browserOpen.ok
+          ? `[OPEN] Navegador abierto en ${browserOpen.url} para visualizar Meta Ads Manager.`
+          : `[OPEN] No se pudo abrir el navegador automaticamente: ${browserOpen.reason}`,
+      })
+      await sleep(650)
+
+      emitMarketingUpdate({
+        type: 'done',
+        status: 'success',
+        summary: browserOpen.ok
+          ? 'Campaña borrador creada en Meta Ads. Se abrió Ads Manager para que puedas verla y continuar con la configuración.'
+          : 'Campaña borrador creada en Meta Ads, pero no se pudo abrir el navegador automáticamente.',
+        preview,
+      })
+    } else {
+      emitMarketingUpdate({
+        type: 'done',
+        status: 'warning',
+        summary: `Previsualizacion generada. MCP no listo: ${preflight.issues.join(' | ')}`,
+        preview,
+      })
+    }
 
     return { success: true }
   } catch (err) {
