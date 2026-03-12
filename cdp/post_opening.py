@@ -97,8 +97,6 @@ def _cleanup_and_exit(dev_mode: bool, cdp_port: int) -> int:
                     w.minimize()
     except Exception:
         pass
-    from utils.notify import notify_published
-    notify_published()
     log_ok("Proceso completado. Tabs y navegador siguen abiertos para el proximo ciclo.")
     return 0
 
