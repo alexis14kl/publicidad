@@ -161,8 +161,7 @@ body::after {
 }
 
 .marketing-copy,
-.marketing-rules,
-.marketing-notes {
+.marketing-section {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 14px;
@@ -175,9 +174,16 @@ body::after {
   gap: 18px;
 }
 
+.marketing-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
 .marketing-status-card,
 .marketing-execution,
-.marketing-preview {
+.marketing-preview,
+.marketing-log-panel {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 14px;
@@ -188,15 +194,13 @@ body::after {
   color: var(--text-primary);
 }
 
-.marketing-copy__list,
-.marketing-rules__list {
+.marketing-copy__list {
   margin-top: 10px;
   padding-left: 18px;
   color: var(--text-secondary);
 }
 
-.marketing-copy__list li,
-.marketing-rules__list li {
+.marketing-copy__list li {
   margin-bottom: 8px;
 }
 
@@ -212,8 +216,7 @@ body::after {
   gap: 8px;
 }
 
-.marketing-field span,
-.marketing-rules__title {
+.marketing-field span {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -236,15 +239,6 @@ body::after {
   border-color: rgba(255, 145, 0, 0.85);
   box-shadow: 0 0 0 4px rgba(255, 145, 0, 0.14);
   transform: translateY(-1px);
-}
-
-.marketing-notes {
-  color: var(--text-secondary);
-  line-height: 1.55;
-}
-
-.marketing-notes p + p {
-  margin-top: 10px;
 }
 
 .marketing-modal__footer {
@@ -297,6 +291,12 @@ body::after {
 .marketing-log-content {
   min-height: 170px;
   max-height: 220px;
+}
+
+.marketing-execution__content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 /* ─── Header ───────────────────────────────────────────────────────────────── */
@@ -792,6 +792,9 @@ body::after {
     grid-template-columns: 1fr;
   }
   .marketing-top-grid {
+    grid-template-columns: 1fr;
+  }
+  .marketing-grid {
     grid-template-columns: 1fr;
   }
   .marketing-modal__header,

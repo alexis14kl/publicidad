@@ -92,9 +92,7 @@ function MarketingCampaignModal({
         <div className="marketing-modal__body">
           <div className="marketing-top-grid">
             <div className="marketing-copy">
-              <p>
-                jhordan, para avanzar con la campana necesito estos 3 datos primero:
-              </p>
+              <p>jhordan, para avanzar con la campana necesito estos 3 datos primero:</p>
               <ol className="marketing-copy__list">
                 <li>Presupuesto maximo a gastar.</li>
                 <li>Fecha de inicio de la campana.</li>
@@ -138,126 +136,132 @@ function MarketingCampaignModal({
             </div>
           </div>
 
-          <form className="marketing-form">
-            <label className="marketing-field">
-              <span>Presupuesto maximo</span>
-              <input
-                type="number"
-                min="1"
-                step="0.01"
-                placeholder="Ej. 500000"
-                value={budget}
-                onChange={(event) => setBudget(event.target.value)}
-              />
-            </label>
+          <div className="marketing-section">
+            <div className="card-header">
+              <span className="card-icon">&#9998;</span>
+              <span className="card-title">Formulario de Campana</span>
+            </div>
+            <form className="marketing-form">
+              <label className="marketing-field">
+                <span>Presupuesto maximo</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  placeholder="Ej. 500000"
+                  value={budget}
+                  onChange={(event) => setBudget(event.target.value)}
+                />
+              </label>
 
-            <label className="marketing-field">
-              <span>Fecha de inicio</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(event) => setStartDate(event.target.value)}
-              />
-            </label>
+              <label className="marketing-field">
+                <span>Fecha de inicio</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                />
+              </label>
 
-            <label className="marketing-field">
-              <span>Fecha de fin</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(event) => setEndDate(event.target.value)}
-              />
-            </label>
-          </form>
-
-          <div className="marketing-rules">
-            <p className="marketing-rules__title">Reglas activas</p>
-            <ul className="marketing-rules__list">
-              <li>Objetivo: clientes potenciales.</li>
-              <li>URL: noyecode.com.</li>
-              <li>Pais publico: Colombia.</li>
-              <li>Formulario: nombre, apellido, correo y numero de telefono.</li>
-              <li>Imagenes: las de la biblioteca de fotos.</li>
-              <li>El resto de campos los completara el agente de marketing para atraer clientes.</li>
-            </ul>
+              <label className="marketing-field">
+                <span>Fecha de fin</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(event) => setEndDate(event.target.value)}
+                />
+              </label>
+            </form>
           </div>
 
-          <div className="marketing-notes">
-            <p>
-              Punto importante: en esta sesion no veo un servidor MCP de Facebook Ads disponible,
-              asi que el boton ejecuta el flujo de preparacion y verificacion para mostrarte como
-              se armaria la campana y en que punto quedaria bloqueada la publicacion real.
-            </p>
-            <p>
-              Antes de publicar, se mostrara una vista previa completa de la campana y se pedira
-              consentimiento explicito para publicarla.
-            </p>
-            <p>
-              Si quieres cambiar algo en ese punto, se haran los ajustes antes de cualquier publicacion.
-            </p>
-          </div>
-
-          <div className="marketing-execution">
-            <div className="log-header">
+          <div className="marketing-grid">
+            <div className="marketing-execution">
               <div className="card-header">
                 <span className="card-icon">&#9654;</span>
                 <span className="card-title">Ejecucion del Agente</span>
-                <span className="log-count">{runLines.length} lineas</span>
+              </div>
+              <div className="marketing-execution__content">
+                <div className="status-item">
+                  <span className="status-item-label">Objetivo</span>
+                  <span className="status-item-value">Clientes potenciales</span>
+                </div>
+                <div className="status-item">
+                  <span className="status-item-label">Landing</span>
+                  <span className="status-item-value">noyecode.com</span>
+                </div>
+                <div className="status-item">
+                  <span className="status-item-label">Publico</span>
+                  <span className="status-item-value">Colombia</span>
+                </div>
+                <div className="status-item">
+                  <span className="status-item-label">Resumen</span>
+                  <span className="status-item-value marketing-status-summary">{runSummary}</span>
+                </div>
               </div>
             </div>
-            <div className="log-content marketing-log-content">
-              {runLines.length === 0 ? (
-                <p className="no-data">Aun no se ha ejecutado el agente.</p>
-              ) : (
-                runLines.map((line, index) => (
-                  <div key={`${line}-${index}`} className="log-line log-info">
-                    {line}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
 
-          {preview && (
-            <div className="marketing-preview">
-              <div className="card-header">
-                <span className="card-icon">&#128203;</span>
-                <span className="card-title">Vista Previa de Campana</span>
+            <div className="marketing-log-panel">
+              <div className="log-header">
+                <div className="card-header">
+                  <span className="card-icon">&#128196;</span>
+                  <span className="card-title">Log del Agente</span>
+                  <span className="log-count">{runLines.length} lineas</span>
+                </div>
               </div>
-              <div className="job-grid">
-                <div className="job-item">
-                  <span className="job-label">Objetivo</span>
-                  <span className="job-value">{preview.objective}</span>
-                </div>
-                <div className="job-item">
-                  <span className="job-label">URL</span>
-                  <span className="job-value">{preview.url}</span>
-                </div>
-                <div className="job-item">
-                  <span className="job-label">Pais</span>
-                  <span className="job-value">{preview.country}</span>
-                </div>
-                <div className="job-item">
-                  <span className="job-label">Presupuesto</span>
-                  <span className="job-value">{preview.budget}</span>
-                </div>
-                <div className="job-item">
-                  <span className="job-label">Fechas</span>
-                  <span className="job-value">{preview.startDate} {'->'} {preview.endDate}</span>
-                </div>
-                <div className="job-item">
-                  <span className="job-label">Formulario</span>
-                  <span className="job-value">{preview.formFields.join(', ')}</span>
-                </div>
-                <div className="job-item">
-                  <span className="job-label">MCP</span>
-                  <span className={`job-badge ${preview.mcpAvailable ? 'badge--success' : 'badge--error'}`}>
-                    {preview.mcpAvailable ? 'Disponible' : 'No disponible'}
-                  </span>
-                </div>
+              <div className="log-content marketing-log-content">
+                {runLines.length === 0 ? (
+                  <p className="no-data">Aun no se ha ejecutado el agente.</p>
+                ) : (
+                  runLines.map((line, index) => (
+                    <div key={`${line}-${index}`} className="log-line log-info">
+                      {line}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-          )}
+
+            {preview && (
+              <div className="marketing-preview">
+                <div className="card-header">
+                  <span className="card-icon">&#128203;</span>
+                  <span className="card-title">Vista Previa de Campana</span>
+                </div>
+                <div className="job-grid">
+                  <div className="job-item">
+                    <span className="job-label">Objetivo</span>
+                    <span className="job-value">{preview.objective}</span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">URL</span>
+                    <span className="job-value">{preview.url}</span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">Pais</span>
+                    <span className="job-value">{preview.country}</span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">Presupuesto</span>
+                    <span className="job-value">{preview.budget}</span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">Fechas</span>
+                    <span className="job-value">{preview.startDate} {'->'} {preview.endDate}</span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">Formulario</span>
+                    <span className="job-value">{preview.formFields.join(', ')}</span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">MCP</span>
+                    <span className={`job-badge ${preview.mcpAvailable ? 'badge--success' : 'badge--error'}`}>
+                      {preview.mcpAvailable ? 'Disponible' : 'No disponible'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="marketing-modal__footer">
