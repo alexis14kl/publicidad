@@ -49,6 +49,19 @@ export interface MarketingRunUpdate {
   }
 }
 
+export interface PreflightCheck {
+  name: string
+  required: string
+  current: string | null
+  ok: boolean
+  fix: string | null
+}
+
+export interface PreflightResult {
+  ok: boolean
+  checks: PreflightCheck[]
+}
+
 export interface ElectronAPI {
   getBotStatus: () => Promise<BotStatus>
   getLastJob: () => Promise<LastJob | null>
@@ -62,6 +75,7 @@ export interface ElectronAPI {
   getEnvConfig: () => Promise<Record<string, string>>
   saveEnvConfig: (config: Record<string, string>) => Promise<CommandResult>
   resetBotState: () => Promise<{ success: boolean; deleted: string[] }>
+  runPreflight: (force?: boolean) => Promise<PreflightResult>
   onLogNewLines: (callback: (lines: string[]) => void) => () => void
   onBotLogLines: (callback: (lines: string[]) => void) => () => void
   onMarketingRunUpdate: (callback: (update: MarketingRunUpdate) => void) => () => void

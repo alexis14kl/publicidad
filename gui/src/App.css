@@ -990,3 +990,101 @@ select.settings-input option {
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Preflight Banner ─────────────────────────────────────────────────────── */
+
+.preflight-banner {
+  margin: 0 16px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.preflight-banner--loading {
+  padding: 10px 16px;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  color: var(--accent-cyan);
+  text-align: center;
+}
+
+.preflight-banner--error {
+  background: rgba(255, 23, 68, 0.08);
+  border: 1px solid rgba(255, 23, 68, 0.25);
+}
+
+.preflight-banner__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.preflight-banner__icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-red);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.preflight-banner__title {
+  color: var(--accent-red);
+  font-weight: 600;
+  flex: 1;
+}
+
+.preflight-banner__toggle {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.preflight-banner__body {
+  padding: 0 16px 12px;
+}
+
+.preflight-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.preflight-table th {
+  text-align: left;
+  padding: 4px 8px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.preflight-table td {
+  padding: 5px 8px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.preflight-row--ok td:first-child {
+  color: var(--accent-green);
+}
+
+.preflight-row--fail td:first-child {
+  color: var(--accent-red);
+}
+
+.preflight-row--fail {
+  background: rgba(255, 23, 68, 0.05);
+}
+
+.preflight-fix {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--accent-orange);
+  word-break: break-all;
+}

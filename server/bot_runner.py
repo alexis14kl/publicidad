@@ -274,6 +274,19 @@ def main() -> int:
             log_error(f"Payload JSON invalido: {exc}")
             return 1
 
+    # --- Preflight: verificar dependencias antes de cualquier accion ---
+    if action != "status":
+        try:
+            from cfg.preflight import run_preflight, format_report
+            all_ok, results = run_preflight()
+            if not all_ok:
+                log_error("Preflight: dependencias faltantes o incompatibles")
+                print(format_report(results))
+                return 1
+            log_ok("Preflight: todas las dependencias OK")
+        except Exception as e:
+            log_warn(f"No se pudo ejecutar preflight: {e}")
+
     try:
         log_info(f"Ejecutando accion: {action}")
         result = execute_action(action, payload=payload)

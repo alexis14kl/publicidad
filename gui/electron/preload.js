@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getEnvConfig: () => ipcRenderer.invoke('get-env-config'),
   saveEnvConfig: (config) => ipcRenderer.invoke('save-env-config', config),
   resetBotState: () => ipcRenderer.invoke('reset-bot-state'),
+  runPreflight: (force) => ipcRenderer.invoke('run-preflight', force),
   onLogNewLines: (callback) => {
     const handler = (_event, lines) => callback(lines)
     ipcRenderer.on('log-new-lines', handler)

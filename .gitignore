@@ -16,6 +16,7 @@ __pycache__/
 .claude/
 
 # Runtime state files (auto-generated per machine)
+.preflight_ok
 .bot_runner.lock
 .account_rotation_state.json
 .job_poller_state.json

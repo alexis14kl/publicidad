@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { Header } from './components/Header'
+import { PreflightBanner } from './components/PreflightBanner'
 import { StatusCard } from './components/StatusCard'
 import { ControlPanel } from './components/ControlPanel'
 import { LastJobCard } from './components/LastJobCard'
@@ -339,6 +340,7 @@ export default function App() {
   return (
     <div className="app">
       <Header status={botStatus} onOpenSettings={() => setPage('settings')} />
+      <PreflightBanner />
       <div className="top-actions">
         <button className="btn btn--marketing" onClick={() => setMarketingOpen(true)}>
           Abrir Agente Marketing
