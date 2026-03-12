@@ -41,32 +41,32 @@ _SERVICE_SCENE_HINTS = {
     "desarrollo a la medida": (
         "Personaje cartoon sentado frente a escritorio con monitor grande mostrando pagina web moderna con dashboard. "
         "Pantallas adicionales flotando con graficos, metricas y ventanas de codigo. Bombilla de idea brillando. "
-        "Beneficios: diseno personalizado, escalable, soporte dedicado. Badge morado: "Consulta Gratis"."
+        'Beneficios: diseno personalizado, escalable, soporte dedicado. Badge morado: "Consulta Gratis".'
     ),
     "automatizaciones empresariales": (
         "Personaje cartoon rodeado de engranajes coloridos y flechas de flujo conectando pantallas. "
         "Monitor mostrando workflow de automatizacion con nodos conectados. Iconos de reloj y rayo. "
-        "Beneficios: ahorra tiempo, reduce errores, automatiza procesos. Badge naranja: "Cotiza Sin Costo"."
+        'Beneficios: ahorra tiempo, reduce errores, automatiza procesos. Badge naranja: "Cotiza Sin Costo".'
     ),
     "desarrollo android": (
         "Personaje cartoon sosteniendo smartphone gigante mostrando app moderna colorida. "
         "Celulares y tablets adicionales flotando con diferentes pantallas de app. Icono de Play Store. "
-        "Beneficios: app nativa rapida, diseno intuitivo, disponible en tiendas. Badge morado: "Consulta Gratis"."
+        'Beneficios: app nativa rapida, diseno intuitivo, disponible en tiendas. Badge morado: "Consulta Gratis".'
     ),
     "desarrollo desktop": (
         "Personaje cartoon frente a monitor widescreen con aplicacion empresarial de multiples paneles. "
         "Ventanas flotando con tablas de datos, graficos y reportes coloridos. "
-        "Beneficios: rendimiento nativo, seguridad empresarial, multiplataforma. Badge cyan: "Asesoria Personalizada"."
+        'Beneficios: rendimiento nativo, seguridad empresarial, multiplataforma. Badge cyan: "Asesoria Personalizada".'
     ),
     "modernizacion de software legacy": (
         "Personaje cartoon senalando dos pantallas: izquierda interfaz vieja gris apagada, derecha interfaz "
         "moderna colorida y brillante con flecha de transformacion entre ambas. Cohete pequeno despegando. "
-        "Beneficios: tecnologia actual, mejor rendimiento, menos costos. Badge morado: "Consulta Gratis"."
+        'Beneficios: tecnologia actual, mejor rendimiento, menos costos. Badge morado: "Consulta Gratis".'
     ),
     "rpas nativos": (
         "Personaje cartoon junto a laptop mostrando panel de control con tareas automatizadas ejecutandose. "
         "Engranajes estilizados y brazos roboticos simples (NO humanoides) organizando documentos. "
-        "Beneficios: automatiza tareas manuales, precision, ahorro de horas. Badge naranja: "Cotiza Sin Costo"."
+        'Beneficios: automatiza tareas manuales, precision, ahorro de horas. Badge naranja: "Cotiza Sin Costo".'
     ),
 }
 
