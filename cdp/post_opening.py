@@ -94,37 +94,43 @@ def _cleanup_and_exit(dev_mode: bool, cdp_port: int) -> int:
     return 0
 
 
-def post_opening_automation(cdp_port: int = 9225) -> int:
+def post_opening_automation(cdp_port: int = 9225, skip_force_cdp: bool = False) -> int:
     """
     Run the full post-opening pipeline.
     Returns 0 on success, 1 on failure.
+
+    skip_force_cdp: si True, salta la espera de 10s y el forzado de CDP
+                    (usado por fast path cuando CDP ya esta activo).
     """
     dev_mode = get_env("DEV_MODE", "0") == "1"
 
-    log_info("Launcher post-apertura iniciado.")
-    log_info("Esperando 10s antes de forzar CDP del perfil...")
-    time.sleep(10)
+    if skip_force_cdp:
+        log_info("Fast path: CDP ya activo, saltando forzado.")
+    else:
+        log_info("Launcher post-apertura iniciado.")
+        log_info("Esperando 10s antes de forzar CDP del perfil...")
+        time.sleep(10)
 
-    # Step 1: Force CDP (longer timeout to let ginsbrowser fully start)
-    try:
-        from cdp.force_cdp import force_cdp
-        result = force_cdp(preferred_port=cdp_port, timeout_sec=60)
-        log_ok("Forzado CDP ejecutado.")
-    except RuntimeError as e:
-        log_warn(f"El forzado CDP devolvio error: {e}")
-        result = {}
-
-    # Step 2: Retry if no debug port detected
-    if not _has_debug_port():
-        log_warn("No se detecto debugPort tras primer intento. Reforce en 15 segundos...")
-        time.sleep(15)
+        # Step 1: Force CDP (longer timeout to let ginsbrowser fully start)
         try:
+            from cdp.force_cdp import force_cdp
             result = force_cdp(preferred_port=cdp_port, timeout_sec=60)
-            log_ok("Reforce ejecutado.")
+            log_ok("Forzado CDP ejecutado.")
         except RuntimeError as e:
-            log_warn(f"Reforce devolvio error: {e}")
+            log_warn(f"El forzado CDP devolvio error: {e}")
+            result = {}
 
-    # Step 3: Wait for CDP to be ready
+        # Step 2: Retry if no debug port detected
+        if not _has_debug_port():
+            log_warn("No se detecto debugPort tras primer intento. Reforce en 15 segundos...")
+            time.sleep(15)
+            try:
+                result = force_cdp(preferred_port=cdp_port, timeout_sec=60)
+                log_ok("Reforce ejecutado.")
+            except RuntimeError as e:
+                log_warn(f"Reforce devolvio error: {e}")
+
+    # Verify CDP is ready
     log_info("Verificando que CDP responda antes de pegar prompt...")
     if not wait_for_cdp(cdp_port, timeout_sec=30):
         log_warn(f"CDP no responde en puerto {cdp_port}. El prompt puede fallar.")

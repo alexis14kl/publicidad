@@ -100,6 +100,64 @@ def _wait_for_profile_load(timeout_sec: int = 45) -> bool:
     return False
 
 
+def _generate_prompt() -> bool:
+    """Generate prompt and caption via n8n. Returns True on success."""
+    if not N8N_PROMPT_CLIENT_PY.exists():
+        log_warn(f"No existe cliente n8n: {N8N_PROMPT_CLIENT_PY}. Se conserva el prompt actual.")
+        return False
+    if not PROMPT_SEED_FILE.exists():
+        log_warn(f"No existe brief base: {PROMPT_SEED_FILE}. Se conserva el flujo actual.")
+        return False
+
+    rc = _run_python(
+        N8N_PROMPT_CLIENT_PY,
+        "--idea-file", str(PROMPT_SEED_FILE),
+        "--output", str(PROMPT_FILE),
+    )
+    if rc != 0:
+        log_warn(f"No se pudo regenerar el prompt con n8n. Se usara el contenido actual de {PROMPT_FILE}.")
+        return False
+
+    log_ok(f"Prompt regenerado en {PROMPT_FILE}.")
+    # Also generate caption
+    if N8N_POST_TEXT_CLIENT_PY.exists():
+        rc2 = _run_python(
+            N8N_POST_TEXT_CLIENT_PY,
+            "--prompt-file", str(PROMPT_FILE),
+            "--output", str(POST_TEXT_FILE),
+        )
+        if rc2 != 0:
+            log_warn("No se pudo regenerar el texto de publicacion con n8n.")
+        else:
+            log_ok(f"Caption regenerado en {POST_TEXT_FILE}.")
+    return True
+
+
+def _fast_path(cdp_port: int = 9225) -> int:
+    """Fast path: CDP ya activo, ir directo a prompt → ChatGPT → imagen → logo → publicar.
+
+    Salta todo el arranque de DICloak, apertura de perfil y forzado de CDP.
+    Solo se ejecuta si el puerto CDP ya esta respondiendo.
+    Returns 0 on success, 1 on failure.
+    """
+    log_step("FAST", "Depuracion activa detectada. Ejecutando ruta rapida...")
+
+    # 1. Generar prompt
+    log_step("FAST 1/4", "Generando prompt con IA de n8n...")
+    _generate_prompt()
+
+    # 2. Pegar prompt + esperar imagen + descargar + logo + publicar
+    log_step("FAST 2/2", "Pegando prompt en ChatGPT y ejecutando pipeline completo...")
+    from cdp.post_opening import post_opening_automation
+    rc = post_opening_automation(cdp_port=cdp_port, skip_force_cdp=True)
+    if rc != 0:
+        log_error("La ruta rapida fallo en post_opening_automation.")
+        return 1
+
+    log_ok("Ruta rapida completada con exito.")
+    return 0
+
+
 def run_orchestrator(
     profile_name: str = "",
     profile_debug_port_hint: str = "",
@@ -110,9 +168,22 @@ def run_orchestrator(
     """
     Run the full 10-step orchestration.
     Returns 0 on success, 1 on failure.
+
+    FAST PATH: si CDP ya responde en puerto 9225, salta directo a
+    generar prompt → pegar en ChatGPT → descargar imagen → logo → publicar.
     """
     env_data = load_env()
     cdp_url = "http://127.0.0.1:9333"
+
+    # -----------------------------------------------------------------------
+    # FAST PATH: si CDP del perfil ya esta activo, ir directo
+    # -----------------------------------------------------------------------
+    fast_port = 9225
+    log_step("0/10", f"Verificando si CDP del perfil ya esta activo en puerto {fast_port}...")
+    if test_cdp_port(fast_port):
+        log_ok(f"CDP respondiendo en {fast_port}. Activando ruta rapida (skip arranque).")
+        return _fast_path(cdp_port=fast_port)
+    log_info(f"CDP no activo en {fast_port}. Ejecutando flujo completo...")
 
     # Resolve profile
     initial = env_data.get("INITIAL_PROFILE", "#1 Chat Gpt PRO")
@@ -129,32 +200,7 @@ def run_orchestrator(
     # Step 1/10: Generate prompt via n8n
     # -----------------------------------------------------------------------
     log_step("1/10", "Generando prompt inicial con IA de n8n...")
-
-    if not N8N_PROMPT_CLIENT_PY.exists():
-        log_warn(f"No existe cliente n8n: {N8N_PROMPT_CLIENT_PY}. Se conserva el prompt actual.")
-    elif not PROMPT_SEED_FILE.exists():
-        log_warn(f"No existe brief base: {PROMPT_SEED_FILE}. Se conserva el flujo actual.")
-    else:
-        rc = _run_python(
-            N8N_PROMPT_CLIENT_PY,
-            "--idea-file", str(PROMPT_SEED_FILE),
-            "--output", str(PROMPT_FILE),
-        )
-        if rc != 0:
-            log_warn(f"No se pudo regenerar el prompt con n8n. Se usara el contenido actual de {PROMPT_FILE}.")
-        else:
-            log_ok(f"Prompt regenerado en {PROMPT_FILE}.")
-            # Also generate caption
-            if N8N_POST_TEXT_CLIENT_PY.exists():
-                rc2 = _run_python(
-                    N8N_POST_TEXT_CLIENT_PY,
-                    "--prompt-file", str(PROMPT_FILE),
-                    "--output", str(POST_TEXT_FILE),
-                )
-                if rc2 != 0:
-                    log_warn("No se pudo regenerar el texto de publicacion con n8n.")
-                else:
-                    log_ok(f"Caption regenerado en {POST_TEXT_FILE}.")
+    _generate_prompt()
 
     # -----------------------------------------------------------------------
     # Step 2/10: Check if DICloak is already running with CDP
