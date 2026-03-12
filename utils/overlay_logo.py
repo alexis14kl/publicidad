@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LOGO_PNG = PROJECT_ROOT / "utils" / "logoapporange.png"
 
 LOGO_WIDTH_RATIO = 0.25  # logo ocupa 25% del ancho (mas pequeno)
-HEADER_RATIO = 0.15  # zona superior donde va centrado el logo
+HEADER_RATIO = 0.08  # zona superior donde va centrado el logo (pegado arriba)
 TARGET_WIDTH = 1080
 TARGET_HEIGHT = 1350
 
