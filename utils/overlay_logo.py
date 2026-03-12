@@ -1,13 +1,18 @@
-"""Superpone el logo real de NoyeCode sobre la franja superior de una imagen publicitaria."""
+"""Superpone una barra de header + logo real de NoyeCode sobre una imagen publicitaria."""
 
 import sys
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LOGO_PNG = PROJECT_ROOT / "utils" / "logoapporange.png"
 LOGO_SVG = PROJECT_ROOT / "utils" / "logoapporange.svg"
+
+# Color de la barra superior (debe coincidir con la paleta del prompt)
+HEADER_COLOR = (26, 26, 46, 255)  # #1a1a2e RGBA
+HEADER_RATIO = 0.12  # 12% del alto de la imagen
+LOGO_WIDTH_RATIO = 0.35  # logo ocupa 35% del ancho (antes 60%)
 
 
 def _ensure_logo_png() -> Path:
@@ -21,7 +26,7 @@ def _ensure_logo_png() -> Path:
 
 
 def overlay_logo(image_path: str | Path) -> Path:
-    """Superpone el logo sobre la imagen y sobreescribe el archivo original."""
+    """Pinta la barra de header y superpone el logo sobre la imagen."""
     image_path = Path(image_path)
     if not image_path.exists():
         raise FileNotFoundError(f"Imagen no encontrada: {image_path}")
@@ -31,17 +36,21 @@ def overlay_logo(image_path: str | Path) -> Path:
     logo = Image.open(logo_path).convert("RGBA")
 
     bg_w, bg_h = bg.size
+    header_h = int(bg_h * HEADER_RATIO)
 
-    # El logo ocupa ~60% del ancho de la imagen, centrado en el 15% superior
-    target_w = int(bg_w * 0.6)
+    # Pintar barra de header solida sobre la imagen (siempre queda integrada)
+    draw = ImageDraw.Draw(bg)
+    draw.rectangle([(0, 0), (bg_w, header_h)], fill=HEADER_COLOR)
+
+    # Escalar logo al 35% del ancho de la imagen
+    target_w = int(bg_w * LOGO_WIDTH_RATIO)
     scale = target_w / logo.size[0]
     target_h = int(logo.size[1] * scale)
     logo_resized = logo.resize((target_w, target_h), Image.LANCZOS)
 
-    # Centrar horizontalmente, centrar verticalmente en la franja del 15% superior
-    logo_zone_h = int(bg_h * 0.15)
+    # Centrar horizontal y verticalmente dentro de la barra de header
     x = (bg_w - target_w) // 2
-    y = max(0, (logo_zone_h - target_h) // 2)
+    y = max(0, (header_h - target_h) // 2)
 
     # Pegar con transparencia
     bg.paste(logo_resized, (x, y), logo_resized)

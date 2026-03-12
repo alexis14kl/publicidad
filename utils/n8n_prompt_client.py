@@ -14,13 +14,13 @@ DEFAULT_PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 DEFAULT_IDEA_FILE = PROJECT_ROOT / "utils" / "prompt_seed.txt"
 DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/py-prompt-imgs"
 DEFAULT_BRAND_HINT = (
-    "Pieza publicitaria para NoyeCode enfocada en captar clientes reales de software. "
-    "Debe verse como DISENO GRAFICO PREMIUM para redes sociales, NO como fotografia realista. "
+    "Pieza publicitaria de OFERTA para NoyeCode enfocada en captar clientes reales de software. "
+    "Debe verse como DISENO GRAFICO PREMIUM de oferta para redes sociales, NO como fotografia realista. "
     "NO usar personas reales, manos, rostros, oficinas, escritorios ni escenas fotograficas. "
     "Usar fondo limpio con gradiente elegante y composicion minimalista con dispositivos (laptop, smartphone, tablet). "
-    "El texto dentro de la imagen si es importante: incluir copy comercial claro, CTA, web y WhatsApp. "
-    "Evitar imagenes genericas, pantallas gigantes irreales, cascos VR innecesarios, slogans confusos o logos invasivos. "
-    "La composicion debe sentirse como arte publicitario de agencia para Meta Ads, con jerarquia visual limpia y mejor direccion de arte."
+    "IMPORTANTE: El texto comercial debe incluir un GANCHO DE OFERTA claro (cotizacion gratis, descuento, demo sin costo, precio desde, cupos limitados). "
+    "Incluir CTA urgente, web noyecode.com y WhatsApp +57 301 385 9952. "
+    "La composicion debe sentirse como arte publicitario de agencia para Meta Ads orientado a CONVERSION y captacion de clientes."
 )
 
 
@@ -116,15 +116,17 @@ def clean_generated_prompt(prompt: str) -> str:
 
     body = body.strip(" ;:-")
     return (
-        "CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA. "
+        "CREAME UNA IMAGEN DE ALTA DEFINICION GRAFICA DE OFERTA PUBLICITARIA. "
         f"CONTEXTO PUBLICITARIO: {body}. "
-        "REGLA CRITICA: La parte superior del 15 por ciento de la imagen DEBE ser una barra plana de color solido oscuro #1a1a2e, "
-        "completamente vacia sin logos, iconos, texto, simbolos ni decoracion. Este espacio esta reservado. "
-        "ESTILO: Diseno grafico publicitario premium, NO fotografia realista. NO personas, NO oficinas, NO rostros. "
+        "REGLA CRITICA: La parte superior del 12 por ciento de la imagen debe integrarse suavemente con el gradiente oscuro del fondo, "
+        "fluyendo naturalmente hacia el tono #1a1a2e sin ningun borde duro ni efecto de parche. "
+        "Esa zona debe quedar completamente vacia sin logos, iconos, texto, simbolos ni decoracion. "
+        "ESTILO: Diseno grafico publicitario premium de OFERTA, NO fotografia realista. NO personas, NO oficinas, NO rostros. "
         "Solo mockups de dispositivos con interfaces limpias sobre fondo con gradiente elegante. "
+        "Incluir texto de oferta visible: gancho comercial, CTA urgente, web y WhatsApp. "
         "NO escribir NoyeCode ni ninguna variacion del nombre de la marca dentro de la imagen. "
         "GENERA LA IMAGEN DIRECTAMENTE EN CALIDAD 4K, FORMATO VERTICAL 4:5 OPTIMIZADO PARA FEED DE FACEBOOK E INSTAGRAM, "
-        "ESTILO PUBLICITARIO PREMIUM, ALTA CLARIDAD GRAFICA Y RESPETANDO MARGENES DE SEGURIDAD PARA QUE NINGUN TEXTO O ELEMENTO CLAVE QUEDE CORTADO EN LOS BORDES. "
+        "ESTILO PUBLICITARIO PREMIUM DE OFERTA, ALTA CLARIDAD GRAFICA Y RESPETANDO MARGENES DE SEGURIDAD PARA QUE NINGUN TEXTO O ELEMENTO CLAVE QUEDE CORTADO EN LOS BORDES. "
         "ENTREGA EXACTAMENTE UNA SOLA IMAGEN FINAL. NO GENERES DOS OPCIONES, NO MUESTRES VARIANTES, NO HAGAS COMPARACIONES Y NO PREGUNTES CUAL IMAGEN PREFIERO."
     ).strip()
 
@@ -165,17 +167,19 @@ def enrich_idea(idea: str) -> str:
         "No cambiarlo por otro servicio y no mezclar el protagonismo con otro producto."
     )
     hints.append(
-        "REGLA CRITICA DE COMPOSICION: La parte superior del 15% de la imagen DEBE quedar como una barra plana de color solido oscuro #1a1a2e, "
-        "completamente vacia, sin logos, iconos, texto, simbolos, marcas de agua ni decoracion alguna. "
-        "Este espacio esta reservado para superponer el logo real despues."
+        "REGLA CRITICA DE COMPOSICION: La parte superior del 12% de la imagen debe integrarse suavemente con el gradiente oscuro del fondo, "
+        "fluyendo naturalmente hacia el tono #1a1a2e sin ningun borde duro, corte visible ni efecto de parche. "
+        "Esa zona debe quedar completamente vacia, sin logos, iconos, texto, simbolos ni decoracion. "
+        "El logo real se superpone despues programaticamente."
     )
     hints.append(
-        "ESTILO OBLIGATORIO: La imagen debe parecer DISENO GRAFICO publicitario para social media, NO fotografia realista. "
+        "ESTILO OBLIGATORIO: La imagen debe parecer DISENO GRAFICO publicitario de OFERTA para social media, NO fotografia realista. "
         "NO incluir personas reales, manos, rostros humanos, oficinas, escritorios ni escenas fotograficas. "
         "Usar composicion minimalista con gradientes elegantes y mockups de dispositivos (laptop, smartphone, tablet) con interfaces SaaS limpias en pantalla."
     )
     hints.append(
-        "La imagen debe vender un servicio concreto de NoyeCode, no una postal de ciudad. "
+        "La imagen debe vender un servicio concreto de NoyeCode con ENFOQUE EN OFERTA Y CONVERSION. "
+        "Incluir un gancho comercial visible: cotizacion gratis, descuento, demo sin costo, precio desde, cupos limitados. "
         "El sujeto principal debe ser el mockup del producto digital con interfaz creible."
     )
     hints.append(
@@ -189,7 +193,8 @@ def enrich_idea(idea: str) -> str:
         "La interfaz en pantalla debe apoyar el mensaje comercial."
     )
     hints.append(
-        "La pieza debe sentirse como arte publicitario de diseno grafico para redes sociales de NoyeCode, orientado a conversion y captacion de clientes."
+        "La pieza debe sentirse como arte publicitario de OFERTA de NoyeCode para redes sociales, "
+        "orientado a conversion y captacion de clientes con gancho comercial claro y CTA urgente."
     )
     hints.append(
         "Formato obligatorio: vertical 4:5 optimizado para feed de Facebook e Instagram, con composicion pensada para verse completa al publicarse."
@@ -204,15 +209,18 @@ def enrich_idea(idea: str) -> str:
         "No usar composicion edge-to-edge con texto o rostros cortados. Evitar que el arte dependa de las esquinas o laterales."
     )
     hints.append(
-        "Direccion de arte: look de diseno grafico premium, paleta elegante (naranja #fd9102, fondo oscuro #1a1a2e a #16213e), "
-        "mejor jerarquia tipografica, composicion minimalista y acabado limpio de agencia."
+        "Direccion de arte: look de diseno grafico premium de OFERTA, paleta elegante (naranja #fd9102, fondo oscuro gradiente de #1a1a2e a #16213e). "
+        "El gradiente superior debe fluir suavemente hacia #1a1a2e para que el area del logo se integre sin cortes. "
+        "Mejor jerarquia tipografica, composicion minimalista y acabado limpio de agencia."
     )
     hints.append(
-        "El resultado debe parecer una pieza de diseno grafico de agencia para Meta Ads: limpio, moderno, minimalista y bien balanceado visualmente. "
+        "El resultado debe parecer un anuncio de oferta de agencia para Meta Ads: limpio, moderno, minimalista y orientado a conversion. "
         "NO debe parecer foto de stock ni fotografia realista."
     )
     hints.append(
-        "Incluir dentro de la imagen un bloque de texto publicitario corto y bien jerarquizado con: nombre del servicio, beneficio principal, CTA, sitio web noyecode.com y WhatsApp +57 301 385 9952."
+        "Incluir dentro de la imagen un bloque de texto publicitario corto y bien jerarquizado con: "
+        "gancho de oferta (ej: 'Cotizacion GRATIS', 'Demo sin costo', 'Desde $XXX'), "
+        "nombre del servicio, beneficio principal, CTA urgente, sitio web noyecode.com y WhatsApp +57 301 385 9952."
     )
     hints.append(
         f"El nombre del servicio destacado dentro del arte debe ser exactamente: {primary_service}."

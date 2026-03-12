@@ -1,4 +1,5 @@
 import type { BotStatus } from '../lib/types'
+import logoSvg from '../assets/logo.svg'
 
 interface HeaderProps {
   status: BotStatus
@@ -15,7 +16,7 @@ export function Header({ status, onOpenSettings }: HeaderProps) {
   return (
     <header className="header">
       <div className="header-left">
-        <div className="header-logo">NC</div>
+        <img src={logoSvg} alt="NoyeCode" className="header-logo" />
         <div>
           <h1 className="header-title">Bot Publicitario</h1>
           <span className="header-subtitle">NoyeCode</span>
