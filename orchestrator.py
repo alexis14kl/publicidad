@@ -157,72 +157,64 @@ def run_orchestrator(
                     log_ok(f"Caption regenerado en {POST_TEXT_FILE}.")
 
     # -----------------------------------------------------------------------
-    # Step 2/10: Direct kill
+    # Step 2/10: Check if DICloak is already running with CDP
     # -----------------------------------------------------------------------
-    log_step("2/10", "Taskkill directo (forzado)...")
-    kill_process_by_name("DICloak.exe" if IS_WINDOWS else "DICloak", force=True)
-    kill_process_by_name(get_browser_process_name(), force=True)
-    if IS_WINDOWS:
-        kill_process_by_name("chrome.exe", force=True)
-    time.sleep(1)
+    log_step("2/10", "Verificando si DICloak ya esta corriendo con CDP...")
+    dicloak_already_running = False
+    if wait_for_cdp(9333, timeout_sec=3):
+        log_ok("DICloak ya esta corriendo con CDP en puerto 9333. Saltando kill y arranque.")
+        dicloak_already_running = True
+    else:
+        log_info("DICloak no esta corriendo o CDP no responde. Iniciando desde cero...")
 
     # -----------------------------------------------------------------------
-    # Step 3/10: Advanced cleanup
+    # Step 3/10: Start DICloak (only if not already running)
     # -----------------------------------------------------------------------
-    log_step("3/10", "Limpieza avanzada de servicios/procesos DICloak...")
-    try:
-        from inicio.cleanup import cleanup_dicloak
-        ok = cleanup_dicloak(port=9333, timeout_sec=60, quiet=False)
-        if not ok:
-            log_error("No se pudo cerrar completamente DICloak.")
-            log_info("Ejecuta como Administrador y vuelve a intentar.")
+    if not dicloak_already_running:
+        log_step("3/10", "Iniciando DICloak en modo debug (9333)...")
+        dicloak_exe = find_dicloak_exe()
+        if not dicloak_exe or not Path(dicloak_exe).exists():
+            log_error(f"No existe DICloak en: {dicloak_exe}")
             return 1
-    except Exception as e:
-        log_error(f"Error en limpieza: {e}")
-        return 1
+
+        launch_cmd = f'"{dicloak_exe}" --remote-debugging-port=9333 --remote-allow-origins=*'
+        launch_detached(launch_cmd)
+    else:
+        log_step("3/10", "DICloak ya activo, saltando inicio.")
 
     # -----------------------------------------------------------------------
-    # Step 4/10: Start DICloak
+    # Step 4/10: Wait for CDP on 9333
     # -----------------------------------------------------------------------
-    log_step("4/10", "Iniciando DICloak en modo debug (9333)...")
-    dicloak_exe = find_dicloak_exe()
-    if not dicloak_exe or not Path(dicloak_exe).exists():
-        log_error(f"No existe DICloak en: {dicloak_exe}")
-        return 1
+    if not dicloak_already_running:
+        log_step("4/10", "Esperando CDP en puerto 9333...")
+        if not wait_for_cdp(9333, timeout_sec=90):
+            log_warn("CDP no respondio en 9333. Buscando DevToolsActivePort...")
+            # Fallback: read DevToolsActivePort
+            active_port = None
+            if DEVTOOLS_ACTIVE_PORT_FILE.exists():
+                try:
+                    content = DEVTOOLS_ACTIVE_PORT_FILE.read_text().strip().splitlines()
+                    if content:
+                        active_port = int(content[0].strip())
+                except Exception:
+                    pass
 
-    launch_cmd = f'"{dicloak_exe}" --remote-debugging-port=9333 --remote-allow-origins=*'
-    launch_detached(launch_cmd)
-
-    # -----------------------------------------------------------------------
-    # Step 5/10: Wait for CDP on 9333
-    # -----------------------------------------------------------------------
-    log_step("5/10", "Esperando CDP en puerto 9333...")
-    if not wait_for_cdp(9333, timeout_sec=90):
-        log_warn("CDP no respondio en 9333. Buscando DevToolsActivePort...")
-        # Fallback: read DevToolsActivePort
-        active_port = None
-        if DEVTOOLS_ACTIVE_PORT_FILE.exists():
-            try:
-                content = DEVTOOLS_ACTIVE_PORT_FILE.read_text().strip().splitlines()
-                if content:
-                    active_port = int(content[0].strip())
-            except Exception:
-                pass
-
-        if active_port:
-            cdp_url = f"http://127.0.0.1:{active_port}"
-            log_info(f"Puerto detectado: {active_port}")
-            if not wait_for_cdp(active_port, timeout_sec=45):
-                log_error(f"CDP tampoco respondio en {cdp_url}.")
+            if active_port:
+                cdp_url = f"http://127.0.0.1:{active_port}"
+                log_info(f"Puerto detectado: {active_port}")
+                if not wait_for_cdp(active_port, timeout_sec=45):
+                    log_error(f"CDP tampoco respondio en {cdp_url}.")
+                    return 1
+            else:
+                log_error("No se encontro DevToolsActivePort para detectar puerto real.")
                 return 1
-        else:
-            log_error("No se encontro DevToolsActivePort para detectar puerto real.")
-            return 1
+    else:
+        log_step("4/10", "CDP ya confirmado en 9333.")
 
     # -----------------------------------------------------------------------
-    # Step 6/10: Verify Node.js
+    # Step 5/10: Verify Node.js
     # -----------------------------------------------------------------------
-    log_step("6/10", "Verificando Node.js...")
+    log_step("5/10", "Verificando Node.js...")
     if not shutil.which("node"):
         log_error("Node.js no esta disponible en PATH.")
         log_info(f"Instala Node o ejecuta manualmente: node {SCRIPT_PATH} {profile_name} {cdp_url}")
@@ -231,7 +223,7 @@ def run_orchestrator(
     # -----------------------------------------------------------------------
     # Step 7/10: Open profile
     # -----------------------------------------------------------------------
-    log_step("7/10", f"Abriendo perfil: {profile_name}")
+    log_step("6/10", f"Abriendo perfil: {profile_name}")
     profile_maybe_open = False
 
     rc = _run_node(
@@ -261,13 +253,13 @@ def run_orchestrator(
     # -----------------------------------------------------------------------
     # Step 7.5/10: Wait for profile to load
     # -----------------------------------------------------------------------
-    log_step("7.5/10", "Esperando que el perfil cargue completamente...")
+    log_step("6.5/10", "Esperando que el perfil cargue completamente...")
     _wait_for_profile_load(timeout_sec=45)
 
     # -----------------------------------------------------------------------
     # Step 8/10: Post-opening automation (in background thread)
     # -----------------------------------------------------------------------
-    log_step("8/10", "Ejecutando automatizacion clave de depuracion de perfil...")
+    log_step("7/10", "Ejecutando automatizacion clave de depuracion de perfil...")
 
     def _run_post_opening() -> None:
         try:
@@ -302,7 +294,7 @@ def run_orchestrator(
     # -----------------------------------------------------------------------
     # Step 9/10: Detect real port
     # -----------------------------------------------------------------------
-    log_step("9/10", "Detectando puerto real de perfil...")
+    log_step("8/10", "Detectando puerto real de perfil...")
     try:
         from cdp.detect_port import detect_debug_port
         port = detect_debug_port(timeout_sec=30)
@@ -316,7 +308,7 @@ def run_orchestrator(
     # -----------------------------------------------------------------------
     # Step 10/10: Done — wait for post_opening thread to finish
     # -----------------------------------------------------------------------
-    log_step("10/10", f"Perfil abierto: {profile_name}")
+    log_step("9/10", f"Perfil abierto: {profile_name}")
     log_info("Esperando a que la automatizacion post-apertura termine...")
     post_thread.join(timeout=7200)  # max 2 hours
     log_ok("Proceso completado.")

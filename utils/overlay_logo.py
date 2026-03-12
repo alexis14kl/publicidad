@@ -1,8 +1,8 @@
 """Superpone el logo real de NoyeCode sobre la zona de header de una imagen publicitaria.
 
-DALL-E genera la imagen con el 15% superior vacio (gradiente oscuro natural).
+DALL-E genera la imagen con el 15% superior vacio (fondo claro limpio).
 Este script limpia programaticamente la zona del header (borrando cualquier texto
-que DALL-E haya puesto ahi) y coloca el logo encima.
+que DALL-E haya puesto ahi) usando blur extremo y coloca el logo encima.
 """
 
 import sys
@@ -56,45 +56,54 @@ def _ensure_logo_png() -> Path:
 
 
 def _clean_header_zone(bg: Image.Image, header_h: int, fade_rows: int) -> Image.Image:
-    """Borra texto/elementos del header usando blur extremo + oscurecimiento.
+    """Borra texto/elementos del header pintando color solido uniforme + fade.
 
-    Estrategia: aplica un gaussian blur muy fuerte SOLO en la zona del header
-    para destruir cualquier texto, luego oscurece progresivamente hacia arriba.
-    Resultado: zona limpia que conserva los colores naturales de la imagen sin
-    verse como un parche artificial.
+    Estrategia: detecta el color de fondo dominante de las esquinas de la imagen
+    (que siempre son fondo limpio) y pinta todo el header con ese color uniforme.
+    Luego aplica blur + fade para una transicion suave al contenido.
     """
-    bg_w, bg_h = bg.size
-    total_zone = header_h + fade_rows
+    data = np.array(bg, dtype=np.float32)
+    original = data.copy()
+    h, w = data.shape[:2]
 
-    # Recortar la zona del header + fade
-    header_crop = bg.crop((0, 0, bg_w, min(total_zone, bg_h)))
+    # Muestrear color de las 4 esquinas (siempre son fondo limpio, no contenido)
+    corner_size = 50
+    corners = []
+    for cy, cx in [(0, 0), (0, w - corner_size), (h - 1, 0), (h - 1, w - corner_size)]:
+        cy = max(0, min(cy, h - 1))
+        cx_end = min(cx + corner_size, w)
+        corners.append(data[cy, cx:cx_end, :3].mean(axis=0))
+    bg_color = np.mean(corners, axis=0)  # Color de fondo promedio (3,)
 
-    # Blur extremo: radio grande para destruir completamente cualquier texto
-    blurred = header_crop.filter(ImageFilter.GaussianBlur(radius=40))
-
-    # Oscurecer progresivamente hacia arriba (simula gradiente oscuro natural)
-    blur_data = np.array(blurred, dtype=np.float32)
+    # Pintar todo el header con el color de fondo uniforme
     for y in range(header_h):
-        # Factor de oscurecimiento: 0.2 arriba -> 1.0 al borde del header
-        darken = 0.2 + 0.8 * (y / max(header_h - 1, 1))
-        blur_data[y, :, :3] *= darken
+        data[y, :, :3] = bg_color
+        data[y, :, 3] = 255
 
-    # Zona de fade: mezclar blur con imagen original
-    original_data = np.array(bg, dtype=np.float32)
+    # Blur la zona de transicion de la imagen original para suavizar el borde
+    total_zone = min(header_h + fade_rows, h)
+    transition_crop = bg.crop((0, header_h, w, total_zone))
+    blurred_transition = np.array(
+        transition_crop.filter(ImageFilter.GaussianBlur(radius=20)),
+        dtype=np.float32,
+    )
+
+    # Fade: color solido -> blur -> imagen original
     for i in range(fade_rows):
         y = header_h + i
-        if y >= blur_data.shape[0]:
+        if y >= h:
             break
-        # t=0 al inicio del fade (100% blur), t=1 al final (100% original)
         t = i / max(fade_rows - 1, 1)
-        blur_data[y, :, :3] = blur_data[y, :, :3] * (1 - t) + original_data[y, :, :3] * t
+        if t < 0.5:
+            # Primera mitad: color solido -> blur
+            t2 = t / 0.5
+            data[y, :, :3] = bg_color * (1 - t2) + blurred_transition[i, :, :3] * t2
+        else:
+            # Segunda mitad: blur -> original
+            t2 = (t - 0.5) / 0.5
+            data[y, :, :3] = blurred_transition[i, :, :3] * (1 - t2) + original[y, :, :3] * t2
 
-    blur_data = np.clip(blur_data, 0, 255).astype(np.uint8)
-
-    # Pegar la zona procesada de vuelta en la imagen
-    result = np.array(bg)
-    result[:min(total_zone, bg_h)] = blur_data
-    return Image.fromarray(result, "RGBA")
+    return Image.fromarray(np.clip(data, 0, 255).astype(np.uint8), "RGBA")
 
 
 def overlay_logo(image_path: str | Path) -> Path:

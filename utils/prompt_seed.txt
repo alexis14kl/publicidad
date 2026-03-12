@@ -5,39 +5,42 @@ EMPRESA: NoyeCode | Web: noyecode.com | WhatsApp: +57 301 385 9952
 SERVICIO A PROMOCIONAR: Se te indicara cual servicio usar. No lo cambies.
 
 QUE GENERAR:
-Un anuncio vertical 4:5 estilo MARKETING DIRECTO para Facebook/Instagram. Estilo visual: publicidad profesional de agencia digital, limpio y moderno. Debe captar atencion en menos de 2 segundos.
+Un anuncio vertical 4:5 estilo ILUSTRACION CARTOON/VECTORIAL COLORIDA para Facebook/Instagram. Estilo visual: flat design moderno con personajes ilustrados, similar a anuncios de agencias digitales latinoamericanas. Debe captar atencion en menos de 2 segundos.
 
 COMPOSICION OBLIGATORIA:
-- PERSONA PROFESIONAL: hombre o mujer joven (25-35 anos) sonriente, vestido casual-profesional, senalando o interactuando con el producto/servicio. Medio cuerpo o 3/4 visible. Expresion de confianza y exito.
-- MOCKUPS DE PRODUCTO: laptop, celular o pantalla mostrando pagina web, app o dashboard profesional. El dispositivo debe verse real y moderno.
-- TEXTO BOLD DE OFERTA: tipografia grande, gruesa, colorida con el gancho de la oferta. Texto destacado con colores contrastantes (naranja, blanco, amarillo). Usar jerarquia tipografica clara.
-- LISTA DE BENEFICIOS: 2-3 puntos cortos con iconos de check verde o flechas, listando los beneficios del servicio.
-- CTA CLARO: boton o texto destacado con llamada a accion (ej: "Cotiza Gratis", "Escribe HOY").
-- FONDO: ciudad moderna al atardecer desenfocada, oficina moderna borrosa, o gradiente profesional azul/naranja. NO fondo negro.
+- PERSONAJE ILUSTRADO: persona joven estilo cartoon/vector sentada frente a computador o interactuando con dispositivos tecnologicos. Estilo flat design colorido, NO fotografia, NO realista. Expresion amigable y profesional.
+- DISPOSITIVOS FLOTANTES: multiples pantallas, laptops, celulares y ventanas de navegador flotando alrededor del personaje, mostrando interfaces web modernas, dashboards y apps coloridas. Efecto de pantallas saliendo del monitor principal.
+- BADGES DE OFERTA: rectangulos redondeados con bordes brillantes (estilo neon suave) conteniendo el texto de la oferta. Colores morado, naranja, cyan. Sombra suave.
+- ICONOS SOCIALES: iconos de like, estrellas, regalo, compartir flotando como elementos decorativos.
+- CHECKS DE BENEFICIOS: lista con iconos de check verde y texto de beneficios al costado.
+- ELEMENTOS DECORATIVOS: confeti, cohetes pequenos, bombillas de idea, lineas geometricas sutiles en el fondo.
 
 LAYOUT CRITICO (respetar estrictamente):
-- FRANJA SUPERIOR (15% del alto): COMPLETAMENTE VACIA, sin texto ni elementos. Solo fondo limpio. El logo se agrega despues.
-- ZONA DE CONTENIDO (85% inferior): persona a un lado, texto y mockups al otro. Composicion equilibrada.
+- FRANJA SUPERIOR (15% del alto): COMPLETAMENTE VACIA, solo fondo claro limpio. Cero texto, cero iconos. El logo se agrega despues.
+- ZONA DE CONTENIDO (85% inferior): personaje a un lado, texto de oferta y badges al otro. Composicion equilibrada y dinamica.
 
 TEXTO EN LA IMAGEN:
 - Todo en espanol. Maximo 6 elementos de texto.
-- Titulo: gancho de oferta atractivo (max 6 palabras). Ejemplos: "Tu Pagina Web Profesional", "Automatiza Tu Negocio HOY", "Tu App a Tu Medida".
+- Titulo principal: gancho de oferta GRANDE y llamativo (max 6 palabras). Ejemplos: "Creamos Tu Web Moderna", "Automatiza Tu Negocio", "Tu App a Tu Medida". Tipografia bold gruesa, color morado oscuro o blanco con sombra.
+- Subtitulo de oferta: en badge naranja o morado, texto urgente. Ej: "GRATIS para los primeros 10", "Oferta Limitada", "50% de Descuento".
 - Beneficios: 2-3 bullet points cortos con checks verdes.
-- CTA: max 3 palabras destacadas. Ejemplos: "Cotiza Gratis", "Escribe HOY", "Solicita Info".
-- Pie: "noyecode.com" y "+57 301 385 9952" en tipografia pequena.
+- CTA: en barra o boton naranja/verde al pie. Ej: "Escribenos con tu idea", "Cotiza Gratis HOY".
+- Contacto al pie: "noyecode.com" y "WhatsApp: +57 301 385 9952" en barra inferior.
 - PROHIBIDO escribir "NoyeCode" o variaciones del nombre de marca en el contenido principal.
 
-PALETA DE COLORES:
-- Naranja vibrante #fd9102 para acentos, CTAs y highlights.
-- Azul profesional #1a3a5c o #2b5ea7 para fondos y textos secundarios.
-- Blanco #ffffff para texto principal.
+PALETA DE COLORES (estilo de la referencia):
+- Fondo: blanco o gris muy claro #f0f0f5 con lineas geometricas sutiles.
+- Morado intenso #4a1a8a y morado medio #7b2d8e para titulos y badges principales.
+- Naranja vibrante #fd9102 y amarillo #ffc107 para CTAs, acentos y highlights.
+- Cyan/turquesa #00bcd4 para detalles de dispositivos y bordes de badges.
 - Verde #28a745 para checks de beneficios.
-- Fondo: NUNCA negro puro. Usar gradientes suaves, cielos urbanos, o tonos profesionales.
+- Texto: morado oscuro #2d1b4e o blanco segun el fondo del badge.
+- NUNCA fondo negro ni oscuro. El estilo es CLARO, alegre y colorido.
 
 REGLAS DEL PROMPT FINAL:
 - 100% en ingles, un parrafo, 80-120 palabras.
 - Especificar entre comillas el texto exacto en espanol que va dentro de la imagen.
-- Incluir esta frase literal: "The top 15 percent of the image must be completely empty with clean background only, no text or elements, reserved for logo overlay. All content starts below that zone."
-- Incluir: "Full-bleed design, background edge to edge, no margins, no black bars."
-- Terminar con: "vertical 4:5, 4K, full-bleed social media ad, professional marketing style, clean modern design"
-- NO pedir efectos 3D, particulas, destellos, lineas de energia, halos luminosos, lens flare ni iluminacion cinematica.
+- Incluir esta frase literal: "The top 15 percent of the image must be completely empty with clean light background only, no text or elements, reserved for logo overlay. All content starts below that zone."
+- Incluir: "Full-bleed design, light background edge to edge, no margins, no black bars."
+- Terminar con: "vertical 4:5, 4K, full-bleed social media ad, colorful cartoon vector illustration style, flat design, vibrant and cheerful"
+- NO pedir fotografia realista, efectos 3D, particulas, destellos, lineas de energia, halos luminosos, lens flare ni iluminacion cinematica.

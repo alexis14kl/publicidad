@@ -14,13 +14,12 @@ DEFAULT_PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 DEFAULT_IDEA_FILE = PROJECT_ROOT / "utils" / "prompt_seed.txt"
 DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/py-prompt-imgs"
 DEFAULT_BRAND_HINT = (
-    "Anuncio de MARKETING DIRECTO profesional para NoyeCode. Estilo: publicidad de agencia digital moderna y limpia. "
-    "Persona joven profesional (25-35) sonriente senalando o interactuando con el producto. "
-    "Mockup de dispositivo real (laptop/celular) mostrando pagina web o app profesional. "
-    "Texto BOLD grande con oferta y lista de beneficios con checks verdes. "
-    "CTA como BOTON naranja #fd9102 con texto blanco. "
-    "Fondo: ciudad moderna desenfocada o gradiente profesional azul/naranja. NO fondo negro. "
-    "Pie: noyecode.com y +57 301 385 9952."
+    "Anuncio estilo ILUSTRACION CARTOON/VECTORIAL COLORIDA para NoyeCode. "
+    "Flat design moderno: personaje ilustrado joven frente a computador con multiples pantallas y dispositivos flotando. "
+    "Badges de oferta en morado/naranja con bordes neon suave. Iconos de like, estrellas, regalo flotando. "
+    "Checks verdes con beneficios. CTA en boton naranja #fd9102. "
+    "Fondo CLARO blanco/gris #f0f0f5 con lineas geometricas sutiles. Colores: morado #4a1a8a, naranja, cyan #00bcd4. "
+    "Pie: noyecode.com y WhatsApp: +57 301 385 9952."
 )
 
 
@@ -37,37 +36,37 @@ SERVICE_HASHTAGS = {
     "desarrollo desktop": "#NoyeCode #DesarrolloDesktop #SoftwareEmpresarial #Productividad",
 }
 
-# Hints especificos por servicio: escena de marketing directo por servicio
+# Hints especificos por servicio: escena cartoon/vectorial por servicio
 _SERVICE_SCENE_HINTS = {
     "desarrollo a la medida": (
-        "Persona profesional sosteniendo o senalando laptop abierta mostrando pagina web moderna con dashboard, "
-        "graficos y metricas de negocio. Beneficios: diseno personalizado, escalable, soporte dedicado. "
-        "Fondo oficina moderna desenfocada o skyline urbano al atardecer."
+        "Personaje cartoon sentado frente a escritorio con monitor grande mostrando pagina web moderna con dashboard. "
+        "Pantallas adicionales flotando con graficos, metricas y ventanas de codigo. Bombilla de idea brillando. "
+        "Beneficios: diseno personalizado, escalable, soporte dedicado. Badge morado con oferta."
     ),
     "automatizaciones empresariales": (
-        "Persona profesional junto a laptop mostrando panel de automatizacion con flujos de trabajo conectados. "
-        "Beneficios: ahorra tiempo, reduce errores, automatiza procesos repetitivos. "
-        "Iconos simples de engranajes y flechas de flujo al lado del dispositivo."
+        "Personaje cartoon rodeado de engranajes coloridos y flechas de flujo conectando pantallas. "
+        "Monitor mostrando workflow de automatizacion con nodos conectados. Iconos de reloj y rayo. "
+        "Beneficios: ahorra tiempo, reduce errores, automatiza procesos. Badge naranja con oferta."
     ),
     "desarrollo android": (
-        "Persona profesional sosteniendo smartphone grande mostrando app moderna con interfaz limpia y colorida. "
-        "Beneficios: app nativa rapida, disponible en Play Store, diseno intuitivo. "
-        "Segundo celular o tablets visibles en la composicion."
+        "Personaje cartoon sosteniendo smartphone gigante mostrando app moderna colorida. "
+        "Celulares y tablets adicionales flotando con diferentes pantallas de app. Icono de Play Store. "
+        "Beneficios: app nativa rapida, diseno intuitivo, disponible en tiendas. Badge morado con oferta."
     ),
     "desarrollo desktop": (
-        "Persona profesional frente a monitor widescreen mostrando aplicacion de escritorio con multiples paneles "
-        "y tablas de datos organizadas. Beneficios: rendimiento nativo, seguridad empresarial, soporte continuo. "
-        "Ambiente de oficina profesional."
+        "Personaje cartoon frente a monitor widescreen con aplicacion empresarial de multiples paneles. "
+        "Ventanas flotando con tablas de datos, graficos y reportes coloridos. "
+        "Beneficios: rendimiento nativo, seguridad empresarial, multiplataforma. Badge cyan con oferta."
     ),
     "modernizacion de software legacy": (
-        "Persona profesional senalando pantalla que muestra antes/despues: lado izquierdo interfaz vieja gris, "
-        "lado derecho interfaz moderna colorida y limpia. Beneficios: tecnologia actual, mejor rendimiento, "
-        "menos costos de mantenimiento. Fondo profesional."
+        "Personaje cartoon senalando dos pantallas: izquierda interfaz vieja gris apagada, derecha interfaz "
+        "moderna colorida y brillante con flecha de transformacion entre ambas. Cohete pequeno despegando. "
+        "Beneficios: tecnologia actual, mejor rendimiento, menos costos. Badge morado con oferta."
     ),
     "rpas nativos": (
-        "Persona profesional junto a laptop mostrando panel de control de automatizacion robotica con tareas "
-        "ejecutandose. Beneficios: automatiza tareas manuales, precision operativa, ahorro de horas. "
-        "Iconos simples de engranajes y reloj al lado."
+        "Personaje cartoon junto a laptop mostrando panel de control con tareas automatizadas ejecutandose. "
+        "Engranajes estilizados y brazos roboticos simples (NO humanoides) organizando documentos. "
+        "Beneficios: automatiza tareas manuales, precision, ahorro de horas. Badge naranja con oferta."
     ),
 }
 
@@ -207,20 +206,20 @@ def enrich_idea(idea: str) -> str:
         "Todo el contenido empieza debajo de esa zona."
     )
 
-    # Hint 5: Estilo visual marketing directo
+    # Hint 5: Estilo visual cartoon/vectorial
     hints.append(
-        "ESTILO MARKETING DIRECTO: persona profesional real interactuando con el producto. "
-        "Texto BOLD grande con oferta atractiva. Lista de 2-3 beneficios con checks verdes. "
-        "CTA como BOTON naranja #fd9102 clicable. Colores: naranja, azul profesional, blanco. "
-        "Fondo: ciudad desenfocada, oficina moderna borrosa, o gradiente profesional. NUNCA fondo negro."
+        "ESTILO ILUSTRACION CARTOON/VECTORIAL: flat design colorido con personaje ilustrado. "
+        "Multiples pantallas y dispositivos flotando. Badges de oferta morado/naranja con bordes neon suave. "
+        "Iconos decorativos (like, estrellas, regalo, cohete). Checks verdes con beneficios. "
+        "Fondo CLARO blanco/gris con lineas geometricas sutiles. Colores: morado, naranja, cyan, verde. NUNCA fondo oscuro."
     )
 
     # Hint 6: Restricciones clave (una sola vez, consolidadas)
     hints.append(
-        "NO incluir: efectos 3D, particulas, destellos, lineas de energia, halos luminosos, lens flare, "
-        "iluminacion cinematica, fondos negros puros, logos de marca, hashtags. "
-        "SI incluir: persona profesional sonriente, mockup de dispositivo real, texto de oferta en espanol, "
-        "beneficios con checks, boton CTA naranja, contacto al pie."
+        "NO incluir: fotografia realista, personas reales, efectos 3D, particulas, destellos, lineas de energia, "
+        "fondos negros/oscuros, logos de marca, hashtags. "
+        "SI incluir: personaje cartoon/vector amigable, dispositivos flotantes con interfaces, badges de oferta coloridos, "
+        "checks verdes de beneficios, boton CTA naranja, contacto al pie, confeti y elementos decorativos alegres."
     )
 
     return f"{base}\n\nDirectrices:\n- " + "\n- ".join(hints)

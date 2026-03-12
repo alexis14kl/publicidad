@@ -32,9 +32,7 @@ from cfg.platform import (
     DOWNLOAD_GENERATED_IMAGE_PY,
     OVERLAY_LOGO_PY,
     PUBLIC_IMG_PY,
-    get_browser_process_name,
     get_env,
-    kill_process_by_name,
     read_cdp_debug_info,
     test_cdp_port,
     wait_for_cdp,
@@ -87,29 +85,11 @@ def _close_chatgpt_tabs(port: int) -> None:
 
 
 def _cleanup_and_exit(dev_mode: bool, cdp_port: int) -> int:
-    """Post-publish cleanup: close tabs, kill browser, kill DICloak."""
-    log_info("Limpiando sesion del perfil antes de cerrar...")
+    """Post-publish cleanup: close only ChatGPT tabs, keep DICloak and browser alive."""
+    log_info("Limpiando sesion del perfil (cerrando tabs)...")
     _close_chatgpt_tabs(cdp_port)
 
-    if dev_mode:
-        log_ok("=== MODO DESARROLLO: perfil y consola quedan abiertos ===")
-        browser = get_browser_process_name()
-        log_info(f"Para cerrar manualmente: kill {browser} y DICloak")
-        return 0
-
-    browser = get_browser_process_name()
-    log_info("Cerrando DiCloak, perfil y ginsbrowser para liberar memoria...")
-    kill_process_by_name(browser, force=True)
-    kill_process_by_name("DICloak.exe" if IS_WINDOWS else "DICloak", force=True)
-
-    # Advanced cleanup
-    try:
-        from inicio.cleanup import cleanup_dicloak
-        cleanup_dicloak(port=9333, timeout_sec=30, quiet=True)
-    except Exception:
-        pass
-
-    log_ok("DiCloak y perfil cerrados. Worker sigue en background.")
+    log_ok("Tabs cerrados. DICloak y navegador siguen abiertos para el proximo ciclo.")
     log_ok("Proceso completado.")
     return 0
 
