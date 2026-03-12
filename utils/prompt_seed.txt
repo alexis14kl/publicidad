@@ -5,26 +5,39 @@ EMPRESA: NoyeCode | Web: noyecode.com | WhatsApp: +57 301 385 9952
 SERVICIO A PROMOCIONAR: Se te indicara cual servicio usar. No lo cambies.
 
 QUE GENERAR:
-Un anuncio vertical 4:5 de oferta de software para Facebook/Instagram. Estilo: diseno grafico premium (NO fotografia). Mockup de dispositivo con interfaz SaaS limpia. Fondo: gradiente oscuro #1a1a2e a #16213e de borde a borde.
+Un anuncio vertical 4:5 VISUALMENTE EXPLOSIVO para Facebook/Instagram. Estilo: diseno grafico de agencia premium (NO fotografia). El anuncio debe captar atencion en menos de 2 segundos en un feed de redes sociales.
+
+COMPOSICION DE ALTO IMPACTO (obligatorio):
+- TITULO DE OFERTA: tipografia BOLD extremadamente grande, condensada, que ocupe al menos 30% del ancho. Letras gruesas, poderosas, con efecto de profundidad (sombra dura, bisel sutil o resplandor naranja).
+- MOCKUP PROMINENTE: dispositivo grande en angulo dinamico (perspectiva 3/4, ligeramente rotado, flotando con sombra de elevacion). La pantalla debe mostrar interfaz UI moderna con datos, graficos o dashboards coloridos. El mockup debe ocupar al menos 35% de la imagen.
+- CTA COMO BOTON: un rectangulo redondeado naranja vibrante #fd9102 con texto blanco bold que simule un boton clicable real. Debe verse tactil y prominente.
+- ELEMENTOS DE ENERGIA: destellos de luz, particulas brillantes flotando, lineas de velocidad sutiles, halos luminosos detras del dispositivo, reflejos lens flare suaves. Esto genera sensacion premium y dinamica.
+- PROFUNDIDAD: usar capas visuales - fondo oscuro atras, elementos de energia en capa media, dispositivo y texto al frente. Crear sensacion tridimensional.
 
 LAYOUT CRITICO (respetar estrictamente):
 - FRANJA SUPERIOR (15% del alto): COMPLETAMENTE VACIA, solo gradiente oscuro. Cero texto, cero iconos, cero graficos. El logo se agrega despues.
-- ZONA DE CONTENIDO (85% inferior): titulo de oferta, servicio, mockup, CTA, contacto al pie.
+- ZONA DE CONTENIDO (85% inferior): distribuir titulo grande, mockup prominente, CTA boton, contacto al pie.
+- Composicion DIAGONAL o ASIMETRICA preferida, evitar centrado estatico y plano.
 
 TEXTO EN LA IMAGEN:
 - Todo en espanol. Maximo 5 elementos de texto.
-- Titulo: gancho de oferta (max 6 palabras). Ej: "Cotizacion GRATIS hoy", "Demo sin costo".
-- Servicio: nombre corto.
-- CTA: max 4 palabras urgentes.
-- Pie: "noyecode.com" y "+57 301 385 9952".
+- Titulo: gancho de oferta CORTO y URGENTE (max 5 palabras). Ejemplos: "Tu Software HOY", "Impulsa Tu Negocio", "Automatiza y Crece YA", "Desarrollo Express". Debe sonar exclusivo y urgente, NO generico.
+- Servicio: nombre corto con icono visual simple al lado.
+- CTA: max 3 palabras dentro del boton naranja. Ejemplos: "Cotiza Gratis", "Empieza Hoy", "Solicita Demo".
+- Pie: "noyecode.com" y "+57 301 385 9952" en tipografia fina.
 - PROHIBIDO escribir "NoyeCode" o variaciones del nombre de marca.
 
-PALETA: naranja #fd9102 para acentos, fondo gradiente oscuro.
+PALETA DE ALTO CONTRASTE:
+- Fondo: gradiente oscuro profundo #0d0d1a a #1a1a2e (mas oscuro que antes para mayor contraste).
+- Acento principal: naranja vibrante #fd9102 para CTA, destellos y highlights. Usar generosamente.
+- Acento secundario: cyan electrico #00d4ff o azul brillante para detalles del mockup y lineas de energia.
+- Texto principal: blanco puro #ffffff para maximo contraste sobre fondo oscuro.
+- El naranja y el cyan deben crear tension visual y contraste cromatico fuerte.
 
 REGLAS DEL PROMPT FINAL:
 - 100% en ingles, un parrafo, 80-120 palabras.
 - Especificar entre comillas el texto exacto en espanol que va dentro de la imagen.
 - Incluir esta frase literal: "The top 15 percent of the image must be completely empty dark gradient only, no text or elements, reserved for logo overlay. All content starts below that zone."
 - Incluir: "Full-bleed design, gradient background edge to edge, no margins, no black bars."
-- Terminar con: "vertical 4:5, 4K, full-bleed social media ad, clean graphic design, conversion-focused"
+- Terminar con: "vertical 4:5, 4K, full-bleed social media ad, cinematic lighting, premium graphic design, conversion-focused"
 - NO pedir fotos realistas, personas, oficinas, logos ni hashtags.

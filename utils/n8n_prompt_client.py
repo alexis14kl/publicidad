@@ -14,9 +14,13 @@ DEFAULT_PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 DEFAULT_IDEA_FILE = PROJECT_ROOT / "utils" / "prompt_seed.txt"
 DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/py-prompt-imgs"
 DEFAULT_BRAND_HINT = (
-    "Anuncio de OFERTA para NoyeCode. Estilo: diseno grafico premium para redes sociales, NO fotografia. "
-    "Mockups de dispositivos con interfaces SaaS sobre gradiente oscuro #1a1a2e a #16213e. "
-    "Incluir gancho de oferta, CTA urgente, web noyecode.com y WhatsApp +57 301 385 9952."
+    "Anuncio de OFERTA visualmente EXPLOSIVO para NoyeCode. Estilo: diseno grafico de agencia premium, NO fotografia. "
+    "TITULO BOLD gigante con efecto de profundidad (sombra o resplandor naranja). "
+    "Mockup de dispositivo GRANDE en angulo 3/4 flotando con sombra de elevacion y halo de luz detras. "
+    "CTA como BOTON naranja #fd9102 clicable con texto blanco. "
+    "Fondo gradiente ultra oscuro #0d0d1a a #1a1a2e. Destellos, particulas luminosas y lineas de energia. "
+    "Contraste alto: naranja vibrante + cyan electrico #00d4ff sobre oscuro. "
+    "Pie: noyecode.com y +57 301 385 9952."
 )
 
 
@@ -36,27 +40,34 @@ SERVICE_HASHTAGS = {
 # Hints especificos por servicio: breves y enfocados en la escena visual
 _SERVICE_SCENE_HINTS = {
     "desarrollo a la medida": (
-        "Mockup de laptop o tablet con interfaz UI/UX personalizada, dashboards elegantes. "
-        "Texto destacado: el nombre del servicio y beneficio de software a la medida."
+        "Laptop grande en perspectiva 3/4 flotando con sombra de elevacion, pantalla mostrando dashboard UI moderno "
+        "con graficos de barras coloridos y metricas en cyan y naranja. Halo de luz naranja detras del dispositivo. "
+        "Particulas brillantes flotando alrededor. Titulo bold gigante sobre el mockup."
     ),
     "automatizaciones empresariales": (
-        "Mockup de laptop con workflow de automatizacion limpio, flujos conectados, paneles de eficiencia. "
-        "Variar entre diagramas de integracion, dashboards de procesos y tableros de productividad."
+        "Laptop en angulo dinamico mostrando workflow de automatizacion con nodos conectados por lineas brillantes cyan. "
+        "Flechas de flujo luminosas saliendo de la pantalla. Iconos de engranajes y rayos flotando con efecto de brillo. "
+        "Lineas de velocidad sutiles para transmitir eficiencia y movimiento."
     ),
     "desarrollo android": (
-        "Mockup de smartphone con app movil profesional, interfaz con metricas o mapas. "
-        "Solo dispositivo como mockup limpio, sin manos ni personas."
+        "Smartphone grande inclinado en angulo dramatico mostrando app profesional con interfaz moderna, "
+        "metricas en tiempo real y graficos interactivos. Reflejos de luz en los bordes del telefono. "
+        "Elementos UI flotando fuera de la pantalla con efecto parallax y destellos."
     ),
     "desarrollo desktop": (
-        "Mockup de laptop o monitor con aplicacion empresarial robusta, paneles de productividad."
+        "Monitor widescreen en perspectiva 3/4 mostrando aplicacion empresarial con multiples paneles, "
+        "tablas de datos y graficos de rendimiento. Efecto de luz volumetrica saliendo de la pantalla. "
+        "Composicion diagonal con el monitor dominando la escena."
     ),
     "modernizacion de software legacy": (
-        "Representar evolucion tecnologica sutil: software antiguo transformandose en plataforma moderna. "
-        "Enfatizar migracion y continuidad operativa."
+        "Transicion visual dramatica: lado izquierdo interfaz opaca y vieja desintegrando en pixeles, "
+        "lado derecho plataforma moderna brillante con UI limpia emergiendo con destellos de luz. "
+        "Flecha o flujo de energia naranja conectando la transformacion. Efecto cinematico."
     ),
     "rpas nativos": (
-        "Mostrar automatizacion de tareas repetitivas en flujos empresariales, tableros claros y procesos conectados. "
-        "Evitar robots humanoides. Representar RPA como eficiencia operativa."
+        "Laptop mostrando panel de control con flujos de automatizacion, iconos de tareas conectados "
+        "por lineas de energia brillantes cyan. Engranajes estilizados y circuitos luminosos flotando alrededor. "
+        "Transmitir velocidad y precision operativa. Evitar robots humanoides."
     ),
 }
 
@@ -196,16 +207,20 @@ def enrich_idea(idea: str) -> str:
         "Todo el contenido empieza debajo de esa zona."
     )
 
-    # Hint 5: Variedad visual
+    # Hint 5: Impacto visual y composicion
     hints.append(
-        "Variar la composicion: alternar angulos de dispositivo, tipo de interfaz y estilo de gradiente. "
-        "No repetir siempre la misma escena."
+        "IMPACTO VISUAL OBLIGATORIO: titulo en tipografia BOLD gigante con efecto de profundidad. "
+        "Composicion diagonal o asimetrica, NUNCA todo centrado y plano. "
+        "CTA como BOTON naranja clicable. Destellos, particulas luminosas y halos de luz. "
+        "Contraste extremo: naranja #fd9102 + cyan #00d4ff sobre fondo ultra oscuro. "
+        "El mockup debe ser GRANDE y prominente, no pequeno y perdido."
     )
 
     # Hint 6: Restricciones clave (una sola vez, consolidadas)
     hints.append(
-        "NO incluir: personas, oficinas, logos de marca, hashtags, fotografia realista. "
-        "SI incluir: texto de oferta en espanol, CTA, contacto al pie."
+        "NO incluir: personas, oficinas, logos de marca, hashtags, fotografia realista, disenos planos o genericos. "
+        "SI incluir: texto de oferta urgente en espanol, boton CTA naranja, contacto al pie, "
+        "elementos de energia visual (destellos, particulas, lineas de luz)."
     )
 
     return f"{base}\n\nDirectrices:\n- " + "\n- ".join(hints)
