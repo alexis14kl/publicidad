@@ -39,6 +39,22 @@ const FIELDS: FieldDef[] = [
     type: 'password',
     placeholder: 'EAAB...'
   },
+  {
+    key: 'FB_PAGE_ID',
+    label: 'Page ID',
+    group: 'Meta Ads',
+    type: 'text',
+    placeholder: '1675432206759799',
+    help: 'Pagina de Facebook usada para consultar formularios Instant Form'
+  },
+  {
+    key: 'FB_AD_ACCOUNT_ID',
+    label: 'Ad Account ID',
+    group: 'Meta Ads',
+    type: 'text',
+    placeholder: '438871067037500',
+    help: 'Cuenta publicitaria fija usada para crear la campana'
+  },
 
   // CDP
   { key: 'CDP_DICLOAK_URL', label: 'DICloak URL', group: 'CDP', type: 'text', placeholder: 'http://127.0.0.1:9333' },

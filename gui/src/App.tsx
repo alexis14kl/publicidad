@@ -43,7 +43,11 @@ function MarketingCampaignModal({
         if (update.summary) setRunSummary(update.summary)
       }
       if (update.type === 'log' && update.line) {
-        setRunLines((prev) => [...prev, update.line].slice(-18))
+        const line = update.line
+        setRunLines((prev) => {
+          const nextLines: string[] = [...prev, line]
+          return nextLines.slice(-18)
+        })
       }
       if (update.type === 'done') {
         if (update.status) setRunState(update.status)
@@ -253,12 +257,220 @@ function MarketingCampaignModal({
                     <span className="job-value">{preview.formFields.join(', ')}</span>
                   </div>
                   <div className="job-item">
+                    <span className="job-label">Lead Forms</span>
+                    <span className="job-value">
+                      {preview.leadgenFormsLoaded
+                        ? preview.leadgenForms && preview.leadgenForms.length > 0
+                          ? `${preview.leadgenForms.length} formulario(s) encontrado(s)`
+                          : 'Sin formularios encontrados'
+                        : 'Pendiente de consulta'}
+                    </span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">Formulario elegido</span>
+                    <span className="job-value">
+                      {preview.selectedLeadgenFormId
+                        ? `${preview.selectedLeadgenFormName} (${preview.selectedLeadgenFormId})`
+                        : 'Ninguno seleccionado'}
+                    </span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">Monitor navegador</span>
+                    <span className="job-value">{preview.browserMonitorUrl || 'Se abre al ejecutar'}</span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">Imagen usada</span>
+                    <span className="job-value">
+                      {preview.imageAsset
+                        ? `${preview.imageAsset.fileName} ${preview.imageAsset.width && preview.imageAsset.height ? `(${preview.imageAsset.width}x${preview.imageAsset.height})` : ''}`
+                        : 'Se detecta al ejecutar'}
+                    </span>
+                  </div>
+                  <div className="job-item">
                     <span className="job-label">MCP</span>
                     <span className={`job-badge ${preview.mcpAvailable ? 'badge--success' : 'badge--error'}`}>
                       {preview.mcpAvailable ? 'Disponible' : 'No disponible'}
                     </span>
                   </div>
                 </div>
+
+                {preview.orchestrator && (
+                  <>
+                    <div className="card-header" style={{ marginTop: 16 }}>
+                      <span className="card-icon">&#129504;</span>
+                      <span className="card-title">Orquestador y Subagentes</span>
+                    </div>
+                    <div className="job-grid">
+                      <div className="job-item">
+                        <span className="job-label">Plan</span>
+                        <span className="job-value">{preview.orchestrator.plan.task}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Cuenta / Tipo</span>
+                        <span className="job-value">
+                          {preview.orchestrator.execution.accountHint} {'/'} {preview.orchestrator.execution.campaignType}
+                        </span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">ads-analyst</span>
+                        <span className="job-value">
+                          {preview.orchestrator.adsAnalyst.hook} {'|'} CTA: {preview.orchestrator.adsAnalyst.cta}
+                        </span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Publico base</span>
+                        <span className="job-value">{preview.orchestrator.adsAnalyst.audience}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">image-creator</span>
+                        <span className="job-value">
+                          {preview.orchestrator.imageCreator.style} {'|'} {preview.orchestrator.imageCreator.dimensions}
+                        </span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Prompt visual</span>
+                        <span className="job-value">{preview.orchestrator.imageCreator.prompt}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">marketing</span>
+                        <span className="job-value">
+                          {preview.orchestrator.marketing.verdict}. {preview.orchestrator.marketing.notes.join(' ')}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {!!preview.leadgenFormsLoaded && (
+                  <>
+                    <div className="card-header" style={{ marginTop: 16 }}>
+                      <span className="card-icon">&#128221;</span>
+                      <span className="card-title">Formularios Instant Form</span>
+                    </div>
+                    <div className="job-grid">
+                      <div className="job-item">
+                        <span className="job-label">Seleccion automatica</span>
+                        <span className="job-value">
+                          {preview.selectedLeadgenFormReason || 'Pendiente de evaluacion'}
+                        </span>
+                      </div>
+                      {preview.leadgenForms && preview.leadgenForms.length > 0 ? (
+                        preview.leadgenForms.map((form) => (
+                          <div key={form.id} className="job-item">
+                            <span className="job-label">{form.name}</span>
+                            <span className="job-value">leadgen_form_id: {form.id}</span>
+                            <span className="job-value">
+                              Campos: {form.questions && form.questions.length > 0
+                                ? form.questions.map((question) => question.key).join(', ')
+                                : form.questionsError
+                                  ? `No se pudieron leer las questions: ${form.questionsError}`
+                                  : 'Sin questions visibles'}
+                            </span>
+                            <span className="job-value">
+                              Validacion:{' '}
+                              {form.requirements?.exactMatch
+                                ? 'Cumple exacto: nombre, apellido, correo y telefono'
+                                : form.requirements?.acceptableMatch
+                                  ? 'Cumple parcial: usa full_name mas correo y telefono'
+                                  : 'No cumple los 4 campos requeridos'}
+                            </span>
+                            <span className={`job-badge ${form.status === 'ACTIVE' ? 'badge--success' : 'badge--warn'}`}>
+                              {form.status}
+                            </span>
+                            {preview.selectedLeadgenFormId === form.id && (
+                              <span className="job-badge badge--success">Seleccionado</span>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="job-item">
+                          <span className="job-label">Resultado</span>
+                          <span className="job-value">No se encontraron formularios o Meta no permitio listarlos con el token actual.</span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {preview.creativeDraftConfig && (
+                  <>
+                    <div className="card-header" style={{ marginTop: 16 }}>
+                      <span className="card-icon">&#127912;</span>
+                      <span className="card-title">Configuracion del Creativo</span>
+                    </div>
+                    <div className="job-grid">
+                      <div className="job-item">
+                        <span className="job-label">Lead Form enlazado</span>
+                        <span className="job-value">{preview.creativeDraftConfig.leadgenFormId}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">CTA</span>
+                        <span className="job-value">{preview.creativeDraftConfig.callToActionType}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Titular</span>
+                        <span className="job-value">{preview.creativeDraftConfig.headline}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Mensaje</span>
+                        <span className="job-value">{preview.creativeDraftConfig.message}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Estado</span>
+                        <span className="job-value">{preview.creativeDraftConfig.adDraftStatus}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Imagen preparada</span>
+                        <span className="job-value">{preview.creativeDraftConfig.imageAssetPath}</span>
+                      </div>
+                      {preview.metaCreative && (
+                        <>
+                          <div className="job-item">
+                            <span className="job-label">Creative ID</span>
+                            <span className="job-value">{preview.metaCreative.creativeId}</span>
+                          </div>
+                          <div className="job-item">
+                            <span className="job-label">Image Hash</span>
+                            <span className="job-value">{preview.metaCreative.imageHash}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {preview.adDraftConfig && (
+                  <>
+                    <div className="card-header" style={{ marginTop: 16 }}>
+                      <span className="card-icon">&#128227;</span>
+                      <span className="card-title">Configuracion del Anuncio</span>
+                    </div>
+                    <div className="job-grid">
+                      <div className="job-item">
+                        <span className="job-label">Ad Set</span>
+                        <span className="job-value">{preview.adDraftConfig.adsetId}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Nombre</span>
+                        <span className="job-value">{preview.adDraftConfig.adName}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Estado</span>
+                        <span className="job-value">{preview.adDraftConfig.status}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Creative</span>
+                        <span className="job-value">{preview.adDraftConfig.creativeStatus}</span>
+                      </div>
+                      {preview.metaAd && (
+                        <div className="job-item">
+                          <span className="job-label">Ad ID</span>
+                          <span className="job-value">{preview.metaAd.adId}</span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 {!!preview.process?.length && (
                   <>

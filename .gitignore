@@ -41,3 +41,7 @@ gui/dist/
 gui/dist-electron/
 gui/dist-types/
 gui/release/
+
+# Packaged desktop binaries
+ejecutable/mac/*.app/
+ejecutable/mac/*.dmg
