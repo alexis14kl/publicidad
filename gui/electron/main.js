@@ -1866,6 +1866,45 @@ ipcMain.handle('get-env-config', async () => {
   return parseEnvFile(path.join(PROJECT_ROOT, '.env'))
 })
 
+ipcMain.handle('run-preflight', async (_event, force = false) => {
+  const pythonBin = findPython()
+  if (!pythonBin) {
+    return {
+      ok: false,
+      checks: [{ name: 'Python', required: '>= 3.10', current: null, ok: false, fix: 'Instala Python 3.10+ desde https://python.org' }],
+    }
+  }
+  const args = ['-m', 'cfg.preflight', '--json']
+  if (force) args.push('--force')
+  return new Promise((resolve) => {
+    const child = spawn(pythonBin, args, {
+      cwd: PROJECT_ROOT,
+      env: getProjectEnv(),
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (d) => { stdout += d.toString() })
+    child.stderr.on('data', (d) => { stderr += d.toString() })
+    child.on('close', (code) => {
+      try {
+        const result = JSON.parse(stdout)
+        resolve(result)
+      } catch {
+        resolve({
+          ok: code === 0,
+          checks: [{ name: 'Preflight', required: 'ejecutable', current: code === 0 ? 'ok' : `error (code ${code})`, ok: code === 0, fix: stderr || 'Error ejecutando preflight' }],
+        })
+      }
+    })
+    child.on('error', (err) => {
+      resolve({
+        ok: false,
+        checks: [{ name: 'Python', required: '>= 3.10', current: null, ok: false, fix: `Error: ${err.message}` }],
+      })
+    })
+  })
+})
+
 ipcMain.handle('reset-bot-state', async () => {
   const stateFiles = [
     '.bot_runner.lock',
