@@ -5,39 +5,39 @@ EMPRESA: NoyeCode | Web: noyecode.com | WhatsApp: +57 301 385 9952
 SERVICIO A PROMOCIONAR: Se te indicara cual servicio usar. No lo cambies.
 
 QUE GENERAR:
-Un anuncio vertical 4:5 VISUALMENTE EXPLOSIVO para Facebook/Instagram. Estilo: diseno grafico de agencia premium (NO fotografia). El anuncio debe captar atencion en menos de 2 segundos en un feed de redes sociales.
+Un anuncio vertical 4:5 estilo MARKETING DIRECTO para Facebook/Instagram. Estilo visual: publicidad profesional de agencia digital, limpio y moderno. Debe captar atencion en menos de 2 segundos.
 
-COMPOSICION DE ALTO IMPACTO (obligatorio):
-- TITULO DE OFERTA: tipografia BOLD extremadamente grande, condensada, que ocupe al menos 30% del ancho. Letras gruesas, poderosas, con efecto de profundidad (sombra dura, bisel sutil o resplandor naranja).
-- MOCKUP PROMINENTE: dispositivo grande en angulo dinamico (perspectiva 3/4, ligeramente rotado, flotando con sombra de elevacion). La pantalla debe mostrar interfaz UI moderna con datos, graficos o dashboards coloridos. El mockup debe ocupar al menos 35% de la imagen.
-- CTA COMO BOTON: un rectangulo redondeado naranja vibrante #fd9102 con texto blanco bold que simule un boton clicable real. Debe verse tactil y prominente.
-- ELEMENTOS DE ENERGIA: destellos de luz, particulas brillantes flotando, lineas de velocidad sutiles, halos luminosos detras del dispositivo, reflejos lens flare suaves. Esto genera sensacion premium y dinamica.
-- PROFUNDIDAD: usar capas visuales - fondo oscuro atras, elementos de energia en capa media, dispositivo y texto al frente. Crear sensacion tridimensional.
+COMPOSICION OBLIGATORIA:
+- PERSONA PROFESIONAL: hombre o mujer joven (25-35 anos) sonriente, vestido casual-profesional, senalando o interactuando con el producto/servicio. Medio cuerpo o 3/4 visible. Expresion de confianza y exito.
+- MOCKUPS DE PRODUCTO: laptop, celular o pantalla mostrando pagina web, app o dashboard profesional. El dispositivo debe verse real y moderno.
+- TEXTO BOLD DE OFERTA: tipografia grande, gruesa, colorida con el gancho de la oferta. Texto destacado con colores contrastantes (naranja, blanco, amarillo). Usar jerarquia tipografica clara.
+- LISTA DE BENEFICIOS: 2-3 puntos cortos con iconos de check verde o flechas, listando los beneficios del servicio.
+- CTA CLARO: boton o texto destacado con llamada a accion (ej: "Cotiza Gratis", "Escribe HOY").
+- FONDO: ciudad moderna al atardecer desenfocada, oficina moderna borrosa, o gradiente profesional azul/naranja. NO fondo negro.
 
 LAYOUT CRITICO (respetar estrictamente):
-- FRANJA SUPERIOR (15% del alto): COMPLETAMENTE VACIA, solo gradiente oscuro. Cero texto, cero iconos, cero graficos. El logo se agrega despues.
-- ZONA DE CONTENIDO (85% inferior): distribuir titulo grande, mockup prominente, CTA boton, contacto al pie.
-- Composicion DIAGONAL o ASIMETRICA preferida, evitar centrado estatico y plano.
+- FRANJA SUPERIOR (15% del alto): COMPLETAMENTE VACIA, sin texto ni elementos. Solo fondo limpio. El logo se agrega despues.
+- ZONA DE CONTENIDO (85% inferior): persona a un lado, texto y mockups al otro. Composicion equilibrada.
 
 TEXTO EN LA IMAGEN:
-- Todo en espanol. Maximo 5 elementos de texto.
-- Titulo: gancho de oferta CORTO y URGENTE (max 5 palabras). Ejemplos: "Tu Software HOY", "Impulsa Tu Negocio", "Automatiza y Crece YA", "Desarrollo Express". Debe sonar exclusivo y urgente, NO generico.
-- Servicio: nombre corto con icono visual simple al lado.
-- CTA: max 3 palabras dentro del boton naranja. Ejemplos: "Cotiza Gratis", "Empieza Hoy", "Solicita Demo".
-- Pie: "noyecode.com" y "+57 301 385 9952" en tipografia fina.
-- PROHIBIDO escribir "NoyeCode" o variaciones del nombre de marca.
+- Todo en espanol. Maximo 6 elementos de texto.
+- Titulo: gancho de oferta atractivo (max 6 palabras). Ejemplos: "Tu Pagina Web Profesional", "Automatiza Tu Negocio HOY", "Tu App a Tu Medida".
+- Beneficios: 2-3 bullet points cortos con checks verdes.
+- CTA: max 3 palabras destacadas. Ejemplos: "Cotiza Gratis", "Escribe HOY", "Solicita Info".
+- Pie: "noyecode.com" y "+57 301 385 9952" en tipografia pequena.
+- PROHIBIDO escribir "NoyeCode" o variaciones del nombre de marca en el contenido principal.
 
-PALETA DE ALTO CONTRASTE:
-- Fondo: gradiente oscuro profundo #0d0d1a a #1a1a2e (mas oscuro que antes para mayor contraste).
-- Acento principal: naranja vibrante #fd9102 para CTA, destellos y highlights. Usar generosamente.
-- Acento secundario: cyan electrico #00d4ff o azul brillante para detalles del mockup y lineas de energia.
-- Texto principal: blanco puro #ffffff para maximo contraste sobre fondo oscuro.
-- El naranja y el cyan deben crear tension visual y contraste cromatico fuerte.
+PALETA DE COLORES:
+- Naranja vibrante #fd9102 para acentos, CTAs y highlights.
+- Azul profesional #1a3a5c o #2b5ea7 para fondos y textos secundarios.
+- Blanco #ffffff para texto principal.
+- Verde #28a745 para checks de beneficios.
+- Fondo: NUNCA negro puro. Usar gradientes suaves, cielos urbanos, o tonos profesionales.
 
 REGLAS DEL PROMPT FINAL:
 - 100% en ingles, un parrafo, 80-120 palabras.
 - Especificar entre comillas el texto exacto en espanol que va dentro de la imagen.
-- Incluir esta frase literal: "The top 15 percent of the image must be completely empty dark gradient only, no text or elements, reserved for logo overlay. All content starts below that zone."
-- Incluir: "Full-bleed design, gradient background edge to edge, no margins, no black bars."
-- Terminar con: "vertical 4:5, 4K, full-bleed social media ad, cinematic lighting, premium graphic design, conversion-focused"
-- NO pedir fotos realistas, personas, oficinas, logos ni hashtags.
+- Incluir esta frase literal: "The top 15 percent of the image must be completely empty with clean background only, no text or elements, reserved for logo overlay. All content starts below that zone."
+- Incluir: "Full-bleed design, background edge to edge, no margins, no black bars."
+- Terminar con: "vertical 4:5, 4K, full-bleed social media ad, professional marketing style, clean modern design"
+- NO pedir efectos 3D, particulas, destellos, lineas de energia, halos luminosos, lens flare ni iluminacion cinematica.

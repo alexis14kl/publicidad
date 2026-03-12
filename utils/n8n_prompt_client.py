@@ -14,12 +14,12 @@ DEFAULT_PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 DEFAULT_IDEA_FILE = PROJECT_ROOT / "utils" / "prompt_seed.txt"
 DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/py-prompt-imgs"
 DEFAULT_BRAND_HINT = (
-    "Anuncio de OFERTA visualmente EXPLOSIVO para NoyeCode. Estilo: diseno grafico de agencia premium, NO fotografia. "
-    "TITULO BOLD gigante con efecto de profundidad (sombra o resplandor naranja). "
-    "Mockup de dispositivo GRANDE en angulo 3/4 flotando con sombra de elevacion y halo de luz detras. "
-    "CTA como BOTON naranja #fd9102 clicable con texto blanco. "
-    "Fondo gradiente ultra oscuro #0d0d1a a #1a1a2e. Destellos, particulas luminosas y lineas de energia. "
-    "Contraste alto: naranja vibrante + cyan electrico #00d4ff sobre oscuro. "
+    "Anuncio de MARKETING DIRECTO profesional para NoyeCode. Estilo: publicidad de agencia digital moderna y limpia. "
+    "Persona joven profesional (25-35) sonriente senalando o interactuando con el producto. "
+    "Mockup de dispositivo real (laptop/celular) mostrando pagina web o app profesional. "
+    "Texto BOLD grande con oferta y lista de beneficios con checks verdes. "
+    "CTA como BOTON naranja #fd9102 con texto blanco. "
+    "Fondo: ciudad moderna desenfocada o gradiente profesional azul/naranja. NO fondo negro. "
     "Pie: noyecode.com y +57 301 385 9952."
 )
 
@@ -37,37 +37,37 @@ SERVICE_HASHTAGS = {
     "desarrollo desktop": "#NoyeCode #DesarrolloDesktop #SoftwareEmpresarial #Productividad",
 }
 
-# Hints especificos por servicio: breves y enfocados en la escena visual
+# Hints especificos por servicio: escena de marketing directo por servicio
 _SERVICE_SCENE_HINTS = {
     "desarrollo a la medida": (
-        "Laptop grande en perspectiva 3/4 flotando con sombra de elevacion, pantalla mostrando dashboard UI moderno "
-        "con graficos de barras coloridos y metricas en cyan y naranja. Halo de luz naranja detras del dispositivo. "
-        "Particulas brillantes flotando alrededor. Titulo bold gigante sobre el mockup."
+        "Persona profesional sosteniendo o senalando laptop abierta mostrando pagina web moderna con dashboard, "
+        "graficos y metricas de negocio. Beneficios: diseno personalizado, escalable, soporte dedicado. "
+        "Fondo oficina moderna desenfocada o skyline urbano al atardecer."
     ),
     "automatizaciones empresariales": (
-        "Laptop en angulo dinamico mostrando workflow de automatizacion con nodos conectados por lineas brillantes cyan. "
-        "Flechas de flujo luminosas saliendo de la pantalla. Iconos de engranajes y rayos flotando con efecto de brillo. "
-        "Lineas de velocidad sutiles para transmitir eficiencia y movimiento."
+        "Persona profesional junto a laptop mostrando panel de automatizacion con flujos de trabajo conectados. "
+        "Beneficios: ahorra tiempo, reduce errores, automatiza procesos repetitivos. "
+        "Iconos simples de engranajes y flechas de flujo al lado del dispositivo."
     ),
     "desarrollo android": (
-        "Smartphone grande inclinado en angulo dramatico mostrando app profesional con interfaz moderna, "
-        "metricas en tiempo real y graficos interactivos. Reflejos de luz en los bordes del telefono. "
-        "Elementos UI flotando fuera de la pantalla con efecto parallax y destellos."
+        "Persona profesional sosteniendo smartphone grande mostrando app moderna con interfaz limpia y colorida. "
+        "Beneficios: app nativa rapida, disponible en Play Store, diseno intuitivo. "
+        "Segundo celular o tablets visibles en la composicion."
     ),
     "desarrollo desktop": (
-        "Monitor widescreen en perspectiva 3/4 mostrando aplicacion empresarial con multiples paneles, "
-        "tablas de datos y graficos de rendimiento. Efecto de luz volumetrica saliendo de la pantalla. "
-        "Composicion diagonal con el monitor dominando la escena."
+        "Persona profesional frente a monitor widescreen mostrando aplicacion de escritorio con multiples paneles "
+        "y tablas de datos organizadas. Beneficios: rendimiento nativo, seguridad empresarial, soporte continuo. "
+        "Ambiente de oficina profesional."
     ),
     "modernizacion de software legacy": (
-        "Transicion visual dramatica: lado izquierdo interfaz opaca y vieja desintegrando en pixeles, "
-        "lado derecho plataforma moderna brillante con UI limpia emergiendo con destellos de luz. "
-        "Flecha o flujo de energia naranja conectando la transformacion. Efecto cinematico."
+        "Persona profesional senalando pantalla que muestra antes/despues: lado izquierdo interfaz vieja gris, "
+        "lado derecho interfaz moderna colorida y limpia. Beneficios: tecnologia actual, mejor rendimiento, "
+        "menos costos de mantenimiento. Fondo profesional."
     ),
     "rpas nativos": (
-        "Laptop mostrando panel de control con flujos de automatizacion, iconos de tareas conectados "
-        "por lineas de energia brillantes cyan. Engranajes estilizados y circuitos luminosos flotando alrededor. "
-        "Transmitir velocidad y precision operativa. Evitar robots humanoides."
+        "Persona profesional junto a laptop mostrando panel de control de automatizacion robotica con tareas "
+        "ejecutandose. Beneficios: automatiza tareas manuales, precision operativa, ahorro de horas. "
+        "Iconos simples de engranajes y reloj al lado."
     ),
 }
 
@@ -207,20 +207,20 @@ def enrich_idea(idea: str) -> str:
         "Todo el contenido empieza debajo de esa zona."
     )
 
-    # Hint 5: Impacto visual y composicion
+    # Hint 5: Estilo visual marketing directo
     hints.append(
-        "IMPACTO VISUAL OBLIGATORIO: titulo en tipografia BOLD gigante con efecto de profundidad. "
-        "Composicion diagonal o asimetrica, NUNCA todo centrado y plano. "
-        "CTA como BOTON naranja clicable. Destellos, particulas luminosas y halos de luz. "
-        "Contraste extremo: naranja #fd9102 + cyan #00d4ff sobre fondo ultra oscuro. "
-        "El mockup debe ser GRANDE y prominente, no pequeno y perdido."
+        "ESTILO MARKETING DIRECTO: persona profesional real interactuando con el producto. "
+        "Texto BOLD grande con oferta atractiva. Lista de 2-3 beneficios con checks verdes. "
+        "CTA como BOTON naranja #fd9102 clicable. Colores: naranja, azul profesional, blanco. "
+        "Fondo: ciudad desenfocada, oficina moderna borrosa, o gradiente profesional. NUNCA fondo negro."
     )
 
     # Hint 6: Restricciones clave (una sola vez, consolidadas)
     hints.append(
-        "NO incluir: personas, oficinas, logos de marca, hashtags, fotografia realista, disenos planos o genericos. "
-        "SI incluir: texto de oferta urgente en espanol, boton CTA naranja, contacto al pie, "
-        "elementos de energia visual (destellos, particulas, lineas de luz)."
+        "NO incluir: efectos 3D, particulas, destellos, lineas de energia, halos luminosos, lens flare, "
+        "iluminacion cinematica, fondos negros puros, logos de marca, hashtags. "
+        "SI incluir: persona profesional sonriente, mockup de dispositivo real, texto de oferta en espanol, "
+        "beneficios con checks, boton CTA naranja, contacto al pie."
     )
 
     return f"{base}\n\nDirectrices:\n- " + "\n- ".join(hints)

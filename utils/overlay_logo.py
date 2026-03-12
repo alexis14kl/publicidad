@@ -1,19 +1,22 @@
 """Superpone el logo real de NoyeCode sobre la zona de header de una imagen publicitaria.
 
 DALL-E genera la imagen con el 15% superior vacio (gradiente oscuro natural).
-Este script solo coloca el logo encima de ese espacio, sin pintar barras ni parches.
+Este script limpia programaticamente la zona del header (borrando cualquier texto
+que DALL-E haya puesto ahi) y coloca el logo encima.
 """
 
 import sys
 from pathlib import Path
 
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageFilter
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LOGO_PNG = PROJECT_ROOT / "utils" / "logoapporange.png"
 LOGO_SVG = PROJECT_ROOT / "utils" / "logoapporange.svg"
 
-HEADER_RATIO = 0.15  # 15% del alto = zona del logo
+HEADER_RATIO = 0.18  # 18% del alto = zona limpia para el logo
+FADE_ROWS = 60  # filas de transicion suave entre header limpio y contenido
 LOGO_WIDTH_RATIO = 0.35  # logo ocupa 35% del ancho
 # Tamano final para Facebook/Instagram feed (4:5)
 TARGET_WIDTH = 1080
@@ -52,11 +55,54 @@ def _ensure_logo_png() -> Path:
     )
 
 
-def overlay_logo(image_path: str | Path) -> Path:
-    """Coloca el logo sobre la zona de header que DALL-E dejo vacia.
+def _clean_header_zone(bg: Image.Image, header_h: int, fade_rows: int) -> Image.Image:
+    """Borra texto/elementos del header usando blur extremo + oscurecimiento.
 
-    NO pinta barras ni parches. El gradiente natural de la imagen se conserva intacto.
-    El logo se coloca directamente sobre el gradiente oscuro que DALL-E genero.
+    Estrategia: aplica un gaussian blur muy fuerte SOLO en la zona del header
+    para destruir cualquier texto, luego oscurece progresivamente hacia arriba.
+    Resultado: zona limpia que conserva los colores naturales de la imagen sin
+    verse como un parche artificial.
+    """
+    bg_w, bg_h = bg.size
+    total_zone = header_h + fade_rows
+
+    # Recortar la zona del header + fade
+    header_crop = bg.crop((0, 0, bg_w, min(total_zone, bg_h)))
+
+    # Blur extremo: radio grande para destruir completamente cualquier texto
+    blurred = header_crop.filter(ImageFilter.GaussianBlur(radius=40))
+
+    # Oscurecer progresivamente hacia arriba (simula gradiente oscuro natural)
+    blur_data = np.array(blurred, dtype=np.float32)
+    for y in range(header_h):
+        # Factor de oscurecimiento: 0.2 arriba -> 1.0 al borde del header
+        darken = 0.2 + 0.8 * (y / max(header_h - 1, 1))
+        blur_data[y, :, :3] *= darken
+
+    # Zona de fade: mezclar blur con imagen original
+    original_data = np.array(bg, dtype=np.float32)
+    for i in range(fade_rows):
+        y = header_h + i
+        if y >= blur_data.shape[0]:
+            break
+        # t=0 al inicio del fade (100% blur), t=1 al final (100% original)
+        t = i / max(fade_rows - 1, 1)
+        blur_data[y, :, :3] = blur_data[y, :, :3] * (1 - t) + original_data[y, :, :3] * t
+
+    blur_data = np.clip(blur_data, 0, 255).astype(np.uint8)
+
+    # Pegar la zona procesada de vuelta en la imagen
+    result = np.array(bg)
+    result[:min(total_zone, bg_h)] = blur_data
+    return Image.fromarray(result, "RGBA")
+
+
+def overlay_logo(image_path: str | Path) -> Path:
+    """Limpia la zona del header y coloca el logo encima.
+
+    1. Fuerza tamano 1080x1350 (4:5)
+    2. Limpia programaticamente la zona del header (borra texto invasor de DALL-E)
+    3. Coloca el logo centrado en la zona limpia
     """
     image_path = Path(image_path)
     if not image_path.exists():
@@ -70,6 +116,9 @@ def overlay_logo(image_path: str | Path) -> Path:
     bg = _fit_to_target(bg, TARGET_WIDTH, TARGET_HEIGHT)
     bg_w, bg_h = bg.size
     header_h = int(bg_h * HEADER_RATIO)
+
+    # Limpiar zona del header: borrar cualquier texto que DALL-E haya puesto ahi
+    bg = _clean_header_zone(bg, header_h, FADE_ROWS)
 
     # Escalar logo al 35% del ancho de la imagen
     target_w = int(bg_w * LOGO_WIDTH_RATIO)
