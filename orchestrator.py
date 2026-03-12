@@ -52,18 +52,6 @@ from cfg.platform import FORCE_OPEN_JS
 from utils.logger import log_info, log_ok, log_warn, log_error, log_step, log_debug
 
 
-<<<<<<< HEAD
-def _minimize_window(keyword: str, retries: int = 5, delay: float = 2.0) -> None:
-    """Minimiza ventanas cuyo titulo contenga *keyword* (cross-platform)."""
-    try:
-        import pygetwindow as gw
-    except ImportError:
-        log_warn(f"pygetwindow no instalado. {keyword} quedara visible.")
-        return
-    kw = keyword.lower()
-    for _ in range(retries):
-        wins = [w for w in gw.getAllWindows() if kw in w.title.lower()]
-=======
 def _minimize_dicloak_window(retries: int = 5, delay: float = 2.0) -> None:
     """Minimiza la ventana de DICloak usando pygetwindow (cross-platform)."""
     try:
@@ -71,24 +59,17 @@ def _minimize_dicloak_window(retries: int = 5, delay: float = 2.0) -> None:
     except ImportError:
         log_warn("pygetwindow no instalado. DICloak quedara visible.")
         return
-    for attempt in range(retries):
-        wins = [w for w in gw.getAllWindows() if "dicloak" in w.title.lower()]
->>>>>>> 37cfb84 (mantener dicloak minimizado)
+    kw = keyword.lower()
+    for _ in range(retries):
+        wins = [w for w in gw.getAllWindows() if kw in w.title.lower()]
         for w in wins:
             if not w.isMinimized:
                 w.minimize()
         if wins:
-<<<<<<< HEAD
-            log_ok(f"Ventana de {keyword} minimizada.")
-            return
-        time.sleep(delay)
-    log_warn(f"No se encontro ventana de {keyword} para minimizar.")
-=======
             log_ok("Ventana de DICloak minimizada.")
             return
         time.sleep(delay)
-    log_warn("No se encontro ventana de DICloak para minimizar.")
->>>>>>> 37cfb84 (mantener dicloak minimizado)
+    log_warn(f"No se encontro ventana de {keyword} para minimizar.")
 
 
 def _run_python(script: Path, *args: str, timeout: int = 300) -> int:
@@ -264,11 +245,7 @@ def run_orchestrator(
 
         launch_cmd = f'"{dicloak_exe}" --remote-debugging-port=9333 --remote-allow-origins=*'
         launch_detached(launch_cmd)
-<<<<<<< HEAD
-        _minimize_window("dicloak")
-=======
         _minimize_dicloak_window()
->>>>>>> 37cfb84 (mantener dicloak minimizado)
     else:
         log_step("3/10", "DICloak ya activo, saltando inicio.")
 
