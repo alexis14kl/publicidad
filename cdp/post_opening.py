@@ -86,6 +86,17 @@ def _close_chatgpt_tabs(port: int) -> None:
 
 def _cleanup_and_exit(dev_mode: bool, cdp_port: int) -> int:
     """Post-publish cleanup: NO cerrar tabs para evitar crear nuevas sesiones."""
+    # Minimizar ventanas despues de la automatizacion (bringToFront las restaura)
+    try:
+        import pygetwindow as gw
+        for w in gw.getAllWindows():
+            title = w.title.lower()
+            if ("chatgpt" in title or "ginsbrowser" in title
+                    or "dicloak" in title or "127.0.0.1" in title):
+                if not w.isMinimized:
+                    w.minimize()
+    except Exception:
+        pass
     from utils.notify import notify_published
     notify_published()
     log_ok("Proceso completado. Tabs y navegador siguen abiertos para el proximo ciclo.")
