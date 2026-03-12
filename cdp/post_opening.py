@@ -86,6 +86,8 @@ def _close_chatgpt_tabs(port: int) -> None:
 
 def _cleanup_and_exit(dev_mode: bool, cdp_port: int) -> int:
     """Post-publish cleanup: NO cerrar tabs para evitar crear nuevas sesiones."""
+    from utils.notify import notify_published
+    notify_published()
     log_ok("Proceso completado. Tabs y navegador siguen abiertos para el proximo ciclo.")
     return 0
 
