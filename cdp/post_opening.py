@@ -85,12 +85,8 @@ def _close_chatgpt_tabs(port: int) -> None:
 
 
 def _cleanup_and_exit(dev_mode: bool, cdp_port: int) -> int:
-    """Post-publish cleanup: close only ChatGPT tabs, keep DICloak and browser alive."""
-    log_info("Limpiando sesion del perfil (cerrando tabs)...")
-    _close_chatgpt_tabs(cdp_port)
-
-    log_ok("Tabs cerrados. DICloak y navegador siguen abiertos para el proximo ciclo.")
-    log_ok("Proceso completado.")
+    """Post-publish cleanup: NO cerrar tabs para evitar crear nuevas sesiones."""
+    log_ok("Proceso completado. Tabs y navegador siguen abiertos para el proximo ciclo.")
     return 0
 
 
