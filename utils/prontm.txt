@@ -1,0 +1,92 @@
+Generate this image now:
+Create a **vertical 4:5 high-end advertising image (4K)** for a **SaaS automation company marketing campaign**.
+
+STYLE
+Professional **realistic photography style** used in modern **Facebook / Instagram technology ads**.
+NOT illustration, NOT cartoon, NOT vector. Only **realistic professional marketing photography**.
+
+SCENE
+A **young professional person (man or woman)** sitting at a **modern minimalist desk** working on a **laptop or computer**.
+The person shows a **happy and successful expression**, celebrating while using technology.
+
+On the computer screen there is a **business automation dashboard** showing:
+
+• connected workflows
+• automation pipelines
+• digital panels
+• process flow arrows
+• data dashboards
+
+Around the person appear **subtle floating UI elements** representing automation systems, such as:
+
+• digital gears
+• workflow arrows
+• data panels
+• automation connections
+
+ENVIRONMENT
+Clean **modern corporate workspace** with a **minimalist light background**.
+
+Background color palette:
+
+• light gray background **#f0f0f5**
+• soft corporate lighting
+• clean SaaS style environment
+
+BRAND COLOR PALETTE
+Use brand colors subtly in UI elements and graphic accents:
+
+• Primary corporate blue **#3469ED** (headlines / interface highlights)
+• CTA orange **#fd9102** (call to action badge)
+• Accent cyan **#00bcd4** (tech interface highlights)
+
+LAYOUT (ADVERTISING COMPOSITION)
+
+The composition must look like a **professional SaaS advertisement**.
+
+Include:
+
+• A **large marketing headline area on one side of the image**
+• A **bright orange CTA badge** with the text:
+**"Cotiza Sin Costo"**
+
+• A **highlighted benefit box** containing:
+
+Ahorra tiempo
+Reduce errores
+Automatiza procesos
+
+• A **clean bottom banner** containing the contact information:
+
+noyecode.com
+WhatsApp: +57 301 385 9952
+
+LOGO
+
+Include the company logo **inside the bottom banner**.
+
+Logo URL reference:
+https://www.noyecode.com/assets/logo-google-ads-square.png
+
+The logo must appear **small, professional, and aligned with the contact information**.
+
+IMPORTANT COMPOSITION RULE
+
+CRITICAL:
+The **top 15% of the image must remain completely empty with a dark gradient only**.
+
+No text
+No icons
+No interface elements
+No logo
+
+This empty area is reserved for **programmatic logo placement later**.
+
+FINAL DELIVERY REQUIREMENTS
+
+• vertical 4:5 aspect ratio
+• ultra-sharp 4K resolution
+• full-bleed image
+• no borders
+• no black bars
+• professional SaaS advertisement style
