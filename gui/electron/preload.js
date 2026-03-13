@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLastJob: () => ipcRenderer.invoke('get-last-job'),
   startBot: (payload) => ipcRenderer.invoke('start-bot', payload),
   stopBot: () => ipcRenderer.invoke('stop-bot'),
-  startPoller: () => ipcRenderer.invoke('start-poller'),
+  startPoller: (payload) => ipcRenderer.invoke('start-poller', payload),
   stopPoller: () => ipcRenderer.invoke('stop-poller'),
   isPollerRunning: () => ipcRenderer.invoke('is-poller-running'),
   runMarketingCampaignPreview: (payload) => ipcRenderer.invoke('run-marketing-campaign-preview', payload),

@@ -5,18 +5,16 @@ EMPRESA: NoyeCode | Web: noyecode.com | WhatsApp: +57 301 385 9952
 SERVICIO A PROMOCIONAR: Se te indicara cual servicio usar. No lo cambies.
 
 QUE GENERAR:
-Un anuncio vertical 4:5 estilo ILUSTRACION CARTOON/VECTORIAL COLORIDA para Facebook/Instagram. Estilo visual: flat design moderno con personajes ilustrados, similar a anuncios de agencias digitales latinoamericanas. Debe captar atencion en menos de 2 segundos.
+Un anuncio vertical 4:5 estilo FOTOGRAFIA REALISTA premium para Facebook/Instagram Ads. Estilo visual: fotografia profesional tipo marketing SaaS/enterprise software, look corporativo minimalista, alta calidad.
 
 COMPOSICION OBLIGATORIA:
-- PERSONAJE ILUSTRADO: persona joven estilo cartoon/vector sentada frente a computador o interactuando con dispositivos tecnologicos. Estilo flat design colorido, NO fotografia, NO realista. Expresion amigable y profesional.
-- DISPOSITIVOS FLOTANTES: multiples pantallas, laptops, celulares y ventanas de navegador flotando alrededor del personaje, mostrando interfaces web modernas, dashboards y apps coloridas. Efecto de pantallas saliendo del monitor principal.
-- BADGES DE OFERTA: rectangulos redondeados con bordes brillantes (estilo neon suave) conteniendo el texto de la oferta. Colores morado, naranja, cyan. Sombra suave.
-- ICONOS SOCIALES: iconos de like, estrellas, regalo, compartir flotando como elementos decorativos.
-- CHECKS DE BENEFICIOS: lista con iconos de check verde y texto de beneficios al costado.
-- ELEMENTOS DECORATIVOS: confeti, cohetes pequenos, bombillas de idea, lineas geometricas sutiles en el fondo.
+- PERSONA REAL: persona joven real trabajando con laptop/computador en ambiente profesional moderno. Expresion positiva (exito/celebracion). NO caricaturas, NO ilustracion, NO vector.
+- DASHBOARDS/TECH: interfaces digitales flotantes (dashboards, graficos, widgets) alrededor de la persona, estilo HUD sutil, sin saturar.
+- LAYOUT PUBLICITARIO: diseno limpio con bloques de texto corporativos: titular grande, badge/CTA naranja, caja de beneficios destacada, banner inferior con contacto.
+- BENEFICIOS (en la caja de beneficios; texto en español): "Versionado en SQLite", "Publica en Instagram", "Publica en TikTok", "Publica en LinkedIn", "Campañas Google", "Campañas Facebook", "Campañas LinkedIn".
 
 LAYOUT CRITICO (respetar estrictamente):
-- FRANJA SUPERIOR (15% del alto): COMPLETAMENTE VACIA, solo fondo claro limpio. Cero texto, cero iconos. El logo se agrega despues.
+- FRANJA SUPERIOR (15% del alto): COMPLETAMENTE VACIA, solo fondo claro limpio. Cero texto, cero iconos, cero elementos. El logo se agrega despues.
 - ZONA DE CONTENIDO (85% inferior): personaje a un lado, texto de oferta y badges al otro. Composicion equilibrada y dinamica.
 
 TEXTO EN LA IMAGEN:
@@ -30,11 +28,11 @@ TEXTO EN LA IMAGEN:
 
 PALETA DE COLORES (estilo de la referencia):
 - Fondo: blanco o gris muy claro #f0f0f5 con lineas geometricas sutiles.
-- Morado intenso #4a1a8a y morado medio #7b2d8e para titulos y badges principales.
-- Naranja vibrante #fd9102 y amarillo #ffc107 para CTAs, acentos y highlights.
-- Cyan/turquesa #00bcd4 para detalles de dispositivos y bordes de badges.
+- Morado de marca #3469ED para titulos y elementos principales.
+- Naranja vibrante #fd9102 para CTA/badges y acentos.
+- Cyan #00bcd4 para detalles tecnologicos.
 - Verde #28a745 para checks de beneficios.
-- Texto: morado oscuro #2d1b4e o blanco segun el fondo del badge.
+- Texto: gris oscuro o morado oscuro segun contraste.
 - NUNCA fondo negro ni oscuro. El estilo es CLARO, alegre y colorido.
 
 REGLAS DEL PROMPT FINAL:
@@ -42,5 +40,5 @@ REGLAS DEL PROMPT FINAL:
 - Especificar entre comillas el texto exacto en espanol que va dentro de la imagen.
 - Incluir esta frase literal: "The top 15 percent of the image must be completely empty with clean light background only, no text or elements, reserved for logo overlay. All content starts below that zone."
 - Incluir: "Full-bleed design, light background edge to edge, no margins, no black bars."
-- Terminar con: "vertical 4:5, 4K, full-bleed social media ad, colorful cartoon vector illustration style, flat design, vibrant and cheerful"
-- NO pedir fotografia realista, efectos 3D, particulas, destellos, lineas de energia, halos luminosos, lens flare ni iluminacion cinematica.
+- Terminar con: "vertical 4:5, 4K, full-bleed social media ad, premium realistic photography style, clean corporate minimal look"
+- NO pedir ilustracion, vector, caricatura, 3D cartoon, ni texto pequeno ilegible.

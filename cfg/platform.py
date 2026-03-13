@@ -155,9 +155,16 @@ def _get_process_list_windows() -> list[dict[str, Any]]:
 def _get_process_list_unix() -> list[dict[str, Any]]:
     """Get process list via ps on Mac/Linux."""
     try:
+        # On macOS the command line can be very long (Chromium-based profiles).
+        # Without wide output, `ps` may truncate args and break CDP/port forcing.
+        cmd = ["ps", "-eo", "pid,ppid,comm,args"]
+        if IS_MAC:
+            cmd.append("-ww")
         result = subprocess.run(
-            ["ps", "-eo", "pid,ppid,comm,args"],
-            capture_output=True, text=True, timeout=10,
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         lines = result.stdout.strip().splitlines()
         if len(lines) < 2:
@@ -354,14 +361,17 @@ def test_cdp_port(port: int, timeout: int = 2) -> bool:
     """Test if a CDP endpoint is responding on a port."""
     if port < 1 or port > 65535:
         return False
-    try:
-        url = f"http://127.0.0.1:{port}/json/version"
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = resp.read()
-            return b"webSocketDebuggerUrl" in data
-    except Exception:
-        return False
+    for host in ("127.0.0.1", "localhost"):
+        try:
+            url = f"http://{host}:{port}/json/version"
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = resp.read()
+                if b"webSocketDebuggerUrl" in data:
+                    return True
+        except Exception:
+            continue
+    return False
 
 
 def wait_for_cdp(port: int, timeout_sec: int = 90, poll_interval: float = 1.0) -> bool:
@@ -376,12 +386,14 @@ def wait_for_cdp(port: int, timeout_sec: int = 90, poll_interval: float = 1.0) -
 
 def get_cdp_version(port: int, timeout: int = 3) -> dict | None:
     """Get CDP /json/version response."""
-    try:
-        url = f"http://127.0.0.1:{port}/json/version"
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
-            return json.loads(resp.read())
-    except Exception:
-        return None
+    for host in ("127.0.0.1", "localhost"):
+        try:
+            url = f"http://{host}:{port}/json/version"
+            with urllib.request.urlopen(url, timeout=timeout) as resp:
+                return json.loads(resp.read())
+        except Exception:
+            continue
+    return None
 
 
 def read_cdp_debug_info() -> dict:

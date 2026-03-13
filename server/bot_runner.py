@@ -21,9 +21,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.logger import log_info, log_ok, log_warn, log_error  # noqa: E402
+from cfg.sqlite_store import add_artifact, new_run, update_run  # noqa: E402
 
 START_BAT = PROJECT_ROOT / "iniciar.bat"  # legacy, kept as fallback
 ORCHESTRATOR_PY = PROJECT_ROOT / "orchestrator.py"
+PUBLIC_IMG_PY = PROJECT_ROOT / "n8n" / "public_img.py"
+CREATE_CAMPAIGN_PY = PROJECT_ROOT / "n8n" / "create_campaign.py"
 LOCK_FILE = PROJECT_ROOT / ".bot_runner.lock"
 DEFAULT_STALE_LOCK_SEC = 4 * 60 * 60
 
@@ -167,6 +170,9 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
     log_file = PROJECT_ROOT / "logs" / "bot_runner_last.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
+    run_id = new_run("run_full_cycle", payload, status="running")
+    env["PUBLICIDAD_RUN_ID"] = run_id
+
     # Prefer Python orchestrator (cross-platform) over legacy bat
     if ORCHESTRATOR_PY.exists():
         command = [sys.executable, str(ORCHESTRATOR_PY)]
@@ -229,6 +235,26 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
         raise BotRunnerError(f"Timeout ({timeout_sec}s) ejecutando orquestador")
 
     finished_at = time.time()
+    try:
+        update_run(
+            run_id,
+            status="success" if result.returncode == 0 else "error",
+            result={
+                "exit_code": int(result.returncode),
+                "profile_name": profile_name,
+            },
+            error_text="",
+        )
+        add_artifact(
+            run_id=run_id,
+            artifact_type="bot_runner_log",
+            content=collected_stdout[-5000:] if collected_stdout else "",
+            file_path=str(log_file),
+            meta={"exit_code": int(result.returncode)},
+        )
+    except Exception:
+        # Never block the run on SQLite logging issues.
+        pass
     return RunResult(
         action="run_full_cycle",
         success=result.returncode == 0,
@@ -239,6 +265,39 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
         stderr=collected_stderr[-5000:] if collected_stderr else "",
         metadata={"profile_name": profile_name, "image_prompt": image_prompt},
     )
+
+
+def _run_python_simple(
+    script: Path,
+    script_args: list[str],
+    *,
+    env: dict[str, str],
+    timeout_sec: int,
+) -> tuple[int, str, str]:
+    cmd = [sys.executable, str(script)] + list(script_args)
+    result = subprocess.run(
+        cmd,
+        cwd=str(PROJECT_ROOT),
+        timeout=timeout_sec,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return result.returncode, result.stdout or "", result.stderr or ""
+
+
+def _build_env_with_dotenv(extra: dict[str, str] | None = None) -> dict[str, str]:
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    if ENV_FILE.exists():
+        for key, value in dotenv_values(ENV_FILE).items():
+            if value is not None:
+                env[key] = value
+    if extra:
+        env.update({k: str(v) for k, v in extra.items()})
+    return env
 
 
 def execute_action(action: str, payload: dict[str, Any] | None = None, timeout_sec: int = 7200) -> RunResult:
@@ -263,6 +322,102 @@ def execute_action(action: str, payload: dict[str, Any] | None = None, timeout_s
     with bot_execution_lock(normalized):
         if normalized == "run_full_cycle":
             return _run_full_cycle(payload, timeout_sec=timeout_sec)
+
+        if normalized in {"publish_facebook", "publish_instagram", "publish_tiktok", "publish_linkedin", "publish_image"}:
+            started_at = time.time()
+            payload = payload or {}
+            platform = str(payload.get("platform") or "").strip().lower()
+            if not platform and normalized != "publish_image":
+                platform = normalized.replace("publish_", "").strip()
+            if not platform:
+                platform = "facebook"
+
+            run_id = new_run(normalized, payload, status="running")
+            env = _build_env_with_dotenv({"PUBLICIDAD_RUN_ID": run_id})
+
+            args: list[str] = ["--platform", platform]
+            if payload.get("webhook_url"):
+                args += ["--webhook-url", str(payload["webhook_url"])]
+            if payload.get("image_path"):
+                args += ["--image-path", str(payload["image_path"])]
+            if payload.get("category"):
+                args += ["--category", str(payload["category"])]
+            if payload.get("post_text"):
+                args += ["--post-text", str(payload["post_text"])]
+            if payload.get("post_text_file"):
+                args += ["--post-text-file", str(payload["post_text_file"])]
+            if payload.get("prompt_file"):
+                args += ["--prompt-file", str(payload["prompt_file"])]
+
+            rc, out, err = _run_python_simple(PUBLIC_IMG_PY, args, env=env, timeout_sec=min(timeout_sec, 600))
+            finished_at = time.time()
+            try:
+                update_run(
+                    run_id,
+                    status="success" if rc == 0 else "error",
+                    result={"exit_code": rc, "platform": platform},
+                    error_text=(err[-1000:] if err else ""),
+                )
+            except Exception:
+                pass
+            return RunResult(
+                action=normalized,
+                success=rc == 0,
+                exit_code=rc,
+                started_at=started_at,
+                finished_at=finished_at,
+                stdout=out[-5000:],
+                stderr=err[-5000:],
+                metadata={"run_id": run_id, "platform": platform},
+            )
+
+        if normalized in {
+            "create_google_campaign",
+            "create_facebook_campaign",
+            "create_linkedin_campaign",
+            "create_campaign",
+        }:
+            started_at = time.time()
+            payload = payload or {}
+            platform = str(payload.get("platform") or "").strip().lower()
+            if not platform and normalized != "create_campaign":
+                platform = normalized.replace("create_", "").replace("_campaign", "").strip()
+            if not platform:
+                platform = "facebook"
+
+            run_id = new_run(normalized, payload, status="running")
+            env = _build_env_with_dotenv({"PUBLICIDAD_RUN_ID": run_id})
+
+            script_payload = dict(payload)
+            script_payload.pop("platform", None)
+            script_payload.pop("webhook_url", None)
+            args = ["--platform", platform]
+            if payload.get("webhook_url"):
+                args += ["--webhook-url", str(payload["webhook_url"])]
+            if script_payload:
+                args += ["--payload-json", json.dumps(script_payload, ensure_ascii=False)]
+
+            rc, out, err = _run_python_simple(CREATE_CAMPAIGN_PY, args, env=env, timeout_sec=min(timeout_sec, 600))
+            finished_at = time.time()
+            try:
+                update_run(
+                    run_id,
+                    status="success" if rc == 0 else "error",
+                    result={"exit_code": rc, "platform": platform},
+                    error_text=(err[-1000:] if err else ""),
+                )
+            except Exception:
+                pass
+            return RunResult(
+                action=normalized,
+                success=rc == 0,
+                exit_code=rc,
+                started_at=started_at,
+                finished_at=finished_at,
+                stdout=out[-5000:],
+                stderr=err[-5000:],
+                metadata={"run_id": run_id, "platform": platform},
+            )
 
         raise BotRunnerError(f"Accion no soportada todavia: {normalized}")
 

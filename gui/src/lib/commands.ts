@@ -3,6 +3,7 @@ import type {
   LastJob,
   CommandResult,
   StartBotPayload,
+  StartPollerPayload,
   MarketingCampaignPayload,
   MarketingRunUpdate,
 } from './types'
@@ -13,7 +14,7 @@ export const getBotStatus = (): Promise<BotStatus> => api().getBotStatus()
 export const getLastJob = (): Promise<LastJob | null> => api().getLastJob()
 export const startBot = (payload?: StartBotPayload): Promise<CommandResult> => api().startBot(payload)
 export const stopBot = (): Promise<CommandResult> => api().stopBot()
-export const startPoller = (): Promise<CommandResult> => api().startPoller()
+export const startPoller = (payload?: StartPollerPayload): Promise<CommandResult> => api().startPoller(payload)
 export const stopPoller = (): Promise<CommandResult> => api().stopPoller()
 export const isPollerRunning = (): Promise<boolean> => api().isPollerRunning()
 export const runMarketingCampaignPreview = (payload: MarketingCampaignPayload): Promise<CommandResult> =>

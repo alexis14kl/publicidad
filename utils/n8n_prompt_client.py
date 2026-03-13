@@ -1,6 +1,8 @@
 import argparse
 import json
 import io
+import os
+import sys
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -14,11 +16,16 @@ from logger import log_error, progress_bar
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 DEFAULT_PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 DEFAULT_IDEA_FILE = PROJECT_ROOT / "utils" / "prompt_seed.txt"
 DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/py-prompt-imgs"
 
 LOGO_URL = "https://www.noyecode.com/assets/logo-google-ads-square.png"
+
+from cfg.platform import get_env  # noqa: E402
+from cfg.sqlite_store import add_artifact, new_run  # noqa: E402
 
 DEFAULT_BRAND_HINT = (
     "Imagen publicitaria estilo FOTOGRAFIA REALISTA para marketing de software empresarial. "
@@ -46,6 +53,13 @@ DEFAULT_BRAND_HINT = (
     "cyan #00bcd4. "
 
     "Composicion similar a anuncios modernos de tecnologia para Facebook o Instagram Ads. "
+)
+
+DEFAULT_FEATURES_HINT = (
+    "BENEFICIOS (en la caja de beneficios, sin inventar otros; max 7 bullets): "
+    "Versionado en SQLite (en carpeta del proyecto); "
+    "Publica en Instagram; Publica en TikTok; Publica en LinkedIn; "
+    "Campañas Google; Campañas Facebook; Campañas LinkedIn."
 )
 
 
@@ -207,7 +221,7 @@ def select_primary_service(text: str) -> str:
     return rotate_service()
 
 
-def enrich_idea(idea: str) -> str:
+def enrich_idea(idea: str) -> tuple[str, str]:
 
     base = " ".join(idea.strip().split())
 
@@ -238,7 +252,11 @@ def enrich_idea(idea: str) -> str:
         "SI incluir interfaces digitales flotantes, dashboards y tecnologia."
     )
 
-    return f"{base}\n\nDirectrices:\n- " + "\n- ".join(hints)
+    hints.append(DEFAULT_FEATURES_HINT)
+
+    hints.append("Todo el texto visible en la imagen debe estar en ESPAÑOL (LatAm).")
+
+    return f"{base}\n\nDirectrices:\n- " + "\n- ".join(hints), primary_service
 
 
 def _read_json_response(resp: Any) -> dict[str, Any]:
@@ -262,6 +280,8 @@ def generate_prompt(
     idea: str,
     webhook_url: str = DEFAULT_WEBHOOK_URL,
     timeout: int = 60,
+    *,
+    enriched_idea: str | None = None,
 ) -> str:
 
     idea = idea.strip()
@@ -269,7 +289,7 @@ def generate_prompt(
     if not idea:
         raise ValueError("La idea base no puede estar vacia")
 
-    enriched_idea = enrich_idea(idea)
+    enriched_idea = (enriched_idea or "").strip() or enrich_idea(idea)[0]
 
     payload = json.dumps({"text": enriched_idea}, ensure_ascii=False).encode("utf-8")
 
@@ -318,55 +338,103 @@ def save_prompt(prompt: str, path: Path = DEFAULT_PROMPT_FILE) -> Path:
     return path
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Genera un prompt de imagen via webhook n8n.")
+    parser.add_argument("idea", nargs="?", help="Idea base. Si se omite, se lee desde --idea-file.")
+    parser.add_argument(
+        "--idea-file",
+        default=str(DEFAULT_IDEA_FILE),
+        help="Archivo con la idea/brief base.",
+    )
+    parser.add_argument(
+        "--output",
+        default=str(DEFAULT_PROMPT_FILE),
+        help="Archivo donde se guardara el prompt final.",
+    )
+    parser.add_argument(
+        "--webhook-url",
+        default=get_env("N8N_WEBHOOK_PROMPT_IMGS", DEFAULT_WEBHOOK_URL),
+        help="Webhook de n8n que genera el prompt.",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=60,
+        help="Timeout en segundos para la llamada a n8n.",
+    )
+    parser.add_argument(
+        "--stdout-only",
+        action="store_true",
+        help="Imprime el prompt y no escribe archivo.",
+    )
+    parser.add_argument(
+        "--run-id",
+        default=str(os.getenv("PUBLICIDAD_RUN_ID", "")).strip(),
+        help="Run ID para versionado en SQLite. Por defecto usa PUBLICIDAD_RUN_ID si existe.",
+    )
+    parser.add_argument(
+        "--no-db",
+        action="store_true",
+        help="No guarda versionado en SQLite.",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
 
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("idea", nargs="?")
-
-    args = parser.parse_args()
-
     try:
-image_url = data.get("image_url")
+        args = parse_args()
 
-if image_url:
+        webhook_url = str(args.webhook_url or "").strip()
+        if not webhook_url:
+            raise N8NPromptError("Debes indicar --webhook-url o definir N8N_WEBHOOK_PROMPT_IMGS en .env")
 
-    final_image = PROJECT_ROOT / "imagen_final.png"
+        idea = str(args.idea or "").strip()
+        if not idea:
+            idea_file = Path(args.idea_file).expanduser().resolve()
+            idea = idea_file.read_text(encoding="utf-8", errors="ignore").strip()
 
-    add_logo_to_footer_from_url(
-        image_url,
-        str(final_image),
-        LOGO_URL
-    )
-
-    print("Logo agregado en pie del anuncio")
-        idea = args.idea or Path(DEFAULT_IDEA_FILE).read_text().strip()
+        enriched_idea, primary_service = enrich_idea(idea)
 
         with progress_bar("Generando prompt con IA de n8n..."):
-
-            prompt = generate_prompt(idea)
-
-        save_prompt(prompt)
-
-        print(prompt)
-
-        print(f"PROMPT_GUARDADO={DEFAULT_PROMPT_FILE}")
-
-        # Si existe una imagen generada, insertar logo
-        generated_image = PROJECT_ROOT / "generated_image.png"
-
-        if generated_image.exists():
-
-            final_image = PROJECT_ROOT / "imagen_final.png"
-
-            add_logo_to_footer(
-                str(generated_image),
-                str(final_image),
-                LOGO_URL
+            prompt = generate_prompt(
+                idea,
+                webhook_url=webhook_url,
+                timeout=int(args.timeout),
+                enriched_idea=enriched_idea,
             )
 
-            print("Logo agregado en pie del anuncio")
+        output_file = Path(args.output).expanduser().resolve()
+        if not args.stdout_only:
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            save_prompt(prompt, path=output_file)
 
+        if not args.no_db:
+            run_id = new_run(
+                "generate_image_prompt",
+                {
+                    "webhook_url": webhook_url,
+                    "primary_service": primary_service,
+                    "idea_file": str(Path(args.idea_file).expanduser()),
+                },
+                run_id=str(args.run_id or "").strip() or None,
+                status="ok",
+            )
+            add_artifact(
+                run_id=run_id,
+                artifact_type="image_prompt",
+                content=prompt,
+                file_path=str(output_file) if not args.stdout_only else "",
+                meta={
+                    "idea": idea,
+                    "enriched_idea": enriched_idea,
+                    "primary_service": primary_service,
+                },
+            )
+
+        print(prompt)
+        if not args.stdout_only:
+            print(f"PROMPT_GUARDADO={output_file}")
         return 0
 
     except Exception as exc:

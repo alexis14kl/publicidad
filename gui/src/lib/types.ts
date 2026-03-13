@@ -25,6 +25,10 @@ export interface StartBotPayload {
   imagePrompt?: string
 }
 
+export interface StartPollerPayload {
+  imagePrompt?: string
+}
+
 export interface MarketingCampaignPayload {
   budget: string
   startDate: string

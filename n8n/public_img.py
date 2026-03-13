@@ -1,22 +1,30 @@
 import argparse
 import base64
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
+import sys
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from cfg.platform import get_env  # noqa: E402
+from cfg.sqlite_store import add_artifact, new_run  # noqa: E402
+
 IMG_PUBLICITARIAS_DIR = PROJECT_ROOT / "img_publicitarias"
 DEFAULT_PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
 DEFAULT_POST_TEXT_FILE = PROJECT_ROOT / "utils" / "post_text.txt"
 DEFAULT_TIMEOUT_SEC = 60
-DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/publicar-img-local-fb"
-FREEIMAGE_UPLOAD_URL = "https://freeimage.host/api/1/upload"
-FREEIMAGE_API_KEY = "6d207e02198a847aa98d0a2a901485a5"
+DEFAULT_WEBHOOK_URL = get_env("N8N_WEBHOOK_PUBLICAR_IMG_LOCAL_FB", "https://n8n-dev.noyecode.com/webhook/publicar-img-local-fb")
+FREEIMAGE_UPLOAD_URL = get_env("FREEIMAGE_UPLOAD_URL", "https://freeimage.host/api/1/upload")
+FREEIMAGE_API_KEY = get_env("FREEIMAGE_API_KEY", "6d207e02198a847aa98d0a2a901485a5")
 
 
 class PublicImageError(RuntimeError):
@@ -162,8 +170,13 @@ def parse_args() -> argparse.Namespace:
         description="Envia una imagen publicitaria local a un webhook de n8n como binario real."
     )
     parser.add_argument(
+        "--platform",
+        default="facebook",
+        help="Plataforma destino (facebook|instagram|tiktok|linkedin). Solo afecta defaults y metadata.",
+    )
+    parser.add_argument(
         "--webhook-url",
-        default=DEFAULT_WEBHOOK_URL,
+        default="",
         help="Webhook de n8n que recibira la imagen. Si no se indica y no hay dry-run, falla.",
     )
     parser.add_argument(
@@ -201,6 +214,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="No envia nada; solo muestra el payload que se prepararia.",
     )
+    parser.add_argument(
+        "--run-id",
+        default=str(os.getenv("PUBLICIDAD_RUN_ID", "")).strip(),
+        help="Run ID para versionado en SQLite. Por defecto usa PUBLICIDAD_RUN_ID si existe.",
+    )
+    parser.add_argument(
+        "--no-db",
+        action="store_true",
+        help="No guarda versionado en SQLite.",
+    )
     return parser.parse_args()
 
 
@@ -222,13 +245,15 @@ def main() -> int:
         post_text=post_text,
         prompt_text=prompt_text,
     )
-    metadata["image_url"] = upload_to_freeimage(metadata["imageBase64"], args.timeout)
+    platform = str(args.platform or "facebook").strip().lower()
+    metadata["platform"] = platform
 
     if args.dry_run:
         print(
             json.dumps(
                 {
-                    "webhook_url": args.webhook_url or "",
+                    "webhook_url": (args.webhook_url or "").strip(),
+                    "platform": platform,
                     "image_path": str(image_path),
                     "image_size_bytes": image_path.stat().st_size,
                     "metadata": metadata,
@@ -239,9 +264,21 @@ def main() -> int:
         )
         return 0
 
+    metadata["image_url"] = upload_to_freeimage(metadata["imageBase64"], args.timeout)
+
     webhook_url = (args.webhook_url or "").strip()
     if not webhook_url:
-        raise PublicImageError("Debes indicar --webhook-url para enviar la imagen a n8n")
+        platform_defaults = {
+            "facebook": get_env("N8N_WEBHOOK_PUBLICAR_IMG_LOCAL_FB", DEFAULT_WEBHOOK_URL),
+            "instagram": get_env("N8N_WEBHOOK_PUBLICAR_IMG_LOCAL_IG", ""),
+            "tiktok": get_env("N8N_WEBHOOK_PUBLICAR_IMG_LOCAL_TIKTOK", ""),
+            "linkedin": get_env("N8N_WEBHOOK_PUBLICAR_IMG_LOCAL_LINKEDIN", ""),
+        }
+        webhook_url = str(platform_defaults.get(platform) or platform_defaults["facebook"] or "").strip()
+    if not webhook_url:
+        raise PublicImageError(
+            "Debes indicar --webhook-url (o definir el webhook en .env) para enviar la imagen a n8n"
+        )
 
     response = post_image_to_n8n(
         webhook_url=webhook_url,
@@ -250,6 +287,21 @@ def main() -> int:
     )
     print(f"PUBLIC_IMG_SENT={image_path}")
     print(json.dumps(response, ensure_ascii=False))
+
+    if not args.no_db:
+        run_id = new_run(
+            "publish_image",
+            {"webhook_url": webhook_url, "platform": platform, "image_path": str(image_path)},
+            run_id=str(args.run_id or "").strip() or None,
+            status="ok",
+        )
+        add_artifact(
+            run_id=run_id,
+            artifact_type="publication",
+            content=json.dumps(response, ensure_ascii=False),
+            file_path=str(image_path),
+            meta={"platform": platform, "metadata": metadata},
+        )
     return 0
 
 

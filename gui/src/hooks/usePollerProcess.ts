@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { isPollerRunning, startPoller, stopPoller } from '../lib/commands'
+import type { StartPollerPayload } from '../lib/types'
 
 export function usePollerProcess(intervalMs = 3000) {
   const [running, setRunning] = useState(false)
@@ -20,10 +21,10 @@ export function usePollerProcess(intervalMs = 3000) {
     return () => { mounted = false; clearInterval(id) }
   }, [intervalMs])
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (payload?: StartPollerPayload) => {
     setLoading(true)
     try {
-      const result = await startPoller()
+      const result = await startPoller(payload)
       if (result.success) setRunning(true)
       return result
     } finally {

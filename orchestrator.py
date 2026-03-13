@@ -30,6 +30,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from cfg.platform import (
     DEVTOOLS_ACTIVE_PORT_FILE,
+    IS_MAC,
     IS_WINDOWS,
     N8N_POST_TEXT_CLIENT_PY,
     N8N_PROMPT_CLIENT_PY,
@@ -85,8 +86,36 @@ def _run_python(script: Path, *args: str, timeout: int = 300) -> int:
         return 1
 
 
+def _find_node_bin() -> str | None:
+    """Find Node.js binary.
+
+    When launched from GUI apps on macOS, PATH can be truncated and `node`
+    might not be discoverable via shutil.which().
+    """
+    candidates: list[str | None] = [shutil.which("node")]
+    if IS_MAC:
+        candidates.extend([
+            "/usr/local/bin/node",
+            "/opt/homebrew/bin/node",
+        ])
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            if Path(candidate).exists():
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
 def _run_node(script: Path, *args: str, timeout: int = 300) -> int:
-    cmd = ["node", str(script)] + list(args)
+    node_bin = _find_node_bin()
+    if not node_bin:
+        log_error("Node.js no esta disponible (ni en PATH ni en rutas comunes de macOS).")
+        return 1
+    cmd = [node_bin, str(script)] + list(args)
     try:
         result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), timeout=timeout)
         return result.returncode
@@ -310,9 +339,10 @@ def run_orchestrator(
     # Step 5/10: Verify Node.js
     # -----------------------------------------------------------------------
     log_step("5/10", "Verificando Node.js...")
-    if not shutil.which("node"):
-        log_error("Node.js no esta disponible en PATH.")
-        log_info(f"Instala Node o ejecuta manualmente: node {SCRIPT_PATH} {profile_name} {cdp_url}")
+    node_bin = _find_node_bin()
+    if not node_bin:
+        log_error("Node.js no esta disponible (PATH incompleto o no instalado).")
+        log_info(f"Instala Node o ejecuta manualmente: /usr/local/bin/node {SCRIPT_PATH} {profile_name} {cdp_url}")
         return 1
 
     # -----------------------------------------------------------------------

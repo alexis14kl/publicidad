@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -12,6 +13,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from logger import progress_bar  # noqa: E402
+from cfg.platform import get_env  # noqa: E402
+from cfg.sqlite_store import add_artifact, new_run  # noqa: E402
 
 
 DEFAULT_PROMPT_FILE = PROJECT_ROOT / "utils" / "prontm.txt"
@@ -241,7 +244,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--webhook-url",
-        default=DEFAULT_WEBHOOK_URL,
+        default=get_env("N8N_WEBHOOK_POST_FB_TEXT", DEFAULT_WEBHOOK_URL),
         help="Webhook de n8n que genera el caption.",
     )
     parser.add_argument(
@@ -249,6 +252,16 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=60,
         help="Timeout en segundos para la llamada a n8n.",
+    )
+    parser.add_argument(
+        "--run-id",
+        default=str(os.getenv("PUBLICIDAD_RUN_ID", "")).strip(),
+        help="Run ID para versionado en SQLite. Por defecto usa PUBLICIDAD_RUN_ID si existe.",
+    )
+    parser.add_argument(
+        "--no-db",
+        action="store_true",
+        help="No guarda versionado en SQLite.",
     )
     return parser.parse_args()
 
@@ -269,6 +282,21 @@ def main() -> int:
     output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.write_text(post_text, encoding="utf-8")
     print(f"POST_TEXT_FILE={output_file}")
+
+    if not args.no_db:
+        run_id = new_run(
+            "generate_post_text",
+            {"webhook_url": str(args.webhook_url or "").strip(), "prompt_file": str(prompt_file)},
+            run_id=str(args.run_id or "").strip() or None,
+            status="ok",
+        )
+        add_artifact(
+            run_id=run_id,
+            artifact_type="post_text",
+            content=post_text,
+            file_path=str(output_file),
+            meta={"prompt_text": prompt_text},
+        )
     return 0
 
 

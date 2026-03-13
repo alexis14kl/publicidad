@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -97,6 +98,11 @@ def check_python() -> dict[str, Any]:
 
 def check_node() -> dict[str, Any]:
     node = shutil.which("node")
+    if not node and sys.platform == "darwin":
+        for candidate in ("/usr/local/bin/node", "/opt/homebrew/bin/node"):
+            if os.path.exists(candidate):
+                node = candidate
+                break
     if not node:
         return {
             "name": "Node.js",
@@ -124,6 +130,57 @@ def check_node() -> dict[str, Any]:
             "current": "error",
             "ok": False,
             "fix": f"Instala Node.js {NODE_MIN[0]}+ desde https://nodejs.org",
+        }
+
+
+def check_node_playwright() -> dict[str, Any]:
+    """Check if the Node.js Playwright dependency is resolvable."""
+    node = shutil.which("node")
+    if not node and sys.platform == "darwin":
+        for candidate in ("/usr/local/bin/node", "/opt/homebrew/bin/node"):
+            if os.path.exists(candidate):
+                node = candidate
+                break
+
+    if not node:
+        return {
+            "name": "Playwright (Node.js)",
+            "required": ">= 1.58",
+            "current": None,
+            "ok": False,
+            "fix": "Instala Node.js primero (luego ejecuta: npm install)",
+        }
+
+    try:
+        script = (
+            "try{"
+            "const v=require('playwright/package.json').version;"
+            "console.log(v);"
+            "}catch(e){process.exit(1)}"
+        )
+        out = subprocess.run(
+            [node, "-e", script],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=12,
+        )
+        version = (out.stdout or "").strip() or None
+        ok = out.returncode == 0
+        return {
+            "name": "Playwright (Node.js)",
+            "required": ">= 1.58",
+            "current": version if ok else None,
+            "ok": ok,
+            "fix": "npm install" if not ok else None,
+        }
+    except Exception:
+        return {
+            "name": "Playwright (Node.js)",
+            "required": ">= 1.58",
+            "current": None,
+            "ok": False,
+            "fix": "npm install",
         }
 
 
@@ -226,8 +283,8 @@ def run_preflight(force: bool = False) -> tuple[bool, list[dict[str, Any]]]:
 
     Returns (all_ok, results) where results is a list of check dicts.
     """
-    if not force and _is_already_validated():
-        return True, [{"name": "Preflight", "required": "validado", "current": "ya verificado", "ok": True, "fix": None}]
+    # Always run checks. The `.preflight_ok` flag is informational only and
+    # can become stale when PATH/dependencies change (common on macOS GUI).
 
     results: list[dict[str, Any]] = []
 
@@ -236,6 +293,7 @@ def run_preflight(force: bool = False) -> tuple[bool, list[dict[str, Any]]]:
 
     # Node.js
     results.append(check_node())
+    results.append(check_node_playwright())
 
     # Pip packages
     results.extend(check_pip_packages())

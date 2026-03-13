@@ -12,7 +12,7 @@ import { usePollerProcess } from './hooks/usePollerProcess'
 import { useLogTail } from './hooks/useLogTail'
 import { useBotLogTail } from './hooks/useBotLogTail'
 import { useLastJob } from './hooks/useLastJob'
-import { onMarketingRunUpdate, runMarketingCampaignPreview } from './lib/commands'
+import { onMarketingRunUpdate, runMarketingCampaignPreview, startBot, stopBot } from './lib/commands'
 import type { MarketingRunUpdate } from './lib/types'
 
 function MarketingCampaignModal({
@@ -535,11 +535,78 @@ function MarketingCampaignModal({
 export default function App() {
   const [page, setPage] = useState<'home' | 'settings'>('home')
   const [marketingOpen, setMarketingOpen] = useState(false)
+  const [botLoading, setBotLoading] = useState(false)
+  const [imagePrompt, setImagePrompt] = useState('')
+  const [imagePromptHistory, setImagePromptHistory] = useState<string[]>([])
   const botStatus = useBotStatus()
   const poller = usePollerProcess()
   const { lines: workerLines, clearLines: clearWorkerLines } = useLogTail()
   const { lines: botLines, clearLines: clearBotLines } = useBotLogTail()
   const lastJob = useLastJob()
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem('imagePromptHistory')
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) return
+      const history = parsed
+        .filter((value): value is string => typeof value === 'string')
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .slice(0, 10)
+      setImagePromptHistory(history)
+    } catch {
+      // ignore invalid localStorage state
+    }
+  }, [])
+
+  const rememberPrompt = (prompt: string) => {
+    const normalized = prompt.trim()
+    if (!normalized) return
+    setImagePromptHistory((current) => {
+      const next = [normalized, ...current.filter((p) => p !== normalized)].slice(0, 10)
+      try {
+        window.localStorage.setItem('imagePromptHistory', JSON.stringify(next))
+      } catch {
+        // ignore storage failures (quota, disabled, etc.)
+      }
+      return next
+    })
+  }
+
+  const isExecuting = botStatus.status === 'executing'
+
+  const handleStartPoller = async () => {
+    if (poller.running || poller.loading) return
+    const prompt = imagePrompt.trim()
+    if (!prompt) return
+    rememberPrompt(prompt)
+    await poller.start({ imagePrompt: prompt })
+  }
+
+  const handleStartBot = async () => {
+    if (isExecuting || botLoading) return
+    const prompt = imagePrompt.trim()
+    if (!prompt) return
+    setBotLoading(true)
+    try {
+      rememberPrompt(prompt)
+      await startBot({ imagePrompt: prompt })
+    } finally {
+      setBotLoading(false)
+    }
+  }
+
+  const handleStopBot = async () => {
+    if (botLoading) return
+    setBotLoading(true)
+    try {
+      await stopBot()
+    } finally {
+      setBotLoading(false)
+    }
+  }
 
   if (page === 'settings') {
     return (
@@ -562,10 +629,14 @@ export default function App() {
         <StatusCard status={botStatus} />
         <ControlPanel
           botStatus={botStatus}
+          botLoading={botLoading}
+          imagePrompt={imagePrompt}
           pollerRunning={poller.running}
           pollerLoading={poller.loading}
-          onStartPoller={poller.start}
+          onStartPoller={handleStartPoller}
           onStopPoller={poller.stop}
+          onStartBot={handleStartBot}
+          onStopBot={handleStopBot}
         />
         <LastJobCard job={lastJob} />
       </main>
@@ -574,6 +645,10 @@ export default function App() {
         onClearWorker={clearWorkerLines}
         botLines={botLines}
         onClearBot={clearBotLines}
+        imagePrompt={imagePrompt}
+        onChangeImagePrompt={setImagePrompt}
+        imagePromptHistory={imagePromptHistory}
+        promptDisabled={isExecuting || botLoading}
       />
       <MarketingCampaignModal open={marketingOpen} onClose={() => setMarketingOpen(false)} />
     </div>

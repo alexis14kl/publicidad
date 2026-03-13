@@ -695,6 +695,9 @@ def run_once(args: argparse.Namespace) -> int:
 
 def main() -> int:
     try:
+        # Ensure poller logs are persisted for the GUI log watcher.
+        os.environ.setdefault("PUBLICIDAD_LOG_FILE", str(PROJECT_ROOT / "logs" / "job_poller.log"))
+
         args = parse_args()
         validate_args(args)
         dev_mode = _env("DEV_MODE", "0")

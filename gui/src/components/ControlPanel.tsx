@@ -1,47 +1,32 @@
-import { useState } from 'react'
 import { GlassCard } from './GlassCard'
-import { startBot, stopBot } from '../lib/commands'
 import type { BotStatus } from '../lib/types'
 
 interface ControlPanelProps {
   botStatus: BotStatus
+  botLoading: boolean
+  imagePrompt: string
   pollerRunning: boolean
   pollerLoading: boolean
   onStartPoller: () => void
   onStopPoller: () => void
+  onStartBot: () => void
+  onStopBot: () => void
 }
 
 export function ControlPanel({
   botStatus,
+  botLoading,
+  imagePrompt,
   pollerRunning,
   pollerLoading,
   onStartPoller,
   onStopPoller,
+  onStartBot,
+  onStopBot,
 }: ControlPanelProps) {
-  const [botLoading, setBotLoading] = useState(false)
-  const [imagePrompt, setImagePrompt] = useState('')
-
   const isExecuting = botStatus.status === 'executing'
   const canStartBot = !isExecuting && !botLoading && !!imagePrompt.trim()
-
-  const handleStartBot = async () => {
-    if (!imagePrompt.trim()) return
-    setBotLoading(true)
-    try {
-      await startBot({ imagePrompt: imagePrompt.trim() })
-    } finally {
-      setBotLoading(false)
-    }
-  }
-
-  const handleStopBot = async () => {
-    setBotLoading(true)
-    try {
-      await stopBot()
-    } finally {
-      setBotLoading(false)
-    }
-  }
+  const canStartPoller = !pollerRunning && !pollerLoading && !!imagePrompt.trim()
 
   return (
     <GlassCard className="control-panel">
@@ -52,35 +37,24 @@ export function ControlPanel({
       <div className="control-grid">
         <div className="control-section">
           <span className="control-label">Bot</span>
-          <label className="control-prompt">
-            <span className="control-prompt__label">Prompt de imagen</span>
-            <textarea
-              className="control-prompt__input"
-              placeholder="Ingresa aqui el prompt que el bot usara para generar la imagen..."
-              value={imagePrompt}
-              onChange={(event) => setImagePrompt(event.target.value)}
-              rows={4}
-              disabled={isExecuting || botLoading}
-            />
-          </label>
           <div className="control-buttons">
             <button
               className="btn btn--start"
-              onClick={handleStartBot}
+              onClick={onStartBot}
               disabled={!canStartBot}
             >
               {botLoading ? 'Iniciando...' : 'Iniciar Bot'}
             </button>
             <button
               className="btn btn--stop"
-              onClick={handleStopBot}
+              onClick={onStopBot}
               disabled={!isExecuting || botLoading}
             >
               Detener Bot
             </button>
           </div>
           <span className="control-prompt__hint">
-            Antes de iniciar, escribe el prompt visual que quieres usar para la generacion de imagenes.
+            Para iniciar el bot o el poller, primero ingresa el prompt de imagen en la pestana inferior de terminales.
           </span>
         </div>
         <div className="control-section">
@@ -89,7 +63,7 @@ export function ControlPanel({
             <button
               className="btn btn--start"
               onClick={onStartPoller}
-              disabled={pollerRunning || pollerLoading}
+              disabled={!canStartPoller}
             >
               {pollerLoading ? 'Iniciando...' : 'Iniciar Poller'}
             </button>
@@ -101,6 +75,11 @@ export function ControlPanel({
               Detener Poller
             </button>
           </div>
+          {!imagePrompt.trim() && (
+            <span className="control-prompt__hint">
+              Para iniciar el poller, primero ingresa el prompt de imagen.
+            </span>
+          )}
         </div>
       </div>
     </GlassCard>

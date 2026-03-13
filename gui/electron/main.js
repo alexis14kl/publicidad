@@ -3,7 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const http = require('http')
 const https = require('https')
-const { spawn, exec, execFileSync } = require('child_process')
+const { spawn, exec, execFileSync, execSync } = require('child_process')
 
 // Project root is two levels up from gui/electron/
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..')
@@ -97,7 +97,18 @@ function parseEnvFile(filePath) {
 }
 
 function getProjectEnv() {
-  return { ...process.env, ...parseEnvFile(path.join(PROJECT_ROOT, '.env')) }
+  const env = { ...process.env, ...parseEnvFile(path.join(PROJECT_ROOT, '.env')) }
+  // When launched from GUI on macOS, PATH may not include /usr/local/bin (Homebrew)
+  // which breaks node/npm discovery from subprocesses.
+  if (process.platform === 'darwin') {
+    const rawPath = String(env.PATH || '')
+    const parts = rawPath.split(':').filter(Boolean)
+    for (const extra of ['/usr/local/bin', '/opt/homebrew/bin']) {
+      if (!parts.includes(extra)) parts.unshift(extra)
+    }
+    env.PATH = parts.join(':')
+  }
+  return env
 }
 
 function findPython() {
@@ -132,6 +143,35 @@ function killProcessTree(pid) {
       }
     }
   } catch { /* ignore */ }
+}
+
+function isPidAlive(pid) {
+  if (!pid || pid <= 0) return false
+  try {
+    // Signal 0: test existence/permission without sending a real signal.
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function stopPidBestEffort(pid) {
+  if (!pid || pid <= 0) return
+
+  // macOS: prefer a graceful SIGINT so Python can exit cleanly (KeyboardInterrupt -> code 0)
+  // This avoids "exit code null" caused by SIGKILL.
+  if (process.platform === 'darwin') {
+    try {
+      process.kill(pid, 'SIGINT')
+    } catch {
+      // If SIGINT fails, fall back to hard kill below.
+    }
+    await sleep(1200)
+    if (!isPidAlive(pid)) return
+  }
+
+  killProcessTree(pid)
 }
 
 function sleep(ms) {
@@ -762,8 +802,8 @@ async function continueCampaignCreationModal(page) {
   throw new Error('El boton Continuar no se habilito despues de seleccionar el objetivo.')
 }
 
-async function clickBudgetTypeTrigger(page) {
-  const trigger = await findVisibleLocator(page, [
+async function clickBudgetTypeTrigger(root) {
+  const trigger = await findVisibleLocator(root, [
     (ctx) => ctx.getByRole('button', { name: /presupuesto diario|presupuesto total|daily budget|lifetime budget/i }),
     (ctx) => ctx.locator('button, [role="button"], [aria-haspopup="listbox"], [aria-expanded]').filter({ hasText: /presupuesto diario|presupuesto total|daily budget|lifetime budget/i }),
   ], 2600)
@@ -773,7 +813,7 @@ async function clickBudgetTypeTrigger(page) {
     return true
   }
 
-  return page.evaluate(() => {
+  return root.evaluate(() => {
     const normalize = (value) => String(value || '')
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -799,13 +839,31 @@ async function clickBudgetTypeTrigger(page) {
 }
 
 async function selectTotalBudgetMode(page, aliases = ['Presupuesto total', 'Lifetime budget']) {
-  const triggerClicked = await clickBudgetTypeTrigger(page)
+  const budgetSection = await findSectionRoot(page, /presupuesto|budget/i, 2400).catch(() => null)
+  if (budgetSection) {
+    await budgetSection.scrollIntoViewIfNeeded().catch(() => {})
+    await page.waitForTimeout(250)
+  }
+
+  // Newer Meta Ads flows use radios/segmented controls instead of a dropdown.
+  const optionPattern = new RegExp(aliases.join('|'), 'i')
+  const directOption = await findVisibleLocator(budgetSection || page, [
+    (ctx) => ctx.getByRole('radio', { name: optionPattern }),
+    (ctx) => ctx.locator('[role="radio"]').filter({ hasText: optionPattern }),
+    (ctx) => ctx.locator('label').filter({ hasText: optionPattern }),
+    (ctx) => ctx.getByText(optionPattern),
+  ], 1600)
+  if (directOption) {
+    await directOption.click({ timeout: 5000, force: true })
+    return
+  }
+
+  const triggerClicked = await clickBudgetTypeTrigger(budgetSection || page)
   if (!triggerClicked) {
     throw new Error('No encontre el selector del tipo de presupuesto.')
   }
 
   await page.waitForTimeout(600)
-  const optionPattern = new RegExp(aliases.join('|'), 'i')
 
   const totalOption = await findVisibleLocator(page, [
     (ctx) => ctx.getByRole('option', { name: optionPattern }),
@@ -855,6 +913,17 @@ async function findSectionRoot(page, pattern, timeout = 4000) {
 }
 
 async function fillVisibleInput(locator, value) {
+  // Guardrail: avoid trying to `.fill()` checkboxes/radios (Meta Ads UI often nests them near inputs).
+  const inputType = await locator.evaluate((element) => {
+    if (!element) return ''
+    const tag = String(element.tagName || '').toLowerCase()
+    if (tag !== 'input') return ''
+    return String(element.getAttribute('type') || element.type || '').toLowerCase()
+  }).catch(() => '')
+  if (inputType === 'checkbox' || inputType === 'radio') {
+    throw new Error(`Input of type "${inputType}" cannot be filled`)
+  }
+
   await locator.click({ timeout: 5000, force: true })
   await locator.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => {})
   await locator.fill(value)
@@ -876,7 +945,9 @@ async function fillNamedEditorInput(page, config) {
   const scopedBuilders = [
     (ctx) => ctx.getByLabel(labelPattern),
     ...selectors.map((selector) => (ctx) => ctx.locator(selector)),
-    (ctx) => ctx.locator('input'),
+    // Avoid checkbox/radio fallbacks that cause `locator.fill` to throw.
+    (ctx) => ctx.locator('input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])'),
+    (ctx) => ctx.locator('textarea'),
   ]
 
   const input = section
@@ -913,7 +984,16 @@ async function fillNamedEditorInput(page, config) {
       return isVisible(element) && (sectionLabels.length === 0 || sectionLabels.some((label) => text.includes(label)))
     })
     const searchRoot = roots[0] || document.body
-    const inputs = Array.from(searchRoot.querySelectorAll('input')).filter(isVisible)
+    const inputs = Array.from(searchRoot.querySelectorAll('input, textarea'))
+      .filter(isVisible)
+      .filter((element) => {
+        const tag = String(element.tagName || '').toLowerCase()
+        if (tag === 'textarea') return true
+        if (tag !== 'input') return false
+        const type = normalize(element.getAttribute('type') || element.type || '')
+        if (!type) return true // default is text
+        return !['checkbox', 'radio', 'hidden', 'button', 'submit', 'reset', 'file', 'image', 'range', 'color'].includes(type)
+      })
     const target = inputs.find((element) => {
       const parentText = normalize(element.closest('section, form, div')?.textContent)
       const ariaLabel = normalize(element.getAttribute('aria-label'))
@@ -923,12 +1003,11 @@ async function fillNamedEditorInput(page, config) {
 
     if (!target) return false
 
-    const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
-    if (descriptor?.set) {
-      descriptor.set.call(target, payload.value)
-    } else {
-      target.value = payload.value
-    }
+    const tag = String(target.tagName || '').toLowerCase()
+    const proto = tag === 'textarea' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype
+    const descriptor = Object.getOwnPropertyDescriptor(proto, 'value')
+    if (descriptor?.set) descriptor.set.call(target, payload.value)
+    else target.value = payload.value
     target.dispatchEvent(new Event('input', { bubbles: true }))
     target.dispatchEvent(new Event('change', { bubbles: true }))
     target.dispatchEvent(new Event('blur', { bubbles: true }))
@@ -1065,6 +1144,11 @@ async function selectDropdownOptionInSection(page, sectionPattern, aliases, erro
 
 async function fillCampaignBudgetValue(page, budgetValue) {
   const normalizedBudget = normalizeBudgetForUi(budgetValue)
+  const budgetSection = await findSectionRoot(page, /presupuesto|budget/i, 1800).catch(() => null)
+  if (budgetSection) {
+    await budgetSection.scrollIntoViewIfNeeded().catch(() => {})
+    await page.waitForTimeout(250)
+  }
   const input = await findVisibleLocator(page, [
     (ctx) => ctx.locator('input[inputmode="numeric"], input[aria-label*="presupuesto" i], input[placeholder*="presupuesto" i]'),
   ], 2600)
@@ -1128,9 +1212,15 @@ async function fillCampaignBudgetValue(page, budgetValue) {
 }
 
 async function clickCampaignEditorNext(page) {
+  // Meta often places navigation buttons in a sticky footer; ensure we're near the bottom.
+  await page.evaluate(() => {
+    try { window.scrollTo(0, document.body.scrollHeight) } catch {}
+  }).catch(() => {})
+  await page.waitForTimeout(300)
+
   const nextButton = await findVisibleLocator(page, [
-    (ctx) => ctx.getByRole('button', { name: /siguiente|next/i }),
-    (ctx) => ctx.locator('button, [role="button"]').filter({ hasText: /siguiente|next/i }),
+    (ctx) => ctx.getByRole('button', { name: /siguiente|next|continuar|continue|guardar|save/i }),
+    (ctx) => ctx.locator('button, [role="button"]').filter({ hasText: /siguiente|next|continuar|continue|guardar|save/i }),
   ], 3000)
   if (!nextButton) {
     throw new Error('No encontre el boton Siguiente en el editor de campaña.')
@@ -1149,7 +1239,7 @@ async function clickCampaignEditorNext(page) {
 
 async function getAdsetSchedulePanel(page) {
   return await findVisibleLocator(page, [
-    (ctx) => ctx.locator('section, div').filter({ hasText: /presupuesto y calendario|calendario/i }),
+    (ctx) => ctx.locator('section, div').filter({ hasText: /presupuesto y calendario|calendario|budget|schedule/i }),
   ], 5000)
 }
 
@@ -1243,8 +1333,8 @@ async function tryFacebookUiConfigureAdsetSchedule(preview) {
   const uiRules = resolveFacebookUiFlowRules(preview, preview?.orchestrator || null)
 
   const adsetReady = await findVisibleLocator(page, [
-    (ctx) => ctx.getByText(/nombre del conjunto de anuncios|ubicacion de la conversion|presupuesto y calendario/i),
-    (ctx) => ctx.locator('section, div').filter({ hasText: /nombre del conjunto de anuncios|ubicacion de la conversion|presupuesto y calendario/i }),
+    (ctx) => ctx.getByText(/nombre del conjunto de anuncios|conjunto de anuncios|ad set|ubicacion de la conversion|presupuesto y calendario/i),
+    (ctx) => ctx.locator('section, div').filter({ hasText: /nombre del conjunto de anuncios|conjunto de anuncios|ad set|ubicacion de la conversion|presupuesto y calendario/i }),
   ], 7000)
 
   if (!adsetReady) {
@@ -3101,6 +3191,10 @@ ipcMain.handle('start-bot', async (_event, payload) => {
     ? String(payload.imagePrompt || '').trim()
     : ''
 
+  if (!imagePrompt) {
+    return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar.' }
+  }
+
   const botRunnerPath = path.join(PROJECT_ROOT, 'server', 'bot_runner.py')
   const pythonBin = findPython()
   if (!pythonBin) {
@@ -3167,13 +3261,25 @@ ipcMain.handle('stop-bot', async () => {
     : { success: false, error: 'Bot no esta ejecutando' }
 })
 
-ipcMain.handle('start-poller', async () => {
+ipcMain.handle('start-poller', async (_event, payload) => {
   const poller = await isPollerAlive()
   if (poller.running) {
     return { success: false, error: `Poller ya esta corriendo (${poller.source}, PIDs: ${poller.pids.join(',')})` }
   }
 
+  const imagePrompt = typeof payload === 'object' && payload !== null
+    ? String(payload.imagePrompt || '').trim()
+    : ''
+  if (!imagePrompt) {
+    return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar el poller.' }
+  }
+
   const env = getProjectEnv()
+  // Persist poller logs so the GUI can tail them.
+  env.PUBLICIDAD_LOG_FILE = path.join(PROJECT_ROOT, 'logs', 'job_poller.log')
+  env.BOT_CUSTOM_IMAGE_PROMPT = imagePrompt
+  env.PYTHONIOENCODING = 'utf-8'
+  env.PYTHONUNBUFFERED = '1'
   const pollerPath = path.join(PROJECT_ROOT, 'server', 'job_poller.py')
   const pythonBin = findPython()
   if (!pythonBin) {
@@ -3190,8 +3296,15 @@ ipcMain.handle('start-poller', async () => {
       stdio: 'ignore',
     })
 
-    pollerProcess.on('exit', (code) => {
-      console.log(`Poller exited with code ${code}`)
+    pollerProcess.on('exit', (code, signal) => {
+      const detail = code !== null
+        ? `codigo: ${code}`
+        : `senal: ${signal || 'unknown'}`
+      const line = `[INFO] Poller finalizo (${detail})`
+      console.log(line)
+      if (mainWindow) {
+        mainWindow.webContents.send('log-new-lines', [line])
+      }
       pollerProcess = null
     })
 
@@ -3210,7 +3323,7 @@ ipcMain.handle('stop-poller', async () => {
   try {
     // Kill all poller PIDs (whether GUI-spawned or external)
     for (const pid of poller.pids) {
-      killProcessTree(pid)
+      await stopPidBestEffort(pid)
     }
     pollerProcess = null
     return { success: true }
@@ -3698,7 +3811,12 @@ app.on('window-all-closed', () => {
 
   // Only kill the poller if we spawned it (don't kill external pollers)
   if (pollerProcess && pollerProcess.exitCode === null) {
-    killProcessTree(pollerProcess.pid)
+    // Best effort graceful stop on macOS to avoid "code null".
+    if (process.platform === 'darwin') {
+      try { process.kill(pollerProcess.pid, 'SIGINT') } catch { killProcessTree(pollerProcess.pid) }
+    } else {
+      killProcessTree(pollerProcess.pid)
+    }
   }
 
   if (process.platform !== 'darwin') app.quit()

@@ -1,7 +1,32 @@
+import os
 import sys
 from contextlib import contextmanager
+from pathlib import Path
+from threading import Lock
 
 import typer
+
+_FILE_LOCK = Lock()
+
+
+def _append_to_log_file(message: str) -> None:
+    """Optionally mirror logs to a file when PUBLICIDAD_LOG_FILE is set.
+
+    This is useful for GUI scenarios where stdout is not visible, but the app
+    tails a log file (e.g. Electron log watcher).
+    """
+    path_raw = (os.getenv("PUBLICIDAD_LOG_FILE") or "").strip()
+    if not path_raw:
+        return
+    try:
+        path = Path(path_raw)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with _FILE_LOCK:
+            with path.open("a", encoding="utf-8") as f:
+                f.write(message + "\n")
+    except Exception:
+        # Never let logging crash the bot.
+        return
 
 
 def _is_tty() -> bool:
@@ -15,6 +40,7 @@ def _safe_echo(message: str, *, fg=None, bold: bool = False, dim: bool = False) 
             typer.echo(typer.style(message, fg=fg, bold=bold, dim=dim))
         else:
             print(message, flush=True)
+        _append_to_log_file(message)
     except UnicodeEncodeError:
         sanitized = (
             message.encode(getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore")
@@ -24,6 +50,7 @@ def _safe_echo(message: str, *, fg=None, bold: bool = False, dim: bool = False) 
             typer.echo(typer.style(sanitized, fg=fg, bold=bold, dim=dim))
         else:
             print(sanitized, flush=True)
+        _append_to_log_file(sanitized)
 
 
 def log_info(msg: str) -> None:
@@ -43,17 +70,21 @@ def log_error(msg: str) -> None:
 
 
 def log_step(step: str, msg: str) -> None:
+    plain = f"[{step}] {msg}"
     if _is_tty():
         label = typer.style(f"[{step}]", fg=typer.colors.BLUE, bold=True)
         try:
             typer.echo(f"{label} {msg}")
+            _append_to_log_file(plain)
         except UnicodeEncodeError:
             sanitized = msg.encode(getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore").decode(
                 getattr(sys.stdout, "encoding", "cp1252") or "cp1252", errors="ignore"
             )
             typer.echo(f"{label} {sanitized}")
+            _append_to_log_file(f"[{step}] {sanitized}")
     else:
-        print(f"[{step}] {msg}", flush=True)
+        print(plain, flush=True)
+        _append_to_log_file(plain)
 
 
 def log_debug(msg: str) -> None:

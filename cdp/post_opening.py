@@ -260,12 +260,19 @@ def post_opening_automation(cdp_port: int = 9225, skip_force_cdp: bool = False) 
         log_warn(f"No existe script de publicacion local a n8n: {PUBLIC_IMG_PY}")
         return 1
 
-    rc = _run_python(PUBLIC_IMG_PY)
-    if rc != 0:
-        log_warn("No se pudo enviar la imagen local a n8n.")
-        return 1
+    platforms_raw = str(get_env("PUBLISH_PLATFORMS", "facebook") or "").strip()
+    platforms = [p.strip().lower() for p in platforms_raw.split(",") if p.strip()]
+    if not platforms:
+        platforms = ["facebook"]
+    platforms = list(dict.fromkeys(platforms))  # de-dup, preserve order
 
-    log_ok("Imagen enviada a n8n con exito")
+    for platform in platforms:
+        log_info(f"Enviando imagen a n8n para publicar en: {platform} ...")
+        rc = _run_python(PUBLIC_IMG_PY, "--platform", platform)
+        if rc != 0:
+            log_warn(f"No se pudo enviar la imagen local a n8n para {platform}.")
+            return 1
+        log_ok(f"Imagen enviada a n8n con exito ({platform})")
 
     # Step 8: Cleanup
     return _cleanup_and_exit(dev_mode, cdp_port)
