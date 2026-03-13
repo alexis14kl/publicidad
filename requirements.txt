@@ -21,3 +21,6 @@ python-dotenv>=1.0
 
 # Manipulacion de imagenes para overlay del logo
 Pillow>=11.0
+
+# Minimizar ventanas del navegador durante la automatizacion
+PyGetWindow>=0.0.9
