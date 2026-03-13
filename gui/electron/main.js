@@ -138,6 +138,70 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function normalizeUiText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+function ensureAbsoluteUrl(value, fallback = 'https://noyecode.com') {
+  let raw = String(value || '').trim()
+  if (!raw) {
+    raw = fallback
+  }
+  if (!/^https?:\/\//i.test(raw)) {
+    raw = `https://${raw.replace(/^\/+/, '')}`
+  }
+  return raw
+}
+
+function buildPrivacyPolicyUrl(baseUrl = '') {
+  const absolute = ensureAbsoluteUrl(baseUrl || getProjectEnv().BUSINESS_WEBSITE || 'https://noyecode.com')
+  try {
+    return new URL('/privacidad', absolute).toString()
+  } catch {
+    return `${absolute.replace(/\/+$/, '')}/privacidad`
+  }
+}
+
+function normalizeBudgetForUi(value) {
+  const digits = String(value || '').replace(/\D/g, '')
+  if (!digits) {
+    throw new Error('El presupuesto maximo de la GUI no es valido para rellenar Ads Manager.')
+  }
+  return String(Number(digits))
+}
+
+function parseGuiDateParts(value) {
+  const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) {
+    throw new Error(`La fecha "${value}" no tiene el formato esperado YYYY-MM-DD.`)
+  }
+  return {
+    year: match[1],
+    month: match[2],
+    day: match[3],
+  }
+}
+
+function formatGuiDateForSlash(value) {
+  const { year, month, day } = parseGuiDateParts(value)
+  return `${day}/${month}/${year}`
+}
+
+function formatGuiDateForLong(value) {
+  const { year, month, day } = parseGuiDateParts(value)
+  const date = new Date(`${year}-${month}-${day}T12:00:00-05:00`)
+  return date.toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 function getChromeExecutablePath() {
   const candidates = [
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -472,6 +536,519 @@ async function logFacebookUiStep(message, status = 'running') {
   })
 }
 
+async function findVisibleLocator(page, builders, timeout = 1800) {
+  for (const build of builders) {
+    try {
+      const locator = build(page).first()
+      await locator.waitFor({ state: 'visible', timeout })
+      return locator
+    } catch {
+      // Try the next selector.
+    }
+  }
+  return null
+}
+
+function resolveCampaignObjectiveRule(preview, orchestrator = null) {
+  const candidates = [
+    { source: 'preview.objective', value: preview?.objective },
+    { source: 'orchestrator.execution.campaignType', value: orchestrator?.execution?.campaignType },
+    { source: 'orchestrator.adsAnalyst.objective', value: orchestrator?.adsAnalyst?.objective },
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeUiText(candidate.value)
+    if (!normalized) continue
+    if (
+      normalized.includes('lead') ||
+      normalized.includes('cliente potencial') ||
+      normalized.includes('clientes potenciales') ||
+      normalized.includes('instant form')
+    ) {
+      return {
+        apiObjective: 'OUTCOME_LEADS',
+        uiLabel: 'Clientes potenciales',
+        uiAliases: ['Clientes potenciales', 'Lead generation', 'Leads'],
+        source: candidate.source,
+      }
+    }
+  }
+
+  return {
+    apiObjective: 'OUTCOME_LEADS',
+    uiLabel: 'Clientes potenciales',
+    uiAliases: ['Clientes potenciales', 'Lead generation', 'Leads'],
+    source: 'runner.default.objective',
+  }
+}
+
+async function clickObjectiveInCampaignModal(page, objectiveRule) {
+  const modal = await findVisibleLocator(page, [
+    (ctx) => ctx.locator('[role="dialog"]'),
+    (ctx) => ctx.locator('[aria-modal="true"]'),
+  ], 5000)
+
+  const searchRoot = modal || page
+  const objectivePattern = new RegExp(objectiveRule.uiAliases.join('|'), 'i')
+
+  const directHit = await findVisibleLocator(searchRoot, [
+    (ctx) => ctx.getByRole('radio', { name: objectivePattern }),
+    (ctx) => ctx.locator('[role="radio"]').filter({ hasText: objectivePattern }),
+    (ctx) => ctx.locator('label').filter({ hasText: objectivePattern }),
+    (ctx) => ctx.getByText(objectivePattern),
+  ], 2200)
+
+  if (directHit) {
+    try {
+      await directHit.click({ timeout: 6000, force: true })
+      return {
+        ok: true,
+        method: 'locator',
+        label: objectiveRule.uiLabel,
+      }
+    } catch {
+      // fall through to DOM strategy
+    }
+  }
+
+  return page.evaluate((payload) => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const labels = (payload?.uiAliases || []).map(normalize).filter(Boolean)
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const roots = Array.from(document.querySelectorAll('[role="dialog"], [aria-modal="true"]')).filter(isVisible)
+    const root = roots.find((element) => {
+      const text = normalize(element.textContent)
+      return text.includes('crear nueva campana') || text.includes('elige un objetivo')
+    }) || roots[0] || document.body
+
+    const all = Array.from(root.querySelectorAll('*')).filter(isVisible)
+    const pickClickable = (element) => {
+      const chain = [
+        element,
+        element?.closest?.('[role="radio"]'),
+        element?.closest?.('label'),
+        element?.closest?.('button'),
+        element?.closest?.('[role="button"]'),
+        element?.closest?.('li'),
+        element?.closest?.('div'),
+      ].filter(Boolean)
+      return chain.find((candidate) => candidate !== root && isVisible(candidate)) || null
+    }
+
+    for (const label of labels) {
+      const match = all.find((element) => {
+        const text = normalize(element.innerText || element.textContent)
+        return text === label || text.startsWith(label) || text.includes(label)
+      })
+      if (!match) continue
+      const clickable = pickClickable(match)
+      if (!clickable) continue
+      clickable.click()
+      return {
+        ok: true,
+        method: 'dom-click',
+        label: payload.uiLabel,
+        matchedText: String(match.innerText || match.textContent || '').trim(),
+      }
+    }
+
+    return {
+      ok: false,
+      label: payload.uiLabel,
+    }
+  }, objectiveRule)
+}
+
+async function continueCampaignCreationModal(page) {
+  const modal = await findVisibleLocator(page, [
+    (ctx) => ctx.locator('[role="dialog"]'),
+    (ctx) => ctx.locator('[aria-modal="true"]'),
+  ], 5000)
+  const searchRoot = modal || page
+  const continueButton = await findVisibleLocator(searchRoot, [
+    (ctx) => ctx.getByRole('button', { name: /continuar|continue|siguiente|next/i }),
+    (ctx) => ctx.locator('button, [role="button"]').filter({ hasText: /continuar|continue|siguiente|next/i }),
+  ], 3000)
+
+  if (!continueButton) {
+    throw new Error('No encontre el boton Continuar del modal de campaña.')
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if (await continueButton.isEnabled().catch(() => false)) {
+      await continueButton.click({ timeout: 5000, force: true })
+      return
+    }
+    await page.waitForTimeout(500)
+  }
+
+  throw new Error('El boton Continuar no se habilito despues de seleccionar el objetivo.')
+}
+
+async function clickBudgetTypeTrigger(page) {
+  const trigger = await findVisibleLocator(page, [
+    (ctx) => ctx.getByRole('button', { name: /presupuesto diario|presupuesto total|daily budget|lifetime budget/i }),
+    (ctx) => ctx.locator('button, [role="button"], [aria-haspopup="listbox"], [aria-expanded]').filter({ hasText: /presupuesto diario|presupuesto total|daily budget|lifetime budget/i }),
+  ], 2600)
+
+  if (trigger) {
+    await trigger.click({ timeout: 5000, force: true })
+    return true
+  }
+
+  return page.evaluate(() => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const all = Array.from(document.querySelectorAll('button, [role="button"], [aria-haspopup="listbox"], [aria-expanded], div'))
+      .filter(isVisible)
+    const match = all.find((element) => {
+      const text = normalize(element.innerText || element.textContent)
+      return text === 'presupuesto diario' || text === 'daily budget' || text === 'presupuesto total' || text === 'lifetime budget'
+    })
+    if (!match) return false
+    match.click()
+    return true
+  })
+}
+
+async function selectTotalBudgetMode(page) {
+  const triggerClicked = await clickBudgetTypeTrigger(page)
+  if (!triggerClicked) {
+    throw new Error('No encontre el selector del tipo de presupuesto.')
+  }
+
+  await page.waitForTimeout(600)
+
+  const totalOption = await findVisibleLocator(page, [
+    (ctx) => ctx.getByRole('option', { name: /presupuesto total|lifetime budget/i }),
+    (ctx) => ctx.getByRole('menuitem', { name: /presupuesto total|lifetime budget/i }),
+    (ctx) => ctx.locator('[role="option"], [role="menuitem"], li, button, div').filter({ hasText: /presupuesto total|lifetime budget/i }),
+  ], 2200)
+
+  if (totalOption) {
+    await totalOption.click({ timeout: 5000, force: true })
+    return
+  }
+
+  const changed = await page.evaluate(() => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const match = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, button, div'))
+      .filter(isVisible)
+      .find((element) => {
+        const text = normalize(element.innerText || element.textContent)
+        return text === 'presupuesto total' || text === 'lifetime budget'
+      })
+    if (!match) return false
+    match.click()
+    return true
+  })
+
+  if (!changed) {
+    throw new Error('No pude cambiar el selector a Presupuesto total.')
+  }
+}
+
+async function fillCampaignBudgetValue(page, budgetValue) {
+  const normalizedBudget = normalizeBudgetForUi(budgetValue)
+  const input = await findVisibleLocator(page, [
+    (ctx) => ctx.locator('input[inputmode="numeric"], input[aria-label*="presupuesto" i], input[placeholder*="presupuesto" i]'),
+  ], 2600)
+
+  if (input) {
+    try {
+      await input.click({ timeout: 5000, force: true })
+      await input.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => {})
+      await input.fill(normalizedBudget)
+      await input.press('Tab').catch(() => {})
+      return
+    } catch {
+      // fall through to DOM setter
+    }
+  }
+
+  const setByDom = await page.evaluate((value) => {
+    const normalize = (text) => String(text || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const candidates = Array.from(document.querySelectorAll('input'))
+      .filter(isVisible)
+      .filter((element) => {
+        const label = normalize(element.getAttribute('aria-label'))
+        const placeholder = normalize(element.getAttribute('placeholder'))
+        const valueText = normalize(element.value)
+        const parentText = normalize(element.closest('section, form, div')?.textContent)
+        return (
+          label.includes('presupuesto') ||
+          placeholder.includes('presupuesto') ||
+          /^\d[\d.,]*$/.test(valueText) ||
+          parentText.includes('presupuesto')
+        )
+      })
+    const target = candidates.find((element) => /^\d[\d.,]*$/.test(String(element.value || '').trim())) || candidates[0]
+    if (!target) return false
+    const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
+    if (descriptor?.set) {
+      descriptor.set.call(target, value)
+    } else {
+      target.value = value
+    }
+    target.dispatchEvent(new Event('input', { bubbles: true }))
+    target.dispatchEvent(new Event('change', { bubbles: true }))
+    target.dispatchEvent(new Event('blur', { bubbles: true }))
+    return true
+  }, normalizedBudget)
+
+  if (!setByDom) {
+    throw new Error('No pude escribir el presupuesto maximo en el campo monetario de la campaña.')
+  }
+}
+
+async function clickCampaignEditorNext(page) {
+  const nextButton = await findVisibleLocator(page, [
+    (ctx) => ctx.getByRole('button', { name: /siguiente|next/i }),
+    (ctx) => ctx.locator('button, [role="button"]').filter({ hasText: /siguiente|next/i }),
+  ], 3000)
+  if (!nextButton) {
+    throw new Error('No encontre el boton Siguiente en el editor de campaña.')
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if (await nextButton.isEnabled().catch(() => false)) {
+      await nextButton.click({ timeout: 5000, force: true })
+      return
+    }
+    await page.waitForTimeout(450)
+  }
+
+  throw new Error('El boton Siguiente no se habilito despues de configurar la campaña.')
+}
+
+async function getAdsetSchedulePanel(page) {
+  return await findVisibleLocator(page, [
+    (ctx) => ctx.locator('section, div').filter({ hasText: /presupuesto y calendario|calendario/i }),
+  ], 5000)
+}
+
+async function findScheduleInput(root, labelText, fallbackIndex = 1, timeout = 2600) {
+  return await findVisibleLocator(root, [
+    (ctx) => ctx.getByLabel(new RegExp(labelText, 'i')),
+    (ctx) => ctx.locator(`xpath=(.//*[contains(normalize-space(.), "${labelText}")])[1]/following::input[${fallbackIndex}]`),
+  ], timeout)
+}
+
+async function setDateInputValue(locator, guiDate) {
+  const inputType = await locator.evaluate((element) => (element.getAttribute('type') || element.type || '').toLowerCase()).catch(() => '')
+  const values = inputType === 'date'
+    ? [String(guiDate).trim(), formatGuiDateForSlash(guiDate), formatGuiDateForLong(guiDate)]
+    : [formatGuiDateForSlash(guiDate), formatGuiDateForLong(guiDate), String(guiDate).trim()]
+
+  for (const value of values) {
+    try {
+      await locator.click({ timeout: 5000, force: true })
+      await locator.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => {})
+      await locator.fill(value)
+      await locator.press('Tab').catch(() => {})
+      return
+    } catch {
+      // Try the next representation.
+    }
+  }
+
+  const finalValue = inputType === 'date' ? String(guiDate).trim() : formatGuiDateForSlash(guiDate)
+  await locator.evaluate((element, value) => {
+    const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
+    if (descriptor?.set) {
+      descriptor.set.call(element, value)
+    } else {
+      element.value = value
+    }
+    element.dispatchEvent(new Event('input', { bubbles: true }))
+    element.dispatchEvent(new Event('change', { bubbles: true }))
+    element.dispatchEvent(new Event('blur', { bubbles: true }))
+  }, finalValue)
+}
+
+async function enableAdsetEndDate(root) {
+  const endCheckbox = await findVisibleLocator(root, [
+    (ctx) => ctx.getByRole('checkbox', { name: /definir una fecha de finalizacion/i }),
+    (ctx) => ctx.locator('input[type="checkbox"]'),
+  ], 2000)
+
+  if (endCheckbox) {
+    const checked = await endCheckbox.isChecked().catch(() => false)
+    if (!checked) {
+      await endCheckbox.click({ timeout: 5000, force: true }).catch(() => {})
+    }
+    return
+  }
+
+  const toggled = await root.evaluate(() => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const target = Array.from(document.querySelectorAll('label, div, span, button'))
+      .filter(isVisible)
+      .find((element) => normalize(element.innerText || element.textContent) === 'definir una fecha de finalizacion')
+    if (!target) return false
+    target.click()
+    return true
+  }).catch(() => false)
+
+  if (!toggled) {
+    throw new Error('No pude habilitar la fecha de finalización del conjunto de anuncios.')
+  }
+}
+
+async function tryFacebookUiConfigureAdsetSchedule(preview) {
+  if (!facebookVisualPage || facebookVisualPage.isClosed()) {
+    return
+  }
+
+  const page = facebookVisualPage
+  await page.bringToFront()
+  await page.waitForTimeout(2400)
+
+  const schedulePanel = await getAdsetSchedulePanel(page)
+  if (!schedulePanel) {
+    await logFacebookUiStep('No encontre la seccion Presupuesto y calendario del conjunto de anuncios.', 'warning')
+    return
+  }
+
+  try {
+    const startInput = await findScheduleInput(schedulePanel, 'Fecha de inicio', 1, 4000)
+    if (!startInput) {
+      throw new Error('No encontre el campo de Fecha de inicio.')
+    }
+    await setDateInputValue(startInput, preview?.startDate)
+    await logFacebookUiStep(`Fecha de inicio del conjunto de anuncios ajustada a ${preview?.startDate}.`)
+    await page.waitForTimeout(700)
+  } catch (error) {
+    await logFacebookUiStep(`No pude configurar la fecha de inicio del conjunto de anuncios: ${error.message || error}`, 'warning')
+  }
+
+  try {
+    await enableAdsetEndDate(schedulePanel)
+    await page.waitForTimeout(700)
+    const endInput = await findScheduleInput(schedulePanel, 'Fecha de finalización', 1, 4000)
+    if (!endInput) {
+      throw new Error('No encontre el campo de Fecha de finalización.')
+    }
+    await setDateInputValue(endInput, preview?.endDate)
+    await logFacebookUiStep(`Fecha de finalización del conjunto de anuncios ajustada a ${preview?.endDate}.`)
+    await page.waitForTimeout(800)
+  } catch (error) {
+    await logFacebookUiStep(`No pude configurar la fecha de finalización del conjunto de anuncios: ${error.message || error}`, 'warning')
+  }
+
+  try {
+    await clickCampaignEditorNext(page)
+    await logFacebookUiStep('Conjunto de anuncios configurado; avanzando al siguiente paso.')
+    await page.waitForTimeout(1800)
+  } catch (error) {
+    await logFacebookUiStep(`No pude avanzar despues de configurar el calendario del conjunto de anuncios: ${error.message || error}`, 'warning')
+  }
+}
+
+async function tryFacebookUiConfigureCampaignEditor(preview) {
+  if (!facebookVisualPage || facebookVisualPage.isClosed()) {
+    return
+  }
+
+  const page = facebookVisualPage
+  await page.bringToFront()
+  await page.waitForTimeout(2200)
+
+  const campaignName = buildDraftCampaignName(preview, preview?.orchestrator || null)
+
+  try {
+    const input = await findVisibleLocator(page, [
+      (ctx) => ctx.getByLabel(/nombre de la campa|campaign name/i),
+      (ctx) => ctx.locator('input[aria-label*="campa" i]'),
+      (ctx) => ctx.locator('input[placeholder*="campa" i]'),
+      (ctx) => ctx.locator('input[aria-label*="campaign" i]'),
+      (ctx) => ctx.locator('input[placeholder*="campaign" i]'),
+    ], 5000)
+    if (!input) {
+      throw new Error('No encontre el campo de nombre en el editor de campaña.')
+    }
+    await input.click({ timeout: 5000, force: true })
+    await input.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => {})
+    await input.fill(campaignName)
+    await input.press('Tab').catch(() => {})
+    await logFacebookUiStep(`Nombre de campaña corregido en el editor: ${campaignName}`)
+  } catch (error) {
+    await logFacebookUiStep(`No pude corregir el nombre de campaña en el editor: ${error.message || error}`, 'warning')
+  }
+
+  try {
+    await selectTotalBudgetMode(page)
+    await logFacebookUiStep('Tipo de presupuesto cambiado a Presupuesto total.')
+    await page.waitForTimeout(700)
+    await fillCampaignBudgetValue(page, preview?.budget)
+    await logFacebookUiStep(`Presupuesto total rellenado con el maximo de la GUI: ${normalizeBudgetForUi(preview?.budget)}.`)
+    await page.waitForTimeout(900)
+  } catch (error) {
+    await logFacebookUiStep(`No pude configurar el presupuesto total en el editor: ${error.message || error}`, 'warning')
+  }
+
+  try {
+    await clickCampaignEditorNext(page)
+    await logFacebookUiStep('Campaña configurada; avanzando al siguiente paso del editor.')
+    await page.waitForTimeout(1800)
+  } catch (error) {
+    await logFacebookUiStep(`No pude avanzar al siguiente paso del editor de campaña: ${error.message || error}`, 'warning')
+  }
+}
+
 async function tryFacebookUiCreateCampaign(preview) {
   if (!facebookVisualPage || facebookVisualPage.isClosed()) {
     return
@@ -496,22 +1073,36 @@ async function tryFacebookUiCreateCampaign(preview) {
   }
 
   try {
-    const continueButton = page.locator('button, div[role="button"]').filter({
-      hasText: /continuar|continue|siguiente|next/i,
-    }).first()
-    if (await continueButton.count()) {
-      await continueButton.click({ timeout: 5000 }).catch(() => {})
-      await logFacebookUiStep('Intento de avanzar en el flujo visual de creacion.')
-      await page.waitForTimeout(1200)
+    const objectiveRule = resolveCampaignObjectiveRule(preview, preview?.orchestrator || null)
+    await logFacebookUiStep(`Regla activa: seleccionar "${objectiveRule.uiLabel}" desde ${objectiveRule.source} antes de continuar.`)
+    const objectiveSelection = await clickObjectiveInCampaignModal(page, objectiveRule)
+    if (!objectiveSelection?.ok) {
+      throw new Error(`No pude localizar la tarjeta del objetivo "${objectiveRule.uiLabel}" en el modal.`)
     }
-  } catch {
-    // continue silently
+    await logFacebookUiStep(`Objetivo de campaña seleccionado en la UI: ${objectiveRule.uiLabel}.`)
+    await page.waitForTimeout(900)
+
+    await continueCampaignCreationModal(page)
+    await logFacebookUiStep('Modal de objetivo completado; avanzando al siguiente paso de creación.')
+    await page.waitForTimeout(1800)
+  } catch (error) {
+    await logFacebookUiStep(`No pude completar el modal de objetivo de campaña: ${error.message || error}`, 'warning')
+    return
   }
 
   try {
-    const campaignName = buildDraftCampaignName(preview)
-    const input = page.locator('input[type="text"], input[aria-label], input').first()
-    await input.waitFor({ timeout: 8000 })
+    const campaignName = buildDraftCampaignName(preview, preview?.orchestrator || null)
+    const input = await findVisibleLocator(page, [
+      (ctx) => ctx.getByLabel(/nombre de la campa|campaign name/i),
+      (ctx) => ctx.locator('input[aria-label*="campa" i]'),
+      (ctx) => ctx.locator('input[placeholder*="campa" i]'),
+      (ctx) => ctx.locator('input[aria-label*="campaign" i]'),
+      (ctx) => ctx.locator('input[placeholder*="campaign" i]'),
+    ], 2200)
+    if (!input) {
+      throw new Error('No encontre un campo visible para el nombre de la campaña.')
+    }
+    await input.fill('')
     await input.fill(campaignName)
     await logFacebookUiStep(`Nombre de campana rellenado en UI: ${campaignName}`)
   } catch (error) {
@@ -522,6 +1113,7 @@ async function tryFacebookUiCreateCampaign(preview) {
 function getFacebookAdsMcpInfo() {
   const env = getProjectEnv()
   const serverPath = path.join(PROJECT_ROOT, 'utils', 'AgenteMarketing', 'MCP', 'fb-ads-mcp-server', 'server.py')
+  const helperPath = path.join(__dirname, 'fb_ads_mcp_run.py')
   const token =
     env.FB_ACCESS_TOKEN ||
     env.FACEBOOK_ACCESS_TOKEN ||
@@ -530,7 +1122,9 @@ function getFacebookAdsMcpInfo() {
 
   return {
     serverPath,
+    helperPath,
     serverExists: fs.existsSync(serverPath),
+    helperExists: fs.existsSync(helperPath),
     pythonBin: findPython(),
     token,
   }
@@ -901,14 +1495,73 @@ async function getAdAccountById(token, accountId) {
   throw new Error('El token no devolvio cuentas publicitarias disponibles.')
 }
 
-function buildDraftCampaignName(preview) {
-  const stamp = new Date().toISOString().replace('T', ' ').slice(0, 16)
-  return `Borrador Leads ${preview.startDate} a ${preview.endDate} | ${preview.budget} | ${stamp}`
+function getDefaultMarketingSegment() {
+  return {
+    key: 'logistics-ops-co',
+    shortLabel: 'Logistics Ops CO',
+    country: 'Colombia',
+    countryCode: 'CO',
+    industry: 'Logistics & Distribution',
+    role: 'Operations Manager',
+    companySize: '20-80 employees',
+    pain: 'Manual dispatch assignment, route updates by WhatsApp, and late delivery notifications.',
+    consequence: 'Delivery delays, SLA breaches, and a high coordination cost.',
+    trigger: 'Active hiring in operations, expansion to new cities, or rising shipment volume.',
+    affectedKpi: 'On-time delivery, cost per route, and claims rate.',
+    categoryStatement: 'Specialists in eliminating operational friction for growth-stage companies before chaos scales.',
+    strategicAngle: 'Operational chaos in dispatch and tracking is usually a systems problem, not a staffing problem.',
+    primaryCta: 'If useful, I can share a 3-bullet diagnosis for dispatch + tracking in 24h.',
+    hook: 'Reduce dispatch friction before delivery chaos scales.',
+    visualReference: 'Operations team in a Colombian logistics company, dispatch board, route tracking dashboard, warehouse activity, premium B2B tech aesthetic.',
+    ageMin: 24,
+    ageMax: 54,
+  }
 }
 
-function buildOrchestratorPlan(preview) {
+function buildAudienceSummary(segment = getDefaultMarketingSegment()) {
+  return `${segment.country} | ${segment.industry} | ${segment.role} | ${segment.companySize}`
+}
+
+function buildTargetingSummary(segment = getDefaultMarketingSegment()) {
+  return `${segment.country}, ${segment.role}, ${segment.industry}, ${segment.ageMin}-${segment.ageMax}`
+}
+
+function buildLeadTargeting(orchestrator = null) {
+  const segment = orchestrator?.execution?.segment || getDefaultMarketingSegment()
   return {
-    task: `Configurar borrador de campana Facebook Ads para leads con presupuesto maximo ${preview.budget} entre ${preview.startDate} y ${preview.endDate}.`,
+    geo_locations: {
+      countries: [segment.countryCode || 'CO'],
+    },
+    age_min: segment.ageMin || 24,
+    age_max: segment.ageMax || 54,
+  }
+}
+
+function buildLeadFormSpec(preview, orchestrator) {
+  const segment = orchestrator?.execution?.segment || getDefaultMarketingSegment()
+  const websiteUrl = ensureAbsoluteUrl(preview?.url || getProjectEnv().BUSINESS_WEBSITE || 'https://noyecode.com')
+  return {
+    page_id: String(orchestrator?.execution?.pageId || getMetaPageId()).trim(),
+    form_id: String(preview?.selectedLeadgenFormId || '').trim(),
+    discover: true,
+    create_if_missing: true,
+    name: `Formulario | ${segment.shortLabel} | ${preview.startDate} -> ${preview.endDate}`,
+    locale: 'es_LA',
+    required_fields: ['full_name', 'email', 'phone_number'],
+    follow_up_action_url: websiteUrl,
+    privacy_policy_url: buildPrivacyPolicyUrl(websiteUrl),
+    privacy_policy_link_text: 'Politica de privacidad',
+  }
+}
+
+function buildDraftCampaignName(preview, orchestrator = null) {
+  const segmentLabel = orchestrator?.execution?.segment?.shortLabel || getDefaultMarketingSegment().shortLabel
+  return `Lead Gen | ${segmentLabel} | ${preview.startDate} -> ${preview.endDate}`
+}
+
+function buildOrchestratorPlan(preview, segment = getDefaultMarketingSegment()) {
+  return {
+    task: `Configurar borrador de campana Facebook Ads para ${segment.role} de ${segment.industry} en ${segment.country}, con presupuesto maximo ${preview.budget} entre ${preview.startDate} y ${preview.endDate}.`,
     agent: 'orchestrator',
     reason: 'Coordina ads-analyst, image-creator y marketing antes de enviar la configuracion a Meta Ads.',
     cost: 'medio',
@@ -917,23 +1570,28 @@ function buildOrchestratorPlan(preview) {
 }
 
 function runLocalMarketingOrchestrator(preview) {
-  const plan = buildOrchestratorPlan(preview)
+  const segment = getDefaultMarketingSegment()
+  const plan = buildOrchestratorPlan(preview, segment)
   const pageId = getMetaPageId()
   const selectedImage = preview?.imageAsset || null
   const adsAnalyst = {
     platform: 'Facebook Ads',
     format: 'Imagen unica para Lead Ads',
     objective: 'Leads',
-    audience:
-      'Colombia | decisores COO, CTO y Operations Manager | empresas de 20-100 empleados con procesos manuales, sistemas legacy o integraciones rotas.',
-    hook: 'Elimina friccion operativa antes de que el crecimiento se convierta en caos.',
+    audience: buildAudienceSummary(segment),
+    hook: segment.hook,
     copy:
-      'Si tu equipo sigue operando entre hojas de calculo, WhatsApp y sistemas desconectados, Noyecode te ayuda a modernizar, automatizar e integrar procesos para reducir errores y acelerar la operacion.',
-    cta: 'Solicita un diagnostico rapido',
-    visualReference:
-      'Escena corporativa moderna con dashboard, automatizacion de procesos y equipo operativo en contexto B2B LATAM, estilo premium tech.',
+      `Si tu operacion de despacho sigue coordinandose entre WhatsApp, hojas de calculo y sistemas desconectados, Noyecode te ayuda a modernizar tracking, alertas y handoffs para reducir retrasos, errores y costo operativo. ${segment.primaryCta}`,
+    cta: segment.primaryCta,
+    visualReference: segment.visualReference,
+    industry: segment.industry,
+    role: segment.role,
+    pain: segment.pain,
+    consequence: segment.consequence,
+    trigger: segment.trigger,
+    strategicAngle: segment.strategicAngle,
     assumptions: [
-      'Segmentacion base amplia en Colombia definida por el orquestador por falta de un ICP confirmado por industria.',
+      `Se tomo el micro-segmento predefinido ${segment.shortLabel} porque la UI actual solo solicita presupuesto y fechas.`,
       'La promesa se centra en eficiencia operativa y modernizacion, sin metricas inventadas.',
     ],
   }
@@ -942,7 +1600,7 @@ function runLocalMarketingOrchestrator(preview) {
     dimensions: '1200x628',
     style: 'Premium tech corporativo',
     prompt:
-      'Create a premium Facebook lead ad image for Noyecode, focused on operational efficiency for Colombian growth-stage companies. Show a modern LATAM business team, workflow automation dashboards, connected systems, clean orange-accent brand palette, high contrast, professional lighting, no clutter, no tiny unreadable text, landscape 1200x628.',
+      'Create a premium Facebook lead ad image for Noyecode focused on Colombian logistics operations managers. Show a LATAM dispatch team, route tracking dashboard, delivery flow automation, clean orange-accent brand palette, premium B2B lighting, realistic warehouse-office hybrid environment, no clutter, no tiny unreadable text, landscape 1200x628.',
     status: selectedImage?.preparedPath ? 'asset_local_listo' : 'brief_listo',
     selectedAsset: selectedImage
       ? {
@@ -958,11 +1616,19 @@ function runLocalMarketingOrchestrator(preview) {
     status: 'approved_with_assumptions',
     verdict: 'APROBADO para borrador',
     notes: [
-      'CTA de baja friccion y alineado con lead generation.',
-      'Narrativa B2B centrada en problemas operativos concretos.',
+      `CTA de baja friccion alineado con el segmento ${segment.shortLabel}.`,
+      `Narrativa B2B centrada en ${segment.pain.toLowerCase()}`,
       'Pendiente activo visual final y leadgen_form_id para completar creative y anuncio.',
     ],
+    compliance: {
+      specialAdCategories: [],
+      categoryStatement: segment.categoryStatement,
+    },
   }
+  const objectiveRule = resolveCampaignObjectiveRule(preview, {
+    execution: { campaignType: 'Instant Form', segment },
+    adsAnalyst,
+  })
 
   return {
     plan,
@@ -976,6 +1642,10 @@ function runLocalMarketingOrchestrator(preview) {
       campaignType: 'Instant Form',
       budgetCap: preview.budget,
       formFields: preview.formFields,
+      segment,
+      targetingSummary: buildTargetingSummary(segment),
+      objectiveUiLabel: objectiveRule.uiLabel,
+      apiObjective: objectiveRule.apiObjective,
     },
   }
 }
@@ -1125,8 +1795,8 @@ function summarizeLeadgenRequirements(questions) {
     hasFirstName,
     hasLastName,
     hasFullName,
-    exactMatch: hasEmail && hasPhone && hasFirstName && hasLastName,
-    acceptableMatch: hasEmail && hasPhone && (hasFullName || (hasFirstName && hasLastName)),
+    exactMatch: hasEmail && hasPhone && hasFullName,
+    acceptableMatch: hasEmail && hasPhone && hasFirstName && hasLastName,
   }
 }
 
@@ -1180,7 +1850,8 @@ function selectBestLeadgenForm(forms) {
     return {
       id: exact.id,
       name: exact.name,
-      selectionReason: 'Seleccionado automaticamente por cumplir exacto con nombre, apellido, correo y telefono.',
+      matchType: 'exact',
+      selectionReason: 'Seleccionado automaticamente por cumplir exacto con nombre completo, correo electronico y telefono movil.',
     }
   }
 
@@ -1189,13 +1860,15 @@ function selectBestLeadgenForm(forms) {
     return {
       id: acceptable.id,
       name: acceptable.name,
-      selectionReason: 'No hubo coincidencia exacta; se selecciono el mejor formulario disponible con full_name, correo y telefono.',
+      matchType: 'acceptable',
+      selectionReason: 'No hubo coincidencia exacta; se encontro un formulario con nombre y apellido separados, correo y telefono.',
     }
   }
 
   return {
     id: '',
     name: '',
+    matchType: 'none',
     selectionReason: 'No se encontro un formulario que cumpla con los campos requeridos.',
   }
 }
@@ -1216,6 +1889,7 @@ function buildDraftCreativeConfig(preview, orchestrator) {
     objective: 'OUTCOME_LEADS',
     message: orchestrator?.adsAnalyst?.copy || '',
     headline: orchestrator?.adsAnalyst?.hook || '',
+    description: orchestrator?.adsAnalyst?.strategicAngle || '',
     link: preview?.url || '',
     callToActionValue: {
       lead_gen_form_id: leadgenFormId,
@@ -1226,6 +1900,7 @@ function buildDraftCreativeConfig(preview, orchestrator) {
         link: preview?.url || '',
         message: orchestrator?.adsAnalyst?.copy || '',
         name: orchestrator?.adsAnalyst?.hook || '',
+        description: orchestrator?.adsAnalyst?.strategicAngle || '',
         image_hash: 'PENDIENTE_UPLOAD_META',
         call_to_action: {
           type: 'SIGN_UP',
@@ -1256,6 +1931,247 @@ function buildDraftAdConfig(preview, creation) {
       page_id: String(preview?.creativeDraftConfig?.pageId || ''),
     },
   }
+}
+
+function buildLeadCampaignRunnerContext(preview, orchestrator) {
+  const segment = orchestrator?.execution?.segment || getDefaultMarketingSegment()
+  const objectiveRule = resolveCampaignObjectiveRule(preview, orchestrator)
+  return {
+    preview: {
+      url: String(preview?.url || '').trim(),
+      budget: String(preview?.budget || '').trim(),
+      startDate: String(preview?.startDate || '').trim(),
+      endDate: String(preview?.endDate || '').trim(),
+      formFields: Array.isArray(preview?.formFields)
+        ? preview.formFields.map((field) => String(field || '').trim()).filter(Boolean)
+        : [],
+    },
+    execution: {
+      accountHint: String(orchestrator?.execution?.accountHint || '').trim(),
+      pageId: String(orchestrator?.execution?.pageId || getMetaPageId()).trim(),
+      campaignType: String(orchestrator?.execution?.campaignType || '').trim(),
+      targetingSummary: String(orchestrator?.execution?.targetingSummary || '').trim(),
+      objectiveUiLabel: objectiveRule.uiLabel,
+      apiObjective: objectiveRule.apiObjective,
+      formFields: Array.isArray(orchestrator?.execution?.formFields)
+        ? orchestrator.execution.formFields.map((field) => String(field || '').trim()).filter(Boolean)
+        : [],
+    },
+    segment: {
+      shortLabel: String(segment?.shortLabel || '').trim(),
+      country: String(segment?.country || '').trim(),
+      countryCode: String(segment?.countryCode || '').trim(),
+      industry: String(segment?.industry || '').trim(),
+      role: String(segment?.role || '').trim(),
+      companySize: String(segment?.companySize || '').trim(),
+      pain: String(segment?.pain || '').trim(),
+      consequence: String(segment?.consequence || '').trim(),
+      trigger: String(segment?.trigger || '').trim(),
+      strategicAngle: String(segment?.strategicAngle || '').trim(),
+      primaryCta: String(segment?.primaryCta || '').trim(),
+      hook: String(segment?.hook || '').trim(),
+      ageMin: Number(segment?.ageMin) || 0,
+      ageMax: Number(segment?.ageMax) || 0,
+    },
+    agents: {
+      orchestrator: {
+        task: String(orchestrator?.plan?.task || '').trim(),
+        reason: String(orchestrator?.plan?.reason || '').trim(),
+      },
+      adsAnalyst: {
+        objective: String(orchestrator?.adsAnalyst?.objective || '').trim(),
+        audience: String(orchestrator?.adsAnalyst?.audience || '').trim(),
+        hook: String(orchestrator?.adsAnalyst?.hook || '').trim(),
+        copy: String(orchestrator?.adsAnalyst?.copy || '').trim(),
+        cta: String(orchestrator?.adsAnalyst?.cta || '').trim(),
+        strategicAngle: String(orchestrator?.adsAnalyst?.strategicAngle || '').trim(),
+        industry: String(orchestrator?.adsAnalyst?.industry || '').trim(),
+        role: String(orchestrator?.adsAnalyst?.role || '').trim(),
+        pain: String(orchestrator?.adsAnalyst?.pain || '').trim(),
+        trigger: String(orchestrator?.adsAnalyst?.trigger || '').trim(),
+      },
+      imageCreator: {
+        dimensions: String(orchestrator?.imageCreator?.dimensions || '').trim(),
+        style: String(orchestrator?.imageCreator?.style || '').trim(),
+        prompt: String(orchestrator?.imageCreator?.prompt || '').trim(),
+      },
+      marketing: {
+        status: String(orchestrator?.marketing?.status || '').trim(),
+        verdict: String(orchestrator?.marketing?.verdict || '').trim(),
+        notes: Array.isArray(orchestrator?.marketing?.notes)
+          ? orchestrator.marketing.notes.map((note) => String(note || '').trim()).filter(Boolean)
+          : [],
+        specialAdCategories: Array.isArray(orchestrator?.marketing?.compliance?.specialAdCategories)
+          ? orchestrator.marketing.compliance.specialAdCategories.map((value) => String(value || '').trim()).filter(Boolean)
+          : [],
+        categoryStatement: String(orchestrator?.marketing?.compliance?.categoryStatement || '').trim(),
+      },
+    },
+  }
+}
+
+function buildLeadCampaignBundleSpec(preview, orchestrator) {
+  const segment = orchestrator?.execution?.segment || getDefaultMarketingSegment()
+  const objectiveRule = resolveCampaignObjectiveRule(preview, orchestrator)
+  const campaignName = buildDraftCampaignName(preview, orchestrator)
+  const adsetName = `Ad Set | ${segment.shortLabel} | ${preview.startDate} -> ${preview.endDate}`
+  const pageId = String(orchestrator?.execution?.pageId || getMetaPageId()).trim()
+  const selectedLeadgenFormId = String(preview?.selectedLeadgenFormId || '').trim()
+  const creativeDraft = selectedLeadgenFormId
+    ? buildDraftCreativeConfig({ ...preview, selectedLeadgenFormId }, orchestrator)
+    : null
+  const leadFormSpec = buildLeadFormSpec(preview, orchestrator)
+
+  return {
+    ad_account_id: String(orchestrator?.execution?.accountHint || `act_${getTargetAdAccountId()}`),
+    account_name: orchestrator?.execution?.accountHint || `act_${getTargetAdAccountId()}`,
+    page_id: pageId,
+    campaign: {
+      name: campaignName,
+      objective: objectiveRule.apiObjective,
+      ui_objective_label: objectiveRule.uiLabel,
+      status: 'PAUSED',
+      is_adset_budget_sharing_enabled: false,
+      special_ad_categories: orchestrator?.marketing?.compliance?.specialAdCategories || [],
+    },
+    adset: {
+      name: adsetName,
+      lifetime_budget: toMetaMoney(preview.budget),
+      billing_event: 'IMPRESSIONS',
+      optimization_goal: 'LEAD_GENERATION',
+      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+      destination_type: 'ON_AD',
+      status: 'PAUSED',
+      start_time: toMetaDateTime(preview.startDate, false),
+      end_time: toMetaDateTime(preview.endDate, true),
+      promoted_object: pageId
+        ? {
+          page_id: pageId,
+        }
+        : undefined,
+      targeting: buildLeadTargeting(orchestrator),
+    },
+    lead_form: leadFormSpec,
+    creative: {
+      name: `Creative | ${segment.shortLabel} | ${selectedLeadgenFormId || 'auto-form'}`,
+      message: orchestrator?.adsAnalyst?.copy || '',
+      headline: orchestrator?.adsAnalyst?.hook || '',
+      description: orchestrator?.adsAnalyst?.strategicAngle || '',
+      link: preview?.url || '',
+      call_to_action_type: 'SIGN_UP',
+      image_path: String(preview?.imageAsset?.preparedPath || '').trim(),
+      object_story_spec: creativeDraft?.objectStorySpec || null,
+    },
+    ad: {
+      name: `Ad | ${segment.shortLabel} | ${selectedLeadgenFormId || 'auto-form'}`,
+      status: 'PAUSED',
+    },
+    runner_context: buildLeadCampaignRunnerContext(preview, orchestrator),
+  }
+}
+
+function applyMcpBundleResultToPreview(preview, orchestrator, bundleResult) {
+  const forms = Array.isArray(bundleResult?.leadgen_forms) ? bundleResult.leadgen_forms : []
+  const selectedForm = bundleResult?.selected_leadgen_form || {}
+  const creationState = {
+    account: bundleResult?.account || null,
+    campaignId: String(bundleResult?.campaign?.id || '').trim(),
+    campaignName: String(bundleResult?.campaign?.name || '').trim(),
+    adsetId: String(bundleResult?.adset?.id || '').trim(),
+    adsetName: String(bundleResult?.adset?.name || '').trim(),
+    targetingSummary: String(bundleResult?.adset?.targeting_summary || orchestrator?.execution?.targetingSummary || buildTargetingSummary()),
+    adsetError: String(bundleResult?.adset?.error || '').trim(),
+    adsetDeferredToUi: Boolean(bundleResult?.adset?.deferred_to_ui),
+  }
+
+  preview.leadgenFormsLoaded = true
+  preview.leadgenForms = forms
+  preview.selectedLeadgenFormId = String(selectedForm?.id || '').trim()
+  preview.selectedLeadgenFormName = String(selectedForm?.name || '').trim()
+  preview.selectedLeadgenFormReason = String(selectedForm?.selectionReason || '').trim()
+  preview.creativeDraftConfig = buildDraftCreativeConfig(preview, orchestrator)
+  preview.adDraftConfig = buildDraftAdConfig(preview, creationState)
+  preview.metaCreative = bundleResult?.creative?.id
+    ? {
+      creativeId: String(bundleResult.creative.id || ''),
+      creativeName: String(bundleResult.creative.name || ''),
+      imageHash: String(bundleResult.creative.image_hash || ''),
+    }
+    : null
+  preview.metaAd = bundleResult?.ad?.id
+    ? {
+      adId: String(bundleResult.ad.id || ''),
+      adName: String(bundleResult.ad.name || ''),
+    }
+    : null
+
+  return creationState
+}
+
+async function runLeadCampaignBundleViaMcp(preview, orchestrator) {
+  const info = getFacebookAdsMcpInfo()
+  if (!info.serverExists || !info.pythonBin || !info.token || !info.helperExists) {
+    throw new Error('El MCP no esta listo para ejecutar la creacion unificada de la campana.')
+  }
+
+  const payload = JSON.stringify(buildLeadCampaignBundleSpec(preview, orchestrator))
+
+  return new Promise((resolve, reject) => {
+    const env = {
+      ...getProjectEnv(),
+      FB_ACCESS_TOKEN: info.token,
+    }
+    const child = spawn(info.pythonBin, [info.helperPath, info.serverPath], {
+      cwd: PROJECT_ROOT,
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString('utf-8')
+    })
+
+    child.stderr.on('data', (chunk) => {
+      const text = chunk.toString('utf-8')
+      stderr += text
+      const lines = text.split('\n').map((line) => line.trim()).filter(Boolean)
+      for (const line of lines) {
+        emitMarketingUpdate({
+          type: 'log',
+          status: 'running',
+          line,
+          summary: 'El MCP esta ejecutando el bundle de Meta Ads.',
+        })
+      }
+    })
+
+    child.on('error', (error) => {
+      reject(error)
+    })
+
+    child.on('close', (code) => {
+      let parsed = null
+      try {
+        parsed = stdout.trim() ? JSON.parse(stdout.trim()) : null
+      } catch (error) {
+        reject(new Error(`El helper del MCP devolvio JSON invalido: ${error.message || error}`))
+        return
+      }
+
+      if (code !== 0 || parsed?.ok === false) {
+        reject(new Error(parsed?.error || stderr.trim() || `El helper del MCP finalizo con codigo ${code}`))
+        return
+      }
+
+      resolve(parsed)
+    })
+
+    child.stdin.write(payload)
+    child.stdin.end()
+  })
 }
 
 function postMultipartForm(url, fields = {}, files = {}, headers = {}) {
@@ -1419,6 +2335,49 @@ async function createAdOnMeta(preview, creation, creative, token) {
   }
 }
 
+function validateFacebookAdsMcpRuntime(info) {
+  if (!info?.pythonBin || !info?.serverPath || !info?.helperPath) {
+    return {
+      ok: false,
+      reason: 'No tengo suficientes datos para validar el runtime del MCP.',
+    }
+  }
+
+  try {
+    execFileSync(
+      info.pythonBin,
+      [
+        '-c',
+        [
+          'import importlib.util',
+          'from pathlib import Path',
+          'import requests',
+          'import mcp',
+          `assert Path(${JSON.stringify(info.serverPath)}).exists()`,
+          `assert Path(${JSON.stringify(info.helperPath)}).exists()`,
+          'print("ok")',
+        ].join('; '),
+      ],
+      {
+        cwd: PROJECT_ROOT,
+        timeout: 10000,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }
+    )
+    return {
+      ok: true,
+      reason: 'Python puede importar las dependencias base del MCP.',
+    }
+  } catch (error) {
+    const detail = String(error?.stderr || error?.message || error).trim()
+    return {
+      ok: false,
+      reason: `Python no puede cargar el runtime del MCP: ${detail}`,
+    }
+  }
+}
+
 async function runFacebookAdsMcpPreflight() {
   const env = getProjectEnv()
   const info = getFacebookAdsMcpInfo()
@@ -1426,6 +2385,9 @@ async function runFacebookAdsMcpPreflight() {
 
   if (!info.serverExists) {
     issues.push(`No existe el servidor MCP en ${info.serverPath}`)
+  }
+  if (!info.helperExists) {
+    issues.push(`No existe el helper local del MCP en ${info.helperPath}`)
   }
   if (!info.pythonBin) {
     issues.push('Python no esta disponible en PATH para ejecutar el MCP.')
@@ -1438,8 +2400,19 @@ async function runFacebookAdsMcpPreflight() {
     ok: false,
     reason: 'No se ejecuto validacion remota del token.',
   }
+  let runtimeValidation = {
+    ok: false,
+    reason: 'No se ejecuto validacion local del runtime del MCP.',
+  }
 
-  if (info.serverExists && info.pythonBin && info.token) {
+  if (info.serverExists && info.helperExists && info.pythonBin) {
+    runtimeValidation = validateFacebookAdsMcpRuntime(info)
+    if (!runtimeValidation.ok) {
+      issues.push(runtimeValidation.reason)
+    }
+  }
+
+  if (info.serverExists && info.helperExists && info.pythonBin && info.token) {
     tokenValidation = await validateMetaToken(info.token)
     if (!tokenValidation.ok) {
       issues.push(tokenValidation.reason)
@@ -1453,9 +2426,12 @@ async function runFacebookAdsMcpPreflight() {
     details: {
       serverPath: info.serverPath,
       serverExists: info.serverExists,
+      helperPath: info.helperPath,
+      helperExists: info.helperExists,
       pythonBin: info.pythonBin || '',
       hasToken: Boolean(info.token),
       businessWebsite: env.BUSINESS_WEBSITE || 'noyecode.com',
+      runtimeValidation,
     },
   }
 }
@@ -1499,6 +2475,8 @@ function buildCampaignProcess(preflight, preview, creation = null, orchestrator 
     : 'Sin observaciones.'
   const created = Boolean(creation?.campaignId)
   const adsetCreated = Boolean(creation?.adsetId)
+  const adsetDeferredToUi = Boolean(creation?.adsetDeferredToUi)
+  const adsetError = String(creation?.adsetError || '').trim()
   const formsFound = Array.isArray(preview?.leadgenForms) ? preview.leadgenForms.length : 0
   const formsLoaded = Boolean(preview?.leadgenFormsLoaded)
   const selectedLeadgenFormId = String(preview?.selectedLeadgenFormId || '').trim()
@@ -1578,8 +2556,12 @@ function buildCampaignProcess(preflight, preview, creation = null, orchestrator 
       title: 'Creacion del conjunto de anuncios',
       detail: adsetCreated
         ? `Ad set borrador creado con ID ${creation.adsetId}. Presupuesto maximo ${preview.budget}. Publico base temporal: ${creation.targetingSummary}.`
+        : adsetDeferredToUi
+        ? 'Meta exigio seleccionar manualmente un objeto promocionado valido; el flujo visual en Ads Manager terminara este paso.'
+        : adsetError
+        ? `El MCP devolvio un error al crear el ad set: ${adsetError}`
         : `Se configuraria presupuesto ${preview.budget} y fechas ${preview.startDate} -> ${preview.endDate}.`,
-      status: adsetCreated ? 'success' : ready ? 'pending' : 'warning',
+      status: adsetCreated ? 'success' : adsetDeferredToUi ? 'warning' : adsetError ? 'error' : ready ? 'pending' : 'warning',
     },
     {
       id: 'leadgen-form',
@@ -1993,9 +2975,9 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
 
   const preview = {
     objective: 'Clientes potenciales',
-    url: getProjectEnv().BUSINESS_WEBSITE || 'noyecode.com',
+    url: ensureAbsoluteUrl(getProjectEnv().BUSINESS_WEBSITE || 'https://noyecode.com'),
     country: 'Colombia',
-    formFields: ['Nombre', 'Apellido', 'Correo', 'Numero de telefono'],
+    formFields: ['Nombre completo', 'Correo electronico', 'Telefono movil'],
     budget,
     startDate,
     endDate,
@@ -2042,8 +3024,6 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
     })
     await sleep(450)
 
-    await tryFacebookUiCreateCampaign(preview)
-
     emitMarketingUpdate({
       type: 'log',
       status: 'running',
@@ -2083,136 +3063,94 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
     })
     await sleep(650)
 
+    emitMarketingUpdate({
+      type: 'log',
+      line: '[UI] El brief del orquestador ya esta listo. Comenzando a llenar Facebook Ads Manager paso a paso en el navegador...',
+    })
+    await sleep(450)
+
+    await tryFacebookUiCreateCampaign(preview)
+
     if (preflight.ready) {
-      const token = getFacebookAdsMcpInfo().token
-      const pageId = orchestrator.execution.pageId
+      emitMarketingUpdate({
+        type: 'log',
+        line: `[REAL] Orquestador autoriza borrador. El MCP de Facebook Ads recibira el brief y configurara la campaña directamente para ${orchestrator.execution.accountHint}...`,
+      })
+      await sleep(650)
 
+      let creationState = null
+      let bundleError = null
       try {
-        emitMarketingUpdate({
-          type: 'log',
-          line: `[REAL] Consultando formularios Instant Form en la pagina ${pageId}...`,
-        })
-        await sleep(650)
-
-        preview.leadgenForms = await listLeadgenForms(token, pageId)
-        preview.leadgenForms = await enrichLeadgenFormsWithQuestions(token, preview.leadgenForms)
-        preview.leadgenFormsLoaded = true
-        const selectedLeadgenForm = selectBestLeadgenForm(preview.leadgenForms)
-        preview.selectedLeadgenFormId = selectedLeadgenForm.id
-        preview.selectedLeadgenFormName = selectedLeadgenForm.name
-        preview.selectedLeadgenFormReason = selectedLeadgenForm.selectionReason
-        preview.creativeDraftConfig = buildDraftCreativeConfig(preview, orchestrator)
-        preview.process = buildCampaignProcess(preflight, preview, null, orchestrator)
+        const bundleResult = await runLeadCampaignBundleViaMcp(preview, orchestrator)
+        creationState = applyMcpBundleResultToPreview(preview, orchestrator, bundleResult)
+        preview.process = buildCampaignProcess(preflight, preview, creationState, orchestrator)
 
         emitMarketingUpdate({
           type: 'log',
           line: preview.leadgenForms.length > 0
-            ? `[REAL] Formularios encontrados: ${preview.leadgenForms.map((form) => {
-              const suffix = form.requirements?.exactMatch
-                ? 'cumple nombre, apellido, correo y telefono'
-                : form.requirements?.acceptableMatch
-                  ? 'cumple con nombre completo, correo y telefono'
-                  : 'no cumple todos los campos requeridos'
-              return `${form.name} (${form.id}) - ${suffix}`
-            }).join(' | ')}`
-            : `[REAL] No se encontraron formularios para la pagina ${pageId}.`,
+            ? `[REAL] El MCP consulto ${preview.leadgenForms.length} formulario(s) Instant Form y selecciono ${preview.selectedLeadgenFormName || 'ninguno'} ${preview.selectedLeadgenFormId ? `(${preview.selectedLeadgenFormId})` : ''}.`
+            : bundleResult?.leadgen_forms_error
+              ? `[REAL] El MCP no pudo consultar formularios Instant Form: ${bundleResult.leadgen_forms_error}`
+              : `[REAL] El MCP no encontro formularios Instant Form utilizables para la pagina ${orchestrator.execution.pageId}.`
         })
         await sleep(650)
 
-        emitMarketingUpdate({
-          type: 'log',
-          line: preview.selectedLeadgenFormId
-            ? `[REAL] Formulario seleccionado automaticamente: ${preview.selectedLeadgenFormName} (${preview.selectedLeadgenFormId}). ${preview.selectedLeadgenFormReason}`
-            : `[REAL] ${preview.selectedLeadgenFormReason}`,
-        })
-        await sleep(650)
-
-        if (preview.creativeDraftConfig) {
+        if (creationState.campaignId) {
           emitMarketingUpdate({
             type: 'log',
-            line: `[REAL] Payload del creativo configurado con leadgen_form_id ${preview.creativeDraftConfig.leadgenFormId} y CTA ${preview.creativeDraftConfig.callToActionType}.`,
+            line: `[REAL] Campaign creada por el MCP. ID ${creationState.campaignId} en cuenta ${creationState.account?.name || creationState.account?.id}.`,
           })
           await sleep(650)
         }
-      } catch (formsError) {
-        preview.leadgenFormsLoaded = true
-        preview.process = buildCampaignProcess(preflight, preview, null, orchestrator)
+
+        if (creationState.adsetId) {
+          emitMarketingUpdate({
+            type: 'log',
+            line: `[REAL] Ad set creado por el MCP. ID ${creationState.adsetId}. Publico temporal ${creationState.targetingSummary}.`,
+          })
+          await sleep(650)
+        } else if (creationState.adsetDeferredToUi) {
+          emitMarketingUpdate({
+            type: 'log',
+            status: 'running',
+            line: '[REAL] El ad set se terminara por la UI de Ads Manager porque Meta requiere seleccionar manualmente un objeto promocionado valido.',
+          })
+          await sleep(650)
+        } else if (creationState.adsetError) {
+          emitMarketingUpdate({
+            type: 'log',
+            status: 'warning',
+            line: `[REAL] El MCP no pudo crear el ad set, pero la automatizacion visual seguira: ${creationState.adsetError}`,
+          })
+          await sleep(650)
+        }
+
+        if (preview.metaCreative?.creativeId) {
+          emitMarketingUpdate({
+            type: 'log',
+            line: `[REAL] Creative creado por el MCP. ID ${preview.metaCreative.creativeId}. image_hash ${preview.metaCreative.imageHash}.`,
+          })
+          await sleep(650)
+        }
+
+        if (preview.metaAd?.adId) {
+          emitMarketingUpdate({
+            type: 'log',
+            line: `[REAL] Anuncio creado por el MCP. ID ${preview.metaAd.adId} en estado PAUSED.`,
+          })
+          await sleep(650)
+        }
+      } catch (error) {
+        bundleError = error
         emitMarketingUpdate({
           type: 'log',
-          line: `[REAL] No se pudieron consultar los formularios Instant Form: ${formsError.message || formsError}`,
+          status: 'warning',
+          line: `[REAL] El MCP no completo el backend de Meta Ads, pero la automatizacion visual seguira en el navegador: ${error.message || error}`,
         })
         await sleep(650)
       }
 
-      emitMarketingUpdate({
-        type: 'log',
-        line: `[REAL] Orquestador autoriza borrador. Creando campaña real en Meta Ads como borrador (PAUSED) para ${orchestrator.execution.accountHint}...`,
-      })
-      await sleep(650)
-
-      const creation = await createDraftCampaign(preview, token, orchestrator.execution.accountHint)
-      preview.process = buildCampaignProcess(preflight, preview, creation, orchestrator)
-
-      emitMarketingUpdate({
-        type: 'log',
-        line: `[REAL] Campaña borrador creada correctamente. ID ${creation.campaignId} en cuenta ${creation.account?.name || creation.account?.id}.`,
-      })
-      await sleep(650)
-
-      emitMarketingUpdate({
-        type: 'log',
-        line: '[REAL] Creando ad set borrador con presupuesto maximo lifetime y publico temporal amplio en Colombia...',
-      })
-      await sleep(650)
-
-      const adset = await createDraftAdSet(preview, token, creation)
-      const creationState = { ...creation, ...adset }
-      preview.adDraftConfig = buildDraftAdConfig(preview, creationState)
-      preview.process = buildCampaignProcess(preflight, preview, creationState, orchestrator)
-
-      emitMarketingUpdate({
-        type: 'log',
-        line: `[REAL] Ad set borrador creado correctamente. ID ${adset.adsetId}. Publico temporal alineado al brief del ads-analyst.`,
-      })
-      await sleep(650)
-
-      if (preview.adDraftConfig) {
-        emitMarketingUpdate({
-          type: 'log',
-          line: `[REAL] Payload del anuncio preparado en estado ${preview.adDraftConfig.status} para el ad set ${preview.adDraftConfig.adsetId}.`,
-        })
-        await sleep(650)
-      }
-
-      if (preview.creativeDraftConfig) {
-        emitMarketingUpdate({
-          type: 'log',
-          line: `[REAL] Subiendo imagen ${path.basename(preview.creativeDraftConfig.imageAssetPath)} a Meta para obtener image_hash...`,
-        })
-        await sleep(650)
-
-        const metaCreative = await createAdCreativeOnMeta(preview, creationState, token)
-        preview.metaCreative = metaCreative
-        preview.process = buildCampaignProcess(preflight, preview, creationState, orchestrator)
-
-        emitMarketingUpdate({
-          type: 'log',
-          line: `[REAL] Creative creado correctamente. ID ${metaCreative.creativeId}. image_hash ${metaCreative.imageHash}.`,
-        })
-        await sleep(650)
-
-        const metaAd = await createAdOnMeta(preview, creationState, metaCreative, token)
-        preview.metaAd = metaAd
-        preview.process = buildCampaignProcess(preflight, preview, creationState, orchestrator)
-
-        emitMarketingUpdate({
-          type: 'log',
-          line: `[REAL] Anuncio creado correctamente. ID ${metaAd.adId} en estado PAUSED.`,
-        })
-        await sleep(650)
-      }
-
-      const browserOpen = await openMetaAdsManager(creation)
+      const browserOpen = await openMetaAdsManager(creationState)
       emitMarketingUpdate({
         type: 'log',
         line: browserOpen.ok
@@ -2221,12 +3159,23 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
       })
       await sleep(650)
 
+      if (browserOpen.ok) {
+        await tryFacebookUiConfigureCampaignEditor(preview)
+        await tryFacebookUiConfigureAdsetSchedule(preview)
+      }
+
       emitMarketingUpdate({
         type: 'done',
-        status: 'success',
-        summary: browserOpen.ok
-          ? 'Orquestador y subagentes dejaron listo el brief; campaña y ad set borrador creados en Meta Ads. Se abrió Ads Manager para continuar la configuración.'
-          : 'Orquestador y subagentes dejaron listo el brief; campaña y ad set borrador creados en Meta Ads, pero no se pudo abrir el navegador automáticamente.',
+        status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) ? 'warning' : 'success',
+        summary: bundleError
+          ? `La automatizacion visual continuo en Facebook Ads Manager, pero el MCP devolvio un error de backend: ${bundleError.message || bundleError}`
+          : creationState?.adsetDeferredToUi
+            ? 'La campaña se creo y el conjunto de anuncios quedo delegado a la UI de Ads Manager para seleccionar manualmente el objeto promocionado antes de continuar con el anuncio.'
+          : creationState?.adsetError
+            ? `La automatizacion visual continuo en Facebook Ads Manager, pero el MCP no pudo crear el ad set: ${creationState.adsetError}`
+          : browserOpen.ok
+            ? 'Orquestador y subagentes dejaron listo el brief; campaña y ad set borrador creados desde el MCP de Meta Ads. Se abrió Ads Manager para continuar la configuración.'
+            : 'Orquestador y subagentes dejaron listo el brief; campaña y ad set borrador creados desde el MCP de Meta Ads, pero no se pudo abrir el navegador automáticamente.',
         preview,
       })
     } else {
