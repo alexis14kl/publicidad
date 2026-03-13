@@ -1,22 +1,25 @@
 """
 Force CDP debug port on the DICloak browser profile.
 
-Cross-platform replacement for forzar_cdp_perfil_dicloak.ps1.
-
-Logic:
-1. Find main ginsbrowser process (not a --type= subprocess).
-2. Extract env_id, exe path, user-data-dir from its command line.
-3. If it already has a working debug port, save info and exit.
-4. Otherwise kill ginsbrowser, restart with --remote-debugging-port, poll until ready.
+Strategy (v2 — IPC hook injection):
+1. Connect to DiCloak's CDP on port 9333.
+2. Inject a JS hook that intercepts ipcRenderer.invoke('run-env', ...)
+   and forces canIuseCdp=true in the openParams payload.
+3. DiCloak then launches ginsbrowser WITH --remote-debugging-port automatically.
+4. Detect the dynamic debug port from ginsbrowser's command line.
 5. Save debug info to cdp_debug_info.json.
+
+This replaces the old kill-and-relaunch approach which broke in DiCloak v2.8.13+
+due to single-use --launch-key validation.
 """
 from __future__ import annotations
 
+import json
 import re
-import shutil
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -24,28 +27,173 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from cfg.platform import (
-    IS_MAC,
     IS_WINDOWS,
-    find_free_port,
     get_cdp_version,
     get_process_list,
-    is_port_in_use,
-    kill_process_by_name,
     get_browser_process_name,
-    launch_detached,
     test_cdp_port,
     upsert_cdp_debug_info,
 )
 from utils.logger import log_info, log_ok, log_warn, log_error
 
 
-def _find_main_gins_process(procs: list[dict]) -> dict | None:
-    """Find the main profile browser process.
+# ---------------------------------------------------------------------------
+# JS hook that gets injected into DiCloak's renderer process
+# ---------------------------------------------------------------------------
+CDP_HOOK_JS = r"""
+(() => {
+  if (window.__CDP_HOOK_INSTALLED__) return 'ALREADY_INSTALLED';
+  window.__CDP_HOOK_INSTALLED__ = true;
 
-    On Windows the process name is stable (`ginsbrowser.exe`), but on macOS the
-    actual `comm` name exposed by `ps` can vary even when the full command line
-    still contains the embedded ginsbrowser path and the profile arguments.
+  const { ipcRenderer } = require('electron');
+
+  const _origInvoke = ipcRenderer.invoke.bind(ipcRenderer);
+  ipcRenderer.invoke = function(channel, ...args) {
+    for (const arg of args) {
+      if (arg && typeof arg === 'object') {
+        _forceCdp(arg);
+      }
+    }
+    return _origInvoke(channel, ...args);
+  };
+
+  const _origSend = ipcRenderer.send.bind(ipcRenderer);
+  ipcRenderer.send = function(channel, ...args) {
+    for (const arg of args) {
+      if (arg && typeof arg === 'object') {
+        _forceCdp(arg);
+      }
+    }
+    return _origSend(channel, ...args);
+  };
+
+  function _forceCdp(obj) {
+    if (!obj || typeof obj !== 'object') return;
+    if ('canIuseCdp' in obj) {
+      obj.canIuseCdp = true;
+    }
+    if (obj.openParams && 'canIuseCdp' in obj.openParams) {
+      obj.openParams.canIuseCdp = true;
+    }
+    for (const v of Object.values(obj)) {
+      if (v && typeof v === 'object' && v !== obj) {
+        _forceCdp(v);
+      }
+    }
+  }
+
+  return 'HOOK_INSTALLED';
+})()
+"""
+
+
+def _cdp_evaluate(port: int, expression: str, timeout: int = 10) -> str | None:
+    """Evaluate JS in DiCloak's renderer page via CDP HTTP endpoint."""
+    try:
+        # Get the first page target
+        url = f"http://127.0.0.1:{port}/json"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            targets = json.loads(resp.read())
+
+        page_target = None
+        for t in targets:
+            if t.get("type") == "page":
+                page_target = t
+                break
+
+        if not page_target:
+            log_warn("No se encontro pagina en DiCloak CDP.")
+            return None
+
+        ws_url = page_target.get("webSocketDebuggerUrl", "")
+        if not ws_url:
+            log_warn("No se encontro webSocketDebuggerUrl en target.")
+            return None
+
+        # Use CDP HTTP endpoint for evaluation (simpler than WebSocket)
+        target_id = page_target.get("id", "")
+        eval_url = f"http://127.0.0.1:{port}/json/evaluate/{target_id}"
+
+        # Fallback: use the /json/protocol endpoint is not available,
+        # so we use websocket-based evaluation via subprocess
+        return _cdp_evaluate_via_python(port, ws_url, expression, timeout)
+
+    except Exception as e:
+        log_warn(f"Error en CDP evaluate: {e}")
+        return None
+
+
+def _cdp_evaluate_via_python(
+    port: int, ws_url: str, expression: str, timeout: int = 10,
+) -> str | None:
+    """Evaluate JS via CDP WebSocket using a small inline Python script."""
+    script = f"""
+import json, asyncio
+try:
+    import websockets
+except ImportError:
+    import subprocess, sys
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "websockets", "-q"])
+    import websockets
+
+async def run():
+    async with websockets.connect("{ws_url}", max_size=2**22) as ws:
+        msg = json.dumps({{"id": 1, "method": "Runtime.evaluate", "params": {{"expression": {json.dumps(expression)}, "returnByValue": True}}}})
+        await ws.send(msg)
+        resp = await asyncio.wait_for(ws.recv(), timeout={timeout})
+        data = json.loads(resp)
+        result = data.get("result", {{}}).get("result", {{}})
+        print(json.dumps(result))
+
+asyncio.run(run())
+"""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True, text=True, timeout=timeout + 5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            data = json.loads(result.stdout.strip())
+            return data.get("value", str(data))
+        if result.stderr:
+            log_warn(f"CDP eval stderr: {result.stderr[:200]}")
+        return None
+    except Exception as e:
+        log_warn(f"CDP eval via python fallo: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Hook injection
+# ---------------------------------------------------------------------------
+def inject_cdp_hook(dicloak_port: int = 9333) -> bool:
+    """Inject the canIuseCdp hook into DiCloak's renderer process.
+
+    Must be called BEFORE opening a profile so the hook intercepts the
+    IPC call that launches ginsbrowser.
+
+    Returns True if the hook was installed successfully.
     """
+    if not test_cdp_port(dicloak_port):
+        log_error(f"DiCloak CDP no responde en puerto {dicloak_port}.")
+        return False
+
+    log_info("Inyectando hook CDP en DiCloak...")
+    result = _cdp_evaluate(dicloak_port, CDP_HOOK_JS)
+
+    if result and "INSTALLED" in str(result).upper():
+        log_ok(f"Hook CDP inyectado: {result}")
+        return True
+
+    log_warn(f"Resultado inesperado del hook: {result}")
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Process helpers (kept from v1 for compatibility)
+# ---------------------------------------------------------------------------
+def _find_main_gins_process(procs: list[dict]) -> dict | None:
+    """Find the main profile browser process (no --type= subprocess)."""
     browser_name = get_browser_process_name().lower()
     candidates = []
     for p in procs:
@@ -53,8 +201,8 @@ def _find_main_gins_process(procs: list[dict]) -> dict | None:
         cmd = str(p.get("cmdline", ""))
         cmd_lower = cmd.lower()
 
-        matches_windows_name = name == browser_name
-        matches_mac_cmd = (
+        matches_name = name == browser_name
+        matches_cmd = (
             not IS_WINDOWS
             and (
                 "ginsbrowser" in cmd_lower
@@ -63,7 +211,7 @@ def _find_main_gins_process(procs: list[dict]) -> dict | None:
             )
         )
 
-        if not (matches_windows_name or matches_mac_cmd):
+        if not (matches_name or matches_cmd):
             continue
         if "--type=" in cmd:
             continue
@@ -72,7 +220,6 @@ def _find_main_gins_process(procs: list[dict]) -> dict | None:
     if not candidates:
         return None
 
-    # Prefer processes with --user-data-dir and longer command lines
     def _score(p: dict) -> tuple[int, int, int, int]:
         cmd = str(p.get("cmdline", ""))
         cmd_lower = cmd.lower()
@@ -91,166 +238,38 @@ def _parse_env_id(cmdline: str) -> str:
     return m.group(1) if m else ""
 
 
-def _parse_exe_path(cmdline: str) -> str:
-    m = re.match(r'^"([^"]+\.exe)"', cmdline, re.IGNORECASE)
-    if m:
-        return m.group(1)
-    m = re.match(r'^([^\s"]+\.exe)\b', cmdline, re.IGNORECASE)
-    if m:
-        return m.group(1)
-    # Mac/Linux: first token
-    m = re.match(r'^"?([^\s"]+)', cmdline)
-    if m:
-        return m.group(1)
-    return ""
+def _parse_debug_port(cmdline: str) -> int:
+    """Extract --remote-debugging-port=XXXXX from a command line."""
+    m = re.search(r"--remote-debugging-port[=\s](\d{2,5})", cmdline, re.IGNORECASE)
+    return int(m.group(1)) if m else 0
 
 
-def _parse_user_data_dir(cmdline: str) -> str:
-    m = re.search(
-        r"""--user-data-dir(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s]+))""",
-        cmdline, re.IGNORECASE,
-    )
-    if not m:
-        return ""
-    return m.group(1) or m.group(2) or m.group(3) or ""
+# ---------------------------------------------------------------------------
+# Main: detect dynamic debug port after profile is opened
+# ---------------------------------------------------------------------------
+def detect_gins_debug_port(timeout_sec: int = 60) -> int:
+    """Wait for ginsbrowser to appear and extract its dynamic debug port.
 
+    After the hook forces canIuseCdp=true, DiCloak launches ginsbrowser
+    with --remote-debugging-port=XXXXX (dynamic port). This function
+    polls the process list until it finds it.
+    """
+    deadline = time.time() + timeout_sec
 
-def _extract_mac_exe_path(cmdline: str) -> str:
-    cmd = str(cmdline or "").strip()
-    if not cmd:
-        return ""
-    if " --" in cmd:
-        return cmd.split(" --", 1)[0].strip()
-    return cmd
-
-
-def _extract_mac_flag_value(cmdline: str, flag_name: str) -> str:
-    cmd = str(cmdline or "")
-    pattern = rf"--{re.escape(flag_name)}=(.*?)(?=\s+--[A-Za-z]|\s+https?://|$)"
-    m = re.search(pattern, cmd, re.IGNORECASE)
-    return (m.group(1) if m else "").strip()
-
-
-def _extract_mac_urls(cmdline: str) -> list[str]:
-    return re.findall(r"https?://\S+", str(cmdline or ""))
-
-
-def _extract_mac_flag_tokens(cmdline: str) -> list[str]:
-    cmd = str(cmdline or "").strip()
-    if not cmd:
-        return []
-
-    pattern = re.compile(
-        r"(--[A-Za-z0-9-]+(?:=(?:(?!\s+--[A-Za-z0-9-]+(?:=|\s|$)|\s+https?://).)+)?)"
-    )
-    tokens: list[str] = []
-    for match in pattern.finditer(cmd):
-        token = str(match.group(1) or "").strip()
-        if token:
-            tokens.append(token)
-    return tokens
-
-
-def _build_mac_launch_args(cmdline: str, debug_port: int) -> list[str]:
-    args: list[str] = []
-    seen: set[str] = set()
-    for token in _extract_mac_flag_tokens(cmdline):
-        normalized = token.lower()
-        if normalized.startswith("--remote-debugging-port"):
-            continue
-        if token in seen:
-            continue
-        args.append(token)
-        seen.add(token)
-
-    user_data_dir = _extract_mac_flag_value(cmdline, "user-data-dir")
-    if user_data_dir:
-        candidate = f"--user-data-dir={user_data_dir}"
-        if candidate not in seen:
-            args.append(candidate)
-            seen.add(candidate)
-
-    args.extend(url for url in _extract_mac_urls(cmdline) if url not in seen)
-    args.append(f"--remote-debugging-port={debug_port}")
-    return args
-
-
-def _derive_mac_app_bundle(exe_path: str) -> str:
-    path = Path(str(exe_path or "").strip())
-    if not path:
-        return ""
-    for parent in [path, *path.parents]:
-        if parent.suffix.lower() == ".app":
-            return str(parent)
-    return ""
-
-
-def _resolve_mac_launch_exe(proc: dict, cmdline: str) -> str:
-    proc_exe = str(proc.get("exe", "") or "").strip()
-    parsed_exe = _extract_mac_exe_path(cmdline)
-    candidates = [parsed_exe, proc_exe]
-
-    for candidate in candidates:
-        if not candidate:
-            continue
-        if "/" in candidate or candidate.startswith("."):
-            return candidate
-        candidate_path = shutil.which(candidate)
-        if candidate_path:
-            return candidate_path
-
-    for candidate in candidates:
-        if candidate:
-            return candidate
-    return ""
-
-
-def _launch_mac_profile(cmdline: str, exe_path: str, debug_port: int) -> None:
-    args = _build_mac_launch_args(cmdline, debug_port)
-    if not exe_path or not args:
-        raise RuntimeError("MAC_LAUNCH_COMMAND_NOT_RESOLVED")
-
-    launch_errors: list[str] = []
-    app_bundle = _derive_mac_app_bundle(exe_path)
-    launch_attempts: list[tuple[str, list[str]]] = []
-    if app_bundle:
-        launch_attempts.append(("open-app", ["open", "-na", app_bundle, "--args", *args]))
-    launch_attempts.append(("direct-bin", [exe_path, *args]))
-
-    for mode, launch_cmd in launch_attempts:
-        try:
-            subprocess.Popen(
-                launch_cmd,
-                start_new_session=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            log_info(f"Relanzamiento macOS ejecutado via {mode}.")
-            return
-        except Exception as e:
-            launch_errors.append(f"{mode}: {e}")
-
-    raise RuntimeError("MAC_LAUNCH_FAILED " + " | ".join(launch_errors))
-
-
-def _stop_browser_for_restart() -> None:
-    browser_name = get_browser_process_name()
-    if not IS_MAC:
-        kill_process_by_name(browser_name, force=True)
-        time.sleep(3)
-        return
-
-    # En macOS cerrar Chromium con SIGKILL deja bloqueos del perfil con mas frecuencia.
-    kill_process_by_name(browser_name, force=False)
-    deadline = time.time() + 8
     while time.time() < deadline:
-        if not _find_main_gins_process(get_process_list()):
-            time.sleep(1.2)
-            return
-        time.sleep(0.4)
+        procs = get_process_list()
+        main = _find_main_gins_process(procs)
+        if main:
+            cmd = main.get("cmdline", "")
+            port = _parse_debug_port(cmd)
+            if port and test_cdp_port(port):
+                return port
+            # Port found in cmdline but not yet responding
+            if port:
+                log_info(f"Puerto {port} encontrado en cmdline, esperando CDP...")
+        time.sleep(1)
 
-    kill_process_by_name(browser_name, force=True)
-    time.sleep(3)
+    return 0
 
 
 def force_cdp(
@@ -258,168 +277,76 @@ def force_cdp(
     preferred_port: int = 9225,
     timeout_sec: int = 60,
     serial_number: str = "41",
+    dicloak_port: int = 9333,
 ) -> dict[str, str]:
     """
-    Force CDP debug port. Returns a dict with keys like DEBUG_PORT, DEBUG_WS, etc.
+    Force CDP debug port on the ginsbrowser profile.
+
+    New strategy (v2):
+    1. If ginsbrowser already has a working debug port, use it.
+    2. Otherwise, inject hook + wait for dynamic port.
+
+    Returns a dict with DEBUG_PORT, DEBUG_WS, etc.
     Raises RuntimeError on failure.
     """
+    # --- Check if ginsbrowser is already running with CDP ---
     procs = get_process_list()
     main = _find_main_gins_process(procs)
-    if not main:
-        raise RuntimeError("NO_MAIN_GINS_PROCESS")
 
-    cmd = main.get("cmdline", "")
-    env_from_cmd = _parse_env_id(cmd)
-    if not env_id:
-        env_id = env_from_cmd
-    exe_path = _parse_exe_path(cmd)
-    user_data_dir = _parse_user_data_dir(cmd)
-
-    # Check if it already has a working debug port
-    debug_match = re.search(r"--remote-debugging-port(?:=|\s+)(\d{2,5})", cmd, re.IGNORECASE)
-    if debug_match:
-        existing_port = int(debug_match.group(1))
-        if test_cdp_port(existing_port):
+    if main:
+        cmd = main.get("cmdline", "")
+        existing_port = _parse_debug_port(cmd)
+        if existing_port and test_cdp_port(existing_port):
+            env_from_cmd = _parse_env_id(cmd)
+            if not env_id:
+                env_id = env_from_cmd
             ver = get_cdp_version(existing_port)
             ws_url = ver.get("webSocketDebuggerUrl", "") if ver else ""
             path_out = upsert_cdp_debug_info(
                 env_id=env_id, port=existing_port,
                 ws_url=ws_url, pid=main["pid"], serial=serial_number,
             )
-            if existing_port != preferred_port:
-                log_info(
-                    f"Puerto CDP existente detectado en {existing_port}. "
-                    "Se reutilizara sin reiniciar el perfil."
-                )
-            else:
-                log_ok(f"Puerto existente detectado: {existing_port}")
+            log_ok(f"CDP ya activo en ginsbrowser: puerto {existing_port}")
             return {
                 "DEBUG_PORT": str(existing_port),
+                "DEBUG_WS": ws_url,
+                "PID": str(main["pid"]),
+                "ENV_ID": env_id or "unknown",
                 "CDP_JSON_PATH": str(path_out),
             }
 
-    # Need to restart with debug port
-    target_port = preferred_port
-    if is_port_in_use(preferred_port) and not test_cdp_port(preferred_port):
-        fallback_port = find_free_port(start=preferred_port + 1, span=119)
-        log_warn(
-            f"El puerto preferido {preferred_port} esta ocupado por otro proceso. "
-            f"Se usara temporalmente {fallback_port}."
+    # --- ginsbrowser no tiene CDP. Esperar a que aparezca con puerto dinamico ---
+    log_info("Esperando que ginsbrowser inicie con puerto CDP dinamico...")
+    port = detect_gins_debug_port(timeout_sec=timeout_sec)
+
+    if not port:
+        raise RuntimeError(
+            "NO_DEBUG_PORT_DETECTED: ginsbrowser no inicio con "
+            "--remote-debugging-port. Verifica que el hook CDP este inyectado."
         )
-        target_port = fallback_port
 
-    log_info(f"Reiniciando ginsbrowser con --remote-debugging-port={target_port}")
+    # Get process info
+    procs = get_process_list()
+    main = _find_main_gins_process(procs)
+    pid = main["pid"] if main else 0
+    cmd = main.get("cmdline", "") if main else ""
+    if not env_id:
+        env_id = _parse_env_id(cmd)
 
-    # Kill current ginsbrowser
-    _stop_browser_for_restart()
-
-    # Build new command
-    base_cmd = cmd
-    if re.search(r"--remote-debugging-port(?:=|\s+)\d+", base_cmd, re.IGNORECASE):
-        base_cmd = re.sub(
-            r"--remote-debugging-port(?:=|\s+)\d+",
-            f"--remote-debugging-port={target_port}",
-            base_cmd, flags=re.IGNORECASE,
-        )
-    else:
-        base_cmd = f"{base_cmd} --remote-debugging-port={target_port}"
-
-    # Launch detached. macOS prefers reopening the .app bundle when available
-    # because direct execution of the embedded binary can die before exposing CDP.
-    if IS_WINDOWS:
-        launch_detached(base_cmd)
-    else:
-        launch_exe = _resolve_mac_launch_exe(main, cmd)
-        _launch_mac_profile(cmd, launch_exe, target_port)
-
-    # Verify ginsbrowser actually started (wait up to 8s)
-    browser_up = False
-    for _ in range(16):
-        time.sleep(0.5)
-        new_procs = get_process_list()
-        new_main = _find_main_gins_process(new_procs)
-        if new_main:
-            browser_up = True
-            break
-
-    if not browser_up:
-        log_warn("El primer intento de relanzamiento no levanto ginsbrowser. Reintentando...")
-        try:
-            if IS_WINDOWS:
-                exe_path_parsed = _parse_exe_path(base_cmd)
-                if exe_path_parsed:
-                    args_str = base_cmd
-                    if args_str.startswith('"'):
-                        close_idx = args_str.index('"', 1)
-                        args_str = args_str[close_idx + 1:].strip()
-                    elif exe_path_parsed in args_str:
-                        args_str = args_str[len(exe_path_parsed):].strip()
-                    flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-                    subprocess.Popen(
-                        f'"{exe_path_parsed}" {args_str}',
-                        shell=True,
-                        creationflags=flags,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-            else:
-                launch_exe = _resolve_mac_launch_exe(main, cmd)
-                _launch_mac_profile(cmd, launch_exe, target_port)
-            time.sleep(3)
-        except Exception as e:
-            log_warn(f"Fallback Popen tambien fallo: {e}")
-
-    # Poll for CDP
-    deadline = time.time() + timeout_sec
-    ok = False
-    while time.time() < deadline:
-        if test_cdp_port(target_port):
-            ok = True
-            break
-        time.sleep(0.6)
-
-    if not ok:
-        raise RuntimeError(f"DEBUG_PORT_NOT_READY PORT={target_port}")
-
-    ver = get_cdp_version(target_port)
+    ver = get_cdp_version(port)
     ws_url = ver.get("webSocketDebuggerUrl", "") if ver else ""
 
-    # Get new PID
-    new_procs = get_process_list()
-    new_main = _find_main_gins_process(new_procs)
-    new_pid = new_main["pid"] if new_main else 0
-
     path_out = upsert_cdp_debug_info(
-        env_id=env_id, port=target_port,
-        ws_url=ws_url, pid=new_pid, serial=serial_number,
+        env_id=env_id, port=port,
+        ws_url=ws_url, pid=pid, serial=serial_number,
     )
 
-    # Minimizar ginsbrowser despues del relanzamiento con depuracion
-    time.sleep(3)
-    try:
-        import pygetwindow as gw
-        import psutil
-        # Obtener PIDs de ginsbrowser para identificar sus ventanas
-        gins_pids = set()
-        for proc in psutil.process_iter(["name", "pid"]):
-            name = (proc.info["name"] or "").lower()
-            if "ginsbrowser" in name or "dicloak" in name:
-                gins_pids.add(proc.info["pid"])
-        for w in gw.getAllWindows():
-            title = w.title.lower()
-            if ("ginsbrowser" in title or "dicloak" in title
-                    or "chatgpt" in title or "127.0.0.1" in title):
-                if not w.isMinimized:
-                    w.minimize()
-    except Exception:
-        pass
-
-    log_ok(f"CDP forzado en puerto {target_port}")
+    log_ok(f"CDP forzado via hook en puerto {port}")
     return {
-        "DEBUG_PORT": str(target_port),
+        "DEBUG_PORT": str(port),
         "DEBUG_WS": ws_url,
-        "PID": str(new_pid),
-        "ENV_ID": env_id,
+        "PID": str(pid),
+        "ENV_ID": env_id or "unknown",
         "CDP_JSON_PATH": str(path_out),
     }
 
@@ -431,7 +358,14 @@ def main() -> int:
     parser.add_argument("--preferred-port", type=int, default=9225)
     parser.add_argument("--timeout", type=int, default=60)
     parser.add_argument("--serial", default="41")
+    parser.add_argument("--dicloak-port", type=int, default=9333)
+    parser.add_argument("--inject-only", action="store_true",
+                        help="Solo inyectar hook sin esperar ginsbrowser")
     args = parser.parse_args()
+
+    if args.inject_only:
+        ok = inject_cdp_hook(dicloak_port=args.dicloak_port)
+        return 0 if ok else 1
 
     try:
         result = force_cdp(
@@ -439,6 +373,7 @@ def main() -> int:
             preferred_port=args.preferred_port,
             timeout_sec=args.timeout,
             serial_number=args.serial,
+            dicloak_port=args.dicloak_port,
         )
         for k, v in result.items():
             print(f"{k}={v}")

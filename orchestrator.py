@@ -336,13 +336,25 @@ def run_orchestrator(
         log_step("4/10", "CDP ya confirmado en 9333.")
 
     # -----------------------------------------------------------------------
-    # Step 5/10: Verify Node.js
+    # Step 5/10: Inject CDP hook into DiCloak
     # -----------------------------------------------------------------------
-    log_step("5/10", "Verificando Node.js...")
-    node_bin = _find_node_bin()
-    if not node_bin:
-        log_error("Node.js no esta disponible (PATH incompleto o no instalado).")
-        log_info(f"Instala Node o ejecuta manualmente: /usr/local/bin/node {SCRIPT_PATH} {profile_name} {cdp_url}")
+    log_step("5/10", "Inyectando hook CDP en DiCloak (canIuseCdp=true)...")
+    try:
+        from cdp.force_cdp import inject_cdp_hook
+        if inject_cdp_hook(dicloak_port=9333):
+            log_ok("Hook CDP inyectado. ginsbrowser se abrira con debug port.")
+        else:
+            log_warn("No se pudo inyectar hook CDP. Se continuara sin el.")
+    except Exception as e:
+        log_warn(f"Error inyectando hook CDP: {e}. Se continuara sin el.")
+
+    # -----------------------------------------------------------------------
+    # Step 5.5/10: Verify Node.js
+    # -----------------------------------------------------------------------
+    log_step("5.5/10", "Verificando Node.js...")
+    if not shutil.which("node"):
+        log_error("Node.js no esta disponible en PATH.")
+        log_info(f"Instala Node o ejecuta manualmente: node {SCRIPT_PATH} {profile_name} {cdp_url}")
         return 1
 
     # -----------------------------------------------------------------------

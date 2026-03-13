@@ -3,6 +3,7 @@
 Solo pega el logo con transparencia limpia encima de la imagen.
 No modifica el fondo, no pinta, no aplica blur ni efectos.
 """
+from __future__ import annotations
 
 import sys
 from pathlib import Path
