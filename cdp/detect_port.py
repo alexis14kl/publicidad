@@ -4,12 +4,14 @@ Detect the real debug port of the DICloak browser profile.
 Cross-platform replacement for obtener_puerto_perfil_cdp.ps1.
 
 Strategy:
-1. Read cdp_debug_info.json and test each port.
-2. Fallback: scan ginsbrowser listening ports and test for CDP.
-3. Poll until found or timeout.
+1. Parse ginsbrowser cmdline for --remote-debugging-port (dynamic port from hook).
+2. Read cdp_debug_info.json and test each port.
+3. Fallback: scan ginsbrowser listening ports and test for CDP.
+4. Poll until found or timeout.
 """
 from __future__ import annotations
 
+import re
 import sys
 import time
 from pathlib import Path
@@ -151,6 +153,25 @@ def _scan_ports_unix(pids: set[int]) -> int | None:
     return None
 
 
+def _get_port_from_cmdline() -> int | None:
+    """Parse ginsbrowser's command line for --remote-debugging-port (dynamic port)."""
+    browser_name = get_browser_process_name().lower()
+    procs = get_process_list()
+    for p in procs:
+        name = str(p.get("name", "")).lower()
+        cmd = str(p.get("cmdline", ""))
+        if name != browser_name:
+            continue
+        if "--type=" in cmd:
+            continue
+        m = re.search(r"--remote-debugging-port[=\s](\d{2,5})", cmd, re.IGNORECASE)
+        if m:
+            port = int(m.group(1))
+            if port and test_cdp_port(port):
+                return port
+    return None
+
+
 def detect_debug_port(
     env_id: str = "",
     timeout_sec: int = 120,
@@ -167,7 +188,13 @@ def detect_debug_port(
             log_info("Puerto detectado desde preferencia canonica: 9225")
             return 9225
 
-        # Try JSON first
+        # Try dynamic port from ginsbrowser cmdline (hook-injected)
+        port = _get_port_from_cmdline()
+        if port:
+            log_info(f"Puerto detectado desde cmdline ginsbrowser: {port}")
+            return port
+
+        # Try JSON
         port = _get_port_from_json(env_id)
         if port:
             log_info(f"Puerto detectado desde JSON: {port}")
