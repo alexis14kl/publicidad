@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const http = require('http')
@@ -3937,6 +3937,63 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+// ---------------------------------------------------------------------------
+// Logo management
+// ---------------------------------------------------------------------------
+const LOGOS_DIR = path.join(PROJECT_ROOT, 'utils', 'logos')
+const ACTIVE_LOGO = path.join(PROJECT_ROOT, 'utils', 'logoapporange.png')
+
+function ensureLogosDir() {
+  if (!fs.existsSync(LOGOS_DIR)) fs.mkdirSync(LOGOS_DIR, { recursive: true })
+}
+
+ipcMain.handle('get-logo-path', async () => {
+  if (!fs.existsSync(ACTIVE_LOGO)) return null
+  return `file://${ACTIVE_LOGO.replace(/\\/g, '/')}?t=${Date.now()}`
+})
+
+ipcMain.handle('change-logo', async () => {
+  const result = await dialog.showOpenDialog({
+    title: 'Seleccionar logo',
+    filters: [{ name: 'Imagenes', extensions: ['png', 'jpg', 'jpeg', 'svg', 'webp'] }],
+    properties: ['openFile'],
+  })
+  if (result.canceled || !result.filePaths.length) return { success: false, canceled: true }
+
+  const src = result.filePaths[0]
+  const ext = path.extname(src).toLowerCase()
+  const stamp = new Date().toISOString().replace(/[:\-T]/g, '').slice(0, 14)
+  const historyName = `logo_${stamp}${ext}`
+
+  ensureLogosDir()
+  fs.copyFileSync(src, path.join(LOGOS_DIR, historyName))
+  fs.copyFileSync(src, ACTIVE_LOGO)
+
+  const logoUrl = `file://${ACTIVE_LOGO.replace(/\\/g, '/')}?t=${Date.now()}`
+  return { success: true, logoUrl, historyName }
+})
+
+ipcMain.handle('list-logos', async () => {
+  ensureLogosDir()
+  const validExt = new Set(['.png', '.jpg', '.jpeg', '.svg', '.webp'])
+  const files = fs.readdirSync(LOGOS_DIR)
+    .filter(f => validExt.has(path.extname(f).toLowerCase()))
+    .sort()
+    .reverse()
+  return files.map(f => ({
+    filename: f,
+    url: `file://${path.join(LOGOS_DIR, f).replace(/\\/g, '/')}?t=${Date.now()}`,
+  }))
+})
+
+ipcMain.handle('set-active-logo', async (_event, filename) => {
+  const src = path.join(LOGOS_DIR, filename)
+  if (!fs.existsSync(src)) return { success: false, error: 'Archivo no encontrado' }
+  fs.copyFileSync(src, ACTIVE_LOGO)
+  const logoUrl = `file://${ACTIVE_LOGO.replace(/\\/g, '/')}?t=${Date.now()}`
+  return { success: true, logoUrl }
 })
 
 app.on('window-all-closed', () => {

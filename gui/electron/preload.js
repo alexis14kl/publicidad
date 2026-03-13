@@ -16,6 +16,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveCompanyRecord: (payload) => ipcRenderer.invoke('save-company-record', payload),
   resetBotState: () => ipcRenderer.invoke('reset-bot-state'),
   runPreflight: (force) => ipcRenderer.invoke('run-preflight', force),
+  changeLogo: () => ipcRenderer.invoke('change-logo'),
+  getLogoPath: () => ipcRenderer.invoke('get-logo-path'),
+  listLogos: () => ipcRenderer.invoke('list-logos'),
+  setActiveLogo: (filename) => ipcRenderer.invoke('set-active-logo', filename),
   onLogNewLines: (callback) => {
     const handler = (_event, lines) => callback(lines)
     ipcRenderer.on('log-new-lines', handler)

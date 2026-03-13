@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getEnvConfig, saveEnvConfig, resetBotState } from '../lib/commands'
+import { getEnvConfig, saveEnvConfig, resetBotState, changeLogo, getLogoPath, listLogos, setActiveLogo } from '../lib/commands'
+import logoFallback from '../assets/logoapporange.png'
 
 interface SettingsPageProps {
   onBack?: () => void
@@ -93,6 +94,9 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
   const [showPasswords, setShowPasswords] = useState(false)
   const [resetting, setResetting] = useState(false)
   const [resetResult, setResetResult] = useState<string | null>(null)
+  const [logoUrl, setLogoUrl] = useState<string>(logoFallback)
+  const [logoHistory, setLogoHistory] = useState<{ filename: string; url: string }[]>([])
+  const [showLogoGallery, setShowLogoGallery] = useState(false)
 
   useEffect(() => {
     getEnvConfig().then((config) => {
@@ -100,7 +104,33 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
       setOriginal(config)
       setLoading(false)
     })
+    getLogoPath().then((p) => { if (p) setLogoUrl(p) })
   }, [])
+
+  const loadLogoHistory = async () => {
+    const logos = await listLogos()
+    setLogoHistory(logos)
+  }
+
+  const handleChangeLogo = async () => {
+    const result = await changeLogo()
+    if (result.success && result.logoUrl) {
+      setLogoUrl(result.logoUrl)
+      loadLogoHistory()
+    }
+  }
+
+  const handleSelectLogo = async (filename: string) => {
+    const result = await setActiveLogo(filename)
+    if (result.success && result.logoUrl) {
+      setLogoUrl(result.logoUrl)
+    }
+  }
+
+  const handleToggleGallery = () => {
+    if (!showLogoGallery) loadLogoHistory()
+    setShowLogoGallery(!showLogoGallery)
+  }
 
   const hasChanges = JSON.stringify(values) !== JSON.stringify(original)
 
@@ -153,6 +183,51 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 
   return (
     <div className="settings-page">
+      <div className="settings-brand">
+        <div className="settings-brand-logo-wrapper" onClick={handleChangeLogo} title="Click para cambiar logo">
+          <img src={logoUrl} alt="NoyeCode" className="settings-brand-logo" />
+          <span className="settings-brand-logo-overlay">Cambiar</span>
+        </div>
+        <div className="settings-brand-text">
+          <span className="settings-brand-name">NoyeCode</span>
+          <span className="settings-brand-tagline">Bot Publicitario</span>
+        </div>
+        <div className="settings-brand-actions">
+          <button className="btn btn--ghost btn--small" onClick={handleChangeLogo}>
+            Subir logo
+          </button>
+          <button className="btn btn--ghost btn--small" onClick={handleToggleGallery}>
+            {showLogoGallery ? 'Cerrar galeria' : 'Logos anteriores'}
+          </button>
+        </div>
+      </div>
+
+      {showLogoGallery && (
+        <div className="settings-logo-gallery glass-card">
+          <div className="card-header">
+            <span className="card-icon">&#128444;</span>
+            <span className="card-title">Galeria de Logos</span>
+            <span className="settings-logo-gallery-count">{logoHistory.length} logos</span>
+          </div>
+          <div className="settings-logo-gallery-grid">
+            {logoHistory.map((logo) => (
+              <div
+                key={logo.filename}
+                className="settings-logo-gallery-item"
+                onClick={() => handleSelectLogo(logo.filename)}
+                title={logo.filename}
+              >
+                <img src={logo.url} alt={logo.filename} />
+                <span className="settings-logo-gallery-name">{logo.filename}</span>
+              </div>
+            ))}
+            {logoHistory.length === 0 && (
+              <p className="no-data">No hay logos guardados aun.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="settings-header">
         <div className="settings-header-left">
           {onBack && (
