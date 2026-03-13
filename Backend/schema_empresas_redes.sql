@@ -1,7 +1,6 @@
 CREATE TABLE IF NOT EXISTS empresas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre TEXT NOT NULL,
-    token TEXT NOT NULL,
     logo TEXT,
     telefono TEXT,
     correo TEXT,
