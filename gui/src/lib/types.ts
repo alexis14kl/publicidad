@@ -20,6 +20,11 @@ export interface CommandResult {
   pid?: number
 }
 
+export interface StartBotPayload {
+  profileName?: string
+  imagePrompt?: string
+}
+
 export interface MarketingCampaignPayload {
   budget: string
   startDate: string
@@ -185,7 +190,7 @@ export interface PreflightResult {
 export interface ElectronAPI {
   getBotStatus: () => Promise<BotStatus>
   getLastJob: () => Promise<LastJob | null>
-  startBot: (profileName?: string) => Promise<CommandResult>
+  startBot: (payload?: StartBotPayload) => Promise<CommandResult>
   stopBot: () => Promise<CommandResult>
   startPoller: () => Promise<CommandResult>
   stopPoller: () => Promise<CommandResult>

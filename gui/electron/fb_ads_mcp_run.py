@@ -224,13 +224,14 @@ def load_server_module(server_path: str):
 def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     source = dict(payload or {})
     rules: List[Dict[str, str]] = []
-    total_steps = 15
+    total_steps = 17
 
     runner_context = _dict(source.get("runner_context"))
     preview_context = _dict(runner_context.get("preview"))
     execution_context = _dict(runner_context.get("execution"))
     segment_context = _dict(runner_context.get("segment"))
     agents_context = _dict(runner_context.get("agents"))
+    ui_flow_context = _dict(runner_context.get("uiFlow"))
     ads_analyst = _dict(agents_context.get("adsAnalyst"))
     marketing = _dict(agents_context.get("marketing"))
 
@@ -320,13 +321,18 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     segment_label = _string(segment_context.get("shortLabel"))
 
     campaign_name, campaign_name_source, campaign_name_fallback = _resolve_string(
-        [("campaign.name", campaign.get("name"))],
+        [
+            ("campaign.name", campaign.get("name")),
+            ("runner_context.uiFlow.campaignName", ui_flow_context.get("campaignName")),
+            ("runner_context.execution.campaignName", execution_context.get("campaignName")),
+        ],
         _build_named_fallback("Lead Gen", segment_label, preview_start, preview_end, preview_budget) or "Lead Gen Draft",
         "runner.default.campaign_name",
     )
     ui_objective_label, ui_objective_source, ui_objective_fallback = _resolve_string(
         [
             ("campaign.ui_objective_label", campaign.get("ui_objective_label")),
+            ("runner_context.uiFlow.campaignObjectiveLabel", ui_flow_context.get("campaignObjectiveLabel")),
             ("runner_context.execution.objectiveUiLabel", execution_context.get("objectiveUiLabel")),
         ],
         "Clientes potenciales",
@@ -365,9 +371,40 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     )
 
     adset_name, adset_name_source, adset_name_fallback = _resolve_string(
-        [("adset.name", adset.get("name"))],
+        [
+            ("adset.name", adset.get("name")),
+            ("runner_context.uiFlow.adsetName", ui_flow_context.get("adsetName")),
+            ("runner_context.execution.adsetName", execution_context.get("adsetName")),
+        ],
         _build_named_fallback("Ad Set", segment_label, preview_start, preview_end) or "Ad Set Borrador",
         "runner.default.adset_name",
+    )
+    ui_budget_mode, ui_budget_mode_source, ui_budget_mode_fallback = _resolve_string(
+        [
+            ("adset.ui_budget_mode_label", adset.get("ui_budget_mode_label")),
+            ("runner_context.uiFlow.budgetModeLabel", ui_flow_context.get("budgetModeLabel")),
+            ("runner_context.execution.budgetModeUiLabel", execution_context.get("budgetModeUiLabel")),
+        ],
+        "Presupuesto total",
+        "runner.default.ui_budget_mode_label",
+    )
+    ui_conversion_location, ui_conversion_source, ui_conversion_fallback = _resolve_string(
+        [
+            ("adset.ui_conversion_location_label", adset.get("ui_conversion_location_label")),
+            ("runner_context.uiFlow.conversionLocationLabel", ui_flow_context.get("conversionLocationLabel")),
+            ("runner_context.execution.conversionLocationUiLabel", execution_context.get("conversionLocationUiLabel")),
+        ],
+        "Formularios instantáneos",
+        "runner.default.ui_conversion_location_label",
+    )
+    ui_performance_goal, ui_performance_goal_source, ui_performance_goal_fallback = _resolve_string(
+        [
+            ("adset.ui_performance_goal_label", adset.get("ui_performance_goal_label")),
+            ("runner_context.uiFlow.performanceGoalLabel", ui_flow_context.get("performanceGoalLabel")),
+            ("runner_context.execution.performanceGoalUiLabel", execution_context.get("performanceGoalUiLabel")),
+        ],
+        "Maximizar el número de clientes potenciales",
+        "runner.default.ui_performance_goal_label",
     )
     targeting, targeting_source, targeting_fallback = _resolve_targeting(_dict(adset.get("targeting")), segment_context)
     normalized["adset"] = {
@@ -381,6 +418,9 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
         "start_time": _string(adset.get("start_time")),
         "end_time": _string(adset.get("end_time")),
         "targeting": targeting,
+        "ui_budget_mode_label": ui_budget_mode,
+        "ui_conversion_location_label": ui_conversion_location,
+        "ui_performance_goal_label": ui_performance_goal,
     }
     _emit_rule(
         progress,
@@ -404,6 +444,21 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
         "adset.targeting",
         f"Aplicando targeting base desde {targeting_source}{' (fallback)' if targeting_fallback else ''}: {_targeting_summary(targeting)}.",
     )
+    _emit_rule(
+        progress,
+        rules,
+        7,
+        total_steps,
+        "adset.ui_flow",
+        (
+            f"UI del ad set: budget_mode='{ui_budget_mode}' desde {ui_budget_mode_source}"
+            f"{' (fallback)' if ui_budget_mode_fallback else ''}, "
+            f"conversion_location='{ui_conversion_location}' desde {ui_conversion_source}"
+            f"{' (fallback)' if ui_conversion_fallback else ''}, "
+            f"performance_goal='{ui_performance_goal}' desde {ui_performance_goal_source}"
+            f"{' (fallback)' if ui_performance_goal_fallback else ''}."
+        ),
+    )
 
     promoted_object = _dict(adset.get("promoted_object"))
     if not promoted_object and page_id:
@@ -413,7 +468,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     _emit_rule(
         progress,
         rules,
-        7,
+        8,
         total_steps,
         "adset.promoted_object",
         f"Usando promoted_object={json.dumps(promoted_object, ensure_ascii=False)}." if promoted_object else "Sin promoted_object; si Meta lo exige, el flujo visual completara ese paso.",
@@ -422,6 +477,8 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     required_fields, required_fields_source, required_fields_fallback = _resolve_string_list(
         [
             ("lead_form.required_fields", lead_form.get("required_fields")),
+            ("runner_context.uiFlow.leadFormRequiredKeys", ui_flow_context.get("leadFormRequiredKeys")),
+            ("runner_context.execution.leadFormRequiredKeys", execution_context.get("leadFormRequiredKeys")),
             ("runner_context.execution.formFields", execution_context.get("formFields")),
             ("runner_context.preview.formFields", preview_context.get("formFields")),
         ],
@@ -457,7 +514,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     _emit_rule(
         progress,
         rules,
-        8,
+        9,
         total_steps,
         "lead_form",
         (
@@ -472,7 +529,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     _emit_rule(
         progress,
         rules,
-        9,
+        10,
         total_steps,
         "lead_form.required_fields",
         (
@@ -549,7 +606,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     _emit_rule(
         progress,
         rules,
-        10,
+        11,
         total_steps,
         "creative.headline",
         (
@@ -560,7 +617,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     _emit_rule(
         progress,
         rules,
-        11,
+        12,
         total_steps,
         "creative.message",
         f"message='{_truncate(message)}' desde {message_source}{' (fallback)' if message_fallback else ''}.",
@@ -568,7 +625,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     _emit_rule(
         progress,
         rules,
-        12,
+        13,
         total_steps,
         "creative.detail",
         (
@@ -584,7 +641,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     _emit_rule(
         progress,
         rules,
-        13,
+        14,
         total_steps,
         "creative.asset",
         f"Usando image_path='{image_path}'." if image_path else "Sin image_path; el servidor omitira creative/ad si no hay imagen.",
@@ -602,7 +659,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     _emit_rule(
         progress,
         rules,
-        14,
+        15,
         total_steps,
         "ad",
         f"name='{normalized['ad']['name']}' desde {ad_name_source}{' (fallback)' if ad_name_fallback else ''}, status='{normalized['ad']['status']}'.",
@@ -610,7 +667,18 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     _emit_rule(
         progress,
         rules,
-        15,
+        16,
+        total_steps,
+        "ui_flow.summary",
+        (
+            "Regla operativa de UI: modal='Clientes potenciales', editor de campaña con "
+            f"'{ui_budget_mode}', ad set con '{ui_conversion_location}', formulario con {required_fields}."
+        ),
+    )
+    _emit_rule(
+        progress,
+        rules,
+        17,
         total_steps,
         "runner.summary",
         "Payload normalizado con reglas de fuente/fallback; el siguiente paso es ejecutar create_lead_campaign_bundle en el servidor MCP.",
@@ -629,6 +697,9 @@ def build_runner_summary(spec: Dict[str, Any]) -> Dict[str, Any]:
         "campaign_name": _string(_dict(spec.get("campaign")).get("name")),
         "campaign_ui_objective_label": _string(_dict(spec.get("campaign")).get("ui_objective_label")),
         "adset_name": _string(adset.get("name")),
+        "adset_ui_budget_mode": _string(adset.get("ui_budget_mode_label")),
+        "adset_ui_conversion_location": _string(adset.get("ui_conversion_location_label")),
+        "adset_ui_performance_goal": _string(adset.get("ui_performance_goal_label")),
         "targeting_summary": _targeting_summary(_dict(adset.get("targeting"))),
         "lead_form_id": _string(lead_form.get("form_id")),
         "lead_form_name": _string(lead_form.get("name")),

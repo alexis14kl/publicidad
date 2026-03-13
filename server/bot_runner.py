@@ -152,9 +152,12 @@ def get_status() -> dict[str, Any]:
 def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResult:
     payload = payload or {}
     profile_name = str(payload.get("profile_name", "")).strip()
+    image_prompt = str(payload.get("image_prompt", "")).strip()
 
     env = os.environ.copy()
     env["NO_PAUSE"] = "1"
+    if image_prompt:
+        env["BOT_CUSTOM_IMAGE_PROMPT"] = image_prompt
     # Cargar variables del .env para que lleguen al proceso (DEV_MODE, etc.)
     if ENV_FILE.exists():
         for key, value in dotenv_values(ENV_FILE).items():
@@ -234,7 +237,7 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
         finished_at=finished_at,
         stdout=collected_stdout[-5000:] if collected_stdout else "",
         stderr=collected_stderr[-5000:] if collected_stderr else "",
-        metadata={"profile_name": profile_name},
+        metadata={"profile_name": profile_name, "image_prompt": image_prompt},
     )
 
 

@@ -202,6 +202,14 @@ function formatGuiDateForLong(value) {
   })
 }
 
+function getDefaultLeadFormFieldLabels() {
+  return ['Nombre completo', 'Correo electronico', 'Telefono movil']
+}
+
+function getDefaultLeadFormRequiredKeys() {
+  return ['full_name', 'email', 'phone_number']
+}
+
 function getChromeExecutablePath() {
   const candidates = [
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -582,6 +590,65 @@ function resolveCampaignObjectiveRule(preview, orchestrator = null) {
   }
 }
 
+function buildDraftCampaignName(preview, orchestrator = null) {
+  const explicitName = String(
+    orchestrator?.execution?.campaignName ||
+    orchestrator?.adsAnalyst?.campaignName ||
+    ''
+  ).trim()
+  if (explicitName) {
+    return explicitName
+  }
+
+  const segmentLabel = orchestrator?.execution?.segment?.shortLabel || getDefaultMarketingSegment().shortLabel
+  return `Lead Gen | ${segmentLabel} | ${preview.startDate} -> ${preview.endDate}`
+}
+
+function buildDraftAdsetName(preview, orchestrator = null) {
+  const explicitName = String(
+    orchestrator?.execution?.adsetName ||
+    orchestrator?.adsAnalyst?.adsetName ||
+    ''
+  ).trim()
+  if (explicitName) {
+    return explicitName
+  }
+
+  const segmentLabel = orchestrator?.execution?.segment?.shortLabel || getDefaultMarketingSegment().shortLabel
+  return `Conjunto Leads | ${segmentLabel} | ${preview.startDate} -> ${preview.endDate}`
+}
+
+function resolveFacebookUiFlowRules(preview, orchestrator = null) {
+  const objectiveRule = resolveCampaignObjectiveRule(preview, orchestrator)
+  const segment = orchestrator?.execution?.segment || getDefaultMarketingSegment()
+  const conversionAliases = Array.isArray(orchestrator?.execution?.conversionLocationUiAliases)
+    ? orchestrator.execution.conversionLocationUiAliases.map((value) => String(value || '').trim()).filter(Boolean)
+    : []
+  const budgetModeAliases = Array.isArray(orchestrator?.execution?.budgetModeUiAliases)
+    ? orchestrator.execution.budgetModeUiAliases.map((value) => String(value || '').trim()).filter(Boolean)
+    : []
+
+  return {
+    campaignName: buildDraftCampaignName(preview, orchestrator),
+    campaignObjectiveLabel: String(orchestrator?.execution?.objectiveUiLabel || objectiveRule.uiLabel).trim() || objectiveRule.uiLabel,
+    campaignObjectiveAliases: objectiveRule.uiAliases,
+    budgetModeLabel: String(orchestrator?.execution?.budgetModeUiLabel || '').trim() || 'Presupuesto total',
+    budgetModeAliases: budgetModeAliases.length > 0 ? budgetModeAliases : ['Presupuesto total', 'Lifetime budget'],
+    budgetAmount: normalizeBudgetForUi(preview?.budget),
+    adsetName: buildDraftAdsetName(preview, orchestrator),
+    conversionLocationLabel: String(orchestrator?.execution?.conversionLocationUiLabel || '').trim() || 'Formularios instantáneos',
+    conversionLocationAliases: conversionAliases.length > 0 ? conversionAliases : ['Formularios instantáneos', 'Instant forms', 'Instant form'],
+    performanceGoalLabel: String(orchestrator?.execution?.performanceGoalUiLabel || '').trim() || 'Maximizar el número de clientes potenciales',
+    audienceLocationLabel: String(segment?.country || 'Colombia').trim() || 'Colombia',
+    leadFormFieldLabels: Array.isArray(orchestrator?.execution?.leadFormFieldLabels)
+      ? orchestrator.execution.leadFormFieldLabels.map((field) => String(field || '').trim()).filter(Boolean)
+      : getDefaultLeadFormFieldLabels(),
+    leadFormRequiredKeys: Array.isArray(orchestrator?.execution?.leadFormRequiredKeys)
+      ? orchestrator.execution.leadFormRequiredKeys.map((field) => String(field || '').trim()).filter(Boolean)
+      : getDefaultLeadFormRequiredKeys(),
+  }
+}
+
 async function clickObjectiveInCampaignModal(page, objectiveRule) {
   const modal = await findVisibleLocator(page, [
     (ctx) => ctx.locator('[role="dialog"]'),
@@ -731,18 +798,19 @@ async function clickBudgetTypeTrigger(page) {
   })
 }
 
-async function selectTotalBudgetMode(page) {
+async function selectTotalBudgetMode(page, aliases = ['Presupuesto total', 'Lifetime budget']) {
   const triggerClicked = await clickBudgetTypeTrigger(page)
   if (!triggerClicked) {
     throw new Error('No encontre el selector del tipo de presupuesto.')
   }
 
   await page.waitForTimeout(600)
+  const optionPattern = new RegExp(aliases.join('|'), 'i')
 
   const totalOption = await findVisibleLocator(page, [
-    (ctx) => ctx.getByRole('option', { name: /presupuesto total|lifetime budget/i }),
-    (ctx) => ctx.getByRole('menuitem', { name: /presupuesto total|lifetime budget/i }),
-    (ctx) => ctx.locator('[role="option"], [role="menuitem"], li, button, div').filter({ hasText: /presupuesto total|lifetime budget/i }),
+    (ctx) => ctx.getByRole('option', { name: optionPattern }),
+    (ctx) => ctx.getByRole('menuitem', { name: optionPattern }),
+    (ctx) => ctx.locator('[role="option"], [role="menuitem"], li, button, div').filter({ hasText: optionPattern }),
   ], 2200)
 
   if (totalOption) {
@@ -750,8 +818,78 @@ async function selectTotalBudgetMode(page) {
     return
   }
 
-  const changed = await page.evaluate(() => {
+  const changed = await page.evaluate((payload) => {
     const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const aliases = (payload.aliases || []).map(normalize).filter(Boolean)
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const match = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, button, div'))
+      .filter(isVisible)
+      .find((element) => {
+        const text = normalize(element.innerText || element.textContent)
+        return aliases.some((alias) => text === alias || text.includes(alias))
+      })
+    if (!match) return false
+    match.click()
+    return true
+  }, { aliases })
+
+  if (!changed) {
+    throw new Error('No pude cambiar el selector a Presupuesto total.')
+  }
+}
+
+async function findSectionRoot(page, pattern, timeout = 4000) {
+  return await findVisibleLocator(page, [
+    (ctx) => ctx.locator('section, div').filter({ hasText: pattern }),
+  ], timeout)
+}
+
+async function fillVisibleInput(locator, value) {
+  await locator.click({ timeout: 5000, force: true })
+  await locator.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => {})
+  await locator.fill(value)
+  await locator.press('Tab').catch(() => {})
+}
+
+async function fillNamedEditorInput(page, config) {
+  const {
+    labelPattern,
+    sectionPattern,
+    value,
+    selectors = [],
+    labelTexts = [],
+    sectionTexts = [],
+    errorMessage,
+  } = config
+
+  const section = sectionPattern ? await findSectionRoot(page, sectionPattern, 4200) : null
+  const scopedBuilders = [
+    (ctx) => ctx.getByLabel(labelPattern),
+    ...selectors.map((selector) => (ctx) => ctx.locator(selector)),
+    (ctx) => ctx.locator('input'),
+  ]
+
+  const input = section
+    ? await findVisibleLocator(section, scopedBuilders, 2600)
+    : await findVisibleLocator(page, scopedBuilders, 4200)
+
+  if (input) {
+    await fillVisibleInput(input, value)
+    return
+  }
+
+  const setByDom = await page.evaluate((payload) => {
+    const normalize = (text) => String(text || '')
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, ' ')
@@ -763,19 +901,165 @@ async function selectTotalBudgetMode(page) {
       const rect = element.getBoundingClientRect()
       return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
     }
+
+    const sectionLabels = Array.isArray(payload.sectionTexts)
+      ? payload.sectionTexts.map(normalize).filter(Boolean)
+      : []
+    const fieldLabels = Array.isArray(payload.labelTexts)
+      ? payload.labelTexts.map(normalize).filter(Boolean)
+      : []
+    const roots = Array.from(document.querySelectorAll('section, div')).filter((element) => {
+      const text = normalize(element.textContent)
+      return isVisible(element) && (sectionLabels.length === 0 || sectionLabels.some((label) => text.includes(label)))
+    })
+    const searchRoot = roots[0] || document.body
+    const inputs = Array.from(searchRoot.querySelectorAll('input')).filter(isVisible)
+    const target = inputs.find((element) => {
+      const parentText = normalize(element.closest('section, form, div')?.textContent)
+      const ariaLabel = normalize(element.getAttribute('aria-label'))
+      const placeholder = normalize(element.getAttribute('placeholder'))
+      return fieldLabels.some((label) => ariaLabel.includes(label) || placeholder.includes(label) || parentText.includes(label))
+    }) || inputs[0]
+
+    if (!target) return false
+
+    const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
+    if (descriptor?.set) {
+      descriptor.set.call(target, payload.value)
+    } else {
+      target.value = payload.value
+    }
+    target.dispatchEvent(new Event('input', { bubbles: true }))
+    target.dispatchEvent(new Event('change', { bubbles: true }))
+    target.dispatchEvent(new Event('blur', { bubbles: true }))
+    return true
+  }, {
+    labelTexts,
+    sectionTexts,
+    value,
+  })
+
+  if (!setByDom) {
+    throw new Error(errorMessage)
+  }
+}
+
+async function clickRadioOptionInSection(page, sectionPattern, aliases, errorMessage) {
+  const section = await findSectionRoot(page, sectionPattern, 5000)
+  if (!section) {
+    throw new Error(errorMessage)
+  }
+
+  await section.scrollIntoViewIfNeeded().catch(() => {})
+  const optionPattern = new RegExp(aliases.join('|'), 'i')
+  const option = await findVisibleLocator(section, [
+    (ctx) => ctx.getByRole('radio', { name: optionPattern }),
+    (ctx) => ctx.locator('[role="radio"]').filter({ hasText: optionPattern }),
+    (ctx) => ctx.locator('label').filter({ hasText: optionPattern }),
+    (ctx) => ctx.getByText(optionPattern),
+  ], 2800)
+
+  if (option) {
+    await option.click({ timeout: 5000, force: true })
+    return
+  }
+
+  const clicked = await section.evaluate((root, payload) => {
+    const normalize = (text) => String(text || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const labels = (payload.aliases || []).map(normalize).filter(Boolean)
+    const all = Array.from(root.querySelectorAll('*')).filter(isVisible)
+    const match = all.find((element) => {
+      const text = normalize(element.innerText || element.textContent)
+      return labels.some((label) => text === label || text.startsWith(label) || text.includes(label))
+    })
+    if (!match) return false
+    const clickable = [
+      match.closest('[role="radio"]'),
+      match.closest('label'),
+      match.closest('button'),
+      match.closest('[role="button"]'),
+      match.closest('div'),
+    ].find((element) => element && isVisible(element))
+    if (!clickable) return false
+    clickable.click()
+    return true
+  }, { aliases })
+
+  if (!clicked) {
+    throw new Error(errorMessage)
+  }
+}
+
+async function selectDropdownOptionInSection(page, sectionPattern, aliases, errorMessage) {
+  const section = await findSectionRoot(page, sectionPattern, 4500)
+  if (!section) {
+    throw new Error(errorMessage)
+  }
+
+  await section.scrollIntoViewIfNeeded().catch(() => {})
+  const trigger = await findVisibleLocator(section, [
+    (ctx) => ctx.getByRole('combobox'),
+    (ctx) => ctx.locator('[role="combobox"], [aria-haspopup="listbox"], button').filter({ hasText: /maximizar|lead|conversion|resultado/i }),
+    (ctx) => ctx.locator('[role="combobox"], [aria-haspopup="listbox"], button'),
+  ], 2600)
+
+  if (!trigger) {
+    throw new Error(errorMessage)
+  }
+
+  await trigger.click({ timeout: 5000, force: true })
+  await page.waitForTimeout(500)
+
+  const optionPattern = new RegExp(aliases.join('|'), 'i')
+  const option = await findVisibleLocator(page, [
+    (ctx) => ctx.getByRole('option', { name: optionPattern }),
+    (ctx) => ctx.getByRole('menuitem', { name: optionPattern }),
+    (ctx) => ctx.locator('[role="option"], [role="menuitem"], li, button, div').filter({ hasText: optionPattern }),
+  ], 2500)
+
+  if (option) {
+    await option.click({ timeout: 5000, force: true })
+    return
+  }
+
+  const clicked = await page.evaluate((payload) => {
+    const normalize = (text) => String(text || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const labels = (payload.aliases || []).map(normalize).filter(Boolean)
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
     const match = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, button, div'))
       .filter(isVisible)
       .find((element) => {
         const text = normalize(element.innerText || element.textContent)
-        return text === 'presupuesto total' || text === 'lifetime budget'
+        return labels.some((label) => text === label || text.includes(label))
       })
     if (!match) return false
     match.click()
     return true
-  })
+  }, { aliases })
 
-  if (!changed) {
-    throw new Error('No pude cambiar el selector a Presupuesto total.')
+  if (!clicked) {
+    throw new Error(errorMessage)
   }
 }
 
@@ -956,6 +1240,64 @@ async function tryFacebookUiConfigureAdsetSchedule(preview) {
   const page = facebookVisualPage
   await page.bringToFront()
   await page.waitForTimeout(2400)
+  const uiRules = resolveFacebookUiFlowRules(preview, preview?.orchestrator || null)
+
+  const adsetReady = await findVisibleLocator(page, [
+    (ctx) => ctx.getByText(/nombre del conjunto de anuncios|ubicacion de la conversion|presupuesto y calendario/i),
+    (ctx) => ctx.locator('section, div').filter({ hasText: /nombre del conjunto de anuncios|ubicacion de la conversion|presupuesto y calendario/i }),
+  ], 7000)
+
+  if (!adsetReady) {
+    await logFacebookUiStep('No encontre la pantalla del conjunto de anuncios despues de configurar la campaña.', 'warning')
+    return
+  }
+
+  try {
+    await fillNamedEditorInput(page, {
+      labelPattern: /nombre del conjunto de anuncios|ad set name/i,
+      sectionPattern: /nombre del conjunto de anuncios|ad set name/i,
+      labelTexts: ['Nombre del conjunto de anuncios', 'Ad set name'],
+      sectionTexts: ['Nombre del conjunto de anuncios', 'Ad set name'],
+      value: uiRules.adsetName,
+      selectors: [
+        'input[aria-label*="conjunto de anuncios" i]',
+        'input[placeholder*="conjunto de anuncios" i]',
+        'input[aria-label*="ad set" i]',
+        'input[placeholder*="ad set" i]',
+      ],
+      errorMessage: 'No encontre el campo de nombre del conjunto de anuncios.',
+    })
+    await logFacebookUiStep(`Nombre del conjunto de anuncios corregido en la UI: ${uiRules.adsetName}.`)
+    await page.waitForTimeout(700)
+  } catch (error) {
+    await logFacebookUiStep(`No pude corregir el nombre del conjunto de anuncios: ${error.message || error}`, 'warning')
+  }
+
+  try {
+    await clickRadioOptionInSection(
+      page,
+      /ubicacion de la conversion|conversion/i,
+      uiRules.conversionLocationAliases,
+      `No encontre la opcion de conversion "${uiRules.conversionLocationLabel}".`
+    )
+    await logFacebookUiStep(`Ubicacion de conversion fijada por regla del orquestador: ${uiRules.conversionLocationLabel}.`)
+    await page.waitForTimeout(1200)
+  } catch (error) {
+    await logFacebookUiStep(`No pude seleccionar la ubicacion de conversion del conjunto de anuncios: ${error.message || error}`, 'warning')
+  }
+
+  try {
+    await selectDropdownOptionInSection(
+      page,
+      /objetivo de rendimiento|performance goal/i,
+      [uiRules.performanceGoalLabel, 'Maximizar el numero de clientes potenciales', 'Maximize number of leads'],
+      `No encontre el selector de objetivo de rendimiento para "${uiRules.performanceGoalLabel}".`
+    )
+    await logFacebookUiStep(`Objetivo de rendimiento alineado con la regla del orquestador: ${uiRules.performanceGoalLabel}.`)
+    await page.waitForTimeout(900)
+  } catch (error) {
+    await logFacebookUiStep(`No pude ajustar el objetivo de rendimiento del conjunto de anuncios: ${error.message || error}`, 'warning')
+  }
 
   const schedulePanel = await getAdsetSchedulePanel(page)
   if (!schedulePanel) {
@@ -1006,35 +1348,34 @@ async function tryFacebookUiConfigureCampaignEditor(preview) {
   const page = facebookVisualPage
   await page.bringToFront()
   await page.waitForTimeout(2200)
-
-  const campaignName = buildDraftCampaignName(preview, preview?.orchestrator || null)
+  const uiRules = resolveFacebookUiFlowRules(preview, preview?.orchestrator || null)
 
   try {
-    const input = await findVisibleLocator(page, [
-      (ctx) => ctx.getByLabel(/nombre de la campa|campaign name/i),
-      (ctx) => ctx.locator('input[aria-label*="campa" i]'),
-      (ctx) => ctx.locator('input[placeholder*="campa" i]'),
-      (ctx) => ctx.locator('input[aria-label*="campaign" i]'),
-      (ctx) => ctx.locator('input[placeholder*="campaign" i]'),
-    ], 5000)
-    if (!input) {
-      throw new Error('No encontre el campo de nombre en el editor de campaña.')
-    }
-    await input.click({ timeout: 5000, force: true })
-    await input.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => {})
-    await input.fill(campaignName)
-    await input.press('Tab').catch(() => {})
-    await logFacebookUiStep(`Nombre de campaña corregido en el editor: ${campaignName}`)
+    await fillNamedEditorInput(page, {
+      labelPattern: /nombre de la campa|campaign name/i,
+      sectionPattern: /nombre de la campa|campaign name/i,
+      labelTexts: ['Nombre de la campaña', 'Campaign name'],
+      sectionTexts: ['Nombre de la campaña', 'Campaign name'],
+      value: uiRules.campaignName,
+      selectors: [
+        'input[aria-label*="campa" i]',
+        'input[placeholder*="campa" i]',
+        'input[aria-label*="campaign" i]',
+        'input[placeholder*="campaign" i]',
+      ],
+      errorMessage: 'No encontre el campo de nombre en el editor de campaña.',
+    })
+    await logFacebookUiStep(`Nombre de campaña corregido en el editor: ${uiRules.campaignName}`)
   } catch (error) {
     await logFacebookUiStep(`No pude corregir el nombre de campaña en el editor: ${error.message || error}`, 'warning')
   }
 
   try {
-    await selectTotalBudgetMode(page)
-    await logFacebookUiStep('Tipo de presupuesto cambiado a Presupuesto total.')
+    await selectTotalBudgetMode(page, uiRules.budgetModeAliases)
+    await logFacebookUiStep(`Tipo de presupuesto cambiado a ${uiRules.budgetModeLabel}.`)
     await page.waitForTimeout(700)
     await fillCampaignBudgetValue(page, preview?.budget)
-    await logFacebookUiStep(`Presupuesto total rellenado con el maximo de la GUI: ${normalizeBudgetForUi(preview?.budget)}.`)
+    await logFacebookUiStep(`Presupuesto total rellenado con el maximo de la GUI: ${uiRules.budgetAmount}.`)
     await page.waitForTimeout(900)
   } catch (error) {
     await logFacebookUiStep(`No pude configurar el presupuesto total en el editor: ${error.message || error}`, 'warning')
@@ -1073,13 +1414,14 @@ async function tryFacebookUiCreateCampaign(preview) {
   }
 
   try {
+    const uiRules = resolveFacebookUiFlowRules(preview, preview?.orchestrator || null)
     const objectiveRule = resolveCampaignObjectiveRule(preview, preview?.orchestrator || null)
-    await logFacebookUiStep(`Regla activa: seleccionar "${objectiveRule.uiLabel}" desde ${objectiveRule.source} antes de continuar.`)
+    await logFacebookUiStep(`Regla activa: seleccionar "${uiRules.campaignObjectiveLabel}" desde ${objectiveRule.source} antes de continuar.`)
     const objectiveSelection = await clickObjectiveInCampaignModal(page, objectiveRule)
     if (!objectiveSelection?.ok) {
-      throw new Error(`No pude localizar la tarjeta del objetivo "${objectiveRule.uiLabel}" en el modal.`)
+      throw new Error(`No pude localizar la tarjeta del objetivo "${uiRules.campaignObjectiveLabel}" en el modal.`)
     }
-    await logFacebookUiStep(`Objetivo de campaña seleccionado en la UI: ${objectiveRule.uiLabel}.`)
+    await logFacebookUiStep(`Objetivo de campaña seleccionado en la UI: ${uiRules.campaignObjectiveLabel}.`)
     await page.waitForTimeout(900)
 
     await continueCampaignCreationModal(page)
@@ -1091,20 +1433,22 @@ async function tryFacebookUiCreateCampaign(preview) {
   }
 
   try {
-    const campaignName = buildDraftCampaignName(preview, preview?.orchestrator || null)
-    const input = await findVisibleLocator(page, [
-      (ctx) => ctx.getByLabel(/nombre de la campa|campaign name/i),
-      (ctx) => ctx.locator('input[aria-label*="campa" i]'),
-      (ctx) => ctx.locator('input[placeholder*="campa" i]'),
-      (ctx) => ctx.locator('input[aria-label*="campaign" i]'),
-      (ctx) => ctx.locator('input[placeholder*="campaign" i]'),
-    ], 2200)
-    if (!input) {
-      throw new Error('No encontre un campo visible para el nombre de la campaña.')
-    }
-    await input.fill('')
-    await input.fill(campaignName)
-    await logFacebookUiStep(`Nombre de campana rellenado en UI: ${campaignName}`)
+    const uiRules = resolveFacebookUiFlowRules(preview, preview?.orchestrator || null)
+    await fillNamedEditorInput(page, {
+      labelPattern: /nombre de la campa|campaign name/i,
+      sectionPattern: /nombre de la campa|campaign name/i,
+      labelTexts: ['Nombre de la campaña', 'Campaign name'],
+      sectionTexts: ['Nombre de la campaña', 'Campaign name'],
+      value: uiRules.campaignName,
+      selectors: [
+        'input[aria-label*="campa" i]',
+        'input[placeholder*="campa" i]',
+        'input[aria-label*="campaign" i]',
+        'input[placeholder*="campaign" i]',
+      ],
+      errorMessage: 'No encontre un campo visible para el nombre de la campaña.',
+    })
+    await logFacebookUiStep(`Nombre de campana rellenado en UI: ${uiRules.campaignName}`)
   } catch (error) {
     await logFacebookUiStep(`No pude rellenar el nombre de la campana en la UI: ${error.message || error}`, 'warning')
   }
@@ -1547,16 +1891,12 @@ function buildLeadFormSpec(preview, orchestrator) {
     create_if_missing: true,
     name: `Formulario | ${segment.shortLabel} | ${preview.startDate} -> ${preview.endDate}`,
     locale: 'es_LA',
-    required_fields: ['full_name', 'email', 'phone_number'],
+    required_fields: getDefaultLeadFormRequiredKeys(),
+    ui_field_labels: getDefaultLeadFormFieldLabels(),
     follow_up_action_url: websiteUrl,
     privacy_policy_url: buildPrivacyPolicyUrl(websiteUrl),
     privacy_policy_link_text: 'Politica de privacidad',
   }
-}
-
-function buildDraftCampaignName(preview, orchestrator = null) {
-  const segmentLabel = orchestrator?.execution?.segment?.shortLabel || getDefaultMarketingSegment().shortLabel
-  return `Lead Gen | ${segmentLabel} | ${preview.startDate} -> ${preview.endDate}`
 }
 
 function buildOrchestratorPlan(preview, segment = getDefaultMarketingSegment()) {
@@ -1574,6 +1914,10 @@ function runLocalMarketingOrchestrator(preview) {
   const plan = buildOrchestratorPlan(preview, segment)
   const pageId = getMetaPageId()
   const selectedImage = preview?.imageAsset || null
+  const campaignName = buildDraftCampaignName(preview, { execution: { segment } })
+  const adsetName = buildDraftAdsetName(preview, { execution: { segment } })
+  const leadFormFieldLabels = getDefaultLeadFormFieldLabels()
+  const leadFormRequiredKeys = getDefaultLeadFormRequiredKeys()
   const adsAnalyst = {
     platform: 'Facebook Ads',
     format: 'Imagen unica para Lead Ads',
@@ -1640,12 +1984,21 @@ function runLocalMarketingOrchestrator(preview) {
       accountId: getTargetAdAccountId(),
       pageId,
       campaignType: 'Instant Form',
+      campaignName,
+      adsetName,
       budgetCap: preview.budget,
       formFields: preview.formFields,
       segment,
       targetingSummary: buildTargetingSummary(segment),
       objectiveUiLabel: objectiveRule.uiLabel,
       apiObjective: objectiveRule.apiObjective,
+      budgetModeUiLabel: 'Presupuesto total',
+      budgetModeUiAliases: ['Presupuesto total', 'Lifetime budget'],
+      conversionLocationUiLabel: 'Formularios instantáneos',
+      conversionLocationUiAliases: ['Formularios instantáneos', 'Instant forms', 'Instant form'],
+      performanceGoalUiLabel: 'Maximizar el número de clientes potenciales',
+      leadFormFieldLabels,
+      leadFormRequiredKeys,
     },
   }
 }
@@ -1936,6 +2289,7 @@ function buildDraftAdConfig(preview, creation) {
 function buildLeadCampaignRunnerContext(preview, orchestrator) {
   const segment = orchestrator?.execution?.segment || getDefaultMarketingSegment()
   const objectiveRule = resolveCampaignObjectiveRule(preview, orchestrator)
+  const uiRules = resolveFacebookUiFlowRules(preview, orchestrator)
   return {
     preview: {
       url: String(preview?.url || '').trim(),
@@ -1953,9 +2307,26 @@ function buildLeadCampaignRunnerContext(preview, orchestrator) {
       targetingSummary: String(orchestrator?.execution?.targetingSummary || '').trim(),
       objectiveUiLabel: objectiveRule.uiLabel,
       apiObjective: objectiveRule.apiObjective,
+      campaignName: String(orchestrator?.execution?.campaignName || uiRules.campaignName).trim(),
+      adsetName: String(orchestrator?.execution?.adsetName || uiRules.adsetName).trim(),
+      budgetModeUiLabel: String(orchestrator?.execution?.budgetModeUiLabel || uiRules.budgetModeLabel).trim(),
+      budgetModeUiAliases: Array.isArray(orchestrator?.execution?.budgetModeUiAliases)
+        ? orchestrator.execution.budgetModeUiAliases.map((value) => String(value || '').trim()).filter(Boolean)
+        : uiRules.budgetModeAliases,
+      conversionLocationUiLabel: String(orchestrator?.execution?.conversionLocationUiLabel || uiRules.conversionLocationLabel).trim(),
+      conversionLocationUiAliases: Array.isArray(orchestrator?.execution?.conversionLocationUiAliases)
+        ? orchestrator.execution.conversionLocationUiAliases.map((value) => String(value || '').trim()).filter(Boolean)
+        : uiRules.conversionLocationAliases,
+      performanceGoalUiLabel: String(orchestrator?.execution?.performanceGoalUiLabel || uiRules.performanceGoalLabel).trim(),
       formFields: Array.isArray(orchestrator?.execution?.formFields)
         ? orchestrator.execution.formFields.map((field) => String(field || '').trim()).filter(Boolean)
         : [],
+      leadFormFieldLabels: Array.isArray(orchestrator?.execution?.leadFormFieldLabels)
+        ? orchestrator.execution.leadFormFieldLabels.map((field) => String(field || '').trim()).filter(Boolean)
+        : uiRules.leadFormFieldLabels,
+      leadFormRequiredKeys: Array.isArray(orchestrator?.execution?.leadFormRequiredKeys)
+        ? orchestrator.execution.leadFormRequiredKeys.map((field) => String(field || '').trim()).filter(Boolean)
+        : uiRules.leadFormRequiredKeys,
     },
     segment: {
       shortLabel: String(segment?.shortLabel || '').trim(),
@@ -2007,14 +2378,30 @@ function buildLeadCampaignRunnerContext(preview, orchestrator) {
         categoryStatement: String(orchestrator?.marketing?.compliance?.categoryStatement || '').trim(),
       },
     },
+    uiFlow: {
+      campaignObjectiveLabel: uiRules.campaignObjectiveLabel,
+      campaignObjectiveAliases: uiRules.campaignObjectiveAliases,
+      campaignName: uiRules.campaignName,
+      budgetModeLabel: uiRules.budgetModeLabel,
+      budgetModeAliases: uiRules.budgetModeAliases,
+      budgetAmount: uiRules.budgetAmount,
+      adsetName: uiRules.adsetName,
+      conversionLocationLabel: uiRules.conversionLocationLabel,
+      conversionLocationAliases: uiRules.conversionLocationAliases,
+      performanceGoalLabel: uiRules.performanceGoalLabel,
+      audienceLocationLabel: uiRules.audienceLocationLabel,
+      leadFormFieldLabels: uiRules.leadFormFieldLabels,
+      leadFormRequiredKeys: uiRules.leadFormRequiredKeys,
+    },
   }
 }
 
 function buildLeadCampaignBundleSpec(preview, orchestrator) {
   const segment = orchestrator?.execution?.segment || getDefaultMarketingSegment()
   const objectiveRule = resolveCampaignObjectiveRule(preview, orchestrator)
-  const campaignName = buildDraftCampaignName(preview, orchestrator)
-  const adsetName = `Ad Set | ${segment.shortLabel} | ${preview.startDate} -> ${preview.endDate}`
+  const uiRules = resolveFacebookUiFlowRules(preview, orchestrator)
+  const campaignName = uiRules.campaignName
+  const adsetName = uiRules.adsetName
   const pageId = String(orchestrator?.execution?.pageId || getMetaPageId()).trim()
   const selectedLeadgenFormId = String(preview?.selectedLeadgenFormId || '').trim()
   const creativeDraft = selectedLeadgenFormId
@@ -2029,7 +2416,7 @@ function buildLeadCampaignBundleSpec(preview, orchestrator) {
     campaign: {
       name: campaignName,
       objective: objectiveRule.apiObjective,
-      ui_objective_label: objectiveRule.uiLabel,
+      ui_objective_label: uiRules.campaignObjectiveLabel,
       status: 'PAUSED',
       is_adset_budget_sharing_enabled: false,
       special_ad_categories: orchestrator?.marketing?.compliance?.specialAdCategories || [],
@@ -2041,6 +2428,11 @@ function buildLeadCampaignBundleSpec(preview, orchestrator) {
       optimization_goal: 'LEAD_GENERATION',
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
       destination_type: 'ON_AD',
+      ui_budget_mode_label: uiRules.budgetModeLabel,
+      ui_budget_mode_aliases: uiRules.budgetModeAliases,
+      ui_conversion_location_label: uiRules.conversionLocationLabel,
+      ui_conversion_location_aliases: uiRules.conversionLocationAliases,
+      ui_performance_goal_label: uiRules.performanceGoalLabel,
       status: 'PAUSED',
       start_time: toMetaDateTime(preview.startDate, false),
       end_time: toMetaDateTime(preview.endDate, true),
@@ -2684,7 +3076,7 @@ ipcMain.handle('get-last-job', async () => {
   return readJsonFile(path.join(PROJECT_ROOT, '.job_poller_state.json'))
 })
 
-ipcMain.handle('start-bot', async (_event, profileName) => {
+ipcMain.handle('start-bot', async (_event, payload) => {
   const lockPath = path.join(PROJECT_ROOT, '.bot_runner.lock')
   if (fs.existsSync(lockPath)) {
     const lock = readJsonFile(lockPath)
@@ -2702,34 +3094,33 @@ ipcMain.handle('start-bot', async (_event, profileName) => {
   // Force UTF-8 output from Python
   env['PYTHONIOENCODING'] = 'utf-8'
 
+  const profileName = typeof payload === 'string'
+    ? payload
+    : String(payload?.profileName || '').trim()
+  const imagePrompt = typeof payload === 'object' && payload !== null
+    ? String(payload.imagePrompt || '').trim()
+    : ''
+
   const botRunnerPath = path.join(PROJECT_ROOT, 'server', 'bot_runner.py')
   const pythonBin = findPython()
   if (!pythonBin) {
     return { success: false, error: 'Python no encontrado en PATH' }
   }
 
-  const payload = profileName
-    ? JSON.stringify({ profile_name: profileName })
+  const runnerPayload = (profileName || imagePrompt)
+    ? JSON.stringify({
+      ...(profileName ? { profile_name: profileName } : {}),
+      ...(imagePrompt ? { image_prompt: imagePrompt } : {}),
+    })
     : '{}'
-  const args = [botRunnerPath, 'run_full_cycle', payload]
+  const args = [botRunnerPath, 'run_full_cycle', runnerPayload]
 
   try {
     botProcess = spawn(pythonBin, args, {
       cwd: PROJECT_ROOT,
       env,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: 'ignore',
     })
-
-    const emitBotLines = (data) => {
-      if (!mainWindow) return
-      const lines = data.toString('utf-8').split('\n').filter(l => l.trim())
-      if (lines.length > 0) {
-        mainWindow.webContents.send('bot-log-lines', lines)
-      }
-    }
-
-    botProcess.stdout.on('data', emitBotLines)
-    botProcess.stderr.on('data', emitBotLines)
 
     botProcess.on('exit', (code) => {
       if (mainWindow) {
@@ -2977,7 +3368,7 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
     objective: 'Clientes potenciales',
     url: ensureAbsoluteUrl(getProjectEnv().BUSINESS_WEBSITE || 'https://noyecode.com'),
     country: 'Colombia',
-    formFields: ['Nombre completo', 'Correo electronico', 'Telefono movil'],
+    formFields: getDefaultLeadFormFieldLabels(),
     budget,
     startDate,
     endDate,
