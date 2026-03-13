@@ -19,13 +19,16 @@ export function ControlPanel({
   onStopPoller,
 }: ControlPanelProps) {
   const [botLoading, setBotLoading] = useState(false)
+  const [imagePrompt, setImagePrompt] = useState('')
 
   const isExecuting = botStatus.status === 'executing'
+  const canStartBot = !isExecuting && !botLoading && !!imagePrompt.trim()
 
   const handleStartBot = async () => {
+    if (!imagePrompt.trim()) return
     setBotLoading(true)
     try {
-      await startBot()
+      await startBot({ imagePrompt: imagePrompt.trim() })
     } finally {
       setBotLoading(false)
     }
@@ -49,11 +52,22 @@ export function ControlPanel({
       <div className="control-grid">
         <div className="control-section">
           <span className="control-label">Bot</span>
+          <label className="control-prompt">
+            <span className="control-prompt__label">Prompt de imagen</span>
+            <textarea
+              className="control-prompt__input"
+              placeholder="Ingresa aqui el prompt que el bot usara para generar la imagen..."
+              value={imagePrompt}
+              onChange={(event) => setImagePrompt(event.target.value)}
+              rows={4}
+              disabled={isExecuting || botLoading}
+            />
+          </label>
           <div className="control-buttons">
             <button
               className="btn btn--start"
               onClick={handleStartBot}
-              disabled={isExecuting || botLoading}
+              disabled={!canStartBot}
             >
               {botLoading ? 'Iniciando...' : 'Iniciar Bot'}
             </button>
@@ -65,6 +79,9 @@ export function ControlPanel({
               Detener Bot
             </button>
           </div>
+          <span className="control-prompt__hint">
+            Antes de iniciar, escribe el prompt visual que quieres usar para la generacion de imagenes.
+          </span>
         </div>
         <div className="control-section">
           <span className="control-label">Poller</span>

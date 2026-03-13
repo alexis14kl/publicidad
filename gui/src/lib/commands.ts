@@ -2,6 +2,7 @@ import type {
   BotStatus,
   LastJob,
   CommandResult,
+  StartBotPayload,
   MarketingCampaignPayload,
   MarketingRunUpdate,
 } from './types'
@@ -10,7 +11,7 @@ const api = () => window.electronAPI
 
 export const getBotStatus = (): Promise<BotStatus> => api().getBotStatus()
 export const getLastJob = (): Promise<LastJob | null> => api().getLastJob()
-export const startBot = (profileName?: string): Promise<CommandResult> => api().startBot(profileName)
+export const startBot = (payload?: StartBotPayload): Promise<CommandResult> => api().startBot(payload)
 export const stopBot = (): Promise<CommandResult> => api().stopBot()
 export const startPoller = (): Promise<CommandResult> => api().startPoller()
 export const stopPoller = (): Promise<CommandResult> => api().stopPoller()

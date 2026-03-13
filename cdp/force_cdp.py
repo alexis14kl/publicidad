@@ -13,6 +13,7 @@ Logic:
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -23,6 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from cfg.platform import (
+    IS_MAC,
     IS_WINDOWS,
     find_free_port,
     get_cdp_version,
@@ -133,24 +135,122 @@ def _extract_mac_urls(cmdline: str) -> list[str]:
     return re.findall(r"https?://\S+", str(cmdline or ""))
 
 
-def _build_mac_launch_command(cmdline: str, debug_port: int) -> list[str]:
-    exe_path = _extract_mac_exe_path(cmdline)
-    if not exe_path:
+def _extract_mac_flag_tokens(cmdline: str) -> list[str]:
+    cmd = str(cmdline or "").strip()
+    if not cmd:
         return []
 
+    pattern = re.compile(
+        r"(--[A-Za-z0-9-]+(?:=(?:(?!\s+--[A-Za-z0-9-]+(?:=|\s|$)|\s+https?://).)+)?)"
+    )
+    tokens: list[str] = []
+    for match in pattern.finditer(cmd):
+        token = str(match.group(1) or "").strip()
+        if token:
+            tokens.append(token)
+    return tokens
+
+
+def _build_mac_launch_args(cmdline: str, debug_port: int) -> list[str]:
     args: list[str] = []
-    for raw_flag in ("no-first-run", "devtools-flags", "no-sandbox"):
-        if re.search(rf"--{re.escape(raw_flag)}(?:\s|$)", cmdline, re.IGNORECASE):
-            args.append(f"--{raw_flag}")
+    seen: set[str] = set()
+    for token in _extract_mac_flag_tokens(cmdline):
+        normalized = token.lower()
+        if normalized.startswith("--remote-debugging-port"):
+            continue
+        if token in seen:
+            continue
+        args.append(token)
+        seen.add(token)
 
-    for key in ("load-extension", "launch-key", "user-data-dir", "user-agent", "lang", "proxy-server"):
-        value = _extract_mac_flag_value(cmdline, key)
-        if value:
-            args.append(f"--{key}={value}")
+    user_data_dir = _extract_mac_flag_value(cmdline, "user-data-dir")
+    if user_data_dir:
+        candidate = f"--user-data-dir={user_data_dir}"
+        if candidate not in seen:
+            args.append(candidate)
+            seen.add(candidate)
 
-    args.extend(_extract_mac_urls(cmdline))
+    args.extend(url for url in _extract_mac_urls(cmdline) if url not in seen)
     args.append(f"--remote-debugging-port={debug_port}")
-    return [exe_path, *args]
+    return args
+
+
+def _derive_mac_app_bundle(exe_path: str) -> str:
+    path = Path(str(exe_path or "").strip())
+    if not path:
+        return ""
+    for parent in [path, *path.parents]:
+        if parent.suffix.lower() == ".app":
+            return str(parent)
+    return ""
+
+
+def _resolve_mac_launch_exe(proc: dict, cmdline: str) -> str:
+    proc_exe = str(proc.get("exe", "") or "").strip()
+    parsed_exe = _extract_mac_exe_path(cmdline)
+    candidates = [parsed_exe, proc_exe]
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        if "/" in candidate or candidate.startswith("."):
+            return candidate
+        candidate_path = shutil.which(candidate)
+        if candidate_path:
+            return candidate_path
+
+    for candidate in candidates:
+        if candidate:
+            return candidate
+    return ""
+
+
+def _launch_mac_profile(cmdline: str, exe_path: str, debug_port: int) -> None:
+    args = _build_mac_launch_args(cmdline, debug_port)
+    if not exe_path or not args:
+        raise RuntimeError("MAC_LAUNCH_COMMAND_NOT_RESOLVED")
+
+    launch_errors: list[str] = []
+    app_bundle = _derive_mac_app_bundle(exe_path)
+    launch_attempts: list[tuple[str, list[str]]] = []
+    if app_bundle:
+        launch_attempts.append(("open-app", ["open", "-na", app_bundle, "--args", *args]))
+    launch_attempts.append(("direct-bin", [exe_path, *args]))
+
+    for mode, launch_cmd in launch_attempts:
+        try:
+            subprocess.Popen(
+                launch_cmd,
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            log_info(f"Relanzamiento macOS ejecutado via {mode}.")
+            return
+        except Exception as e:
+            launch_errors.append(f"{mode}: {e}")
+
+    raise RuntimeError("MAC_LAUNCH_FAILED " + " | ".join(launch_errors))
+
+
+def _stop_browser_for_restart() -> None:
+    browser_name = get_browser_process_name()
+    if not IS_MAC:
+        kill_process_by_name(browser_name, force=True)
+        time.sleep(3)
+        return
+
+    # En macOS cerrar Chromium con SIGKILL deja bloqueos del perfil con mas frecuencia.
+    kill_process_by_name(browser_name, force=False)
+    deadline = time.time() + 8
+    while time.time() < deadline:
+        if not _find_main_gins_process(get_process_list()):
+            time.sleep(1.2)
+            return
+        time.sleep(0.4)
+
+    kill_process_by_name(browser_name, force=True)
+    time.sleep(3)
 
 
 def force_cdp(
@@ -180,23 +280,23 @@ def force_cdp(
     if debug_match:
         existing_port = int(debug_match.group(1))
         if test_cdp_port(existing_port):
+            ver = get_cdp_version(existing_port)
+            ws_url = ver.get("webSocketDebuggerUrl", "") if ver else ""
+            path_out = upsert_cdp_debug_info(
+                env_id=env_id, port=existing_port,
+                ws_url=ws_url, pid=main["pid"], serial=serial_number,
+            )
             if existing_port != preferred_port:
                 log_info(
-                    f"Puerto CDP existente detectado en {existing_port}, "
-                    f"pero se normalizara a {preferred_port}."
+                    f"Puerto CDP existente detectado en {existing_port}. "
+                    "Se reutilizara sin reiniciar el perfil."
                 )
             else:
-                ver = get_cdp_version(existing_port)
-                ws_url = ver.get("webSocketDebuggerUrl", "") if ver else ""
-                path_out = upsert_cdp_debug_info(
-                    env_id=env_id, port=existing_port,
-                    ws_url=ws_url, pid=main["pid"], serial=serial_number,
-                )
                 log_ok(f"Puerto existente detectado: {existing_port}")
-                return {
-                    "DEBUG_PORT": str(existing_port),
-                    "CDP_JSON_PATH": str(path_out),
-                }
+            return {
+                "DEBUG_PORT": str(existing_port),
+                "CDP_JSON_PATH": str(path_out),
+            }
 
     # Need to restart with debug port
     target_port = preferred_port
@@ -211,9 +311,7 @@ def force_cdp(
     log_info(f"Reiniciando ginsbrowser con --remote-debugging-port={target_port}")
 
     # Kill current ginsbrowser
-    kill_process_by_name(get_browser_process_name(), force=True)
-    # Wait for process to fully die and release profile locks
-    time.sleep(3)
+    _stop_browser_for_restart()
 
     # Build new command
     base_cmd = cmd
@@ -226,23 +324,13 @@ def force_cdp(
     else:
         base_cmd = f"{base_cmd} --remote-debugging-port={target_port}"
 
-    # Launch detached. macOS needs a list-form command because the raw command
-    # line coming from `ps` contains paths with spaces and unquoted values.
+    # Launch detached. macOS prefers reopening the .app bundle when available
+    # because direct execution of the embedded binary can die before exposing CDP.
     if IS_WINDOWS:
         launch_detached(base_cmd)
     else:
-        mac_cmd = _build_mac_launch_command(cmd, target_port)
-        if not mac_cmd:
-            raise RuntimeError("MAC_LAUNCH_COMMAND_NOT_RESOLVED")
-        try:
-            subprocess.Popen(
-                mac_cmd,
-                start_new_session=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except Exception as e:
-            raise RuntimeError(f"MAC_LAUNCH_FAILED {e}") from e
+        launch_exe = _resolve_mac_launch_exe(main, cmd)
+        _launch_mac_profile(cmd, launch_exe, target_port)
 
     # Verify ginsbrowser actually started (wait up to 8s)
     browser_up = False
@@ -255,8 +343,7 @@ def force_cdp(
             break
 
     if not browser_up:
-        # Fallback: try launching with list-form command to avoid CIM issues
-        log_warn("CIM no lanzo ginsbrowser. Intentando con Popen directo...")
+        log_warn("El primer intento de relanzamiento no levanto ginsbrowser. Reintentando...")
         try:
             if IS_WINDOWS:
                 exe_path_parsed = _parse_exe_path(base_cmd)
@@ -276,14 +363,8 @@ def force_cdp(
                         stderr=subprocess.DEVNULL,
                     )
             else:
-                mac_cmd = _build_mac_launch_command(cmd, target_port)
-                if mac_cmd:
-                    subprocess.Popen(
-                        mac_cmd,
-                        start_new_session=True,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
+                launch_exe = _resolve_mac_launch_exe(main, cmd)
+                _launch_mac_profile(cmd, launch_exe, target_port)
             time.sleep(3)
         except Exception as e:
             log_warn(f"Fallback Popen tambien fallo: {e}")

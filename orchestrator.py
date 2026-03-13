@@ -120,8 +120,36 @@ def _wait_for_profile_load(timeout_sec: int = 45) -> bool:
     return False
 
 
+def _resolve_existing_profile_cdp_port(timeout_sec: int = 3) -> int:
+    if test_cdp_port(9225):
+        return 9225
+
+    try:
+        from cdp.detect_port import detect_debug_port
+        return int(detect_debug_port(timeout_sec=timeout_sec) or 0)
+    except Exception:
+        return 0
+
+
 def _generate_prompt() -> bool:
     """Generate prompt and caption via n8n. Returns True on success."""
+    custom_prompt = str(os.getenv("BOT_CUSTOM_IMAGE_PROMPT", "")).strip()
+    if custom_prompt:
+        PROMPT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PROMPT_FILE.write_text(custom_prompt, encoding="utf-8")
+        log_ok(f"Prompt manual guardado en {PROMPT_FILE}.")
+        if N8N_POST_TEXT_CLIENT_PY.exists():
+            rc2 = _run_python(
+                N8N_POST_TEXT_CLIENT_PY,
+                "--prompt-file", str(PROMPT_FILE),
+                "--output", str(POST_TEXT_FILE),
+            )
+            if rc2 != 0:
+                log_warn("No se pudo regenerar el texto de publicacion a partir del prompt manual.")
+            else:
+                log_ok(f"Caption regenerado en {POST_TEXT_FILE}.")
+        return True
+
     if not N8N_PROMPT_CLIENT_PY.exists():
         log_warn(f"No existe cliente n8n: {N8N_PROMPT_CLIENT_PY}. Se conserva el prompt actual.")
         return False
@@ -198,12 +226,12 @@ def run_orchestrator(
     # -----------------------------------------------------------------------
     # FAST PATH: si CDP del perfil ya esta activo, ir directo
     # -----------------------------------------------------------------------
-    fast_port = 9225
-    log_step("0/10", f"Verificando si CDP del perfil ya esta activo en puerto {fast_port}...")
-    if test_cdp_port(fast_port):
+    fast_port = _resolve_existing_profile_cdp_port(timeout_sec=3)
+    log_step("0/10", "Verificando si el CDP del perfil ya esta activo...")
+    if fast_port:
         log_ok(f"CDP respondiendo en {fast_port}. Activando ruta rapida (skip arranque).")
         return _fast_path(cdp_port=fast_port)
-    log_info(f"CDP no activo en {fast_port}. Ejecutando flujo completo...")
+    log_info("CDP del perfil no activo. Ejecutando flujo completo...")
 
     # Resolve profile
     initial = env_data.get("INITIAL_PROFILE", "#1 Chat Gpt PRO")
@@ -349,7 +377,13 @@ def run_orchestrator(
     while time.time() < deadline:
         data = read_cdp_debug_info()
         for key, entry in data.items():
-            if isinstance(entry, dict) and entry.get("debugPort"):
+            if not isinstance(entry, dict):
+                continue
+            try:
+                port = int(entry.get("debugPort", 0) or 0)
+            except (TypeError, ValueError):
+                port = 0
+            if port and test_cdp_port(port):
                 found_port = True
                 break
         if found_port:

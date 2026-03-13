@@ -128,6 +128,14 @@ def resolve_cdp_port() -> int:
     if p and is_cdp_alive(p):
         return p
 
+    try:
+        from cdp.detect_port import detect_debug_port
+        p = int(detect_debug_port(timeout_sec=8) or 0)
+        if p and is_cdp_alive(p):
+            return p
+    except Exception:
+        pass
+
     raise RuntimeError("No hay puerto CDP activo para el perfil")
 
 
