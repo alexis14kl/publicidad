@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { getEnvConfig, saveEnvConfig, resetBotState } from '../lib/commands'
 
 interface SettingsPageProps {
-  onBack: () => void
+  onBack?: () => void
 }
 
 interface FieldDef {
@@ -155,9 +155,11 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
     <div className="settings-page">
       <div className="settings-header">
         <div className="settings-header-left">
-          <button className="btn btn--ghost btn--small" onClick={onBack}>
-            &#8592; Volver
-          </button>
+          {onBack && (
+            <button className="btn btn--ghost btn--small" onClick={onBack}>
+              &#8592; Volver
+            </button>
+          )}
           <h2 className="settings-title">Configuraciones</h2>
         </div>
         <div className="settings-header-right">

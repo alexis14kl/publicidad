@@ -7,6 +7,7 @@ import { ControlPanel } from './components/ControlPanel'
 import { LastJobCard } from './components/LastJobCard'
 import { DualLogViewer } from './components/DualLogViewer'
 import { SettingsPage } from './components/SettingsPage'
+import { CompanyProfilesPage } from './components/CompanyProfilesPage'
 import { useBotStatus } from './hooks/useBotStatus'
 import { usePollerProcess } from './hooks/usePollerProcess'
 import { useLogTail } from './hooks/useLogTail'
@@ -533,7 +534,7 @@ function MarketingCampaignModal({
 }
 
 export default function App() {
-  const [page, setPage] = useState<'home' | 'settings'>('home')
+  const [page, setPage] = useState<'home' | 'companies' | 'settings'>('home')
   const [marketingOpen, setMarketingOpen] = useState(false)
   const [botLoading, setBotLoading] = useState(false)
   const [imagePrompt, setImagePrompt] = useState('')
@@ -608,48 +609,60 @@ export default function App() {
     }
   }
 
-  if (page === 'settings') {
-    return (
-      <div className="app">
-        <SettingsPage onBack={() => setPage('home')} />
-      </div>
-    )
-  }
-
   return (
     <div className="app">
       <Header status={botStatus} onOpenSettings={() => setPage('settings')} />
-      <PreflightBanner />
-      <div className="top-actions">
-        <button className="btn btn--marketing" onClick={() => setMarketingOpen(true)}>
-          Abrir Agente Marketing
+      <nav className="app-tabs">
+        <button className={`app-tab ${page === 'home' ? 'app-tab--active' : ''}`} onClick={() => setPage('home')}>
+          Panel
         </button>
-      </div>
-      <main className="main-grid">
-        <StatusCard status={botStatus} />
-        <ControlPanel
-          botStatus={botStatus}
-          botLoading={botLoading}
-          imagePrompt={imagePrompt}
-          pollerRunning={poller.running}
-          pollerLoading={poller.loading}
-          onStartPoller={handleStartPoller}
-          onStopPoller={poller.stop}
-          onStartBot={handleStartBot}
-          onStopBot={handleStopBot}
-        />
-        <LastJobCard job={lastJob} />
-      </main>
-      <DualLogViewer
-        workerLines={workerLines}
-        onClearWorker={clearWorkerLines}
-        botLines={botLines}
-        onClearBot={clearBotLines}
-        imagePrompt={imagePrompt}
-        onChangeImagePrompt={setImagePrompt}
-        imagePromptHistory={imagePromptHistory}
-        promptDisabled={isExecuting || botLoading}
-      />
+        <button className={`app-tab ${page === 'companies' ? 'app-tab--active' : ''}`} onClick={() => setPage('companies')}>
+          Empresas
+        </button>
+        <button className={`app-tab ${page === 'settings' ? 'app-tab--active' : ''}`} onClick={() => setPage('settings')}>
+          Configuraciones
+        </button>
+      </nav>
+
+      {page === 'home' && (
+        <>
+          <PreflightBanner />
+          <div className="top-actions">
+            <button className="btn btn--marketing" onClick={() => setMarketingOpen(true)}>
+              Abrir Agente Marketing
+            </button>
+          </div>
+          <main className="main-grid">
+            <StatusCard status={botStatus} />
+            <ControlPanel
+              botStatus={botStatus}
+              botLoading={botLoading}
+              imagePrompt={imagePrompt}
+              pollerRunning={poller.running}
+              pollerLoading={poller.loading}
+              onStartPoller={handleStartPoller}
+              onStopPoller={poller.stop}
+              onStartBot={handleStartBot}
+              onStopBot={handleStopBot}
+            />
+            <LastJobCard job={lastJob} />
+          </main>
+          <DualLogViewer
+            workerLines={workerLines}
+            onClearWorker={clearWorkerLines}
+            botLines={botLines}
+            onClearBot={clearBotLines}
+            imagePrompt={imagePrompt}
+            onChangeImagePrompt={setImagePrompt}
+            imagePromptHistory={imagePromptHistory}
+            promptDisabled={isExecuting || botLoading}
+          />
+        </>
+      )}
+
+      {page === 'companies' && <CompanyProfilesPage />}
+
+      {page === 'settings' && <SettingsPage />}
       <MarketingCampaignModal open={marketingOpen} onClose={() => setMarketingOpen(false)} />
     </div>
   )

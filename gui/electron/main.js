@@ -25,6 +25,7 @@ let marketingMonitorNextId = 1
 let facebookVisualContext = null
 let facebookVisualPage = null
 let facebookVisualExecutable = ''
+const COMPANY_PLATFORMS = new Set(['facebook', 'tiktok', 'linkedin', 'instagram'])
 
 // ─── Window ───────────────────────────────────────────────────────────────────
 
@@ -109,6 +110,40 @@ function getProjectEnv() {
     env.PATH = parts.join(':')
   }
   return env
+}
+
+function getCompanyDbPath(platform) {
+  const normalized = String(platform || '').trim().toLowerCase()
+  if (!COMPANY_PLATFORMS.has(normalized)) {
+    throw new Error(`Plataforma no soportada: ${platform}`)
+  }
+  return path.join(PROJECT_ROOT, 'Backend', `${normalized}.sqlite3`)
+}
+
+function ensureCompanyDb(platform) {
+  const dbPath = getCompanyDbPath(platform)
+  const schemaPath = path.join(PROJECT_ROOT, 'Backend', 'schema_empresas_redes.sql')
+  const schemaSql = fs.readFileSync(schemaPath, 'utf-8')
+  execFileSync('sqlite3', [dbPath], {
+    input: schemaSql,
+    encoding: 'utf-8',
+  })
+  return dbPath
+}
+
+function sqlLiteral(value) {
+  if (value === null || value === undefined) return 'NULL'
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'NULL'
+  return `'${String(value).replace(/'/g, "''")}'`
+}
+
+function runSqliteJson(dbPath, sql) {
+  const stdout = execFileSync('sqlite3', ['-json', dbPath, sql], {
+    encoding: 'utf-8',
+  })
+  const trimmed = String(stdout || '').trim()
+  if (!trimmed) return []
+  return JSON.parse(trimmed)
 }
 
 function findPython() {
@@ -3458,6 +3493,105 @@ ipcMain.handle('save-env-config', async (_event, config) => {
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('list-company-records', async (_event, platform) => {
+  try {
+    const dbPath = ensureCompanyDb(platform)
+    return runSqliteJson(
+      dbPath,
+      `
+      SELECT
+        id,
+        nombre,
+        token,
+        logo,
+        telefono,
+        correo,
+        sitio_web,
+        direccion,
+        descripcion,
+        activo,
+        created_at,
+        updated_at
+      FROM empresas
+      ORDER BY id DESC;
+      `
+    )
+  } catch (err) {
+    throw new Error(err.message || 'No se pudo listar las empresas.')
+  }
+})
+
+ipcMain.handle('save-company-record', async (_event, payload = {}) => {
+  try {
+    const nombre = String(payload.nombre || '').trim()
+    const token = String(payload.token || '').trim()
+    const correo = String(payload.correo || '').trim()
+    const telefono = String(payload.telefono || '').trim()
+
+    if (!nombre) {
+      throw new Error('El nombre de la empresa es obligatorio.')
+    }
+    if (!token) {
+      throw new Error('El token de la empresa es obligatorio.')
+    }
+    if (!correo && !telefono) {
+      throw new Error('Debes registrar al menos un correo o un telefono.')
+    }
+
+    const dbPath = ensureCompanyDb(payload.platform)
+    const activo = payload.activo === false ? 0 : 1
+    const selectFields = `
+      id,
+      nombre,
+      token,
+      logo,
+      telefono,
+      correo,
+      sitio_web,
+      direccion,
+      descripcion,
+      activo,
+      created_at,
+      updated_at
+    `
+    const sql = `
+      INSERT INTO empresas (
+        nombre,
+        token,
+        logo,
+        telefono,
+        correo,
+        sitio_web,
+        direccion,
+        descripcion,
+        activo,
+        updated_at
+      ) VALUES (
+        ${sqlLiteral(nombre)},
+        ${sqlLiteral(token)},
+        ${sqlLiteral(String(payload.logo || '').trim() || null)},
+        ${sqlLiteral(telefono || null)},
+        ${sqlLiteral(correo || null)},
+        ${sqlLiteral(String(payload.sitio_web || '').trim() || null)},
+        ${sqlLiteral(String(payload.direccion || '').trim() || null)},
+        ${sqlLiteral(String(payload.descripcion || '').trim() || null)},
+        ${activo},
+        CURRENT_TIMESTAMP
+      );
+      SELECT ${selectFields}
+      FROM empresas
+      WHERE id = last_insert_rowid();
+    `
+    const rows = runSqliteJson(dbPath, sql)
+    if (!rows[0]) {
+      throw new Error('SQLite no devolvio el registro guardado.')
+    }
+    return rows[0]
+  } catch (err) {
+    throw new Error(err.message || 'No se pudo guardar la empresa.')
   }
 })
 

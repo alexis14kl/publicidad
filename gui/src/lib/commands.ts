@@ -2,6 +2,9 @@ import type {
   BotStatus,
   LastJob,
   CommandResult,
+  CompanyPlatform,
+  CompanyRecord,
+  SaveCompanyPayload,
   StartBotPayload,
   StartPollerPayload,
   MarketingCampaignPayload,
@@ -22,6 +25,8 @@ export const runMarketingCampaignPreview = (payload: MarketingCampaignPayload): 
 export const readLogLines = (count?: number): Promise<string[]> => api().readLogLines(count)
 export const getEnvConfig = (): Promise<Record<string, string>> => api().getEnvConfig()
 export const saveEnvConfig = (config: Record<string, string>) => api().saveEnvConfig(config)
+export const listCompanyRecords = (platform: CompanyPlatform): Promise<CompanyRecord[]> => api().listCompanyRecords(platform)
+export const saveCompanyRecord = (payload: SaveCompanyPayload): Promise<CompanyRecord> => api().saveCompanyRecord(payload)
 export const resetBotState = () => api().resetBotState()
 export const onLogNewLines = (cb: (lines: string[]) => void) => api().onLogNewLines(cb)
 export const onBotLogLines = (cb: (lines: string[]) => void) => api().onBotLogLines(cb)

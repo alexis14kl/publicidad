@@ -20,6 +20,36 @@ export interface CommandResult {
   pid?: number
 }
 
+export type CompanyPlatform = 'facebook' | 'tiktok' | 'linkedin' | 'instagram'
+
+export interface CompanyRecord {
+  id: number
+  nombre: string
+  token: string
+  logo: string | null
+  telefono: string | null
+  correo: string | null
+  sitio_web: string | null
+  direccion: string | null
+  descripcion: string | null
+  activo: number
+  created_at: string
+  updated_at: string
+}
+
+export interface SaveCompanyPayload {
+  platform: CompanyPlatform
+  nombre: string
+  token: string
+  logo?: string
+  telefono?: string
+  correo?: string
+  sitio_web?: string
+  direccion?: string
+  descripcion?: string
+  activo?: boolean
+}
+
 export interface StartBotPayload {
   profileName?: string
   imagePrompt?: string
@@ -203,6 +233,8 @@ export interface ElectronAPI {
   readLogLines: (count?: number) => Promise<string[]>
   getEnvConfig: () => Promise<Record<string, string>>
   saveEnvConfig: (config: Record<string, string>) => Promise<CommandResult>
+  listCompanyRecords: (platform: CompanyPlatform) => Promise<CompanyRecord[]>
+  saveCompanyRecord: (payload: SaveCompanyPayload) => Promise<CompanyRecord>
   resetBotState: () => Promise<{ success: boolean; deleted: string[] }>
   runPreflight: (force?: boolean) => Promise<PreflightResult>
   onLogNewLines: (callback: (lines: string[]) => void) => () => void

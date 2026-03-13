@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readLogLines: (count) => ipcRenderer.invoke('read-log-lines', count),
   getEnvConfig: () => ipcRenderer.invoke('get-env-config'),
   saveEnvConfig: (config) => ipcRenderer.invoke('save-env-config', config),
+  listCompanyRecords: (platform) => ipcRenderer.invoke('list-company-records', platform),
+  saveCompanyRecord: (payload) => ipcRenderer.invoke('save-company-record', payload),
   resetBotState: () => ipcRenderer.invoke('reset-bot-state'),
   runPreflight: (force) => ipcRenderer.invoke('run-preflight', force),
   onLogNewLines: (callback) => {
