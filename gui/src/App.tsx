@@ -13,7 +13,7 @@ import { usePollerProcess } from './hooks/usePollerProcess'
 import { useLogTail } from './hooks/useLogTail'
 import { useBotLogTail } from './hooks/useBotLogTail'
 import { useLastJob } from './hooks/useLastJob'
-import { onMarketingRunUpdate, runMarketingCampaignPreview, startBot, stopBot } from './lib/commands'
+import { generateDefaultPrompt, onMarketingRunUpdate, runMarketingCampaignPreview, startBot, stopBot } from './lib/commands'
 import type { MarketingRunUpdate } from './lib/types'
 
 function MarketingCampaignModal({
@@ -560,6 +560,18 @@ export default function App() {
     } catch {
       // ignore invalid localStorage state
     }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    generateDefaultPrompt()
+      .then((result) => {
+        if (!cancelled && result.success && result.prompt) {
+          setImagePrompt((current) => current.trim() ? current : result.prompt)
+        }
+      })
+      .catch(() => { /* ignore */ })
+    return () => { cancelled = true }
   }, [])
 
   const rememberPrompt = (prompt: string) => {

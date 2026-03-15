@@ -237,6 +237,7 @@ export interface ElectronAPI {
   saveCompanyRecord: (payload: SaveCompanyPayload) => Promise<CompanyRecord>
   resetBotState: () => Promise<{ success: boolean; deleted: string[] }>
   runPreflight: (force?: boolean) => Promise<PreflightResult>
+  generateDefaultPrompt: () => Promise<{ success: boolean; prompt: string }>
   onLogNewLines: (callback: (lines: string[]) => void) => () => void
   onBotLogLines: (callback: (lines: string[]) => void) => () => void
   onMarketingRunUpdate: (callback: (update: MarketingRunUpdate) => void) => () => void

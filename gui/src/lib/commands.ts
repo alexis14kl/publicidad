@@ -28,6 +28,7 @@ export const saveEnvConfig = (config: Record<string, string>) => api().saveEnvCo
 export const listCompanyRecords = (platform: CompanyPlatform): Promise<CompanyRecord[]> => api().listCompanyRecords(platform)
 export const saveCompanyRecord = (payload: SaveCompanyPayload): Promise<CompanyRecord> => api().saveCompanyRecord(payload)
 export const resetBotState = () => api().resetBotState()
+export const generateDefaultPrompt = (): Promise<{ success: boolean; prompt: string }> => api().generateDefaultPrompt()
 export const changeLogo = (): Promise<{ success: boolean; logoUrl?: string; canceled?: boolean }> => api().changeLogo()
 export const getLogoPath = (): Promise<string | null> => api().getLogoPath()
 export const listLogos = (): Promise<{ filename: string; url: string }[]> => api().listLogos()

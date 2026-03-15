@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveCompanyRecord: (payload) => ipcRenderer.invoke('save-company-record', payload),
   resetBotState: () => ipcRenderer.invoke('reset-bot-state'),
   runPreflight: (force) => ipcRenderer.invoke('run-preflight', force),
+  generateDefaultPrompt: () => ipcRenderer.invoke('generate-default-prompt'),
   changeLogo: () => ipcRenderer.invoke('change-logo'),
   getLogoPath: () => ipcRenderer.invoke('get-logo-path'),
   listLogos: () => ipcRenderer.invoke('list-logos'),

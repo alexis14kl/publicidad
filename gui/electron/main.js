@@ -3383,6 +3383,72 @@ ipcMain.handle('read-log-lines', async (_event, count = 200) => {
   }
 })
 
+ipcMain.handle('generate-default-prompt', async () => {
+  const pythonBin = findPython()
+  if (!pythonBin) {
+    return { success: false, prompt: '' }
+  }
+  const seedFile = path.join(PROJECT_ROOT, 'utils', 'prompt_seed.txt')
+  const promptFile = path.join(PROJECT_ROOT, 'utils', 'prontm.txt')
+  const scriptPath = path.join(PROJECT_ROOT, 'utils', 'n8n_prompt_client.py')
+
+  if (!fs.existsSync(scriptPath) || !fs.existsSync(seedFile)) {
+    // Fallback: leer ultimo prompt guardado
+    try {
+      const saved = fs.readFileSync(promptFile, 'utf-8').trim()
+      if (saved) return { success: true, prompt: saved }
+    } catch { /* ignore */ }
+    return { success: false, prompt: '' }
+  }
+
+  return new Promise((resolve) => {
+    const child = spawn(pythonBin, [
+      scriptPath,
+      '--idea-file', seedFile,
+      '--stdout-only',
+      '--no-db',
+    ], {
+      cwd: PROJECT_ROOT,
+      env: getProjectEnv(),
+      timeout: 30000,
+    })
+
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (d) => { stdout += d.toString() })
+    child.stderr.on('data', (d) => { stderr += d.toString() })
+
+    child.on('close', (code) => {
+      const prompt = stdout.trim()
+      if (code === 0 && prompt) {
+        resolve({ success: true, prompt })
+        return
+      }
+      // Fallback: leer ultimo prompt guardado
+      try {
+        const saved = fs.readFileSync(promptFile, 'utf-8').trim()
+        if (saved) {
+          resolve({ success: true, prompt: saved })
+          return
+        }
+      } catch { /* ignore */ }
+      resolve({ success: false, prompt: '' })
+    })
+
+    child.on('error', () => {
+      // Fallback: leer ultimo prompt guardado
+      try {
+        const saved = fs.readFileSync(promptFile, 'utf-8').trim()
+        if (saved) {
+          resolve({ success: true, prompt: saved })
+          return
+        }
+      } catch { /* ignore */ }
+      resolve({ success: false, prompt: '' })
+    })
+  })
+})
+
 ipcMain.handle('get-env-config', async () => {
   return parseEnvFile(path.join(PROJECT_ROOT, '.env'))
 })
