@@ -1,3 +1,6 @@
+# SQLite databases
+*.sqlite3
+
 # Imagenes publicitarias generadas
 img_publicitarias/
 
