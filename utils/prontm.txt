@@ -26,3 +26,12 @@ cyan #00bcd4.
 Composicion vertical 4:5 similar a anuncios modernos de tecnologia para Facebook Ads.
 Full-bleed design, fondo claro de borde a borde, sin margenes negros.
 La franja superior (15% del alto) debe estar completamente vacia con fondo claro, reservada para el logo.
+
+[MANDATORY IMAGE FORMAT — THIS OVERRIDES ANY OTHER SIZE INSTRUCTION]
+Platform: Facebook. Aspect ratio: 4:5. Resolution: exactly 1080x1350 pixels. Orientation: vertical (portrait). YOU MUST generate the image at 1080x1350 pixels with 4:5 aspect ratio. Do NOT use any other dimensions. This is a hard requirement from the client.
+
+[MANDATORY IMAGE FORMAT — THIS OVERRIDES ANY OTHER SIZE INSTRUCTION]
+Platform: Facebook. Aspect ratio: 4:5. Resolution: exactly 1080x1350 pixels. Orientation: vertical (portrait). YOU MUST generate the image at 1080x1350 pixels with 4:5 aspect ratio. Do NOT use any other dimensions. This is a hard requirement from the client.
+
+[MANDATORY IMAGE FORMAT — THIS OVERRIDES ANY OTHER SIZE INSTRUCTION]
+Platform: Facebook. Aspect ratio: 4:5. Resolution: exactly 1080x1350 pixels. Orientation: vertical (portrait). YOU MUST generate the image at 1080x1350 pixels with 4:5 aspect ratio. Do NOT use any other dimensions. This is a hard requirement from the client.

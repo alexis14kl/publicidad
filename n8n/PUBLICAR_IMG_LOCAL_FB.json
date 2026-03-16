@@ -76,6 +76,12 @@
               "name": "access_token",
               "value": "={{ $json.body.access_token || $json.access_token || \"\" }}",
               "type": "string"
+            },
+            {
+              "id": "fb-page-id",
+              "name": "page_id",
+              "value": "={{ $json.body.page_id || $json.page_id || \"\" }}",
+              "type": "string"
             }
           ]
         },
@@ -129,7 +135,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://graph.facebook.com/v21.0/115406607722279/photos",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('Preparar Imagen Local').item.json.page_id }}/photos",
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {
@@ -407,6 +413,18 @@
                 "name": "source",
                 "value": "={{ $json.source || \"chatgpt_local_bot\" }}",
                 "type": "string"
+              },
+              {
+                "id": "fb-access-token",
+                "name": "access_token",
+                "value": "={{ $json.body.access_token || $json.access_token || \"\" }}",
+                "type": "string"
+              },
+              {
+                "id": "fb-page-id",
+                "name": "page_id",
+                "value": "={{ $json.body.page_id || $json.page_id || \"\" }}",
+                "type": "string"
               }
             ]
           },
@@ -460,7 +478,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "https://graph.facebook.com/v21.0/115406607722279/photos",
+          "url": "=https://graph.facebook.com/v21.0/{{ $('Preparar Imagen Local').item.json.page_id }}/photos",
           "sendBody": true,
           "contentType": "form-urlencoded",
           "bodyParameters": {

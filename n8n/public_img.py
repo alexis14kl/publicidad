@@ -109,6 +109,18 @@ def get_platform_access_token(platform: str) -> str:
     return ""
 
 
+def get_platform_page_id(platform: str) -> str:
+    platform_key = str(platform or "").strip().lower()
+    env_keys = {
+        "facebook": ("FB_PAGE_ID", "FACEBOOK_PAGE_ID", "META_PAGE_ID"),
+    }
+    for env_key in env_keys.get(platform_key, ()):
+        value = str(get_env(env_key, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def upload_to_freeimage(image_base64: str, timeout_sec: int) -> str:
     payload = urlencode(
         {
@@ -269,6 +281,9 @@ def main() -> int:
     access_token = get_platform_access_token(platform)
     if access_token:
         metadata["access_token"] = access_token
+    page_id = get_platform_page_id(platform)
+    if page_id:
+        metadata["page_id"] = page_id
 
     if args.dry_run:
         print(
@@ -304,6 +319,10 @@ def main() -> int:
     if platform == "facebook" and not access_token:
         raise PublicImageError(
             "No hay token activo para Facebook. Selecciona una cuenta en Empresas o define FB_ACCESS_TOKEN."
+        )
+    if platform == "facebook" and not page_id:
+        raise PublicImageError(
+            "No hay Page ID activo para Facebook. Configura el Page ID de la cuenta en Empresas o define FB_PAGE_ID."
         )
 
     response = post_image_to_n8n(

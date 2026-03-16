@@ -267,6 +267,9 @@ function ensureCompanyPlatformSchema(dbPath, platformConfig) {
   if (!platformTableHasColumn(dbPath, platformConfig, 'is_primary')) {
     statements.push(`ALTER TABLE ${platformConfig.table} ADD COLUMN is_primary INTEGER NOT NULL DEFAULT 0;`)
   }
+  if (platformConfig.table === 'facebook_form' && !platformTableHasColumn(dbPath, platformConfig, 'page_id')) {
+    statements.push(`ALTER TABLE ${platformConfig.table} ADD COLUMN page_id TEXT;`)
+  }
 
   statements.push(`UPDATE ${platformConfig.table} SET account_index = COALESCE(account_index, 1);`)
   statements.push(`UPDATE ${platformConfig.table} SET account_label = COALESCE(NULLIF(TRIM(account_label), ''), 'Cuenta ' || account_index);`)
@@ -360,6 +363,7 @@ function aggregateCompanyRows(rowsByPlatform = {}) {
         account_index: Number(row.account_index || 1),
         account_label: String(row.account_label || `Cuenta ${row.account_index || 1}`),
         token: String(row.token || ''),
+        page_id: String(row.page_id || ''),
         activo: Number(row.plataforma_activa ?? row.activo ?? 1),
         is_primary: Number(row.is_primary ?? 0),
       }
@@ -434,6 +438,7 @@ function fetchCompanyRowsForPlatform(platform) {
       p.account_index AS account_index,
       p.account_label AS account_label,
       p.token AS token,
+      ${platform === 'facebook' ? 'p.page_id AS page_id,' : "'' AS page_id,"}
       p.activo AS plataforma_activa,
       p.is_primary AS is_primary
     FROM ${platformConfig.table} p
@@ -3927,6 +3932,7 @@ ipcMain.handle('save-company-record', async (_event, payload = {}) => {
               account_index: index + 1,
               account_label: String(account?.account_label || '').trim(),
               token: String(account?.token || '').trim(),
+              page_id: platform === 'facebook' ? String(account?.page_id || '').trim() : '',
             }))
             .filter((account) => account.token)
         : []
@@ -3934,6 +3940,12 @@ ipcMain.handle('save-company-record', async (_event, payload = {}) => {
       if (enabled) {
         if (accounts.length === 0) {
           throw new Error(`Debes registrar al menos una cuenta para ${getCompanyPlatformConfig(platform).label}.`)
+        }
+        if (platform === 'facebook') {
+          const invalidPageIdAccount = accounts.find((account) => !account.page_id)
+          if (invalidPageIdAccount) {
+            throw new Error('Cada cuenta de Facebook con token debe tener un Page ID.')
+          }
         }
         selectedPlatforms.push({
           platform,
@@ -4044,6 +4056,7 @@ ipcMain.handle('save-company-record', async (_event, payload = {}) => {
           account_index,
           account_label,
           token,
+          ${platform === 'facebook' ? 'page_id,' : ''}
           activo,
           is_primary,
           updated_at
@@ -4052,6 +4065,7 @@ ipcMain.handle('save-company-record', async (_event, payload = {}) => {
           ${sqlLiteral(account.account_index)},
           ${sqlLiteral(account.account_label || `Cuenta ${account.account_index}`)},
           ${sqlLiteral(account.token)},
+          ${platform === 'facebook' ? `${sqlLiteral(account.page_id || null)},` : ''}
           1,
           ${index === 0 ? 1 : 0},
           CURRENT_TIMESTAMP
@@ -4062,6 +4076,9 @@ ipcMain.handle('save-company-record', async (_event, payload = {}) => {
 
       if (selectedPlatform.syncToConfig && primaryToken) {
         envUpdates[platformConfig.tokenEnvKey] = primaryToken
+        if (platform === 'facebook' && primaryAccount?.page_id) {
+          envUpdates.FB_PAGE_ID = primaryAccount.page_id
+        }
       }
     }
 
@@ -4152,7 +4169,7 @@ ipcMain.handle('select-company-publication-account', async (_event, payload = {}
     const selectedRows = runSqliteJson(
       dbPath,
       `
-      SELECT token
+      SELECT token, ${platform === 'facebook' ? 'page_id' : "'' AS page_id"}
       FROM ${platformConfig.table}
       WHERE empresa_id = ${sqlLiteral(empresaId)}
         AND account_index = ${sqlLiteral(accountIndex)}
@@ -4161,8 +4178,12 @@ ipcMain.handle('select-company-publication-account', async (_event, payload = {}
     )
 
     const selectedToken = String(selectedRows[0]?.token || '').trim()
+    const selectedPageId = String(selectedRows[0]?.page_id || '').trim()
     if (!selectedToken) {
       throw new Error(`No encontre la cuenta ${accountIndex} de ${platformConfig.label} para ${companyName}.`)
+    }
+    if (platform === 'facebook' && !selectedPageId) {
+      throw new Error(`La cuenta ${accountIndex} de Facebook no tiene Page ID configurado.`)
     }
 
     runSqlite(
@@ -4177,16 +4198,20 @@ ipcMain.handle('select-company-publication-account', async (_event, payload = {}
       `
     )
 
-    persistEnvConfig({
+    const envUpdates = {
       [platformConfig.tokenEnvKey]: selectedToken,
-    })
+    }
+    if (platform === 'facebook' && selectedPageId) {
+      envUpdates.FB_PAGE_ID = selectedPageId
+    }
+    persistEnvConfig(envUpdates)
 
     return {
       success: true,
       companyName,
       platform,
       accountIndex,
-      envKey: platformConfig.tokenEnvKey,
+      envKey: platform === 'facebook' ? `${platformConfig.tokenEnvKey} y FB_PAGE_ID` : platformConfig.tokenEnvKey,
     }
   } catch (err) {
     throw new Error(err.message || 'No se pudo seleccionar la cuenta para publicaciones.')

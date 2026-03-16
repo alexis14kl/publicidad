@@ -23,6 +23,7 @@ function createEmptyAccounts() {
   return Array.from({ length: ACCOUNT_SLOTS }, (_, index) => ({
     account_label: `Cuenta ${index + 1}`,
     token: '',
+    page_id: '',
   }))
 }
 
@@ -68,6 +69,7 @@ export function CompanyProfilesPage() {
   const [logoFileName, setLogoFileName] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [editingCompanyName, setEditingCompanyName] = useState<string | null>(null)
   const [deletingCompanyName, setDeletingCompanyName] = useState<string | null>(null)
   const [selectingPublicationKey, setSelectingPublicationKey] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -110,6 +112,12 @@ export function CompanyProfilesPage() {
     if (!form.nombre.trim()) return 'Completa el nombre de la empresa.'
     if (!form.correo.trim() && !form.telefono.trim()) return 'Agrega al menos un correo o un telefono de contacto.'
     if (selectedPlatforms.length === 0) return 'Marca al menos una red social para esta empresa.'
+    const invalidFacebookPage = form.platforms.facebook.enabled
+      ? form.platforms.facebook.accounts.find((account) => account.token.trim() && !account.page_id?.trim())
+      : null
+    if (invalidFacebookPage) {
+      return 'Cada cuenta de Facebook con token debe tener Page ID.'
+    }
     const invalidPlatform = selectedPlatforms.find(
       (option) => !form.platforms[option.key].accounts.some((account) => account.token.trim())
     )
@@ -123,6 +131,8 @@ export function CompanyProfilesPage() {
     !!form.nombre.trim() &&
     (!!form.correo.trim() || !!form.telefono.trim()) &&
     selectedPlatforms.length > 0 &&
+    (!form.platforms.facebook.enabled ||
+      form.platforms.facebook.accounts.every((account) => !account.token.trim() || !!account.page_id?.trim())) &&
     selectedPlatforms.every((option) => form.platforms[option.key].accounts.some((account) => account.token.trim())) &&
     !saving
 
@@ -187,7 +197,7 @@ export function CompanyProfilesPage() {
   const handlePlatformAccountChange = (
     platform: CompanyPlatform,
     index: number,
-    key: 'account_label' | 'token',
+    key: 'account_label' | 'token' | 'page_id',
     value: string
   ) => {
     setForm((prev) => ({
@@ -241,6 +251,48 @@ export function CompanyProfilesPage() {
     setError(null)
   }
 
+  const handleEditRecord = (record: CompanyRecord) => {
+    const nextPlatforms = createEmptyPlatforms()
+    const nextVisibleCounts = createVisibleAccountCounts()
+
+    for (const platformRecord of record.platforms) {
+      const accounts = createEmptyAccounts()
+      platformRecord.accounts.slice(0, ACCOUNT_SLOTS).forEach((account, index) => {
+        accounts[index] = {
+          account_label: account.account_label || `Cuenta ${index + 1}`,
+          token: account.token || '',
+          page_id: account.page_id || '',
+        }
+      })
+
+      nextPlatforms[platformRecord.platform] = {
+        enabled: true,
+        syncToConfig: true,
+        accounts,
+      }
+      nextVisibleCounts[platformRecord.platform] = Math.max(1, Math.min(platformRecord.accounts.length, ACCOUNT_SLOTS))
+    }
+
+    setForm({
+      nombre: record.nombre || '',
+      logo: record.logo || '',
+      telefono: record.telefono || '',
+      correo: record.correo || '',
+      sitio_web: record.sitio_web || '',
+      direccion: record.direccion || '',
+      descripcion: record.descripcion || '',
+      activo: !!record.activo,
+      platforms: nextPlatforms,
+    })
+    setVisibleAccountCounts(nextVisibleCounts)
+    setLogoFileName(formatLogoLabel(record.logo))
+    setLogoPreviewUrl(null)
+    setEditingCompanyName(record.nombre)
+    setMessage(`Editando empresa: ${record.nombre}`)
+    setError(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const handleDeleteRecord = async (record: CompanyRecord) => {
     const companyName = record.nombre.trim()
     if (!companyName) return
@@ -256,6 +308,13 @@ export function CompanyProfilesPage() {
       const result = await deleteCompanyRecord({ companyName })
       if (!result.success) {
         throw new Error('No se pudo eliminar la empresa.')
+      }
+      if (editingCompanyName && editingCompanyName.trim().toLowerCase() === companyName.toLowerCase()) {
+        setForm({ ...EMPTY_FORM, platforms: createEmptyPlatforms() })
+        setVisibleAccountCounts(createVisibleAccountCounts())
+        setLogoFileName('')
+        setLogoPreviewUrl(null)
+        setEditingCompanyName(null)
       }
       setMessage(`Empresa eliminada: ${result.deletedName || record.nombre}`)
       await loadRecords()
@@ -335,6 +394,7 @@ export function CompanyProfilesPage() {
       setVisibleAccountCounts(createVisibleAccountCounts())
       setLogoFileName('')
       setLogoPreviewUrl(null)
+      setEditingCompanyName(null)
       await loadRecords()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la empresa.')
@@ -517,6 +577,18 @@ export function CompanyProfilesPage() {
                               placeholder={`Token ${option.label} cuenta ${index + 1}`}
                             />
                           </label>
+                          {option.key === 'facebook' && (
+                            <label className="company-field company-account-row__full">
+                              <span>Page ID cuenta {index + 1}</span>
+                              <input
+                                value={account.page_id || ''}
+                                onChange={(event) =>
+                                  handlePlatformAccountChange(option.key, index, 'page_id', event.target.value)
+                                }
+                                placeholder={`Page ID Facebook cuenta ${index + 1}`}
+                              />
+                            </label>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -549,7 +621,7 @@ export function CompanyProfilesPage() {
             <div className="company-form__footer">
               <span className="company-form__hint">{validationMessage}</span>
               <button className="btn btn--start company-form__submit" type="submit" disabled={!canSave}>
-                {saving ? 'Guardando...' : 'Guardar empresa'}
+                {saving ? 'Guardando...' : editingCompanyName ? 'Actualizar empresa' : 'Guardar empresa'}
               </button>
             </div>
           </form>
@@ -592,6 +664,14 @@ export function CompanyProfilesPage() {
                       <span className={`job-badge ${record.activo ? 'badge--success' : 'badge--warn'}`}>
                         {record.activo ? 'Activa' : 'Inactiva'}
                       </span>
+                      <button
+                        className="btn btn--ghost btn--small"
+                        type="button"
+                        onClick={() => handleEditRecord(record)}
+                        disabled={deletingCompanyName === record.nombre}
+                      >
+                        Editar
+                      </button>
                       <button
                         className="btn btn--ghost btn--small company-record__delete"
                         type="button"
@@ -652,6 +732,9 @@ export function CompanyProfilesPage() {
                               <div className="company-record__account-meta">
                                 <span>{account.account_label || `Cuenta ${account.account_index}`}</span>
                                 <strong>{maskToken(account.token)}</strong>
+                                {platform.platform === 'facebook' && account.page_id ? (
+                                  <small className="company-record__account-pageid">Page ID: {account.page_id}</small>
+                                ) : null}
                               </div>
                               <div className="company-record__account-actions">
                                 {account.is_primary ? (
