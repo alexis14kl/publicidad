@@ -4026,10 +4026,10 @@ ipcMain.handle('generate-default-prompt', async () => {
   const scriptPath = path.join(PROJECT_ROOT, 'utils', 'n8n_prompt_client.py')
 
   if (!fs.existsSync(scriptPath) || !fs.existsSync(seedFile)) {
-    // Fallback: leer ultimo prompt guardado
+    // Fallback: leer seed limpio (NO prontm.txt que tiene reglas inyectadas)
     try {
-      const saved = fs.readFileSync(promptFile, 'utf-8').trim()
-      if (saved) return { success: true, prompt: saved }
+      const seed = fs.readFileSync(seedFile, 'utf-8').trim()
+      if (seed) return { success: true, prompt: seed }
     } catch { /* ignore */ }
     return { success: false, prompt: '' }
   }
@@ -4057,11 +4057,11 @@ ipcMain.handle('generate-default-prompt', async () => {
         resolve({ success: true, prompt })
         return
       }
-      // Fallback: leer ultimo prompt guardado
+      // Fallback: leer seed limpio
       try {
-        const saved = fs.readFileSync(promptFile, 'utf-8').trim()
-        if (saved) {
-          resolve({ success: true, prompt: saved })
+        const seed = fs.readFileSync(seedFile, 'utf-8').trim()
+        if (seed) {
+          resolve({ success: true, prompt: seed })
           return
         }
       } catch { /* ignore */ }
@@ -4069,11 +4069,11 @@ ipcMain.handle('generate-default-prompt', async () => {
     })
 
     child.on('error', () => {
-      // Fallback: leer ultimo prompt guardado
+      // Fallback: leer seed limpio
       try {
-        const saved = fs.readFileSync(promptFile, 'utf-8').trim()
-        if (saved) {
-          resolve({ success: true, prompt: saved })
+        const seed = fs.readFileSync(seedFile, 'utf-8').trim()
+        if (seed) {
+          resolve({ success: true, prompt: seed })
           return
         }
       } catch { /* ignore */ }
