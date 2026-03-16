@@ -1,0 +1,231 @@
+{
+  "name": "PUBLICAR_IMG_LOCAL_FB",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "publicar-img-local-fb",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-480, 0],
+      "id": "34603ac0-1ab7-4a13-b72b-c1f715233e08",
+      "name": "Webhook Imagen Local",
+      "webhookId": "publicar-img-local-fb"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "45823cba-c22a-4ff3-a61e-a53900b6986a",
+              "name": "imageBase64",
+              "value": "={{ $json.body.imageBase64 || $json.imageBase64 || $binary.image.data || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "368960e5-5adc-44a4-8cee-2383f10f1231",
+              "name": "postText",
+              "value": "={{ $json.body.post_text || $json.body.postText || $json.post_text || $json.postText || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "2b073f60-bc58-4940-92ac-a2220cfc7b94",
+              "name": "category",
+              "value": "={{ $json.body.category || $json.category || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "b7d90bcd-1235-4acb-b670-549fa6c83788",
+              "name": "filename",
+              "value": "={{ $json.body.filename || $json.filename || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "f332962c-025a-4ac5-aac8-f960dc2b45a6",
+              "name": "asset_id",
+              "value": "={{ $json.body.asset_id || $json.asset_id || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "d8a75bfb-53af-4efc-9a9f-071cbda6a339",
+              "name": "generated_at",
+              "value": "={{ $json.body.generated_at || $json.generated_at || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "d34653dd-c3d1-41af-9e7e-de57e18d09fb",
+              "name": "source",
+              "value": "={{ $json.body.source || $json.source || \"chatgpt_local_bot\" }}",
+              "type": "string"
+            },
+            {
+              "id": "image-url-explicit",
+              "name": "image_url",
+              "value": "={{ $json.body.image_url || $json.image_url || \"\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-160, 0],
+      "id": "9d5f5b80-2262-4077-b988-bdfc1315e21b",
+      "name": "Preparar Imagen Local"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Convierte imageBase64 a binario para enviar directo a Facebook\nconst base64 = $input.first().json.imageBase64;\nconst filename = $input.first().json.filename || 'ad_image.png';\n\nif (!base64) {\n  throw new Error('No se recibio imageBase64');\n}\n\n// Limpiar prefijo data:image/... si existe\nconst cleanBase64 = base64.replace(/^data:image\\/\\w+;base64,/, '');\nconst buffer = Buffer.from(cleanBase64, 'base64');\n\nreturn {\n  json: {\n    postText: $input.first().json.postText,\n    category: $input.first().json.category,\n    filename: filename,\n    image_url: $input.first().json.image_url || '',\n    asset_id: $input.first().json.asset_id || '',\n    generated_at: $input.first().json.generated_at || '',\n  },\n  binary: {\n    image: {\n      data: buffer,\n      mimeType: 'image/png',\n      fileName: filename,\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [200, 0],
+      "id": "b64-to-binary-001",
+      "name": "Base64 a Binario"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/115406607722279/photos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formData",
+              "name": "message",
+              "value": "={{ $json.postText }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "source",
+              "inputDataFieldName": "image"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [544, 0],
+      "id": "60caef0f-e4b0-4f94-b258-8747e508b91d",
+      "name": "Publicar en Facebook IA",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "bACRgILlcPROzumK",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "log-status",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "log-fb-id",
+              "name": "facebook_post_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "log-text",
+              "name": "published_text",
+              "value": "={{ $('Base64 a Binario').item.json.postText }}",
+              "type": "string"
+            },
+            {
+              "id": "log-category",
+              "name": "category",
+              "value": "={{ $('Base64 a Binario').item.json.category }}",
+              "type": "string"
+            },
+            {
+              "id": "log-timestamp",
+              "name": "published_at",
+              "value": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+              "type": "string"
+            },
+            {
+              "name": "image_url",
+              "value": "={{ $('Base64 a Binario').item.json.image_url }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f871935e-336a-48e7-aefe-89eba8fa113b",
+      "name": "Log Publicacion IA",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [832, 0]
+    }
+  ],
+  "connections": {
+    "Webhook Imagen Local": {
+      "main": [
+        [
+          {
+            "node": "Preparar Imagen Local",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Imagen Local": {
+      "main": [
+        [
+          {
+            "node": "Base64 a Binario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Base64 a Binario": {
+      "main": [
+        [
+          {
+            "node": "Publicar en Facebook IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publicar en Facebook IA": {
+      "main": [
+        [
+          {
+            "node": "Log Publicacion IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

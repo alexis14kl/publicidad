@@ -33,17 +33,22 @@ def _get_target_dimensions() -> tuple[int, int]:
 
 
 def _fit_to_target(img: Image.Image, tw: int, th: int) -> Image.Image:
-    """Recorta/escala la imagen para que llene exactamente tw x th."""
+    """Escala la imagen para que quepa en tw x th SIN recortar. Rellena con fondo claro."""
     w, h = img.size
     if w == tw and h == th:
         return img
-    scale = max(tw / w, th / h)
+    # min() = fit-to-contain (no recorta, puede dejar bordes)
+    scale = min(tw / w, th / h)
     new_w = int(w * scale)
     new_h = int(h * scale)
     img = img.resize((new_w, new_h), Image.LANCZOS)
-    left = (new_w - tw) // 2
-    top = (new_h - th) // 2
-    return img.crop((left, top, left + tw, top + th))
+    # Crear canvas del tamaño exacto con fondo claro (#f0f0f5)
+    canvas = Image.new("RGBA", (tw, th), (240, 240, 245, 255))
+    # Centrar la imagen en el canvas
+    x = (tw - new_w) // 2
+    y = (th - new_h) // 2
+    canvas.paste(img, (x, y), img if img.mode == "RGBA" else None)
+    return canvas
 
 
 def overlay_logo(image_path: str | Path) -> Path:
