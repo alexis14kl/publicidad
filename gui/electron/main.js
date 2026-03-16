@@ -190,6 +190,7 @@ function ensureCompanyDb(platform) {
     encoding: 'utf-8',
   })
   ensureCompanyPlatformSchema(dbPath, platformConfig)
+  ensureCompanyColorColumns(dbPath)
   migrateLegacyCompanyPlatformData(dbPath, platformConfig)
   return dbPath
 }
@@ -291,6 +292,24 @@ function ensureCompanyPlatformSchema(dbPath, platformConfig) {
   runSqlite(dbPath, statements.join('\n'))
 }
 
+const COLOR_COLUMNS = [
+  { name: 'color_primario', default: '#3469ED' },
+  { name: 'color_cta',      default: '#fd9102' },
+  { name: 'color_acento',   default: '#00bcd4' },
+  { name: 'color_checks',   default: '#28a745' },
+  { name: 'color_fondo',    default: '#f0f0f5' },
+]
+
+function ensureCompanyColorColumns(dbPath) {
+  const statements = []
+  for (const col of COLOR_COLUMNS) {
+    if (!companyTableHasColumn(dbPath, col.name)) {
+      statements.push(`ALTER TABLE empresas ADD COLUMN ${col.name} TEXT DEFAULT '${col.default}';`)
+    }
+  }
+  if (statements.length > 0) runSqlite(dbPath, statements.join('\n'))
+}
+
 function companyTableHasColumn(dbPath, columnName) {
   const target = String(columnName || '').trim().toLowerCase()
   if (!target) return false
@@ -356,6 +375,11 @@ function getEmptyCompanyAggregation(row = {}) {
     sitio_web: row.sitio_web || null,
     direccion: row.direccion || null,
     descripcion: row.descripcion || null,
+    color_primario: row.color_primario || '#3469ED',
+    color_cta: row.color_cta || '#fd9102',
+    color_acento: row.color_acento || '#00bcd4',
+    color_checks: row.color_checks || '#28a745',
+    color_fondo: row.color_fondo || '#f0f0f5',
     activo: Number(row.empresa_activa ?? row.activo ?? 1),
     created_at: row.created_at || '',
     updated_at: row.updated_at || '',
@@ -452,6 +476,11 @@ function fetchCompanyRowsForPlatform(platform) {
       e.sitio_web AS sitio_web,
       e.direccion AS direccion,
       e.descripcion AS descripcion,
+      e.color_primario AS color_primario,
+      e.color_cta AS color_cta,
+      e.color_acento AS color_acento,
+      e.color_checks AS color_checks,
+      e.color_fondo AS color_fondo,
       e.activo AS empresa_activa,
       e.created_at AS created_at,
       e.updated_at AS updated_at,
@@ -3608,6 +3637,25 @@ function buildCompanyRule(companyName) {
   )
 }
 
+function buildColorRule(companyName) {
+  const company = lookupCompanyData(companyName)
+  const p = company?.color_primario || '#3469ED'
+  const c = company?.color_cta || '#fd9102'
+  const a = company?.color_acento || '#00bcd4'
+  const k = company?.color_checks || '#28a745'
+  const f = company?.color_fondo || '#f0f0f5'
+  return (
+    `\n\n[MANDATORY BRAND COLORS — USE THESE EXACT COLORS IN THE IMAGE]\n` +
+    `Primary color (titles, headings): ${p}. ` +
+    `CTA color (buttons, badges, call-to-action): ${c}. ` +
+    `Accent color (tech details, decorative elements): ${a}. ` +
+    `Check color (benefit checkmarks): ${k}. ` +
+    `Background color: ${f}. ` +
+    `Do NOT use any other color palette. These are the client's brand colors. ` +
+    `NEVER use dark or black backgrounds. The style must be LIGHT, clean and colorful.`
+  )
+}
+
 // ─── Service Lookup ───────────────────────────────────────────────────────
 const NOYECODE_SERVICES = {
   'desarrollo-a-la-medida':        'Desarrollo a la Medida',
@@ -3712,7 +3760,7 @@ ipcMain.handle('start-bot', async (_event, payload) => {
     return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar.' }
   }
 
-  const imagePrompt = rawPrompt + buildCompanyRule(companyName) + buildServiceRule(imageService) + buildFormatRule(imageFormat)
+  const imagePrompt = rawPrompt + buildCompanyRule(companyName) + buildColorRule(companyName) + buildServiceRule(imageService) + buildFormatRule(imageFormat)
 
   const botRunnerPath = path.join(PROJECT_ROOT, 'server', 'bot_runner.py')
   const pythonBin = findPython()
@@ -3805,7 +3853,7 @@ ipcMain.handle('start-poller', async (_event, payload) => {
     return { success: false, error: `La empresa ${pollerCompany} esta inactiva y no puede generar publicaciones.` }
   }
 
-  const finalPollerPrompt = rawPollerPrompt + buildCompanyRule(pollerCompany) + buildServiceRule(pollerService) + buildFormatRule(pollerFormat)
+  const finalPollerPrompt = rawPollerPrompt + buildCompanyRule(pollerCompany) + buildColorRule(pollerCompany) + buildServiceRule(pollerService) + buildFormatRule(pollerFormat)
 
   const env = getProjectEnv()
   // Persist poller logs so the GUI can tail them.
@@ -4068,6 +4116,11 @@ ipcMain.handle('save-company-record', async (_event, payload = {}) => {
     const sitioWeb = String(payload.sitio_web || '').trim()
     const direccion = String(payload.direccion || '').trim()
     const descripcion = String(payload.descripcion || '').trim()
+    const colorPrimario = String(payload.color_primario || '#3469ED').trim()
+    const colorCta = String(payload.color_cta || '#fd9102').trim()
+    const colorAcento = String(payload.color_acento || '#00bcd4').trim()
+    const colorChecks = String(payload.color_checks || '#28a745').trim()
+    const colorFondo = String(payload.color_fondo || '#f0f0f5').trim()
     const payloadPlatforms = payload.platforms && typeof payload.platforms === 'object' ? payload.platforms : {}
 
     if (!nombre) {
@@ -4157,6 +4210,11 @@ ipcMain.handle('save-company-record', async (_event, payload = {}) => {
             sitio_web = ${sqlLiteral(sitioWeb || null)},
             direccion = ${sqlLiteral(direccion || null)},
             descripcion = ${sqlLiteral(descripcion || null)},
+            color_primario = ${sqlLiteral(colorPrimario)},
+            color_cta = ${sqlLiteral(colorCta)},
+            color_acento = ${sqlLiteral(colorAcento)},
+            color_checks = ${sqlLiteral(colorChecks)},
+            color_fondo = ${sqlLiteral(colorFondo)},
             activo = ${companyActivo},
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ${sqlLiteral(empresaId)};
@@ -4176,6 +4234,11 @@ ipcMain.handle('save-company-record', async (_event, payload = {}) => {
             sitio_web,
             direccion,
             descripcion,
+            color_primario,
+            color_cta,
+            color_acento,
+            color_checks,
+            color_fondo,
             activo,
             updated_at
           ) VALUES (
@@ -4187,6 +4250,11 @@ ipcMain.handle('save-company-record', async (_event, payload = {}) => {
             ${sqlLiteral(sitioWeb || null)},
             ${sqlLiteral(direccion || null)},
             ${sqlLiteral(descripcion || null)},
+            ${sqlLiteral(colorPrimario)},
+            ${sqlLiteral(colorCta)},
+            ${sqlLiteral(colorAcento)},
+            ${sqlLiteral(colorChecks)},
+            ${sqlLiteral(colorFondo)},
             ${companyActivo},
             CURRENT_TIMESTAMP
           );

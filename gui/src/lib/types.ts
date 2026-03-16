@@ -51,9 +51,22 @@ export interface CompanyRecord {
   direccion: string | null
   descripcion: string | null
   activo: number
+  color_primario: string | null
+  color_cta: string | null
+  color_acento: string | null
+  color_checks: string | null
+  color_fondo: string | null
   created_at: string
   updated_at: string
   platforms: CompanyPlatformRecord[]
+}
+
+export const DEFAULT_BRAND_COLORS = {
+  color_primario: '#3469ED',
+  color_cta: '#fd9102',
+  color_acento: '#00bcd4',
+  color_checks: '#28a745',
+  color_fondo: '#f0f0f5',
 }
 
 export interface SaveCompanyPlatformPayload {
@@ -74,6 +87,11 @@ export interface SaveCompanyPayload {
   sitio_web?: string
   direccion?: string
   descripcion?: string
+  color_primario?: string
+  color_cta?: string
+  color_acento?: string
+  color_checks?: string
+  color_fondo?: string
   activo?: boolean
   platforms: Record<CompanyPlatform, SaveCompanyPlatformPayload>
 }

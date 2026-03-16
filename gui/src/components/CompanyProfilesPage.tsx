@@ -9,6 +9,7 @@ import {
   toggleCompanyActive,
 } from '../lib/commands'
 import type { CompanyPlatform, CompanyPlatformRecord, CompanyRecord, SaveCompanyPayload } from '../lib/types'
+import { DEFAULT_BRAND_COLORS } from '../lib/types'
 
 const PLATFORM_OPTIONS: { key: CompanyPlatform; label: string; dbFile: string; configKey: string }[] = [
   { key: 'facebook', label: 'Facebook', dbFile: 'facebook.sqlite3', configKey: 'FB_ACCESS_TOKEN' },
@@ -56,6 +57,11 @@ const EMPTY_FORM = {
   sitio_web: '',
   direccion: '',
   descripcion: '',
+  color_primario: DEFAULT_BRAND_COLORS.color_primario,
+  color_cta: DEFAULT_BRAND_COLORS.color_cta,
+  color_acento: DEFAULT_BRAND_COLORS.color_acento,
+  color_checks: DEFAULT_BRAND_COLORS.color_checks,
+  color_fondo: DEFAULT_BRAND_COLORS.color_fondo,
   activo: true,
   platforms: createEmptyPlatforms(),
 }
@@ -287,6 +293,11 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
       sitio_web: record.sitio_web || '',
       direccion: record.direccion || '',
       descripcion: record.descripcion || '',
+      color_primario: record.color_primario || DEFAULT_BRAND_COLORS.color_primario,
+      color_cta: record.color_cta || DEFAULT_BRAND_COLORS.color_cta,
+      color_acento: record.color_acento || DEFAULT_BRAND_COLORS.color_acento,
+      color_checks: record.color_checks || DEFAULT_BRAND_COLORS.color_checks,
+      color_fondo: record.color_fondo || DEFAULT_BRAND_COLORS.color_fondo,
       activo: !!record.activo,
       platforms: nextPlatforms,
     })
@@ -411,6 +422,11 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
         sitio_web: form.sitio_web.trim(),
         direccion: form.direccion.trim(),
         descripcion: form.descripcion.trim(),
+        color_primario: form.color_primario,
+        color_cta: form.color_cta,
+        color_acento: form.color_acento,
+        color_checks: form.color_checks,
+        color_fondo: form.color_fondo,
         activo: form.activo,
         platforms: {
           facebook: form.platforms.facebook,
@@ -564,6 +580,34 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
                     <div>
                       <strong>{option.label}</strong>
                       <span>{option.dbFile}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            <section className="company-colors company-field--full">
+              <div className="company-network-selector__header">
+                <span>Colores de marca</span>
+                <small>Define la paleta de colores para las imagenes publicitarias</small>
+              </div>
+              <div className="company-colors__grid">
+                {([
+                  { key: 'color_primario', label: 'Primario (titulos)' },
+                  { key: 'color_cta', label: 'CTA (botones)' },
+                  { key: 'color_acento', label: 'Acento (detalles)' },
+                  { key: 'color_checks', label: 'Checks (beneficios)' },
+                  { key: 'color_fondo', label: 'Fondo' },
+                ] as const).map((color) => (
+                  <label key={color.key} className="company-colors__picker">
+                    <input
+                      type="color"
+                      value={form[color.key]}
+                      onChange={(e) => setForm((prev) => ({ ...prev, [color.key]: e.target.value }))}
+                    />
+                    <div className="company-colors__info">
+                      <strong>{color.label}</strong>
+                      <span>{form[color.key]}</span>
                     </div>
                   </label>
                 ))}

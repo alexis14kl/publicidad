@@ -682,6 +682,77 @@ body::after {
   gap: 12px;
 }
 
+/* ─── Company Colors ────────────────────────────────────────────────────── */
+
+.company-colors {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 16px;
+  background: rgba(7, 10, 24, 0.5);
+}
+
+.company-colors__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.company-colors__picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(7, 10, 24, 0.9);
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.company-colors__picker:hover {
+  border-color: rgba(0, 229, 255, 0.3);
+}
+
+.company-colors__picker input[type="color"] {
+  width: 36px;
+  height: 36px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 2px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.company-colors__picker input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.company-colors__picker input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 5px;
+}
+
+.company-colors__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.company-colors__info strong {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.company-colors__info span {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: monospace;
+  text-transform: uppercase;
+}
+
+/* ─── Company Network Check ────────────────────────────────────────────── */
+
 .company-network-check {
   display: flex;
   align-items: flex-start;

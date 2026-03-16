@@ -25,12 +25,13 @@ TEXTO EN LA IMAGEN:
 - PROHIBIDO escribir el nombre de la empresa en el contenido principal (el logo se agrega despues).
 
 PALETA DE COLORES:
-- Fondo: blanco o gris muy claro #f0f0f5 con lineas geometricas sutiles.
-- Morado de marca #3469ED para titulos y elementos principales.
-- Naranja vibrante #fd9102 para CTA/badges y acentos.
-- Cyan #00bcd4 para detalles tecnologicos.
-- Verde #28a745 para checks de beneficios.
-- Texto: gris oscuro o morado oscuro segun contraste.
+- Usar EXACTAMENTE los colores definidos en [MANDATORY BRAND COLORS].
+- Color primario para titulos y elementos principales.
+- Color CTA para botones, badges y llamados a la accion.
+- Color acento para detalles tecnologicos y decorativos.
+- Color checks para los checkmarks de beneficios.
+- Color fondo para el background de la imagen.
+- Texto: oscuro segun contraste con el fondo.
 - NUNCA fondo negro ni oscuro. El estilo es CLARO, alegre y colorido.
 
 REGLAS DEL PROMPT FINAL:
