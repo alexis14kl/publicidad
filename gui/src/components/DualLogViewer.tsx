@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CompanyRecord, PromptHistoryEntry } from '../lib/types'
-import { IMAGE_FORMAT_GROUPS, NOYECODE_SERVICES, PLATFORM_EMOJIS } from '../lib/types'
+import { IMAGE_FORMAT_GROUPS, NOYECODE_SERVICES } from '../lib/types'
 
 interface LogPanelProps {
   title: string
@@ -108,8 +108,6 @@ interface DualLogViewerProps {
   companies: CompanyRecord[]
   selectedCompany: string
   onChangeCompany: (value: string) => void
-  publishPlatforms: Record<string, boolean>
-  onTogglePlatform: (platform: string) => void
   imageService: string
   onChangeImageService: (value: string) => void
   lastUsedService: string
@@ -129,8 +127,6 @@ export function DualLogViewer({
   companies,
   selectedCompany,
   onChangeCompany,
-  publishPlatforms,
-  onTogglePlatform,
   imageService,
   onChangeImageService,
   lastUsedService,

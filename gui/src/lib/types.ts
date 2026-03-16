@@ -192,7 +192,6 @@ export interface StartBotPayload {
   imageFormat?: string
   imageService?: string
   companyName?: string
-  publishPlatforms?: string[]
 }
 
 export interface StartPollerPayload {
@@ -200,15 +199,6 @@ export interface StartPollerPayload {
   imageFormat?: string
   imageService?: string
   companyName?: string
-  publishPlatforms?: string[]
-}
-
-export const PLATFORM_EMOJIS: Record<string, string> = {
-  facebook: '\uD83D\uDCD8',
-  instagram: '\uD83D\uDCF7',
-  tiktok: '\uD83C\uDFB5',
-  linkedin: '\uD83D\uDCBC',
-  googleads: '\uD83D\uDCCA',
 }
 
 export interface MarketingCampaignPayload {
