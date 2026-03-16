@@ -553,6 +553,7 @@ export default function App() {
   )
   const [companies, setCompanies] = useState<CompanyRecord[]>([])
   const [selectedCompany, setSelectedCompany] = useState('')
+  const [publishPlatforms, setPublishPlatforms] = useState<Record<string, boolean>>({})
   const botStatus = useBotStatus()
   const poller = usePollerProcess()
   const { lines: workerLines, clearLines: clearWorkerLines } = useLogTail()
@@ -616,6 +617,9 @@ export default function App() {
     const saved = window.localStorage.getItem('selectedCompany') || ''
     const fallback = activeCompanies.find((company) => company.nombre === saved) || activeCompanies[0]
     setSelectedCompany(fallback.nombre)
+    const platforms: Record<string, boolean> = {}
+    fallback.platforms.forEach((p) => { platforms[p.platform] = true })
+    setPublishPlatforms(platforms)
     try {
       window.localStorage.setItem('selectedCompany', fallback.nombre)
     } catch { /* ignore */ }
@@ -655,11 +659,22 @@ export default function App() {
     try {
       window.localStorage.setItem('selectedCompany', value)
     } catch { /* ignore */ }
+    const company = companies.find((c) => c.nombre === value)
+    if (company) {
+      const platforms: Record<string, boolean> = {}
+      company.platforms.forEach((p) => { platforms[p.platform] = true })
+      setPublishPlatforms(platforms)
+    }
+  }
+
+  const handleTogglePlatform = (platform: string) => {
+    setPublishPlatforms((prev) => ({ ...prev, [platform]: !prev[platform] }))
   }
 
   const promptCompanies = companies.filter((company) => company.activo)
   const activeCompany = promptCompanies.find((c) => c.nombre === selectedCompany) || null
   const hasCompany = promptCompanies.length > 0
+  const enabledPlatforms = Object.entries(publishPlatforms).filter(([, v]) => v).map(([k]) => k)
 
   const isExecuting = botStatus.status === 'executing'
 
@@ -781,6 +796,8 @@ export default function App() {
             companies={promptCompanies}
             selectedCompany={selectedCompany}
             onChangeCompany={handleChangeCompany}
+            publishPlatforms={publishPlatforms}
+            onTogglePlatform={handleTogglePlatform}
             imageService={imageService}
             onChangeImageService={handleChangeService}
             lastUsedService={lastUsedService}

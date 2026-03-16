@@ -116,6 +116,8 @@ interface DualLogViewerProps {
   companies: CompanyRecord[]
   selectedCompany: string
   onChangeCompany: (value: string) => void
+  publishPlatforms: Record<string, boolean>
+  onTogglePlatform: (platform: string) => void
   imageService: string
   onChangeImageService: (value: string) => void
   lastUsedService: string
@@ -135,6 +137,8 @@ export function DualLogViewer({
   companies,
   selectedCompany,
   onChangeCompany,
+  publishPlatforms,
+  onTogglePlatform,
   imageService,
   onChangeImageService,
   lastUsedService,
@@ -286,16 +290,22 @@ export function DualLogViewer({
                 ))}
               </select>
             </div>
-            {activeCompanyPlatforms.length > 0 && (
+            {activeCompany && activeCompany.platforms.length > 0 && (
               <div className="publish-platforms">
-                <span className="publish-platforms__label">Plataformas disponibles</span>
+                <span className="publish-platforms__label">Publicar en</span>
                 <div className="publish-platforms__checks">
-                  {activeCompanyPlatforms.map((p) => (
-                    <div key={p.platform} className="publish-platforms__check">
+                  {activeCompany.platforms.map((p) => (
+                    <label key={p.platform} className="publish-platforms__check">
+                      <input
+                        type="checkbox"
+                        checked={!!publishPlatforms[p.platform]}
+                        onChange={() => onTogglePlatform(p.platform)}
+                        disabled={promptDisabled}
+                      />
                       <span className="publish-platforms__name">
                         {PLATFORM_EMOJIS[p.platform] || ''} {p.label}
                       </span>
-                    </div>
+                    </label>
                   ))}
                 </div>
               </div>
