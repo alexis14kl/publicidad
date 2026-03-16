@@ -32,52 +32,6 @@ const FIELDS: FieldDef[] = [
   { key: 'FREEIMAGE_API_KEY', label: 'API Key', group: 'FreeImage', type: 'password' },
   { key: 'FREEIMAGE_UPLOAD_URL', label: 'Upload URL', group: 'FreeImage', type: 'text' },
 
-  // Meta Ads
-  {
-    key: 'FB_ACCESS_TOKEN',
-    label: 'Access Token',
-    group: 'Meta Ads',
-    type: 'password',
-    placeholder: 'EAAB...'
-  },
-  {
-    key: 'INSTAGRAM_ACCESS_TOKEN',
-    label: 'Instagram Token',
-    group: 'Meta Ads',
-    type: 'password',
-    placeholder: 'IGQVJ...'
-  },
-  {
-    key: 'LINKEDIN_ACCESS_TOKEN',
-    label: 'LinkedIn Token',
-    group: 'Meta Ads',
-    type: 'password',
-    placeholder: 'linkedin-token'
-  },
-  {
-    key: 'TIKTOK_ACCESS_TOKEN',
-    label: 'TikTok Token',
-    group: 'Meta Ads',
-    type: 'password',
-    placeholder: 'tiktok-token'
-  },
-  {
-    key: 'FB_PAGE_ID',
-    label: 'Page ID',
-    group: 'Meta Ads',
-    type: 'text',
-    placeholder: '1675432206759799',
-    help: 'Pagina de Facebook usada para consultar formularios Instant Form'
-  },
-  {
-    key: 'FB_AD_ACCOUNT_ID',
-    label: 'Ad Account ID',
-    group: 'Meta Ads',
-    type: 'text',
-    placeholder: '438871067037500',
-    help: 'Cuenta publicitaria fija usada para crear la campana'
-  },
-
   // CDP
   { key: 'CDP_DICLOAK_URL', label: 'DICloak URL', group: 'CDP', type: 'text', placeholder: 'http://127.0.0.1:9333' },
   { key: 'CDP_CHATGPT_PORT', label: 'Puerto ChatGPT', group: 'CDP', type: 'number', placeholder: '9225' },

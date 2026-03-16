@@ -22,12 +22,26 @@ export interface CommandResult {
 
 export type CompanyPlatform = 'facebook' | 'tiktok' | 'linkedin' | 'instagram'
 
-export interface CompanyRecord {
-  id: number
+export interface CompanyPlatformAccount {
   red_id?: number
-  empresa_id?: number
-  nombre: string
+  account_index: number
+  account_label: string
   token: string
+  activo: number
+  is_primary?: number
+}
+
+export interface CompanyPlatformRecord {
+  platform: CompanyPlatform
+  label: string
+  dbFile: string
+  config_env_key: string
+  accounts: CompanyPlatformAccount[]
+}
+
+export interface CompanyRecord {
+  id: string
+  nombre: string
   logo: string | null
   telefono: string | null
   correo: string | null
@@ -35,26 +49,30 @@ export interface CompanyRecord {
   direccion: string | null
   descripcion: string | null
   activo: number
-  empresa_activa?: number
-  plataforma_activa?: number
   created_at: string
   updated_at: string
-  config_env_key?: string
-  config_synced?: number
+  platforms: CompanyPlatformRecord[]
+}
+
+export interface SaveCompanyPlatformPayload {
+  enabled: boolean
+  syncToConfig: boolean
+  accounts: {
+    account_label?: string
+    token?: string
+  }[]
 }
 
 export interface SaveCompanyPayload {
-  platform: CompanyPlatform
-  nombre: string
-  token: string
   logo?: string
+  nombre: string
   telefono?: string
   correo?: string
   sitio_web?: string
   direccion?: string
   descripcion?: string
   activo?: boolean
-  syncToConfig?: boolean
+  platforms: Record<CompanyPlatform, SaveCompanyPlatformPayload>
 }
 
 export interface CompanyLogoSelectionResult {
@@ -67,8 +85,7 @@ export interface CompanyLogoSelectionResult {
 }
 
 export interface DeleteCompanyPayload {
-  platform: CompanyPlatform
-  empresaId: number
+  companyName: string
 }
 
 export interface DeleteCompanyResult {
@@ -137,6 +154,19 @@ export const IMAGE_FORMAT_GROUPS: ImageFormatGroup[] = [
   },
 ]
 
+export interface SelectCompanyPublicationAccountPayload {
+  companyName: string
+  platform: CompanyPlatform
+  accountIndex: number
+}
+
+export interface SelectCompanyPublicationAccountResult {
+  success: boolean
+  companyName?: string
+  platform?: CompanyPlatform
+  accountIndex?: number
+  envKey?: string
+}
 export interface StartBotPayload {
   profileName?: string
   imagePrompt?: string

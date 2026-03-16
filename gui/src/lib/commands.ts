@@ -8,6 +8,8 @@ import type {
   CompanyLogoSelectionResult,
   DeleteCompanyPayload,
   DeleteCompanyResult,
+  SelectCompanyPublicationAccountPayload,
+  SelectCompanyPublicationAccountResult,
   StartBotPayload,
   StartPollerPayload,
   MarketingCampaignPayload,
@@ -28,10 +30,13 @@ export const runMarketingCampaignPreview = (payload: MarketingCampaignPayload): 
 export const readLogLines = (count?: number): Promise<string[]> => api().readLogLines(count)
 export const getEnvConfig = (): Promise<Record<string, string>> => api().getEnvConfig()
 export const saveEnvConfig = (config: Record<string, string>) => api().saveEnvConfig(config)
-export const listCompanyRecords = (platform: CompanyPlatform): Promise<CompanyRecord[]> => api().listCompanyRecords(platform)
+export const listCompanyRecords = (): Promise<CompanyRecord[]> => api().listCompanyRecords()
 export const saveCompanyRecord = (payload: SaveCompanyPayload): Promise<CompanyRecord> => api().saveCompanyRecord(payload)
 export const deleteCompanyRecord = (payload: DeleteCompanyPayload): Promise<DeleteCompanyResult> =>
   api().deleteCompanyRecord(payload)
+export const selectCompanyPublicationAccount = (
+  payload: SelectCompanyPublicationAccountPayload
+): Promise<SelectCompanyPublicationAccountResult> => api().selectCompanyPublicationAccount(payload)
 export const resetBotState = () => api().resetBotState()
 export const generateDefaultPrompt = (): Promise<{ success: boolean; prompt: string }> => api().generateDefaultPrompt()
 export const changeLogo = (): Promise<{ success: boolean; logoUrl?: string; canceled?: boolean }> => api().changeLogo()

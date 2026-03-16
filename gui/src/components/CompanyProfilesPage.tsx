@@ -1,18 +1,50 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { deleteCompanyRecord, listCompanyRecords, saveCompanyRecord, selectCompanyLogoSvg } from '../lib/commands'
-import type { CompanyPlatform, CompanyRecord, SaveCompanyPayload } from '../lib/types'
+import {
+  deleteCompanyRecord,
+  listCompanyRecords,
+  saveCompanyRecord,
+  selectCompanyLogoSvg,
+  selectCompanyPublicationAccount,
+} from '../lib/commands'
+import type { CompanyPlatform, CompanyPlatformRecord, CompanyRecord, SaveCompanyPayload } from '../lib/types'
 
-const PLATFORM_OPTIONS: { key: CompanyPlatform; label: string; dbFile: string }[] = [
-  { key: 'facebook', label: 'Facebook', dbFile: 'facebook.sqlite3' },
-  { key: 'tiktok', label: 'TikTok', dbFile: 'tiktok.sqlite3' },
-  { key: 'linkedin', label: 'LinkedIn', dbFile: 'linkedin.sqlite3' },
-  { key: 'instagram', label: 'Instagram', dbFile: 'instagram.sqlite3' },
+const PLATFORM_OPTIONS: { key: CompanyPlatform; label: string; dbFile: string; configKey: string }[] = [
+  { key: 'facebook', label: 'Facebook', dbFile: 'facebook.sqlite3', configKey: 'FB_ACCESS_TOKEN' },
+  { key: 'tiktok', label: 'TikTok', dbFile: 'tiktok.sqlite3', configKey: 'TIKTOK_ACCESS_TOKEN' },
+  { key: 'linkedin', label: 'LinkedIn', dbFile: 'linkedin.sqlite3', configKey: 'LINKEDIN_ACCESS_TOKEN' },
+  { key: 'instagram', label: 'Instagram', dbFile: 'instagram.sqlite3', configKey: 'INSTAGRAM_ACCESS_TOKEN' },
 ]
+
+const ACCOUNT_SLOTS = 5
+
+function createEmptyAccounts() {
+  return Array.from({ length: ACCOUNT_SLOTS }, (_, index) => ({
+    account_label: `Cuenta ${index + 1}`,
+    token: '',
+  }))
+}
+
+function createEmptyPlatforms() {
+  return {
+    facebook: { enabled: false, syncToConfig: true, accounts: createEmptyAccounts() },
+    tiktok: { enabled: false, syncToConfig: true, accounts: createEmptyAccounts() },
+    linkedin: { enabled: false, syncToConfig: true, accounts: createEmptyAccounts() },
+    instagram: { enabled: false, syncToConfig: true, accounts: createEmptyAccounts() },
+  }
+}
+
+function createVisibleAccountCounts() {
+  return {
+    facebook: 1,
+    tiktok: 1,
+    linkedin: 1,
+    instagram: 1,
+  }
+}
 
 const EMPTY_FORM = {
   nombre: '',
-  token: '',
   logo: '',
   telefono: '',
   correo: '',
@@ -20,31 +52,42 @@ const EMPTY_FORM = {
   direccion: '',
   descripcion: '',
   activo: true,
-  syncToConfig: true,
+  platforms: createEmptyPlatforms(),
 }
 
 type FormState = typeof EMPTY_FORM
 
 export function CompanyProfilesPage() {
-  const [platform, setPlatform] = useState<CompanyPlatform>('facebook')
   const [records, setRecords] = useState<CompanyRecord[]>([])
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [visibleAccountCounts, setVisibleAccountCounts] = useState(createVisibleAccountCounts)
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
   const [logoFileName, setLogoFileName] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [deletingEmpresaId, setDeletingEmpresaId] = useState<number | null>(null)
+  const [deletingCompanyName, setDeletingCompanyName] = useState<string | null>(null)
+  const [selectingPublicationKey, setSelectingPublicationKey] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const currentPlatform = PLATFORM_OPTIONS.find((option) => option.key === platform) ?? PLATFORM_OPTIONS[0]
-  const tokenConfigKey =
-    {
-      facebook: 'FB_ACCESS_TOKEN',
-      instagram: 'INSTAGRAM_ACCESS_TOKEN',
-      linkedin: 'LINKEDIN_ACCESS_TOKEN',
-      tiktok: 'TIKTOK_ACCESS_TOKEN',
-    }[platform] ?? 'ACCESS_TOKEN'
+  const selectedPlatforms = useMemo(
+    () => PLATFORM_OPTIONS.filter((option) => form.platforms[option.key].enabled),
+    [form.platforms]
+  )
+
+  const totalConfiguredAccounts = useMemo(
+    () =>
+      selectedPlatforms.reduce((sum, option) => {
+        const accounts = form.platforms[option.key].accounts.filter((account) => account.token.trim())
+        return sum + accounts.length
+      }, 0),
+    [form.platforms, selectedPlatforms]
+  )
+
+  const recordAccountCount = useMemo(
+    () => records.reduce((sum, record) => sum + record.platforms.reduce((inner, platform) => inner + platform.accounts.length, 0), 0),
+    [records]
+  )
 
   const maskToken = (value: string) => {
     const clean = value.trim()
@@ -62,22 +105,29 @@ export function CompanyProfilesPage() {
 
   const validationMessage = useMemo(() => {
     if (!form.nombre.trim()) return 'Completa el nombre de la empresa.'
-    if (!form.token.trim()) return 'Completa el token o credencial principal.'
     if (!form.correo.trim() && !form.telefono.trim()) return 'Agrega al menos un correo o un telefono de contacto.'
-    return 'Formulario listo para guardar en la base de datos de la plataforma seleccionada.'
-  }, [form])
+    if (selectedPlatforms.length === 0) return 'Marca al menos una red social para esta empresa.'
+    const invalidPlatform = selectedPlatforms.find(
+      (option) => !form.platforms[option.key].accounts.some((account) => account.token.trim())
+    )
+    if (invalidPlatform) {
+      return `Agrega al menos una cuenta con token para ${invalidPlatform.label}.`
+    }
+    return 'Formulario listo para guardar empresa, redes sociales y cuentas.'
+  }, [form, selectedPlatforms])
 
   const canSave =
     !!form.nombre.trim() &&
-    !!form.token.trim() &&
     (!!form.correo.trim() || !!form.telefono.trim()) &&
+    selectedPlatforms.length > 0 &&
+    selectedPlatforms.every((option) => form.platforms[option.key].accounts.some((account) => account.token.trim())) &&
     !saving
 
-  const loadRecords = async (targetPlatform: CompanyPlatform) => {
+  const loadRecords = async () => {
     setLoading(true)
     setError(null)
     try {
-      const nextRecords = await listCompanyRecords(targetPlatform)
+      const nextRecords = await listCompanyRecords()
       setRecords(nextRecords)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los registros.')
@@ -88,11 +138,76 @@ export function CompanyProfilesPage() {
   }
 
   useEffect(() => {
-    void loadRecords(platform)
-  }, [platform])
+    void loadRecords()
+  }, [])
 
-  const handleFieldChange = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+  const handleFieldChange = <K extends keyof Omit<FormState, 'platforms'>>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
+    setMessage(null)
+    setError(null)
+  }
+
+  const handlePlatformToggle = (platform: CompanyPlatform, enabled: boolean) => {
+    setForm((prev) => ({
+      ...prev,
+      platforms: {
+        ...prev.platforms,
+        [platform]: {
+          ...prev.platforms[platform],
+          enabled,
+        },
+      },
+    }))
+    setVisibleAccountCounts((prev) => ({
+      ...prev,
+      [platform]: 1,
+    }))
+    setMessage(null)
+    setError(null)
+  }
+
+  const handlePlatformSyncToggle = (platform: CompanyPlatform, syncToConfig: boolean) => {
+    setForm((prev) => ({
+      ...prev,
+      platforms: {
+        ...prev.platforms,
+        [platform]: {
+          ...prev.platforms[platform],
+          syncToConfig,
+        },
+      },
+    }))
+    setMessage(null)
+    setError(null)
+  }
+
+  const handlePlatformAccountChange = (
+    platform: CompanyPlatform,
+    index: number,
+    key: 'account_label' | 'token',
+    value: string
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      platforms: {
+        ...prev.platforms,
+        [platform]: {
+          ...prev.platforms[platform],
+          accounts: prev.platforms[platform].accounts.map((account, accountIndex) =>
+            accountIndex === index ? { ...account, [key]: value } : account
+          ),
+        },
+      },
+    }))
+    setMessage(null)
+    setError(null)
+  }
+
+  const handleAddPlatformAccount = (platform: CompanyPlatform) => {
+    setVisibleAccountCounts((prev) => ({
+      ...prev,
+      [platform]: Math.min(prev[platform] + 1, ACCOUNT_SLOTS),
+    }))
     setMessage(null)
     setError(null)
   }
@@ -124,30 +239,62 @@ export function CompanyProfilesPage() {
   }
 
   const handleDeleteRecord = async (record: CompanyRecord) => {
-    const empresaId = record.empresa_id ?? record.id
-    if (!empresaId) return
+    const companyName = record.nombre.trim()
+    if (!companyName) return
 
-    const confirmed = window.confirm(`Se eliminara la empresa "${record.nombre}" de ${currentPlatform.label}. Continuar?`)
+    const confirmed = window.confirm(`Se eliminara la empresa "${record.nombre}" con todas sus redes sociales. Continuar?`)
     if (!confirmed) return
 
-    setDeletingEmpresaId(empresaId)
+    setDeletingCompanyName(companyName)
     setMessage(null)
     setError(null)
 
     try {
-      const result = await deleteCompanyRecord({
-        platform,
-        empresaId,
-      })
+      const result = await deleteCompanyRecord({ companyName })
       if (!result.success) {
         throw new Error('No se pudo eliminar la empresa.')
       }
-      setMessage(`Empresa eliminada de ${currentPlatform.label}: ${result.deletedName || record.nombre}`)
-      await loadRecords(platform)
+      setMessage(`Empresa eliminada: ${result.deletedName || record.nombre}`)
+      await loadRecords()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo eliminar la empresa.')
     } finally {
-      setDeletingEmpresaId(null)
+      setDeletingCompanyName(null)
+    }
+  }
+
+  const handleSelectPublicationAccount = async (
+    record: CompanyRecord,
+    platformRecord: CompanyPlatformRecord,
+    accountIndex: number
+  ) => {
+    const companyName = record.nombre.trim()
+    if (!companyName) return
+
+    const selectionKey = `${companyName}:${platformRecord.platform}:${accountIndex}`
+    setSelectingPublicationKey(selectionKey)
+    setMessage(null)
+    setError(null)
+
+    try {
+      const result = await selectCompanyPublicationAccount({
+        companyName,
+        platform: platformRecord.platform,
+        accountIndex,
+      })
+
+      if (!result.success) {
+        throw new Error('No se pudo seleccionar la cuenta para publicaciones.')
+      }
+
+      setMessage(
+        `Cuenta ${accountIndex} de ${platformRecord.label} activa para publicaciones. Token sincronizado en ${result.envKey}.`
+      )
+      await loadRecords()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo seleccionar la cuenta para publicaciones.')
+    } finally {
+      setSelectingPublicationKey(null)
     }
   }
 
@@ -161,9 +308,7 @@ export function CompanyProfilesPage() {
 
     try {
       const payload: SaveCompanyPayload = {
-        platform,
         nombre: form.nombre.trim(),
-        token: form.token.trim(),
         logo: form.logo.trim(),
         telefono: form.telefono.trim(),
         correo: form.correo.trim(),
@@ -171,18 +316,22 @@ export function CompanyProfilesPage() {
         direccion: form.direccion.trim(),
         descripcion: form.descripcion.trim(),
         activo: form.activo,
-        syncToConfig: form.syncToConfig,
+        platforms: {
+          facebook: form.platforms.facebook,
+          tiktok: form.platforms.tiktok,
+          linkedin: form.platforms.linkedin,
+          instagram: form.platforms.instagram,
+        },
       }
       const savedRecord = await saveCompanyRecord(payload)
-      const syncMessage =
-        savedRecord.config_synced && savedRecord.config_env_key
-          ? ` Token sincronizado en ${savedRecord.config_env_key}.`
-          : ''
-      setMessage(`Empresa guardada en ${currentPlatform.label}: ${savedRecord.nombre}.${syncMessage}`)
-      setForm(EMPTY_FORM)
+      setMessage(
+        `Empresa guardada: ${savedRecord.nombre}. Redes activas: ${savedRecord.platforms.map((platform) => platform.label).join(', ')}.`
+      )
+      setForm({ ...EMPTY_FORM, platforms: createEmptyPlatforms() })
+      setVisibleAccountCounts(createVisibleAccountCounts())
       setLogoFileName('')
       setLogoPreviewUrl(null)
-      await loadRecords(platform)
+      await loadRecords()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la empresa.')
     } finally {
@@ -194,33 +343,20 @@ export function CompanyProfilesPage() {
     <div className="company-page">
       <section className="company-hero glass-card">
         <div>
-          <p className="company-hero__eyebrow">Empresas por plataforma</p>
-          <h2 className="company-hero__title">Formulario maestro para credenciales y datos comerciales</h2>
+          <p className="company-hero__eyebrow">Empresas y Redes Sociales</p>
+          <h2 className="company-hero__title">Formulario unico para empresas, redes y cuentas</h2>
           <p className="company-hero__text">
-            Cada tab guarda el token en su tabla de red social y mantiene los datos generales de la empresa en la
-            tabla central <strong>empresas</strong>. La relacion operativa se resuelve por el nombre de la empresa
-            para que puedas reutilizar la misma ficha comercial entre plataformas.
+            Registra la empresa una sola vez y marca las redes sociales que maneja. Cada red permite hasta{' '}
+            <strong>{ACCOUNT_SLOTS} cuentas</strong> y se sincroniza con la configuracion usando la cuenta principal
+            de la red seleccionada.
           </p>
         </div>
         <div className="company-hero__meta">
-          <span className="company-chip">{currentPlatform.label}</span>
-          <span className="company-chip company-chip--dim">{currentPlatform.dbFile}</span>
-          <span className="company-chip company-chip--dim">{tokenConfigKey}</span>
+          <span className="company-chip">{selectedPlatforms.length} redes activas</span>
+          <span className="company-chip company-chip--dim">{totalConfiguredAccounts} cuentas en formulario</span>
+          <span className="company-chip company-chip--dim">Checks por red social</span>
         </div>
       </section>
-
-      <div className="company-platform-tabs">
-        {PLATFORM_OPTIONS.map((option) => (
-          <button
-            key={option.key}
-            className={`company-platform-tab ${option.key === platform ? 'company-platform-tab--active' : ''}`}
-            onClick={() => setPlatform(option.key)}
-          >
-            <span>{option.label}</span>
-            <small>{option.dbFile}</small>
-          </button>
-        ))}
-      </div>
 
       <div className="company-layout">
         <section className="company-form-card glass-card">
@@ -240,11 +376,11 @@ export function CompanyProfilesPage() {
             </label>
 
             <label className="company-field">
-              <span>Token / credencial</span>
+              <span>Telefono</span>
               <input
-                value={form.token}
-                onChange={(event) => handleFieldChange('token', event.target.value)}
-                placeholder="Ej. EAAB... o token interno"
+                value={form.telefono}
+                onChange={(event) => handleFieldChange('telefono', event.target.value)}
+                placeholder="+57 300 000 0000"
               />
             </label>
 
@@ -255,12 +391,7 @@ export function CompanyProfilesPage() {
                   <button className="btn btn--ghost btn--small" type="button" onClick={handleSelectLogo}>
                     Cargar SVG
                   </button>
-                  <button
-                    className="btn btn--ghost btn--small"
-                    type="button"
-                    onClick={handleClearLogo}
-                    disabled={!form.logo}
-                  >
+                  <button className="btn btn--ghost btn--small" type="button" onClick={handleClearLogo} disabled={!form.logo}>
                     Quitar
                   </button>
                 </div>
@@ -274,15 +405,6 @@ export function CompanyProfilesPage() {
                   </div>
                 )}
               </div>
-            </label>
-
-            <label className="company-field">
-              <span>Telefono</span>
-              <input
-                value={form.telefono}
-                onChange={(event) => handleFieldChange('telefono', event.target.value)}
-                placeholder="+57 300 000 0000"
-              />
             </label>
 
             <label className="company-field">
@@ -322,22 +444,102 @@ export function CompanyProfilesPage() {
               />
             </label>
 
+            <section className="company-network-selector company-field--full">
+              <div className="company-network-selector__header">
+                <span>Redes sociales</span>
+                <small>Marca las redes que maneja esta empresa</small>
+              </div>
+              <div className="company-network-checks">
+                {PLATFORM_OPTIONS.map((option) => (
+                  <label
+                    key={option.key}
+                    className={`company-network-check ${
+                      form.platforms[option.key].enabled ? 'company-network-check--active' : ''
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.platforms[option.key].enabled}
+                      onChange={(event) => handlePlatformToggle(option.key, event.target.checked)}
+                    />
+                    <div>
+                      <strong>{option.label}</strong>
+                      <span>{option.dbFile}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            {selectedPlatforms.length > 0 && (
+              <section className="company-network-groups company-field--full">
+                {selectedPlatforms.map((option) => (
+                  <div key={option.key} className="company-network-group">
+                    <div className="company-network-group__header">
+                      <div>
+                        <h3>{option.label}</h3>
+                        <p>Configura hasta {ACCOUNT_SLOTS} cuentas para esta red social.</p>
+                      </div>
+                      <label className="company-toggle company-toggle--compact">
+                        <input
+                          type="checkbox"
+                          checked={form.platforms[option.key].syncToConfig}
+                          onChange={(event) => handlePlatformSyncToggle(option.key, event.target.checked)}
+                        />
+                        <span>Sincronizar cuenta principal en {option.configKey}</span>
+                      </label>
+                    </div>
+
+                    <div className="company-account-grid">
+                      {form.platforms[option.key].accounts.slice(0, visibleAccountCounts[option.key]).map((account, index) => (
+                        <div key={`${option.key}-${index}`} className="company-account-row">
+                          <label className="company-field">
+                            <span>Nombre de cuenta {index + 1}</span>
+                            <input
+                              value={account.account_label}
+                              onChange={(event) =>
+                                handlePlatformAccountChange(option.key, index, 'account_label', event.target.value)
+                              }
+                              placeholder={`Cuenta ${index + 1}`}
+                            />
+                          </label>
+                          <label className="company-field">
+                            <span>Token cuenta {index + 1}</span>
+                            <input
+                              value={account.token}
+                              onChange={(event) =>
+                                handlePlatformAccountChange(option.key, index, 'token', event.target.value)
+                              }
+                              placeholder={`Token ${option.label} cuenta ${index + 1}`}
+                            />
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+
+                    {visibleAccountCounts[option.key] < ACCOUNT_SLOTS && (
+                      <div className="company-network-group__footer">
+                        <button
+                          className="btn btn--ghost btn--small"
+                          type="button"
+                          onClick={() => handleAddPlatformAccount(option.key)}
+                        >
+                          Anadir mas cuenta
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </section>
+            )}
+
             <label className="company-toggle">
               <input
                 type="checkbox"
                 checked={form.activo}
                 onChange={(event) => handleFieldChange('activo', event.target.checked)}
               />
-              <span>Empresa activa para esta plataforma</span>
-            </label>
-
-            <label className="company-toggle">
-              <input
-                type="checkbox"
-                checked={form.syncToConfig}
-                onChange={(event) => handleFieldChange('syncToConfig', event.target.checked)}
-              />
-              <span>Sincronizar este token con la configuracion ({tokenConfigKey})</span>
+              <span>Empresa activa</span>
             </label>
 
             <div className="company-form__footer">
@@ -360,27 +562,27 @@ export function CompanyProfilesPage() {
 
           <div className="company-list-summary">
             <div className="company-stat">
-              <span className="company-stat__label">Plataforma</span>
-              <strong>{currentPlatform.label}</strong>
-            </div>
-            <div className="company-stat">
               <span className="company-stat__label">Total empresas</span>
               <strong>{records.length}</strong>
+            </div>
+            <div className="company-stat">
+              <span className="company-stat__label">Total cuentas</span>
+              <strong>{recordAccountCount}</strong>
             </div>
           </div>
 
           {loading ? (
             <div className="company-empty">Cargando registros...</div>
           ) : records.length === 0 ? (
-            <div className="company-empty">Todavia no hay empresas registradas en esta plataforma.</div>
+            <div className="company-empty">Todavia no hay empresas registradas.</div>
           ) : (
             <div className="company-records">
               {records.map((record) => (
-                <article key={`${record.id}-${record.nombre}`} className="company-record">
+                <article key={record.id} className="company-record">
                   <div className="company-record__header">
                     <div>
                       <h3>{record.nombre}</h3>
-                      <p>ID empresa {record.empresa_id ?? record.id}</p>
+                      <p>{record.platforms.length} redes activas</p>
                     </div>
                     <div className="company-record__actions">
                       <span className={`job-badge ${record.activo ? 'badge--success' : 'badge--warn'}`}>
@@ -390,9 +592,9 @@ export function CompanyProfilesPage() {
                         className="btn btn--ghost btn--small company-record__delete"
                         type="button"
                         onClick={() => void handleDeleteRecord(record)}
-                        disabled={deletingEmpresaId === (record.empresa_id ?? record.id)}
+                        disabled={deletingCompanyName === record.nombre}
                       >
-                        {deletingEmpresaId === (record.empresa_id ?? record.id) ? 'Eliminando...' : 'Eliminar'}
+                        {deletingCompanyName === record.nombre ? 'Eliminando...' : 'Eliminar'}
                       </button>
                     </div>
                   </div>
@@ -414,14 +616,6 @@ export function CompanyProfilesPage() {
                       <span>Logo</span>
                       <strong>{formatLogoLabel(record.logo)}</strong>
                     </div>
-                    <div>
-                      <span>Token</span>
-                      <strong>{maskToken(record.token)}</strong>
-                    </div>
-                    <div>
-                      <span>Config</span>
-                      <strong>{record.config_env_key || tokenConfigKey}</strong>
-                    </div>
                   </div>
 
                   {record.direccion && (
@@ -434,6 +628,55 @@ export function CompanyProfilesPage() {
                       <span>Descripcion:</span> {record.descripcion}
                     </p>
                   )}
+
+                  <div className="company-record__platforms">
+                    {record.platforms.map((platform: CompanyPlatformRecord) => (
+                      <div key={`${record.id}-${platform.platform}`} className="company-record__platform">
+                        <div className="company-record__platform-header">
+                          <div>
+                            <strong>{platform.label}</strong>
+                            <span>{platform.accounts.length} cuentas</span>
+                          </div>
+                          <small>{platform.config_env_key}</small>
+                        </div>
+                        <div className="company-record__accounts">
+                          {platform.accounts.map((account) => (
+                            <div
+                              key={`${platform.platform}-${account.account_index}-${account.red_id || account.account_label}`}
+                              className="company-record__account"
+                            >
+                              <div className="company-record__account-meta">
+                                <span>{account.account_label || `Cuenta ${account.account_index}`}</span>
+                                <strong>{maskToken(account.token)}</strong>
+                              </div>
+                              <div className="company-record__account-actions">
+                                {account.is_primary ? (
+                                  <span className="company-account-badge">Cuenta activa</span>
+                                ) : (
+                                  <button
+                                    className="btn btn--ghost btn--small company-record__activate"
+                                    type="button"
+                                    onClick={() =>
+                                      void handleSelectPublicationAccount(record, platform, account.account_index)
+                                    }
+                                    disabled={
+                                      selectingPublicationKey ===
+                                      `${record.nombre.trim()}:${platform.platform}:${account.account_index}`
+                                    }
+                                  >
+                                    {selectingPublicationKey ===
+                                    `${record.nombre.trim()}:${platform.platform}:${account.account_index}`
+                                      ? 'Activando...'
+                                      : 'Usar para publicar'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </article>
               ))}
             </div>

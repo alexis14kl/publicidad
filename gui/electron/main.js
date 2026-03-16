@@ -29,24 +29,28 @@ const COMPANY_PLATFORMS = new Set(['facebook', 'tiktok', 'linkedin', 'instagram'
 const COMPANY_PLATFORM_CONFIG = {
   facebook: {
     label: 'Facebook',
+    dbFile: 'facebook.sqlite3',
     schemaFile: 'facebook.sql',
     table: 'facebook_form',
     tokenEnvKey: 'FB_ACCESS_TOKEN',
   },
   tiktok: {
     label: 'TikTok',
+    dbFile: 'tiktok.sqlite3',
     schemaFile: 'tiktok.sql',
     table: 'tiktok_form',
     tokenEnvKey: 'TIKTOK_ACCESS_TOKEN',
   },
   linkedin: {
     label: 'LinkedIn',
+    dbFile: 'linkedin.sqlite3',
     schemaFile: 'linkedin.sql',
     table: 'linkedin_form',
     tokenEnvKey: 'LINKEDIN_ACCESS_TOKEN',
   },
   instagram: {
     label: 'Instagram',
+    dbFile: 'instagram.sqlite3',
     schemaFile: 'instagram.sql',
     table: 'instagram_form',
     tokenEnvKey: 'INSTAGRAM_ACCESS_TOKEN',
@@ -166,6 +170,7 @@ function ensureCompanyDb(platform) {
     input: `${schemaSql}\n${platformSchemaSql}`,
     encoding: 'utf-8',
   })
+  ensureCompanyPlatformSchema(dbPath, platformConfig)
   migrateLegacyCompanyPlatformData(dbPath, platformConfig)
   return dbPath
 }
@@ -203,15 +208,21 @@ function migrateLegacyCompanyPlatformData(dbPath, platformConfig) {
       PRAGMA foreign_keys=ON;
       INSERT INTO ${platformConfig.table} (
         empresa_id,
+        account_index,
+        account_label,
         token,
         activo,
+        is_primary,
         created_at,
         updated_at
       )
       SELECT
         e.id,
+        1,
+        'Cuenta principal',
         e.token,
         COALESCE(e.activo, 1),
+        1,
         COALESCE(e.created_at, CURRENT_TIMESTAMP),
         COALESCE(e.updated_at, CURRENT_TIMESTAMP)
       FROM empresas e
@@ -226,6 +237,36 @@ function migrateLegacyCompanyPlatformData(dbPath, platformConfig) {
   } catch {
     // Ignore legacy migration issues and keep runtime path available.
   }
+}
+
+function platformTableHasColumn(dbPath, platformConfig, columnName) {
+  const target = String(columnName || '').trim().toLowerCase()
+  if (!target) return false
+  const columns = runSqliteJson(dbPath, `PRAGMA table_info(${platformConfig.table});`)
+  return columns.some((column) => String(column?.name || '').trim().toLowerCase() === target)
+}
+
+function ensureCompanyPlatformSchema(dbPath, platformConfig) {
+  const statements = ['PRAGMA foreign_keys=ON;']
+
+  if (!platformTableHasColumn(dbPath, platformConfig, 'account_index')) {
+    statements.push(`ALTER TABLE ${platformConfig.table} ADD COLUMN account_index INTEGER NOT NULL DEFAULT 1;`)
+  }
+  if (!platformTableHasColumn(dbPath, platformConfig, 'account_label')) {
+    statements.push(`ALTER TABLE ${platformConfig.table} ADD COLUMN account_label TEXT;`)
+  }
+  if (!platformTableHasColumn(dbPath, platformConfig, 'is_primary')) {
+    statements.push(`ALTER TABLE ${platformConfig.table} ADD COLUMN is_primary INTEGER NOT NULL DEFAULT 0;`)
+  }
+
+  statements.push(`UPDATE ${platformConfig.table} SET account_index = COALESCE(account_index, 1);`)
+  statements.push(`UPDATE ${platformConfig.table} SET account_label = COALESCE(NULLIF(TRIM(account_label), ''), 'Cuenta ' || account_index);`)
+  statements.push(`UPDATE ${platformConfig.table} SET is_primary = CASE WHEN account_index = 1 THEN 1 ELSE COALESCE(is_primary, 0) END;`)
+  statements.push(`DROP INDEX IF EXISTS idx_${platformConfig.table}_empresa_unica;`)
+  statements.push(`CREATE INDEX IF NOT EXISTS idx_${platformConfig.table}_empresa_id ON ${platformConfig.table}(empresa_id);`)
+  statements.push(`CREATE UNIQUE INDEX IF NOT EXISTS idx_${platformConfig.table}_empresa_cuenta_unica ON ${platformConfig.table}(empresa_id, account_index);`)
+
+  runSqlite(dbPath, statements.join('\n'))
 }
 
 function companyTableHasColumn(dbPath, columnName) {
@@ -267,6 +308,130 @@ function persistEnvConfig(config = {}) {
 
   fs.writeFileSync(envPath, newLines.join('\n'), 'utf-8')
   return { success: true }
+}
+
+function normalizeCompanyKey(name) {
+  return String(name || '').trim().toLowerCase()
+}
+
+function getEmptyCompanyAggregation(row = {}) {
+  return {
+    id: normalizeCompanyKey(row.nombre),
+    nombre: String(row.nombre || '').trim(),
+    logo: row.logo || null,
+    telefono: row.telefono || null,
+    correo: row.correo || null,
+    sitio_web: row.sitio_web || null,
+    direccion: row.direccion || null,
+    descripcion: row.descripcion || null,
+    activo: Number(row.empresa_activa ?? row.activo ?? 1),
+    created_at: row.created_at || '',
+    updated_at: row.updated_at || '',
+    platforms: [],
+  }
+}
+
+function aggregateCompanyRows(rowsByPlatform = {}) {
+  const companies = new Map()
+
+  for (const [platform, rows] of Object.entries(rowsByPlatform)) {
+    const platformConfig = getCompanyPlatformConfig(platform)
+    for (const row of rows || []) {
+      const key = normalizeCompanyKey(row.nombre)
+      if (!key) continue
+
+      if (!companies.has(key)) {
+        companies.set(key, getEmptyCompanyAggregation(row))
+      }
+
+      const company = companies.get(key)
+      const platformRecord = company.platforms.find((entry) => entry.platform === platform)
+      const account = {
+        red_id: row.red_id,
+        account_index: Number(row.account_index || 1),
+        account_label: String(row.account_label || `Cuenta ${row.account_index || 1}`),
+        token: String(row.token || ''),
+        activo: Number(row.plataforma_activa ?? row.activo ?? 1),
+        is_primary: Number(row.is_primary ?? 0),
+      }
+
+      if (platformRecord) {
+        platformRecord.accounts.push(account)
+      } else {
+        company.platforms.push({
+          platform,
+          label: platformConfig.label,
+          dbFile: platformConfig.dbFile,
+          config_env_key: platformConfig.tokenEnvKey,
+          accounts: [account],
+        })
+      }
+
+      if (!company.updated_at || String(row.updated_at || '') > String(company.updated_at || '')) {
+        company.updated_at = row.updated_at || company.updated_at
+      }
+      if (!company.created_at || String(row.created_at || '') < String(company.created_at || company.created_at || '9999')) {
+        company.created_at = row.created_at || company.created_at
+      }
+    }
+  }
+
+  return [...companies.values()]
+    .map((company) => ({
+      ...company,
+      platforms: company.platforms
+        .map((platformRecord) => ({
+          ...platformRecord,
+          accounts: [...platformRecord.accounts].sort((a, b) => a.account_index - b.account_index),
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }))
+}
+
+function findCompanyIdByName(dbPath, nombre) {
+  const rows = runSqliteJson(
+    dbPath,
+    `
+    SELECT id
+    FROM empresas
+    WHERE lower(trim(nombre)) = lower(trim(${sqlLiteral(nombre)}))
+    ORDER BY id DESC
+    LIMIT 1;
+    `
+  )
+  return rows[0]?.id || null
+}
+
+function fetchCompanyRowsForPlatform(platform) {
+  const dbPath = ensureCompanyDb(platform)
+  const platformConfig = getCompanyPlatformConfig(platform)
+  return runSqliteJson(
+    dbPath,
+    `
+    SELECT
+      e.id AS empresa_id,
+      p.id AS red_id,
+      e.nombre AS nombre,
+      e.logo AS logo,
+      e.telefono AS telefono,
+      e.correo AS correo,
+      e.sitio_web AS sitio_web,
+      e.direccion AS direccion,
+      e.descripcion AS descripcion,
+      e.activo AS empresa_activa,
+      e.created_at AS created_at,
+      e.updated_at AS updated_at,
+      p.account_index AS account_index,
+      p.account_label AS account_label,
+      p.token AS token,
+      p.activo AS plataforma_activa,
+      p.is_primary AS is_primary
+    FROM ${platformConfig.table} p
+    INNER JOIN empresas e ON e.id = p.empresa_id
+    ORDER BY e.nombre COLLATE NOCASE ASC, p.account_index ASC;
+    `
+  )
 }
 
 function findPython() {
@@ -3712,34 +3877,11 @@ ipcMain.handle('save-env-config', async (_event, config) => {
 
 ipcMain.handle('list-company-records', async (_event, platform) => {
   try {
-    const dbPath = ensureCompanyDb(platform)
-    const platformConfig = getCompanyPlatformConfig(platform)
-    return runSqliteJson(
-      dbPath,
-      `
-      SELECT
-        e.id AS id,
-        p.id AS red_id,
-        e.id AS empresa_id,
-        nombre,
-        p.token AS token,
-        e.logo AS logo,
-        e.telefono AS telefono,
-        e.correo AS correo,
-        e.sitio_web AS sitio_web,
-        e.direccion AS direccion,
-        e.descripcion AS descripcion,
-        e.activo AS empresa_activa,
-        p.activo AS plataforma_activa,
-        p.activo AS activo,
-        e.created_at AS created_at,
-        e.updated_at AS updated_at,
-        ${sqlLiteral(platformConfig.tokenEnvKey)} AS config_env_key
-      FROM ${platformConfig.table} p
-      INNER JOIN empresas e ON e.id = p.empresa_id
-      ORDER BY e.nombre COLLATE NOCASE ASC, p.id DESC;
-      `
-    )
+    const rowsByPlatform = {}
+    for (const currentPlatform of COMPANY_PLATFORMS) {
+      rowsByPlatform[currentPlatform] = fetchCompanyRowsForPlatform(currentPlatform)
+    }
+    return aggregateCompanyRows(rowsByPlatform)
   } catch (err) {
     throw new Error(err.message || 'No se pudo listar las empresas.')
   }
@@ -3747,161 +3889,191 @@ ipcMain.handle('list-company-records', async (_event, platform) => {
 
 ipcMain.handle('save-company-record', async (_event, payload = {}) => {
   try {
-    const platformConfig = getCompanyPlatformConfig(payload.platform)
     const nombre = String(payload.nombre || '').trim()
-    const token = String(payload.token || '').trim()
     const correo = String(payload.correo || '').trim()
     const telefono = String(payload.telefono || '').trim()
     const logo = String(payload.logo || '').trim()
     const sitioWeb = String(payload.sitio_web || '').trim()
     const direccion = String(payload.direccion || '').trim()
     const descripcion = String(payload.descripcion || '').trim()
-    const syncToConfig = payload.syncToConfig !== false
+    const payloadPlatforms = payload.platforms && typeof payload.platforms === 'object' ? payload.platforms : {}
 
     if (!nombre) {
       throw new Error('El nombre de la empresa es obligatorio.')
     }
-    if (!token) {
-      throw new Error('El token de la empresa es obligatorio.')
-    }
     if (!correo && !telefono) {
       throw new Error('Debes registrar al menos un correo o un telefono.')
     }
+    const selectedPlatforms = []
+    const envUpdates = {}
+    const companyActivo = payload.activo === false ? 0 : 1
 
-    const dbPath = ensureCompanyDb(payload.platform)
-    const hasLegacyCompanyTokenColumn = companyTableHasColumn(dbPath, 'token')
-    const platformActivo = payload.activo === false ? 0 : 1
-    const existingRows = runSqliteJson(
-      dbPath,
-      `
-      SELECT id
-      FROM empresas
-      WHERE lower(trim(nombre)) = lower(trim(${sqlLiteral(nombre)}))
-      ORDER BY id DESC
-      LIMIT 1;
-      `
-    )
+    for (const platform of COMPANY_PLATFORMS) {
+      const platformPayload = payloadPlatforms[platform] || {}
+      const enabled = platformPayload.enabled === true
+      const accounts = Array.isArray(platformPayload.accounts)
+        ? platformPayload.accounts
+            .slice(0, 5)
+            .map((account, index) => ({
+              account_index: index + 1,
+              account_label: String(account?.account_label || '').trim(),
+              token: String(account?.token || '').trim(),
+            }))
+            .filter((account) => account.token)
+        : []
 
-    let empresaId = existingRows[0]?.id || null
-    if (empresaId) {
+      if (enabled) {
+        if (accounts.length === 0) {
+          throw new Error(`Debes registrar al menos una cuenta para ${getCompanyPlatformConfig(platform).label}.`)
+        }
+        selectedPlatforms.push({
+          platform,
+          syncToConfig: platformPayload.syncToConfig !== false,
+          accounts,
+        })
+      }
+    }
+
+    if (selectedPlatforms.length === 0) {
+      throw new Error('Selecciona al menos una red social para la empresa.')
+    }
+
+    for (const platform of COMPANY_PLATFORMS) {
+      const dbPath = ensureCompanyDb(platform)
+      const platformConfig = getCompanyPlatformConfig(platform)
+      const hasLegacyCompanyTokenColumn = companyTableHasColumn(dbPath, 'token')
+      const selectedPlatform = selectedPlatforms.find((entry) => entry.platform === platform)
+      const existingCompanyId = findCompanyIdByName(dbPath, nombre)
+
+      if (!selectedPlatform) {
+        if (existingCompanyId) {
+          runSqlite(
+            dbPath,
+            `
+            PRAGMA foreign_keys=ON;
+            DELETE FROM empresas
+            WHERE id = ${sqlLiteral(existingCompanyId)};
+            `
+          )
+        }
+        continue
+      }
+
+      const primaryAccount = selectedPlatform.accounts[0]
+      const primaryToken = primaryAccount?.token || ''
+      let empresaId = existingCompanyId
+
+      if (empresaId) {
+        runSqlite(
+          dbPath,
+          `
+          PRAGMA foreign_keys=ON;
+          UPDATE empresas
+          SET
+            nombre = ${sqlLiteral(nombre)},
+            ${hasLegacyCompanyTokenColumn ? `token = ${sqlLiteral(primaryToken)},` : ''}
+            logo = ${sqlLiteral(logo || null)},
+            telefono = ${sqlLiteral(telefono || null)},
+            correo = ${sqlLiteral(correo || null)},
+            sitio_web = ${sqlLiteral(sitioWeb || null)},
+            direccion = ${sqlLiteral(direccion || null)},
+            descripcion = ${sqlLiteral(descripcion || null)},
+            activo = ${companyActivo},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${sqlLiteral(empresaId)};
+          `
+        )
+      } else {
+        runSqlite(
+          dbPath,
+          `
+          PRAGMA foreign_keys=ON;
+          INSERT INTO empresas (
+            nombre,
+            ${hasLegacyCompanyTokenColumn ? 'token,' : ''}
+            logo,
+            telefono,
+            correo,
+            sitio_web,
+            direccion,
+            descripcion,
+            activo,
+            updated_at
+          ) VALUES (
+            ${sqlLiteral(nombre)},
+            ${hasLegacyCompanyTokenColumn ? `${sqlLiteral(primaryToken)},` : ''}
+            ${sqlLiteral(logo || null)},
+            ${sqlLiteral(telefono || null)},
+            ${sqlLiteral(correo || null)},
+            ${sqlLiteral(sitioWeb || null)},
+            ${sqlLiteral(direccion || null)},
+            ${sqlLiteral(descripcion || null)},
+            ${companyActivo},
+            CURRENT_TIMESTAMP
+          );
+          `
+        )
+        empresaId = findCompanyIdByName(dbPath, nombre)
+      }
+
+      if (!empresaId) {
+        throw new Error(`No se pudo resolver el ID de ${nombre} para ${platformConfig.label}.`)
+      }
+
       runSqlite(
         dbPath,
         `
         PRAGMA foreign_keys=ON;
-        UPDATE empresas
-        SET
-          nombre = ${sqlLiteral(nombre)},
-          ${hasLegacyCompanyTokenColumn ? `token = ${sqlLiteral(token)},` : ''}
-          logo = ${sqlLiteral(logo || null)},
-          telefono = ${sqlLiteral(telefono || null)},
-          correo = ${sqlLiteral(correo || null)},
-          sitio_web = ${sqlLiteral(sitioWeb || null)},
-          direccion = ${sqlLiteral(direccion || null)},
-          descripcion = ${sqlLiteral(descripcion || null)},
-          activo = 1,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${sqlLiteral(empresaId)};
+        DELETE FROM ${platformConfig.table}
+        WHERE empresa_id = ${sqlLiteral(empresaId)};
         `
       )
-    } else {
-      const insertedRows = runSqliteJson(
-        dbPath,
-        `
-        INSERT INTO empresas (
-          nombre,
-          ${hasLegacyCompanyTokenColumn ? 'token,' : ''}
-          logo,
-          telefono,
-          correo,
-          sitio_web,
-          direccion,
-          descripcion,
+
+      const accountStatements = selectedPlatform.accounts.map((account, index) => `
+        INSERT INTO ${platformConfig.table} (
+          empresa_id,
+          account_index,
+          account_label,
+          token,
           activo,
+          is_primary,
           updated_at
         ) VALUES (
-          ${sqlLiteral(nombre)},
-          ${hasLegacyCompanyTokenColumn ? `${sqlLiteral(token)},` : ''}
-          ${sqlLiteral(logo || null)},
-          ${sqlLiteral(telefono || null)},
-          ${sqlLiteral(correo || null)},
-          ${sqlLiteral(sitioWeb || null)},
-          ${sqlLiteral(direccion || null)},
-          ${sqlLiteral(descripcion || null)},
+          ${sqlLiteral(empresaId)},
+          ${sqlLiteral(account.account_index)},
+          ${sqlLiteral(account.account_label || `Cuenta ${account.account_index}`)},
+          ${sqlLiteral(account.token)},
           1,
+          ${index === 0 ? 1 : 0},
           CURRENT_TIMESTAMP
         );
-        SELECT id
-        FROM empresas
-        WHERE lower(trim(nombre)) = lower(trim(${sqlLiteral(nombre)}))
-        ORDER BY id DESC
-        LIMIT 1;
-        `
-      )
-      empresaId = insertedRows[0]?.id || null
+      `)
+
+      runSqlite(dbPath, `PRAGMA foreign_keys=ON;\n${accountStatements.join('\n')}`)
+
+      if (selectedPlatform.syncToConfig && primaryToken) {
+        envUpdates[platformConfig.tokenEnvKey] = primaryToken
+      }
     }
 
-    if (!empresaId) {
-      throw new Error('No se pudo resolver el ID de la empresa central.')
+    if (Object.keys(envUpdates).length > 0) {
+      persistEnvConfig(envUpdates)
     }
 
-    const rows = runSqliteJson(
-      dbPath,
-      `
-      INSERT INTO ${platformConfig.table} (
-        empresa_id,
-        token,
-        activo,
-        updated_at
-      ) VALUES (
-        ${sqlLiteral(empresaId)},
-        ${sqlLiteral(token)},
-        ${platformActivo},
-        CURRENT_TIMESTAMP
-      )
-      ON CONFLICT(empresa_id) DO UPDATE SET
-        token = excluded.token,
-        activo = excluded.activo,
-        updated_at = CURRENT_TIMESTAMP;
+    const rowsByPlatform = {}
+    for (const platform of COMPANY_PLATFORMS) {
+      rowsByPlatform[platform] = fetchCompanyRowsForPlatform(platform)
+    }
 
-      SELECT
-        e.id AS id,
-        p.id AS red_id,
-        e.id AS empresa_id,
-        e.nombre AS nombre,
-        p.token AS token,
-        e.logo AS logo,
-        e.telefono AS telefono,
-        e.correo AS correo,
-        e.sitio_web AS sitio_web,
-        e.direccion AS direccion,
-        e.descripcion AS descripcion,
-        e.activo AS empresa_activa,
-        p.activo AS plataforma_activa,
-        p.activo AS activo,
-        e.created_at AS created_at,
-        e.updated_at AS updated_at,
-        ${sqlLiteral(platformConfig.tokenEnvKey)} AS config_env_key
-      FROM ${platformConfig.table} p
-      INNER JOIN empresas e ON e.id = p.empresa_id
-      WHERE e.id = ${sqlLiteral(empresaId)}
-      ORDER BY p.id DESC
-      LIMIT 1;
-      `
+    const savedCompany = aggregateCompanyRows(rowsByPlatform).find(
+      (company) => normalizeCompanyKey(company.nombre) === normalizeCompanyKey(nombre)
     )
-    if (!rows[0]) {
-      throw new Error('SQLite no devolvio el registro guardado.')
+
+    if (!savedCompany) {
+      throw new Error('No se pudo reconstruir el registro guardado.')
     }
 
-    if (syncToConfig) {
-      persistEnvConfig({
-        [platformConfig.tokenEnvKey]: token,
-      })
-      rows[0].config_synced = 1
-    } else {
-      rows[0].config_synced = 0
-    }
-
-    return rows[0]
+    return savedCompany
   } catch (err) {
     throw new Error(err.message || 'No se pudo guardar la empresa.')
   }
@@ -3909,43 +4081,106 @@ ipcMain.handle('save-company-record', async (_event, payload = {}) => {
 
 ipcMain.handle('delete-company-record', async (_event, payload = {}) => {
   try {
-    const dbPath = ensureCompanyDb(payload.platform)
-    const empresaId = Number(payload.empresaId)
+    const companyName = String(payload.companyName || '').trim()
 
-    if (!Number.isInteger(empresaId) || empresaId <= 0) {
-      throw new Error('El ID de la empresa no es valido para eliminar.')
+    if (!companyName) {
+      throw new Error('El nombre de la empresa no es valido para eliminar.')
     }
 
-    const existingRows = runSqliteJson(
+    let deleted = false
+    for (const platform of COMPANY_PLATFORMS) {
+      const dbPath = ensureCompanyDb(platform)
+      const empresaId = findCompanyIdByName(dbPath, companyName)
+      if (!empresaId) continue
+      runSqlite(
+        dbPath,
+        `
+        PRAGMA foreign_keys=ON;
+        DELETE FROM empresas
+        WHERE id = ${sqlLiteral(empresaId)};
+        `
+      )
+      deleted = true
+    }
+
+    if (!deleted) {
+      throw new Error('No encontre el registro que intentas eliminar.')
+    }
+
+    return {
+      success: true,
+      deletedName: companyName,
+    }
+  } catch (err) {
+    throw new Error(err.message || 'No se pudo eliminar la empresa.')
+  }
+})
+
+ipcMain.handle('select-company-publication-account', async (_event, payload = {}) => {
+  try {
+    const companyName = String(payload.companyName || '').trim()
+    const platform = String(payload.platform || '').trim().toLowerCase()
+    const accountIndex = Number(payload.accountIndex || 0)
+
+    if (!companyName) {
+      throw new Error('Debes indicar la empresa para seleccionar la cuenta de publicacion.')
+    }
+    if (!COMPANY_PLATFORMS.has(platform)) {
+      throw new Error('La red social seleccionada no es valida.')
+    }
+    if (!Number.isInteger(accountIndex) || accountIndex <= 0) {
+      throw new Error('La cuenta seleccionada no es valida.')
+    }
+
+    const dbPath = ensureCompanyDb(platform)
+    const platformConfig = getCompanyPlatformConfig(platform)
+    const empresaId = findCompanyIdByName(dbPath, companyName)
+
+    if (!empresaId) {
+      throw new Error(`No encontre la empresa ${companyName} en ${platformConfig.label}.`)
+    }
+
+    const selectedRows = runSqliteJson(
       dbPath,
       `
-      SELECT id, nombre
-      FROM empresas
-      WHERE id = ${sqlLiteral(empresaId)}
+      SELECT token
+      FROM ${platformConfig.table}
+      WHERE empresa_id = ${sqlLiteral(empresaId)}
+        AND account_index = ${sqlLiteral(accountIndex)}
       LIMIT 1;
       `
     )
 
-    if (!existingRows[0]) {
-      throw new Error('No encontre el registro que intentas eliminar.')
+    const selectedToken = String(selectedRows[0]?.token || '').trim()
+    if (!selectedToken) {
+      throw new Error(`No encontre la cuenta ${accountIndex} de ${platformConfig.label} para ${companyName}.`)
     }
 
     runSqlite(
       dbPath,
       `
       PRAGMA foreign_keys=ON;
-      DELETE FROM empresas
-      WHERE id = ${sqlLiteral(empresaId)};
+      UPDATE ${platformConfig.table}
+      SET
+        is_primary = CASE WHEN account_index = ${sqlLiteral(accountIndex)} THEN 1 ELSE 0 END,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE empresa_id = ${sqlLiteral(empresaId)};
       `
     )
 
+    persistEnvConfig({
+      [platformConfig.tokenEnvKey]: selectedToken,
+    })
+
     return {
       success: true,
-      deletedId: empresaId,
-      deletedName: existingRows[0].nombre,
+      companyName,
+      platform,
+      accountIndex,
+      envKey: platformConfig.tokenEnvKey,
     }
   } catch (err) {
-    throw new Error(err.message || 'No se pudo eliminar la empresa.')
+    throw new Error(err.message || 'No se pudo seleccionar la cuenta para publicaciones.')
   }
 })
 
