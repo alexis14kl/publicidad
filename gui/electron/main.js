@@ -169,10 +169,12 @@ function getCompanyPlatformConfig(platform) {
 }
 
 function findSqlite3() {
-  // Bundled sqlite3 in project bin/
-  const bundled = path.join(PROJECT_ROOT, 'bin', 'sqlite3.exe')
-  if (fs.existsSync(bundled)) return bundled
-  // Fallback: system PATH
+  if (process.platform === 'win32') {
+    // Windows: bundled sqlite3 in project bin/
+    const bundled = path.join(PROJECT_ROOT, 'bin', 'sqlite3.exe')
+    if (fs.existsSync(bundled)) return bundled
+  }
+  // macOS/Linux: use system sqlite3 from PATH
   return 'sqlite3'
 }
 
