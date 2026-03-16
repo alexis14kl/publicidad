@@ -3521,6 +3521,34 @@ const IMAGE_FORMATS = {
   'li-story':      { platform: 'LinkedIn',  label: 'Story 9:16',        w: 1080, h: 1920, ratio: '9:16' },
 }
 
+// ─── Service Lookup ───────────────────────────────────────────────────────
+const NOYECODE_SERVICES = {
+  'desarrollo-a-la-medida':        'Desarrollo a la Medida',
+  'automatizaciones-empresariales': 'Automatizaciones Empresariales',
+  'modernizacion-software-legacy':  'Modernizacion de Software Legacy',
+  'rpas-nativos':                   'RPAs Nativos',
+  'desarrollo-android':             'Desarrollo Android',
+  'desarrollo-desktop':             'Desarrollo Desktop',
+  'trabaja-con-nosotros':           'Trabaja con Nosotros',
+}
+
+function buildServiceRule(serviceValue) {
+  const label = NOYECODE_SERVICES[serviceValue]
+  if (!label) return ''
+  return (
+    `\n\n[MANDATORY SERVICE — THIS IS THE ONLY SERVICE TO PROMOTE]\n` +
+    `Service: "${label}". ` +
+    `The ad image MUST promote ONLY this service: "${label}". ` +
+    `Do NOT mix with other services. Do NOT change the service name. ` +
+    `All text, headlines, and benefits in the image must be about "${label}". ` +
+    `This is a hard requirement from the client.\n\n` +
+    `[MANDATORY LANGUAGE — ALL TEXT IN THE IMAGE MUST BE IN SPANISH]\n` +
+    `Every piece of text visible in the image (headlines, subtitles, benefits, CTA, contact info) ` +
+    `MUST be written in Spanish. Do NOT use English for any visible text in the image. ` +
+    `The prompt instructions are in English but the IMAGE CONTENT must be 100% in Spanish.`
+  )
+}
+
 function buildFormatRule(formatValue) {
   const fmt = IMAGE_FORMATS[formatValue]
   if (!fmt) return ''
@@ -3561,6 +3589,9 @@ ipcMain.handle('start-bot', async (_event, payload) => {
   const imageFormat = typeof payload === 'object' && payload !== null
     ? String(payload.imageFormat || '').trim()
     : ''
+  const imageService = typeof payload === 'object' && payload !== null
+    ? String(payload.imageService || '').trim()
+    : ''
 
   // Pass image dimensions to overlay_logo.py via env
   const botFmt = IMAGE_FORMATS[imageFormat]
@@ -3573,7 +3604,7 @@ ipcMain.handle('start-bot', async (_event, payload) => {
     return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar.' }
   }
 
-  const imagePrompt = rawPrompt + buildFormatRule(imageFormat)
+  const imagePrompt = rawPrompt + buildServiceRule(imageService) + buildFormatRule(imageFormat)
 
   const botRunnerPath = path.join(PROJECT_ROOT, 'server', 'bot_runner.py')
   const pythonBin = findPython()
@@ -3653,11 +3684,14 @@ ipcMain.handle('start-poller', async (_event, payload) => {
   const pollerFormat = typeof payload === 'object' && payload !== null
     ? String(payload.imageFormat || '').trim()
     : ''
+  const pollerService = typeof payload === 'object' && payload !== null
+    ? String(payload.imageService || '').trim()
+    : ''
   if (!rawPollerPrompt) {
     return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar el poller.' }
   }
 
-  const finalPollerPrompt = rawPollerPrompt + buildFormatRule(pollerFormat)
+  const finalPollerPrompt = rawPollerPrompt + buildServiceRule(pollerService) + buildFormatRule(pollerFormat)
 
   const env = getProjectEnv()
   // Persist poller logs so the GUI can tail them.

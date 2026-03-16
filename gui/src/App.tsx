@@ -15,7 +15,7 @@ import { useBotLogTail } from './hooks/useBotLogTail'
 import { useLastJob } from './hooks/useLastJob'
 import { generateDefaultPrompt, onMarketingRunUpdate, runMarketingCampaignPreview, startBot, stopBot } from './lib/commands'
 import type { MarketingRunUpdate, PromptHistoryEntry } from './lib/types'
-import { IMAGE_FORMAT_GROUPS } from './lib/types'
+import { IMAGE_FORMAT_GROUPS, NOYECODE_SERVICES } from './lib/types'
 
 function MarketingCampaignModal({
   open,
@@ -543,6 +543,12 @@ export default function App() {
   const [imageFormat, setImageFormat] = useState(() =>
     window.localStorage.getItem('imageFormat') || 'fb-vertical'
   )
+  const [imageService, setImageService] = useState(() =>
+    window.localStorage.getItem('imageService') || NOYECODE_SERVICES[0].value
+  )
+  const [lastUsedService, setLastUsedService] = useState(() =>
+    window.localStorage.getItem('lastUsedService') || ''
+  )
   const botStatus = useBotStatus()
   const poller = usePollerProcess()
   const { lines: workerLines, clearLines: clearWorkerLines } = useLogTail()
@@ -608,6 +614,13 @@ export default function App() {
     } catch { /* ignore */ }
   }
 
+  const handleChangeService = (value: string) => {
+    setImageService(value)
+    try {
+      window.localStorage.setItem('imageService', value)
+    } catch { /* ignore */ }
+  }
+
   const isExecuting = botStatus.status === 'executing'
 
   const handleStartPoller = async () => {
@@ -615,7 +628,9 @@ export default function App() {
     const prompt = imagePrompt.trim()
     if (!prompt) return
     rememberPrompt(prompt)
-    await poller.start({ imagePrompt: prompt, imageFormat })
+    setLastUsedService(imageService)
+    try { window.localStorage.setItem('lastUsedService', imageService) } catch { /* ignore */ }
+    await poller.start({ imagePrompt: prompt, imageFormat, imageService })
   }
 
   const handleStartBot = async () => {
@@ -625,7 +640,9 @@ export default function App() {
     setBotLoading(true)
     try {
       rememberPrompt(prompt)
-      await startBot({ imagePrompt: prompt, imageFormat })
+      setLastUsedService(imageService)
+      try { window.localStorage.setItem('lastUsedService', imageService) } catch { /* ignore */ }
+      await startBot({ imagePrompt: prompt, imageFormat, imageService })
     } finally {
       setBotLoading(false)
     }
@@ -687,6 +704,9 @@ export default function App() {
             imagePrompt={imagePrompt}
             onChangeImagePrompt={setImagePrompt}
             imagePromptHistory={imagePromptHistory}
+            imageService={imageService}
+            onChangeImageService={handleChangeService}
+            lastUsedService={lastUsedService}
             imageFormat={imageFormat}
             onChangeImageFormat={handleChangeFormat}
             promptDisabled={isExecuting || botLoading}

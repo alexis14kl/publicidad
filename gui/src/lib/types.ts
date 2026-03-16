@@ -101,6 +101,22 @@ export interface PromptHistoryEntry {
   createdAt: string | null
 }
 
+export interface NoyeCodeService {
+  value: string
+  label: string
+  emoji: string
+}
+
+export const NOYECODE_SERVICES: NoyeCodeService[] = [
+  { value: 'desarrollo-a-la-medida',          label: 'Desarrollo a la Medida',              emoji: '\uD83D\uDCBB' },
+  { value: 'automatizaciones-empresariales',   label: 'Automatizaciones Empresariales',      emoji: '\u2699\uFE0F' },
+  { value: 'modernizacion-software-legacy',    label: 'Modernizacion de Software Legacy',    emoji: '\uD83D\uDD04' },
+  { value: 'rpas-nativos',                     label: 'RPAs Nativos',                        emoji: '\uD83E\uDD16' },
+  { value: 'desarrollo-android',               label: 'Desarrollo Android',                  emoji: '\uD83D\uDCF1' },
+  { value: 'desarrollo-desktop',               label: 'Desarrollo Desktop',                  emoji: '\uD83D\uDDA5\uFE0F' },
+  { value: 'trabaja-con-nosotros',             label: 'Trabaja con Nosotros',                emoji: '\uD83E\uDD1D' },
+]
+
 export interface ImageFormatOption {
   value: string
   label: string
@@ -173,11 +189,13 @@ export interface StartBotPayload {
   profileName?: string
   imagePrompt?: string
   imageFormat?: string
+  imageService?: string
 }
 
 export interface StartPollerPayload {
   imagePrompt?: string
   imageFormat?: string
+  imageService?: string
 }
 
 export interface MarketingCampaignPayload {
