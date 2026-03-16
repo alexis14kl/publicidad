@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { listCompanyRecords, saveCompanyRecord } from '../lib/commands'
+import { deleteCompanyRecord, listCompanyRecords, saveCompanyRecord, selectCompanyLogoSvg } from '../lib/commands'
 import type { CompanyPlatform, CompanyRecord, SaveCompanyPayload } from '../lib/types'
 
 const PLATFORM_OPTIONS: { key: CompanyPlatform; label: string; dbFile: string }[] = [
@@ -20,6 +20,7 @@ const EMPTY_FORM = {
   direccion: '',
   descripcion: '',
   activo: true,
+  syncToConfig: true,
 }
 
 type FormState = typeof EMPTY_FORM
@@ -28,12 +29,36 @@ export function CompanyProfilesPage() {
   const [platform, setPlatform] = useState<CompanyPlatform>('facebook')
   const [records, setRecords] = useState<CompanyRecord[]>([])
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
+  const [logoFileName, setLogoFileName] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deletingEmpresaId, setDeletingEmpresaId] = useState<number | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const currentPlatform = PLATFORM_OPTIONS.find((option) => option.key === platform) ?? PLATFORM_OPTIONS[0]
+  const tokenConfigKey =
+    {
+      facebook: 'FB_ACCESS_TOKEN',
+      instagram: 'INSTAGRAM_ACCESS_TOKEN',
+      linkedin: 'LINKEDIN_ACCESS_TOKEN',
+      tiktok: 'TIKTOK_ACCESS_TOKEN',
+    }[platform] ?? 'ACCESS_TOKEN'
+
+  const maskToken = (value: string) => {
+    const clean = value.trim()
+    if (!clean) return 'Sin token'
+    if (clean.length <= 10) return clean
+    return `${clean.slice(0, 6)}...${clean.slice(-4)}`
+  }
+
+  const formatLogoLabel = (value: string | null | undefined) => {
+    const raw = String(value || '').trim()
+    if (!raw) return 'Sin logo'
+    const parts = raw.split('/')
+    return parts[parts.length - 1] || raw
+  }
 
   const validationMessage = useMemo(() => {
     if (!form.nombre.trim()) return 'Completa el nombre de la empresa.'
@@ -72,6 +97,60 @@ export function CompanyProfilesPage() {
     setError(null)
   }
 
+  const handleSelectLogo = async () => {
+    setMessage(null)
+    setError(null)
+
+    try {
+      const result = await selectCompanyLogoSvg()
+      if (result.canceled) return
+      if (!result.success || !result.logoPath) {
+        throw new Error(result.error || 'No se pudo cargar el logo SVG.')
+      }
+      setForm((prev) => ({ ...prev, logo: result.logoPath || '' }))
+      setLogoFileName(result.logoName || formatLogoLabel(result.logoPath))
+      setLogoPreviewUrl(result.logoUrl || null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el logo SVG.')
+    }
+  }
+
+  const handleClearLogo = () => {
+    setForm((prev) => ({ ...prev, logo: '' }))
+    setLogoFileName('')
+    setLogoPreviewUrl(null)
+    setMessage(null)
+    setError(null)
+  }
+
+  const handleDeleteRecord = async (record: CompanyRecord) => {
+    const empresaId = record.empresa_id ?? record.id
+    if (!empresaId) return
+
+    const confirmed = window.confirm(`Se eliminara la empresa "${record.nombre}" de ${currentPlatform.label}. Continuar?`)
+    if (!confirmed) return
+
+    setDeletingEmpresaId(empresaId)
+    setMessage(null)
+    setError(null)
+
+    try {
+      const result = await deleteCompanyRecord({
+        platform,
+        empresaId,
+      })
+      if (!result.success) {
+        throw new Error('No se pudo eliminar la empresa.')
+      }
+      setMessage(`Empresa eliminada de ${currentPlatform.label}: ${result.deletedName || record.nombre}`)
+      await loadRecords(platform)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar la empresa.')
+    } finally {
+      setDeletingEmpresaId(null)
+    }
+  }
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!canSave) return
@@ -92,10 +171,17 @@ export function CompanyProfilesPage() {
         direccion: form.direccion.trim(),
         descripcion: form.descripcion.trim(),
         activo: form.activo,
+        syncToConfig: form.syncToConfig,
       }
       const savedRecord = await saveCompanyRecord(payload)
-      setMessage(`Empresa guardada en ${currentPlatform.label}: ${savedRecord.nombre}`)
+      const syncMessage =
+        savedRecord.config_synced && savedRecord.config_env_key
+          ? ` Token sincronizado en ${savedRecord.config_env_key}.`
+          : ''
+      setMessage(`Empresa guardada en ${currentPlatform.label}: ${savedRecord.nombre}.${syncMessage}`)
       setForm(EMPTY_FORM)
+      setLogoFileName('')
+      setLogoPreviewUrl(null)
       await loadRecords(platform)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la empresa.')
@@ -111,13 +197,15 @@ export function CompanyProfilesPage() {
           <p className="company-hero__eyebrow">Empresas por plataforma</p>
           <h2 className="company-hero__title">Formulario maestro para credenciales y datos comerciales</h2>
           <p className="company-hero__text">
-            Cada tab guarda sus registros en una base independiente dentro de <strong>Backend</strong>, asi puedes
-            administrar Facebook, TikTok, LinkedIn e Instagram por separado.
+            Cada tab guarda el token en su tabla de red social y mantiene los datos generales de la empresa en la
+            tabla central <strong>empresas</strong>. La relacion operativa se resuelve por el nombre de la empresa
+            para que puedas reutilizar la misma ficha comercial entre plataformas.
           </p>
         </div>
         <div className="company-hero__meta">
           <span className="company-chip">{currentPlatform.label}</span>
           <span className="company-chip company-chip--dim">{currentPlatform.dbFile}</span>
+          <span className="company-chip company-chip--dim">{tokenConfigKey}</span>
         </div>
       </section>
 
@@ -162,11 +250,30 @@ export function CompanyProfilesPage() {
 
             <label className="company-field">
               <span>Logo</span>
-              <input
-                value={form.logo}
-                onChange={(event) => handleFieldChange('logo', event.target.value)}
-                placeholder="URL o ruta del logo"
-              />
+              <div className="company-logo-picker">
+                <div className="company-logo-picker__actions">
+                  <button className="btn btn--ghost btn--small" type="button" onClick={handleSelectLogo}>
+                    Cargar SVG
+                  </button>
+                  <button
+                    className="btn btn--ghost btn--small"
+                    type="button"
+                    onClick={handleClearLogo}
+                    disabled={!form.logo}
+                  >
+                    Quitar
+                  </button>
+                </div>
+                <div className="company-logo-picker__meta">
+                  <strong>{logoFileName || formatLogoLabel(form.logo) || 'Sin logo seleccionado'}</strong>
+                  <span>Solo se permiten archivos en formato .svg</span>
+                </div>
+                {logoPreviewUrl && (
+                  <div className="company-logo-picker__preview">
+                    <img src={logoPreviewUrl} alt="Preview del logo" />
+                  </div>
+                )}
+              </div>
             </label>
 
             <label className="company-field">
@@ -224,6 +331,15 @@ export function CompanyProfilesPage() {
               <span>Empresa activa para esta plataforma</span>
             </label>
 
+            <label className="company-toggle">
+              <input
+                type="checkbox"
+                checked={form.syncToConfig}
+                onChange={(event) => handleFieldChange('syncToConfig', event.target.checked)}
+              />
+              <span>Sincronizar este token con la configuracion ({tokenConfigKey})</span>
+            </label>
+
             <div className="company-form__footer">
               <span className="company-form__hint">{validationMessage}</span>
               <button className="btn btn--start company-form__submit" type="submit" disabled={!canSave}>
@@ -264,11 +380,21 @@ export function CompanyProfilesPage() {
                   <div className="company-record__header">
                     <div>
                       <h3>{record.nombre}</h3>
-                      <p>ID {record.id}</p>
+                      <p>ID empresa {record.empresa_id ?? record.id}</p>
                     </div>
-                    <span className={`job-badge ${record.activo ? 'badge--success' : 'badge--warn'}`}>
-                      {record.activo ? 'Activa' : 'Inactiva'}
-                    </span>
+                    <div className="company-record__actions">
+                      <span className={`job-badge ${record.activo ? 'badge--success' : 'badge--warn'}`}>
+                        {record.activo ? 'Activa' : 'Inactiva'}
+                      </span>
+                      <button
+                        className="btn btn--ghost btn--small company-record__delete"
+                        type="button"
+                        onClick={() => void handleDeleteRecord(record)}
+                        disabled={deletingEmpresaId === (record.empresa_id ?? record.id)}
+                      >
+                        {deletingEmpresaId === (record.empresa_id ?? record.id) ? 'Eliminando...' : 'Eliminar'}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="company-record__grid">
@@ -286,7 +412,15 @@ export function CompanyProfilesPage() {
                     </div>
                     <div>
                       <span>Logo</span>
-                      <strong>{record.logo || 'Sin logo'}</strong>
+                      <strong>{formatLogoLabel(record.logo)}</strong>
+                    </div>
+                    <div>
+                      <span>Token</span>
+                      <strong>{maskToken(record.token)}</strong>
+                    </div>
+                    <div>
+                      <span>Config</span>
+                      <strong>{record.config_env_key || tokenConfigKey}</strong>
                     </div>
                   </div>
 

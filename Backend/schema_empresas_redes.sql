@@ -14,3 +14,4 @@ CREATE TABLE IF NOT EXISTS empresas (
 
 CREATE INDEX IF NOT EXISTS idx_empresas_nombre ON empresas(nombre);
 CREATE INDEX IF NOT EXISTS idx_empresas_correo ON empresas(correo);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_empresas_nombre_unico ON empresas(nombre COLLATE NOCASE);

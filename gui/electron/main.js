@@ -26,6 +26,32 @@ let facebookVisualContext = null
 let facebookVisualPage = null
 let facebookVisualExecutable = ''
 const COMPANY_PLATFORMS = new Set(['facebook', 'tiktok', 'linkedin', 'instagram'])
+const COMPANY_PLATFORM_CONFIG = {
+  facebook: {
+    label: 'Facebook',
+    schemaFile: 'facebook.sql',
+    table: 'facebook_form',
+    tokenEnvKey: 'FB_ACCESS_TOKEN',
+  },
+  tiktok: {
+    label: 'TikTok',
+    schemaFile: 'tiktok.sql',
+    table: 'tiktok_form',
+    tokenEnvKey: 'TIKTOK_ACCESS_TOKEN',
+  },
+  linkedin: {
+    label: 'LinkedIn',
+    schemaFile: 'linkedin.sql',
+    table: 'linkedin_form',
+    tokenEnvKey: 'LINKEDIN_ACCESS_TOKEN',
+  },
+  instagram: {
+    label: 'Instagram',
+    schemaFile: 'instagram.sql',
+    table: 'instagram_form',
+    tokenEnvKey: 'INSTAGRAM_ACCESS_TOKEN',
+  },
+}
 
 // ─── Window ───────────────────────────────────────────────────────────────────
 
@@ -120,14 +146,27 @@ function getCompanyDbPath(platform) {
   return path.join(PROJECT_ROOT, 'Backend', `${normalized}.sqlite3`)
 }
 
+function getCompanyPlatformConfig(platform) {
+  const normalized = String(platform || '').trim().toLowerCase()
+  const config = COMPANY_PLATFORM_CONFIG[normalized]
+  if (!config) {
+    throw new Error(`Plataforma no soportada: ${platform}`)
+  }
+  return config
+}
+
 function ensureCompanyDb(platform) {
+  const platformConfig = getCompanyPlatformConfig(platform)
   const dbPath = getCompanyDbPath(platform)
   const schemaPath = path.join(PROJECT_ROOT, 'Backend', 'schema_empresas_redes.sql')
   const schemaSql = fs.readFileSync(schemaPath, 'utf-8')
+  const platformSchemaPath = path.join(PROJECT_ROOT, 'Backend', platformConfig.schemaFile)
+  const platformSchemaSql = fs.readFileSync(platformSchemaPath, 'utf-8')
   execFileSync('sqlite3', [dbPath], {
-    input: schemaSql,
+    input: `${schemaSql}\n${platformSchemaSql}`,
     encoding: 'utf-8',
   })
+  migrateLegacyCompanyPlatformData(dbPath, platformConfig)
   return dbPath
 }
 
@@ -144,6 +183,90 @@ function runSqliteJson(dbPath, sql) {
   const trimmed = String(stdout || '').trim()
   if (!trimmed) return []
   return JSON.parse(trimmed)
+}
+
+function runSqlite(dbPath, sql) {
+  return execFileSync('sqlite3', [dbPath], {
+    input: sql,
+    encoding: 'utf-8',
+  })
+}
+
+function migrateLegacyCompanyPlatformData(dbPath, platformConfig) {
+  try {
+    const hasLegacyToken = companyTableHasColumn(dbPath, 'token')
+    if (!hasLegacyToken) return
+
+    runSqlite(
+      dbPath,
+      `
+      PRAGMA foreign_keys=ON;
+      INSERT INTO ${platformConfig.table} (
+        empresa_id,
+        token,
+        activo,
+        created_at,
+        updated_at
+      )
+      SELECT
+        e.id,
+        e.token,
+        COALESCE(e.activo, 1),
+        COALESCE(e.created_at, CURRENT_TIMESTAMP),
+        COALESCE(e.updated_at, CURRENT_TIMESTAMP)
+      FROM empresas e
+      WHERE TRIM(COALESCE(e.token, '')) <> ''
+        AND NOT EXISTS (
+          SELECT 1
+          FROM ${platformConfig.table} p
+          WHERE p.empresa_id = e.id
+        );
+      `
+    )
+  } catch {
+    // Ignore legacy migration issues and keep runtime path available.
+  }
+}
+
+function companyTableHasColumn(dbPath, columnName) {
+  const target = String(columnName || '').trim().toLowerCase()
+  if (!target) return false
+  const columns = runSqliteJson(dbPath, 'PRAGMA table_info(empresas);')
+  return columns.some((column) => String(column?.name || '').trim().toLowerCase() === target)
+}
+
+function persistEnvConfig(config = {}) {
+  const envPath = path.join(PROJECT_ROOT, '.env')
+  let content = ''
+  try {
+    content = fs.readFileSync(envPath, 'utf-8')
+  } catch {
+    // file may not exist yet
+  }
+
+  const updatedKeys = new Set()
+  const lines = content.split('\n')
+  const newLines = lines.map((line) => {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) return line
+    const eqIndex = trimmed.indexOf('=')
+    if (eqIndex === -1) return line
+    const key = trimmed.substring(0, eqIndex).trim()
+    if (key in config) {
+      updatedKeys.add(key)
+      return `${key}=${config[key]}`
+    }
+    return line
+  })
+
+  for (const [key, value] of Object.entries(config)) {
+    if (!updatedKeys.has(key)) {
+      newLines.push(`${key}=${value}`)
+    }
+  }
+
+  fs.writeFileSync(envPath, newLines.join('\n'), 'utf-8')
+  return { success: true }
 }
 
 function findPython() {
@@ -3526,37 +3649,7 @@ ipcMain.handle('reset-bot-state', async () => {
 
 ipcMain.handle('save-env-config', async (_event, config) => {
   try {
-    const envPath = path.join(PROJECT_ROOT, '.env')
-    let content = ''
-    try {
-      content = fs.readFileSync(envPath, 'utf-8')
-    } catch { /* file may not exist */ }
-
-    // Update existing keys preserving comments and structure
-    const updatedKeys = new Set()
-    const lines = content.split('\n')
-    const newLines = lines.map((line) => {
-      const trimmed = line.trim()
-      if (!trimmed || trimmed.startsWith('#')) return line
-      const eqIndex = trimmed.indexOf('=')
-      if (eqIndex === -1) return line
-      const key = trimmed.substring(0, eqIndex).trim()
-      if (key in config) {
-        updatedKeys.add(key)
-        return `${key}=${config[key]}`
-      }
-      return line
-    })
-
-    // Append new keys not in the original file
-    for (const [key, value] of Object.entries(config)) {
-      if (!updatedKeys.has(key)) {
-        newLines.push(`${key}=${value}`)
-      }
-    }
-
-    fs.writeFileSync(envPath, newLines.join('\n'), 'utf-8')
-    return { success: true }
+    return persistEnvConfig(config)
   } catch (err) {
     return { success: false, error: err.message }
   }
@@ -3565,24 +3658,31 @@ ipcMain.handle('save-env-config', async (_event, config) => {
 ipcMain.handle('list-company-records', async (_event, platform) => {
   try {
     const dbPath = ensureCompanyDb(platform)
+    const platformConfig = getCompanyPlatformConfig(platform)
     return runSqliteJson(
       dbPath,
       `
       SELECT
-        id,
+        e.id AS id,
+        p.id AS red_id,
+        e.id AS empresa_id,
         nombre,
-        token,
-        logo,
-        telefono,
-        correo,
-        sitio_web,
-        direccion,
-        descripcion,
-        activo,
-        created_at,
-        updated_at
-      FROM empresas
-      ORDER BY id DESC;
+        p.token AS token,
+        e.logo AS logo,
+        e.telefono AS telefono,
+        e.correo AS correo,
+        e.sitio_web AS sitio_web,
+        e.direccion AS direccion,
+        e.descripcion AS descripcion,
+        e.activo AS empresa_activa,
+        p.activo AS plataforma_activa,
+        p.activo AS activo,
+        e.created_at AS created_at,
+        e.updated_at AS updated_at,
+        ${sqlLiteral(platformConfig.tokenEnvKey)} AS config_env_key
+      FROM ${platformConfig.table} p
+      INNER JOIN empresas e ON e.id = p.empresa_id
+      ORDER BY e.nombre COLLATE NOCASE ASC, p.id DESC;
       `
     )
   } catch (err) {
@@ -3592,10 +3692,16 @@ ipcMain.handle('list-company-records', async (_event, platform) => {
 
 ipcMain.handle('save-company-record', async (_event, payload = {}) => {
   try {
+    const platformConfig = getCompanyPlatformConfig(payload.platform)
     const nombre = String(payload.nombre || '').trim()
     const token = String(payload.token || '').trim()
     const correo = String(payload.correo || '').trim()
     const telefono = String(payload.telefono || '').trim()
+    const logo = String(payload.logo || '').trim()
+    const sitioWeb = String(payload.sitio_web || '').trim()
+    const direccion = String(payload.direccion || '').trim()
+    const descripcion = String(payload.descripcion || '').trim()
+    const syncToConfig = payload.syncToConfig !== false
 
     if (!nombre) {
       throw new Error('El nombre de la empresa es obligatorio.')
@@ -3608,56 +3714,183 @@ ipcMain.handle('save-company-record', async (_event, payload = {}) => {
     }
 
     const dbPath = ensureCompanyDb(payload.platform)
-    const activo = payload.activo === false ? 0 : 1
-    const selectFields = `
-      id,
-      nombre,
-      token,
-      logo,
-      telefono,
-      correo,
-      sitio_web,
-      direccion,
-      descripcion,
-      activo,
-      created_at,
-      updated_at
-    `
-    const sql = `
-      INSERT INTO empresas (
-        nombre,
+    const hasLegacyCompanyTokenColumn = companyTableHasColumn(dbPath, 'token')
+    const platformActivo = payload.activo === false ? 0 : 1
+    const existingRows = runSqliteJson(
+      dbPath,
+      `
+      SELECT id
+      FROM empresas
+      WHERE lower(trim(nombre)) = lower(trim(${sqlLiteral(nombre)}))
+      ORDER BY id DESC
+      LIMIT 1;
+      `
+    )
+
+    let empresaId = existingRows[0]?.id || null
+    if (empresaId) {
+      runSqlite(
+        dbPath,
+        `
+        PRAGMA foreign_keys=ON;
+        UPDATE empresas
+        SET
+          nombre = ${sqlLiteral(nombre)},
+          ${hasLegacyCompanyTokenColumn ? `token = ${sqlLiteral(token)},` : ''}
+          logo = ${sqlLiteral(logo || null)},
+          telefono = ${sqlLiteral(telefono || null)},
+          correo = ${sqlLiteral(correo || null)},
+          sitio_web = ${sqlLiteral(sitioWeb || null)},
+          direccion = ${sqlLiteral(direccion || null)},
+          descripcion = ${sqlLiteral(descripcion || null)},
+          activo = 1,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${sqlLiteral(empresaId)};
+        `
+      )
+    } else {
+      const insertedRows = runSqliteJson(
+        dbPath,
+        `
+        INSERT INTO empresas (
+          nombre,
+          ${hasLegacyCompanyTokenColumn ? 'token,' : ''}
+          logo,
+          telefono,
+          correo,
+          sitio_web,
+          direccion,
+          descripcion,
+          activo,
+          updated_at
+        ) VALUES (
+          ${sqlLiteral(nombre)},
+          ${hasLegacyCompanyTokenColumn ? `${sqlLiteral(token)},` : ''}
+          ${sqlLiteral(logo || null)},
+          ${sqlLiteral(telefono || null)},
+          ${sqlLiteral(correo || null)},
+          ${sqlLiteral(sitioWeb || null)},
+          ${sqlLiteral(direccion || null)},
+          ${sqlLiteral(descripcion || null)},
+          1,
+          CURRENT_TIMESTAMP
+        );
+        SELECT id
+        FROM empresas
+        WHERE lower(trim(nombre)) = lower(trim(${sqlLiteral(nombre)}))
+        ORDER BY id DESC
+        LIMIT 1;
+        `
+      )
+      empresaId = insertedRows[0]?.id || null
+    }
+
+    if (!empresaId) {
+      throw new Error('No se pudo resolver el ID de la empresa central.')
+    }
+
+    const rows = runSqliteJson(
+      dbPath,
+      `
+      INSERT INTO ${platformConfig.table} (
+        empresa_id,
         token,
-        logo,
-        telefono,
-        correo,
-        sitio_web,
-        direccion,
-        descripcion,
         activo,
         updated_at
       ) VALUES (
-        ${sqlLiteral(nombre)},
+        ${sqlLiteral(empresaId)},
         ${sqlLiteral(token)},
-        ${sqlLiteral(String(payload.logo || '').trim() || null)},
-        ${sqlLiteral(telefono || null)},
-        ${sqlLiteral(correo || null)},
-        ${sqlLiteral(String(payload.sitio_web || '').trim() || null)},
-        ${sqlLiteral(String(payload.direccion || '').trim() || null)},
-        ${sqlLiteral(String(payload.descripcion || '').trim() || null)},
-        ${activo},
+        ${platformActivo},
         CURRENT_TIMESTAMP
-      );
-      SELECT ${selectFields}
-      FROM empresas
-      WHERE id = last_insert_rowid();
-    `
-    const rows = runSqliteJson(dbPath, sql)
+      )
+      ON CONFLICT(empresa_id) DO UPDATE SET
+        token = excluded.token,
+        activo = excluded.activo,
+        updated_at = CURRENT_TIMESTAMP;
+
+      SELECT
+        e.id AS id,
+        p.id AS red_id,
+        e.id AS empresa_id,
+        e.nombre AS nombre,
+        p.token AS token,
+        e.logo AS logo,
+        e.telefono AS telefono,
+        e.correo AS correo,
+        e.sitio_web AS sitio_web,
+        e.direccion AS direccion,
+        e.descripcion AS descripcion,
+        e.activo AS empresa_activa,
+        p.activo AS plataforma_activa,
+        p.activo AS activo,
+        e.created_at AS created_at,
+        e.updated_at AS updated_at,
+        ${sqlLiteral(platformConfig.tokenEnvKey)} AS config_env_key
+      FROM ${platformConfig.table} p
+      INNER JOIN empresas e ON e.id = p.empresa_id
+      WHERE e.id = ${sqlLiteral(empresaId)}
+      ORDER BY p.id DESC
+      LIMIT 1;
+      `
+    )
     if (!rows[0]) {
       throw new Error('SQLite no devolvio el registro guardado.')
     }
+
+    if (syncToConfig) {
+      persistEnvConfig({
+        [platformConfig.tokenEnvKey]: token,
+      })
+      rows[0].config_synced = 1
+    } else {
+      rows[0].config_synced = 0
+    }
+
     return rows[0]
   } catch (err) {
     throw new Error(err.message || 'No se pudo guardar la empresa.')
+  }
+})
+
+ipcMain.handle('delete-company-record', async (_event, payload = {}) => {
+  try {
+    const dbPath = ensureCompanyDb(payload.platform)
+    const empresaId = Number(payload.empresaId)
+
+    if (!Number.isInteger(empresaId) || empresaId <= 0) {
+      throw new Error('El ID de la empresa no es valido para eliminar.')
+    }
+
+    const existingRows = runSqliteJson(
+      dbPath,
+      `
+      SELECT id, nombre
+      FROM empresas
+      WHERE id = ${sqlLiteral(empresaId)}
+      LIMIT 1;
+      `
+    )
+
+    if (!existingRows[0]) {
+      throw new Error('No encontre el registro que intentas eliminar.')
+    }
+
+    runSqlite(
+      dbPath,
+      `
+      PRAGMA foreign_keys=ON;
+      DELETE FROM empresas
+      WHERE id = ${sqlLiteral(empresaId)};
+      `
+    )
+
+    return {
+      success: true,
+      deletedId: empresaId,
+      deletedName: existingRows[0].nombre,
+    }
+  } catch (err) {
+    throw new Error(err.message || 'No se pudo eliminar la empresa.')
   }
 })
 
@@ -4009,10 +4242,16 @@ app.whenReady().then(() => {
 // Logo management
 // ---------------------------------------------------------------------------
 const LOGOS_DIR = path.join(PROJECT_ROOT, 'utils', 'logos')
+const COMPANY_LOGOS_DIR = path.join(LOGOS_DIR, 'companies')
 const ACTIVE_LOGO = path.join(PROJECT_ROOT, 'utils', 'logoapporange.png')
 
 function ensureLogosDir() {
   if (!fs.existsSync(LOGOS_DIR)) fs.mkdirSync(LOGOS_DIR, { recursive: true })
+}
+
+function ensureCompanyLogosDir() {
+  ensureLogosDir()
+  if (!fs.existsSync(COMPANY_LOGOS_DIR)) fs.mkdirSync(COMPANY_LOGOS_DIR, { recursive: true })
 }
 
 ipcMain.handle('get-logo-path', async () => {
@@ -4039,6 +4278,39 @@ ipcMain.handle('change-logo', async () => {
 
   const logoUrl = `file://${ACTIVE_LOGO.replace(/\\/g, '/')}?t=${Date.now()}`
   return { success: true, logoUrl, historyName }
+})
+
+ipcMain.handle('select-company-logo-svg', async () => {
+  const result = await dialog.showOpenDialog({
+    title: 'Seleccionar logo SVG',
+    filters: [{ name: 'SVG', extensions: ['svg'] }],
+    properties: ['openFile'],
+  })
+
+  if (result.canceled || !result.filePaths.length) {
+    return { success: false, canceled: true }
+  }
+
+  const src = result.filePaths[0]
+  const ext = path.extname(src).toLowerCase()
+  if (ext !== '.svg') {
+    return { success: false, error: 'Solo se permiten archivos SVG.' }
+  }
+
+  const safeBaseName = path.basename(src, ext).replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'logo'
+  const stamp = new Date().toISOString().replace(/[:\-T]/g, '').slice(0, 14)
+  const historyName = `${safeBaseName}_${stamp}.svg`
+  const dest = path.join(COMPANY_LOGOS_DIR, historyName)
+
+  ensureCompanyLogosDir()
+  fs.copyFileSync(src, dest)
+
+  return {
+    success: true,
+    logoPath: path.join('utils', 'logos', 'companies', historyName).replace(/\\/g, '/'),
+    logoName: historyName,
+    logoUrl: `file://${dest.replace(/\\/g, '/')}?t=${Date.now()}`,
+  }
 })
 
 ipcMain.handle('list-logos', async () => {
