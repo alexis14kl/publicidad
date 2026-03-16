@@ -5,6 +5,7 @@ No modifica el fondo, no pinta, no aplica blur ni efectos.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -15,8 +16,20 @@ LOGO_PNG = PROJECT_ROOT / "utils" / "logoapporange.png"
 
 LOGO_WIDTH_RATIO = 0.25  # logo ocupa 25% del ancho (mas pequeno)
 HEADER_RATIO = 0.08  # zona superior donde va centrado el logo (pegado arriba)
-TARGET_WIDTH = 1080
-TARGET_HEIGHT = 1350
+_DEFAULT_WIDTH = 1080
+_DEFAULT_HEIGHT = 1350
+
+
+def _get_target_dimensions() -> tuple[int, int]:
+    """Lee dimensiones de env vars BOT_IMAGE_WIDTH/HEIGHT, fallback a 1080x1350."""
+    try:
+        w = int(os.environ.get("BOT_IMAGE_WIDTH", "0") or "0")
+        h = int(os.environ.get("BOT_IMAGE_HEIGHT", "0") or "0")
+        if w > 0 and h > 0:
+            return w, h
+    except (ValueError, TypeError):
+        pass
+    return _DEFAULT_WIDTH, _DEFAULT_HEIGHT
 
 
 def _fit_to_target(img: Image.Image, tw: int, th: int) -> Image.Image:
@@ -44,8 +57,9 @@ def overlay_logo(image_path: str | Path) -> Path:
     bg = Image.open(image_path).convert("RGBA")
     logo = Image.open(LOGO_PNG).convert("RGBA")
 
-    # Forzar 1080x1350 (4:5) para FB/IG
-    bg = _fit_to_target(bg, TARGET_WIDTH, TARGET_HEIGHT)
+    # Forzar dimensiones del formato seleccionado (o 1080x1350 por defecto)
+    tw, th = _get_target_dimensions()
+    bg = _fit_to_target(bg, tw, th)
     bg_w, bg_h = bg.size
 
     # Escalar logo

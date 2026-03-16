@@ -3383,6 +3383,13 @@ ipcMain.handle('start-bot', async (_event, payload) => {
     ? String(payload.imageFormat || '').trim()
     : ''
 
+  // Pass image dimensions to overlay_logo.py via env
+  const botFmt = IMAGE_FORMATS[imageFormat]
+  if (botFmt) {
+    env.BOT_IMAGE_WIDTH = String(botFmt.w)
+    env.BOT_IMAGE_HEIGHT = String(botFmt.h)
+  }
+
   if (!rawPrompt) {
     return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar.' }
   }
@@ -3479,6 +3486,13 @@ ipcMain.handle('start-poller', async (_event, payload) => {
   env.BOT_CUSTOM_IMAGE_PROMPT = finalPollerPrompt
   env.PYTHONIOENCODING = 'utf-8'
   env.PYTHONUNBUFFERED = '1'
+
+  // Pass image dimensions to overlay_logo.py via env
+  const pollerFmt = IMAGE_FORMATS[pollerFormat]
+  if (pollerFmt) {
+    env.BOT_IMAGE_WIDTH = String(pollerFmt.w)
+    env.BOT_IMAGE_HEIGHT = String(pollerFmt.h)
+  }
   const pollerPath = path.join(PROJECT_ROOT, 'server', 'job_poller.py')
   const pythonBin = findPython()
   if (!pythonBin) {
