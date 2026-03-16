@@ -1,32 +1,30 @@
 Genera UN SOLO prompt en ingles listo para DALL-E. El prompt debe tener entre 80 y 120 palabras en un solo parrafo continuo. No incluir explicaciones, opciones ni preguntas.
 
-EMPRESA: NoyeCode | Web: noyecode.com | WhatsApp: +57 301 385 9952
-
-SERVICIO A PROMOCIONAR: Se te indicara cual servicio usar. No lo cambies.
+IMPORTANTE: Los datos de empresa, servicio, idioma y formato se inyectan automaticamente como reglas MANDATORY al final del prompt. NO uses datos hardcodeados — usa SOLO los datos que vienen en las secciones [MANDATORY ...] adjuntas.
 
 QUE GENERAR:
-Un anuncio VERTICAL 4:5 (1080x1350px) estilo FOTOGRAFIA REALISTA premium optimizado para Facebook feed. Este formato evita que la imagen se corte en el feed de Facebook. Estilo visual: fotografia profesional tipo marketing SaaS/enterprise software, look corporativo minimalista, alta calidad.
+Un anuncio publicitario estilo FOTOGRAFIA REALISTA premium para redes sociales. Estilo visual: fotografia profesional tipo marketing SaaS/enterprise software, look corporativo minimalista, alta calidad. El formato y dimensiones exactas se indican en [MANDATORY IMAGE FORMAT].
 
 COMPOSICION OBLIGATORIA:
 - PERSONA REAL: persona joven real trabajando con laptop/computador en ambiente profesional moderno. Expresion positiva (exito/celebracion). NO caricaturas, NO ilustracion, NO vector.
 - DASHBOARDS/TECH: interfaces digitales flotantes (dashboards, graficos, widgets) alrededor de la persona, estilo HUD sutil, sin saturar.
 - LAYOUT PUBLICITARIO: diseno limpio con bloques de texto corporativos: titular grande, badge/CTA naranja, caja de beneficios destacada, banner inferior con contacto.
-- BENEFICIOS (en la caja de beneficios; texto en español): "Versionado en SQLite", "Publica en Instagram", "Publica en TikTok", "Publica en LinkedIn", "Campañas Google", "Campañas Facebook", "Campañas LinkedIn".
+- BENEFICIOS: 2-3 bullet points cortos en espanol relacionados al servicio indicado en [MANDATORY SERVICE]. No inventar beneficios ajenos al servicio.
 
 LAYOUT CRITICO (respetar estrictamente):
 - FRANJA SUPERIOR (15% del alto): COMPLETAMENTE VACIA, solo fondo claro limpio. Cero texto, cero iconos, cero elementos. El logo se agrega despues.
 - ZONA DE CONTENIDO (85% inferior): personaje a un lado, texto de oferta y badges al otro. Composicion equilibrada y dinamica.
 
 TEXTO EN LA IMAGEN:
-- Todo en espanol. Maximo 6 elementos de texto.
-- Titulo principal: gancho de oferta GRANDE y llamativo (max 6 palabras). Ejemplos: "Creamos Tu Web Moderna", "Automatiza Tu Negocio", "Tu App a Tu Medida". Tipografia bold gruesa, color morado oscuro o blanco con sombra.
-- Subtitulo de oferta: en badge naranja o morado, texto urgente. Ej: "Consulta Gratis", "Cotiza Sin Costo", "Asesoria Personalizada", "Oferta Limitada". NUNCA decir que el servicio es gratis, solo la consulta o cotizacion.
-- Beneficios: 2-3 bullet points cortos con checks verdes.
+- Todo en espanol (segun [MANDATORY LANGUAGE]). Maximo 6 elementos de texto.
+- Titulo principal: gancho de oferta GRANDE y llamativo (max 6 palabras) relacionado al servicio de [MANDATORY SERVICE]. Tipografia bold gruesa, color morado oscuro o blanco con sombra.
+- Subtitulo de oferta: en badge naranja o morado, texto urgente. Ej: "Consulta Gratis", "Cotiza Sin Costo", "Asesoria Personalizada". NUNCA decir que el servicio es gratis, solo la consulta o cotizacion.
+- Beneficios: 2-3 bullet points cortos con checks verdes, relacionados al servicio.
 - CTA: en barra o boton naranja/verde al pie. Ej: "Escribenos con tu idea", "Cotiza Gratis HOY".
-- Contacto al pie: "noyecode.com" y "WhatsApp: +57 301 385 9952" en barra inferior.
-- PROHIBIDO escribir "NoyeCode" o variaciones del nombre de marca en el contenido principal.
+- Contacto al pie: usar los datos de [MANDATORY COMPANY INFO] (website y telefono) en barra inferior.
+- PROHIBIDO escribir el nombre de la empresa en el contenido principal (el logo se agrega despues).
 
-PALETA DE COLORES (estilo de la referencia):
+PALETA DE COLORES:
 - Fondo: blanco o gris muy claro #f0f0f5 con lineas geometricas sutiles.
 - Morado de marca #3469ED para titulos y elementos principales.
 - Naranja vibrante #fd9102 para CTA/badges y acentos.
@@ -40,5 +38,5 @@ REGLAS DEL PROMPT FINAL:
 - Especificar entre comillas el texto exacto en espanol que va dentro de la imagen.
 - Incluir esta frase literal: "The top 15 percent of the image must be completely empty with clean light background only, no text or elements, reserved for logo overlay. All content starts below that zone."
 - Incluir: "Full-bleed design, light background edge to edge, no margins, no black bars."
-- Terminar con: "vertical 4:5, 4K, full-bleed social media ad, premium realistic photography style, clean corporate minimal look"
 - NO pedir ilustracion, vector, caricatura, 3D cartoon, ni texto pequeno ilegible.
+- El formato final (vertical, horizontal, square, 4K, etc.) se indica en [MANDATORY IMAGE FORMAT]. Usarlo tal cual.
