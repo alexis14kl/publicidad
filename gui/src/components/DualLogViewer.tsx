@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import type { CompanyRecord, PromptHistoryEntry } from '../lib/types'
 import { IMAGE_FORMAT_GROUPS, NOYECODE_SERVICES } from '../lib/types'
 
+const PLATFORM_EMOJIS: Record<string, string> = {
+  facebook: '\uD83D\uDCD8',
+  instagram: '\uD83D\uDCF7',
+  linkedin: '\uD83D\uDCBC',
+  tiktok: '\uD83C\uDFB5',
+  googleads: '\uD83D\uDCCA',
+}
+
 interface LogPanelProps {
   title: string
   icon: string
@@ -136,6 +144,7 @@ export function DualLogViewer({
 }: DualLogViewerProps) {
   const [activeTab, setActiveTab] = useState<'terminals' | 'prompt'>('terminals')
   const activeCompany = companies.find((c) => c.nombre === selectedCompany) || null
+  const activeCompanyPlatforms = Array.isArray(activeCompany?.platforms) ? activeCompany.platforms : []
   const [historyOpen, setHistoryOpen] = useState(false)
   const historyRef = useRef<HTMLDivElement>(null)
 
@@ -277,22 +286,16 @@ export function DualLogViewer({
                 ))}
               </select>
             </div>
-            {activeCompany && activeCompany.platforms.length > 0 && (
+            {activeCompanyPlatforms.length > 0 && (
               <div className="publish-platforms">
-                <span className="publish-platforms__label">Publicar en</span>
+                <span className="publish-platforms__label">Plataformas disponibles</span>
                 <div className="publish-platforms__checks">
-                  {activeCompany.platforms.map((p) => (
-                    <label key={p.platform} className="publish-platforms__check">
-                      <input
-                        type="checkbox"
-                        checked={!!publishPlatforms[p.platform]}
-                        onChange={() => onTogglePlatform(p.platform)}
-                        disabled={promptDisabled}
-                      />
+                  {activeCompanyPlatforms.map((p) => (
+                    <div key={p.platform} className="publish-platforms__check">
                       <span className="publish-platforms__name">
                         {PLATFORM_EMOJIS[p.platform] || ''} {p.label}
                       </span>
-                    </label>
+                    </div>
                   ))}
                 </div>
               </div>

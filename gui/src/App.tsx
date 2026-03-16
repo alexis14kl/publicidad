@@ -761,7 +761,6 @@ export default function App() {
               botLoading={botLoading}
               imagePrompt={imagePrompt}
               hasCompany={hasCompany}
-              hasCompany={hasCompany}
               pollerRunning={poller.running}
               pollerLoading={poller.loading}
               onStartPoller={handleStartPoller}
