@@ -3625,6 +3625,9 @@ ipcMain.handle('start-bot', async (_event, payload) => {
   const companyName = typeof payload === 'object' && payload !== null
     ? String(payload.companyName || '').trim()
     : ''
+  const publishPlatforms = Array.isArray(payload?.publishPlatforms)
+    ? payload.publishPlatforms.filter(Boolean).join(',')
+    : 'facebook'
 
   // Pass image dimensions to overlay_logo.py via env
   const botFmt = IMAGE_FORMATS[imageFormat]
@@ -3632,6 +3635,7 @@ ipcMain.handle('start-bot', async (_event, payload) => {
     env.BOT_IMAGE_WIDTH = String(botFmt.w)
     env.BOT_IMAGE_HEIGHT = String(botFmt.h)
   }
+  env.PUBLISH_PLATFORMS = publishPlatforms
 
   if (!rawPrompt) {
     return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar.' }
@@ -3723,6 +3727,9 @@ ipcMain.handle('start-poller', async (_event, payload) => {
   const pollerCompany = typeof payload === 'object' && payload !== null
     ? String(payload.companyName || '').trim()
     : ''
+  const pollerPublishPlatforms = Array.isArray(payload?.publishPlatforms)
+    ? payload.publishPlatforms.filter(Boolean).join(',')
+    : 'facebook'
   if (!rawPollerPrompt) {
     return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar el poller.' }
   }
@@ -3733,6 +3740,7 @@ ipcMain.handle('start-poller', async (_event, payload) => {
   // Persist poller logs so the GUI can tail them.
   env.PUBLICIDAD_LOG_FILE = path.join(PROJECT_ROOT, 'logs', 'job_poller.log')
   env.BOT_CUSTOM_IMAGE_PROMPT = finalPollerPrompt
+  env.PUBLISH_PLATFORMS = pollerPublishPlatforms
   env.PYTHONIOENCODING = 'utf-8'
   env.PYTHONUNBUFFERED = '1'
 

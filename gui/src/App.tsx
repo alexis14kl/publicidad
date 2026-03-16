@@ -551,6 +551,7 @@ export default function App() {
   )
   const [companies, setCompanies] = useState<CompanyRecord[]>([])
   const [selectedCompany, setSelectedCompany] = useState('')
+  const [publishPlatforms, setPublishPlatforms] = useState<Record<string, boolean>>({})
   const botStatus = useBotStatus()
   const poller = usePollerProcess()
   const { lines: workerLines, clearLines: clearWorkerLines } = useLogTail()
@@ -598,7 +599,11 @@ export default function App() {
         if (records.length > 0) {
           const saved = window.localStorage.getItem('selectedCompany') || ''
           const found = records.find((c) => c.nombre === saved)
-          setSelectedCompany(found ? found.nombre : records[0].nombre)
+          const initial = found || records[0]
+          setSelectedCompany(initial.nombre)
+          const platforms: Record<string, boolean> = {}
+          initial.platforms.forEach((p) => { platforms[p.platform] = true })
+          setPublishPlatforms(platforms)
         }
       })
       .catch(() => { /* ignore */ })
@@ -639,10 +644,21 @@ export default function App() {
     try {
       window.localStorage.setItem('selectedCompany', value)
     } catch { /* ignore */ }
+    const company = companies.find((c) => c.nombre === value)
+    if (company) {
+      const platforms: Record<string, boolean> = {}
+      company.platforms.forEach((p) => { platforms[p.platform] = true })
+      setPublishPlatforms(platforms)
+    }
+  }
+
+  const handleTogglePlatform = (platform: string) => {
+    setPublishPlatforms((prev) => ({ ...prev, [platform]: !prev[platform] }))
   }
 
   const activeCompany = companies.find((c) => c.nombre === selectedCompany) || null
   const hasCompany = companies.length > 0
+  const enabledPlatforms = Object.entries(publishPlatforms).filter(([, v]) => v).map(([k]) => k)
 
   const isExecuting = botStatus.status === 'executing'
 
@@ -653,7 +669,7 @@ export default function App() {
     rememberPrompt(prompt)
     setLastUsedService(imageService)
     try { window.localStorage.setItem('lastUsedService', imageService) } catch { /* ignore */ }
-    await poller.start({ imagePrompt: prompt, imageFormat, imageService, companyName: selectedCompany })
+    await poller.start({ imagePrompt: prompt, imageFormat, imageService, companyName: selectedCompany, publishPlatforms: enabledPlatforms })
   }
 
   const handleStartBot = async () => {
@@ -665,7 +681,7 @@ export default function App() {
       rememberPrompt(prompt)
       setLastUsedService(imageService)
       try { window.localStorage.setItem('lastUsedService', imageService) } catch { /* ignore */ }
-      await startBot({ imagePrompt: prompt, imageFormat, imageService, companyName: selectedCompany })
+      await startBot({ imagePrompt: prompt, imageFormat, imageService, companyName: selectedCompany, publishPlatforms: enabledPlatforms })
     } finally {
       setBotLoading(false)
     }
@@ -731,6 +747,8 @@ export default function App() {
             companies={companies}
             selectedCompany={selectedCompany}
             onChangeCompany={handleChangeCompany}
+            publishPlatforms={publishPlatforms}
+            onTogglePlatform={handleTogglePlatform}
             imageService={imageService}
             onChangeImageService={handleChangeService}
             lastUsedService={lastUsedService}

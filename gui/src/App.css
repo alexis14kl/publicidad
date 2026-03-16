@@ -1250,6 +1250,63 @@ body::after {
   padding: 4px 0;
 }
 
+/* ─── Publish Platforms Checks ──────────────────────────────────────────── */
+
+.publish-platforms {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.publish-platforms__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.publish-platforms__checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.publish-platforms__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(7, 10, 24, 0.9);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.publish-platforms__check:hover {
+  border-color: rgba(0, 229, 255, 0.3);
+}
+
+.publish-platforms__check:has(input:checked) {
+  border-color: rgba(40, 167, 69, 0.5);
+  background: rgba(40, 167, 69, 0.08);
+}
+
+.publish-platforms__check input[type="checkbox"] {
+  accent-color: #28a745;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.publish-platforms__name {
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
 /* ─── Control Prompt ───────────────────────────────────────────────────────── */
 
 .control-prompt {

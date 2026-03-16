@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CompanyRecord, PromptHistoryEntry } from '../lib/types'
-import { IMAGE_FORMAT_GROUPS, NOYECODE_SERVICES } from '../lib/types'
+import { IMAGE_FORMAT_GROUPS, NOYECODE_SERVICES, PLATFORM_EMOJIS } from '../lib/types'
 
 interface LogPanelProps {
   title: string
@@ -108,6 +108,8 @@ interface DualLogViewerProps {
   companies: CompanyRecord[]
   selectedCompany: string
   onChangeCompany: (value: string) => void
+  publishPlatforms: Record<string, boolean>
+  onTogglePlatform: (platform: string) => void
   imageService: string
   onChangeImageService: (value: string) => void
   lastUsedService: string
@@ -127,6 +129,8 @@ export function DualLogViewer({
   companies,
   selectedCompany,
   onChangeCompany,
+  publishPlatforms,
+  onTogglePlatform,
   imageService,
   onChangeImageService,
   lastUsedService,
@@ -135,6 +139,7 @@ export function DualLogViewer({
   promptDisabled,
 }: DualLogViewerProps) {
   const [activeTab, setActiveTab] = useState<'terminals' | 'prompt'>('terminals')
+  const activeCompany = companies.find((c) => c.nombre === selectedCompany) || null
   const [historyOpen, setHistoryOpen] = useState(false)
   const historyRef = useRef<HTMLDivElement>(null)
 
@@ -276,6 +281,26 @@ export function DualLogViewer({
                 ))}
               </select>
             </div>
+            {activeCompany && activeCompany.platforms.length > 0 && (
+              <div className="publish-platforms">
+                <span className="publish-platforms__label">Publicar en</span>
+                <div className="publish-platforms__checks">
+                  {activeCompany.platforms.map((p) => (
+                    <label key={p.platform} className="publish-platforms__check">
+                      <input
+                        type="checkbox"
+                        checked={!!publishPlatforms[p.platform]}
+                        onChange={() => onTogglePlatform(p.platform)}
+                        disabled={promptDisabled}
+                      />
+                      <span className="publish-platforms__name">
+                        {PLATFORM_EMOJIS[p.platform] || ''} {p.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <label className="control-prompt">
               <span className="control-prompt__label">Prompt</span>
               <textarea
