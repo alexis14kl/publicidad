@@ -14,6 +14,7 @@ const PLATFORM_OPTIONS: { key: CompanyPlatform; label: string; dbFile: string; c
   { key: 'tiktok', label: 'TikTok', dbFile: 'tiktok.sqlite3', configKey: 'TIKTOK_ACCESS_TOKEN' },
   { key: 'linkedin', label: 'LinkedIn', dbFile: 'linkedin.sqlite3', configKey: 'LINKEDIN_ACCESS_TOKEN' },
   { key: 'instagram', label: 'Instagram', dbFile: 'instagram.sqlite3', configKey: 'INSTAGRAM_ACCESS_TOKEN' },
+  { key: 'googleads', label: 'Google Ads', dbFile: 'googleads.sqlite3', configKey: 'GOOGLE_ADS_ACCESS_TOKEN' },
 ]
 
 const ACCOUNT_SLOTS = 5
@@ -31,6 +32,7 @@ function createEmptyPlatforms() {
     tiktok: { enabled: false, syncToConfig: true, accounts: createEmptyAccounts() },
     linkedin: { enabled: false, syncToConfig: true, accounts: createEmptyAccounts() },
     instagram: { enabled: false, syncToConfig: true, accounts: createEmptyAccounts() },
+    googleads: { enabled: false, syncToConfig: true, accounts: createEmptyAccounts() },
   }
 }
 
@@ -40,6 +42,7 @@ function createVisibleAccountCounts() {
     tiktok: 1,
     linkedin: 1,
     instagram: 1,
+    googleads: 1,
   }
 }
 
@@ -321,6 +324,7 @@ export function CompanyProfilesPage() {
           tiktok: form.platforms.tiktok,
           linkedin: form.platforms.linkedin,
           instagram: form.platforms.instagram,
+          googleads: form.platforms.googleads,
         },
       }
       const savedRecord = await saveCompanyRecord(payload)

@@ -20,7 +20,7 @@ export interface CommandResult {
   pid?: number
 }
 
-export type CompanyPlatform = 'facebook' | 'tiktok' | 'linkedin' | 'instagram'
+export type CompanyPlatform = 'facebook' | 'tiktok' | 'linkedin' | 'instagram' | 'googleads'
 
 export interface CompanyPlatformAccount {
   red_id?: number

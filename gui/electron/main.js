@@ -25,7 +25,7 @@ let marketingMonitorNextId = 1
 let facebookVisualContext = null
 let facebookVisualPage = null
 let facebookVisualExecutable = ''
-const COMPANY_PLATFORMS = new Set(['facebook', 'tiktok', 'linkedin', 'instagram'])
+const COMPANY_PLATFORMS = new Set(['facebook', 'tiktok', 'linkedin', 'instagram', 'googleads'])
 const COMPANY_PLATFORM_CONFIG = {
   facebook: {
     label: 'Facebook',
@@ -55,6 +55,13 @@ const COMPANY_PLATFORM_CONFIG = {
     table: 'instagram_form',
     tokenEnvKey: 'INSTAGRAM_ACCESS_TOKEN',
   },
+  googleads: {
+    label: 'Google Ads',
+    dbFile: 'googleads.sqlite3',
+    schemaFile: 'googleads.sql',
+    table: 'googleads_form',
+    tokenEnvKey: 'GOOGLE_ADS_ACCESS_TOKEN',
+  },
 }
 
 // ─── Window ───────────────────────────────────────────────────────────────────
@@ -81,7 +88,9 @@ function createWindow() {
     // Disable cache so Electron always gets fresh files from Vite
     mainWindow.webContents.session.clearCache()
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
-    mainWindow.webContents.openDevTools()
+    if (String(process.env.OPEN_DEVTOOLS || '').trim() === '1') {
+      mainWindow.webContents.openDevTools()
+    }
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
