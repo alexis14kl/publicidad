@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PromptHistoryEntry } from '../lib/types'
+import { IMAGE_FORMAT_GROUPS } from '../lib/types'
 
 interface LogPanelProps {
   title: string
@@ -104,6 +105,8 @@ interface DualLogViewerProps {
   imagePrompt: string
   onChangeImagePrompt: (value: string) => void
   imagePromptHistory: PromptHistoryEntry[]
+  imageFormat: string
+  onChangeImageFormat: (value: string) => void
   promptDisabled: boolean
 }
 
@@ -115,6 +118,8 @@ export function DualLogViewer({
   imagePrompt,
   onChangeImagePrompt,
   imagePromptHistory,
+  imageFormat,
+  onChangeImageFormat,
   promptDisabled,
 }: DualLogViewerProps) {
   const [activeTab, setActiveTab] = useState<'terminals' | 'prompt'>('terminals')
@@ -196,6 +201,26 @@ export function DualLogViewer({
                   </div>
                 )}
               </div>
+            </div>
+            <div className="format-select">
+              <label className="format-select__label" htmlFor="image-format">Formato</label>
+              <select
+                id="image-format"
+                className="format-select__input"
+                value={imageFormat}
+                onChange={(e) => onChangeImageFormat(e.target.value)}
+                disabled={promptDisabled}
+              >
+                {IMAGE_FORMAT_GROUPS.map((group) => (
+                  <optgroup key={group.platform} label={`${group.icon} ${group.platform}`}>
+                    {group.formats.map((fmt) => (
+                      <option key={fmt.value} value={fmt.value}>
+                        {group.platform} - {fmt.label} ({fmt.width}x{fmt.height})
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </div>
             <label className="control-prompt">
               <span className="control-prompt__label">Prompt</span>

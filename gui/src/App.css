@@ -945,6 +945,74 @@ body::after {
   gap: 8px;
 }
 
+/* ─── Format Select ────────────────────────────────────────────────────────── */
+
+.format-select {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.format-select__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.format-select__input {
+  flex: 1;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: rgba(7, 10, 24, 0.9);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2300e5ff' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.format-select__input:hover {
+  border-color: rgba(0, 229, 255, 0.3);
+}
+
+.format-select__input:focus {
+  border-color: rgba(0, 229, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.1);
+}
+
+.format-select__input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.format-select__input option {
+  background: #0a0e1a;
+  color: #e0e6ed;
+  padding: 6px 10px;
+}
+
+.format-select__input optgroup {
+  background: #0d1220;
+  color: rgba(0, 229, 255, 0.85);
+  font-weight: 700;
+  font-style: normal;
+  padding: 4px 0;
+}
+
+/* ─── Control Prompt ───────────────────────────────────────────────────────── */
+
 .control-prompt {
   display: flex;
   flex-direction: column;

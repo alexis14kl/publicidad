@@ -82,13 +82,70 @@ export interface PromptHistoryEntry {
   createdAt: string | null
 }
 
+export interface ImageFormatOption {
+  value: string
+  label: string
+  width: number
+  height: number
+  ratio: string
+}
+
+export interface ImageFormatGroup {
+  platform: string
+  icon: string
+  formats: ImageFormatOption[]
+}
+
+export const IMAGE_FORMAT_GROUPS: ImageFormatGroup[] = [
+  {
+    platform: 'Facebook',
+    icon: '\uD83D\uDCD8',
+    formats: [
+      { value: 'fb-vertical',    label: 'Vertical 4:5',       width: 1080, height: 1350, ratio: '4:5' },
+      { value: 'fb-square',      label: 'Cuadrado 1:1',       width: 1080, height: 1080, ratio: '1:1' },
+      { value: 'fb-horizontal',  label: 'Horizontal 1.91:1',  width: 1200, height: 628,  ratio: '1.91:1' },
+      { value: 'fb-story',       label: 'Story / Reel 9:16',  width: 1080, height: 1920, ratio: '9:16' },
+    ],
+  },
+  {
+    platform: 'Instagram',
+    icon: '\uD83D\uDCF7',
+    formats: [
+      { value: 'ig-vertical',    label: 'Vertical 4:5',       width: 1080, height: 1350, ratio: '4:5' },
+      { value: 'ig-square',      label: 'Cuadrado 1:1',       width: 1080, height: 1080, ratio: '1:1' },
+      { value: 'ig-story',       label: 'Story / Reel 9:16',  width: 1080, height: 1920, ratio: '9:16' },
+      { value: 'ig-landscape',   label: 'Horizontal 1.91:1',  width: 1080, height: 566,  ratio: '1.91:1' },
+    ],
+  },
+  {
+    platform: 'TikTok',
+    icon: '\uD83C\uDFB5',
+    formats: [
+      { value: 'tt-vertical',    label: 'Vertical 9:16',      width: 1080, height: 1920, ratio: '9:16' },
+      { value: 'tt-square',      label: 'Cuadrado 1:1',       width: 1080, height: 1080, ratio: '1:1' },
+    ],
+  },
+  {
+    platform: 'LinkedIn',
+    icon: '\uD83D\uDCBC',
+    formats: [
+      { value: 'li-horizontal',  label: 'Horizontal 1.91:1',  width: 1200, height: 628,  ratio: '1.91:1' },
+      { value: 'li-square',      label: 'Cuadrado 1:1',       width: 1080, height: 1080, ratio: '1:1' },
+      { value: 'li-vertical',    label: 'Vertical 4:5',       width: 1080, height: 1350, ratio: '4:5' },
+      { value: 'li-story',       label: 'Story 9:16',         width: 1080, height: 1920, ratio: '9:16' },
+    ],
+  },
+]
+
 export interface StartBotPayload {
   profileName?: string
   imagePrompt?: string
+  imageFormat?: string
 }
 
 export interface StartPollerPayload {
   imagePrompt?: string
+  imageFormat?: string
 }
 
 export interface MarketingCampaignPayload {

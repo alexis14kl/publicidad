@@ -15,6 +15,7 @@ import { useBotLogTail } from './hooks/useBotLogTail'
 import { useLastJob } from './hooks/useLastJob'
 import { generateDefaultPrompt, onMarketingRunUpdate, runMarketingCampaignPreview, startBot, stopBot } from './lib/commands'
 import type { MarketingRunUpdate, PromptHistoryEntry } from './lib/types'
+import { IMAGE_FORMAT_GROUPS } from './lib/types'
 
 function MarketingCampaignModal({
   open,
@@ -539,6 +540,9 @@ export default function App() {
   const [botLoading, setBotLoading] = useState(false)
   const [imagePrompt, setImagePrompt] = useState('')
   const [imagePromptHistory, setImagePromptHistory] = useState<PromptHistoryEntry[]>([])
+  const [imageFormat, setImageFormat] = useState(() =>
+    window.localStorage.getItem('imageFormat') || 'fb-vertical'
+  )
   const botStatus = useBotStatus()
   const poller = usePollerProcess()
   const { lines: workerLines, clearLines: clearWorkerLines } = useLogTail()
@@ -597,6 +601,13 @@ export default function App() {
     })
   }
 
+  const handleChangeFormat = (value: string) => {
+    setImageFormat(value)
+    try {
+      window.localStorage.setItem('imageFormat', value)
+    } catch { /* ignore */ }
+  }
+
   const isExecuting = botStatus.status === 'executing'
 
   const handleStartPoller = async () => {
@@ -604,7 +615,7 @@ export default function App() {
     const prompt = imagePrompt.trim()
     if (!prompt) return
     rememberPrompt(prompt)
-    await poller.start({ imagePrompt: prompt })
+    await poller.start({ imagePrompt: prompt, imageFormat })
   }
 
   const handleStartBot = async () => {
@@ -614,7 +625,7 @@ export default function App() {
     setBotLoading(true)
     try {
       rememberPrompt(prompt)
-      await startBot({ imagePrompt: prompt })
+      await startBot({ imagePrompt: prompt, imageFormat })
     } finally {
       setBotLoading(false)
     }
@@ -676,6 +687,8 @@ export default function App() {
             imagePrompt={imagePrompt}
             onChangeImagePrompt={setImagePrompt}
             imagePromptHistory={imagePromptHistory}
+            imageFormat={imageFormat}
+            onChangeImageFormat={handleChangeFormat}
             promptDisabled={isExecuting || botLoading}
           />
         </>
