@@ -6,6 +6,7 @@ import {
   saveCompanyRecord,
   selectCompanyLogoSvg,
   selectCompanyPublicationAccount,
+  toggleCompanyActive,
 } from '../lib/commands'
 import type { CompanyPlatform, CompanyPlatformRecord, CompanyRecord, SaveCompanyPayload } from '../lib/types'
 
@@ -75,6 +76,7 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
   const [saving, setSaving] = useState(false)
   const [editingCompanyName, setEditingCompanyName] = useState<string | null>(null)
   const [deletingCompanyName, setDeletingCompanyName] = useState<string | null>(null)
+  const [togglingCompanyName, setTogglingCompanyName] = useState<string | null>(null)
   const [selectingPublicationKey, setSelectingPublicationKey] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -362,6 +364,33 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
       setError(err instanceof Error ? err.message : 'No se pudo seleccionar la cuenta para publicaciones.')
     } finally {
       setSelectingPublicationKey(null)
+    }
+  }
+
+  const handleToggleCompanyActive = async (record: CompanyRecord) => {
+    const companyName = record.nombre.trim()
+    if (!companyName) return
+
+    const nextActive = !record.activo
+    setTogglingCompanyName(companyName)
+    setMessage(null)
+    setError(null)
+
+    try {
+      const result = await toggleCompanyActive({ companyName, active: nextActive })
+      if (!result.success) {
+        throw new Error('No se pudo actualizar el estado de la empresa.')
+      }
+      if (editingCompanyName && editingCompanyName.trim().toLowerCase() === companyName.toLowerCase()) {
+        setForm((prev) => ({ ...prev, activo: nextActive }))
+      }
+      setMessage(`Empresa ${nextActive ? 'encendida' : 'apagada'} para generacion de prompts: ${companyName}`)
+      await loadRecords()
+      onCompaniesChanged?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo actualizar el estado de la empresa.')
+    } finally {
+      setTogglingCompanyName(null)
     }
   }
 
@@ -673,8 +702,16 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
                       <button
                         className="btn btn--ghost btn--small"
                         type="button"
+                        onClick={() => void handleToggleCompanyActive(record)}
+                        disabled={togglingCompanyName === record.nombre || deletingCompanyName === record.nombre}
+                      >
+                        {togglingCompanyName === record.nombre ? 'Actualizando...' : record.activo ? 'Apagar' : 'Encender'}
+                      </button>
+                      <button
+                        className="btn btn--ghost btn--small"
+                        type="button"
                         onClick={() => handleEditRecord(record)}
-                        disabled={deletingCompanyName === record.nombre}
+                        disabled={deletingCompanyName === record.nombre || togglingCompanyName === record.nombre}
                       >
                         Editar
                       </button>
@@ -682,7 +719,7 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
                         className="btn btn--ghost btn--small company-record__delete"
                         type="button"
                         onClick={() => void handleDeleteRecord(record)}
-                        disabled={deletingCompanyName === record.nombre}
+                        disabled={deletingCompanyName === record.nombre || togglingCompanyName === record.nombre}
                       >
                         {deletingCompanyName === record.nombre ? 'Eliminando...' : 'Eliminar'}
                       </button>

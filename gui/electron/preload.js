@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listCompanyRecords: (platform) => ipcRenderer.invoke('list-company-records', platform),
   saveCompanyRecord: (payload) => ipcRenderer.invoke('save-company-record', payload),
   deleteCompanyRecord: (payload) => ipcRenderer.invoke('delete-company-record', payload),
+  toggleCompanyActive: (payload) => ipcRenderer.invoke('toggle-company-active', payload),
   selectCompanyPublicationAccount: (payload) => ipcRenderer.invoke('select-company-publication-account', payload),
   resetBotState: () => ipcRenderer.invoke('reset-bot-state'),
   runPreflight: (force) => ipcRenderer.invoke('run-preflight', force),

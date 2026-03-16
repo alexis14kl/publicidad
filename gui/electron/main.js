@@ -3542,9 +3542,46 @@ function lookupCompanyData(companyName) {
   } catch { return null }
 }
 
+function isCompanyActive(companyName) {
+  const company = lookupCompanyData(companyName)
+  return !!company?.activo
+}
+
+function buildCompanyCredentialEnv(companyName) {
+  const company = lookupCompanyData(companyName)
+  if (!company || !company.activo) {
+    return null
+  }
+
+  const envUpdates = {
+    FB_ACCESS_TOKEN: '',
+    FB_PAGE_ID: '',
+    INSTAGRAM_ACCESS_TOKEN: '',
+    LINKEDIN_ACCESS_TOKEN: '',
+    TIKTOK_ACCESS_TOKEN: '',
+    GOOGLE_ADS_ACCESS_TOKEN: '',
+  }
+
+  for (const platformRecord of company.platforms || []) {
+    const platformConfig = getCompanyPlatformConfig(platformRecord.platform)
+    const primaryAccount =
+      (platformRecord.accounts || []).find((account) => Number(account.is_primary || 0) === 1) ||
+      (platformRecord.accounts || [])[0]
+
+    if (!primaryAccount?.token) continue
+
+    envUpdates[platformConfig.tokenEnvKey] = String(primaryAccount.token || '').trim()
+    if (platformRecord.platform === 'facebook') {
+      envUpdates.FB_PAGE_ID = String(primaryAccount.page_id || '').trim()
+    }
+  }
+
+  return envUpdates
+}
+
 function buildCompanyRule(companyName) {
   const company = lookupCompanyData(companyName)
-  if (!company) return ''
+  if (!company || !company.activo) return ''
   const name = company.nombre || 'xxxxxx'
   const phone = company.telefono || 'xxxxxx'
   const email = company.correo || 'xxxxxx'
@@ -3666,6 +3703,20 @@ ipcMain.handle('start-bot', async (_event, payload) => {
     ? String(payload.companyName || '').trim()
     : ''
 
+  if (companyName && !isCompanyActive(companyName)) {
+    return { success: false, error: `La empresa ${companyName} esta inactiva y no puede generar publicaciones.` }
+  }
+
+  if (companyName) {
+    const companyEnv = buildCompanyCredentialEnv(companyName)
+    if (!companyEnv) {
+      return { success: false, error: `No pude resolver las credenciales activas para ${companyName}.` }
+    }
+    persistEnvConfig(companyEnv)
+    Object.assign(env, companyEnv)
+    env.PUBLICIDAD_COMPANY_NAME = companyName
+  }
+
   // Pass image dimensions to overlay_logo.py via env
   const botFmt = IMAGE_FORMATS[imageFormat]
   if (botFmt) {
@@ -3767,6 +3818,9 @@ ipcMain.handle('start-poller', async (_event, payload) => {
   if (!rawPollerPrompt) {
     return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar el poller.' }
   }
+  if (pollerCompany && !isCompanyActive(pollerCompany)) {
+    return { success: false, error: `La empresa ${pollerCompany} esta inactiva y no puede generar publicaciones.` }
+  }
 
   const finalPollerPrompt = rawPollerPrompt + buildCompanyRule(pollerCompany) + buildServiceRule(pollerService) + buildFormatRule(pollerFormat)
 
@@ -3777,6 +3831,15 @@ ipcMain.handle('start-poller', async (_event, payload) => {
   env.PUBLISH_PLATFORMS = pollerPublishPlatforms
   env.PYTHONIOENCODING = 'utf-8'
   env.PYTHONUNBUFFERED = '1'
+  if (pollerCompany) {
+    const companyEnv = buildCompanyCredentialEnv(pollerCompany)
+    if (!companyEnv) {
+      return { success: false, error: `No pude resolver las credenciales activas para ${pollerCompany}.` }
+    }
+    persistEnvConfig(companyEnv)
+    Object.assign(env, companyEnv)
+    env.PUBLICIDAD_COMPANY_NAME = pollerCompany
+  }
 
   // Pass image dimensions to overlay_logo.py via env
   const pollerFmt = IMAGE_FORMATS[pollerFormat]
@@ -4251,6 +4314,48 @@ ipcMain.handle('delete-company-record', async (_event, payload = {}) => {
     }
   } catch (err) {
     throw new Error(err.message || 'No se pudo eliminar la empresa.')
+  }
+})
+
+ipcMain.handle('toggle-company-active', async (_event, payload = {}) => {
+  try {
+    const companyName = String(payload.companyName || '').trim()
+    const nextActive = payload.active === false ? 0 : 1
+
+    if (!companyName) {
+      throw new Error('Debes indicar el nombre de la empresa para actualizar su estado.')
+    }
+
+    let updated = false
+    for (const platform of COMPANY_PLATFORMS) {
+      const dbPath = ensureCompanyDb(platform)
+      const empresaId = findCompanyIdByName(dbPath, companyName)
+      if (!empresaId) continue
+      runSqlite(
+        dbPath,
+        `
+        PRAGMA foreign_keys=ON;
+        UPDATE empresas
+        SET
+          activo = ${nextActive},
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${sqlLiteral(empresaId)};
+        `
+      )
+      updated = true
+    }
+
+    if (!updated) {
+      throw new Error(`No encontre la empresa ${companyName} para actualizar su estado.`)
+    }
+
+    return {
+      success: true,
+      companyName,
+      active: nextActive,
+    }
+  } catch (err) {
+    throw new Error(err.message || 'No se pudo actualizar el estado de la empresa.')
   }
 })
 

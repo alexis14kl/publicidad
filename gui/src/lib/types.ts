@@ -97,6 +97,17 @@ export interface DeleteCompanyResult {
   deletedName?: string
 }
 
+export interface ToggleCompanyActivePayload {
+  companyName: string
+  active: boolean
+}
+
+export interface ToggleCompanyActiveResult {
+  success: boolean
+  companyName?: string
+  active?: number
+}
+
 export interface PromptHistoryEntry {
   text: string
   createdAt: string | null

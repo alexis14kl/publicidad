@@ -8,6 +8,8 @@ import type {
   CompanyLogoSelectionResult,
   DeleteCompanyPayload,
   DeleteCompanyResult,
+  ToggleCompanyActivePayload,
+  ToggleCompanyActiveResult,
   SelectCompanyPublicationAccountPayload,
   SelectCompanyPublicationAccountResult,
   StartBotPayload,
@@ -34,6 +36,8 @@ export const listCompanyRecords = (): Promise<CompanyRecord[]> => api().listComp
 export const saveCompanyRecord = (payload: SaveCompanyPayload): Promise<CompanyRecord> => api().saveCompanyRecord(payload)
 export const deleteCompanyRecord = (payload: DeleteCompanyPayload): Promise<DeleteCompanyResult> =>
   api().deleteCompanyRecord(payload)
+export const toggleCompanyActive = (payload: ToggleCompanyActivePayload): Promise<ToggleCompanyActiveResult> =>
+  api().toggleCompanyActive(payload)
 export const selectCompanyPublicationAccount = (
   payload: SelectCompanyPublicationAccountPayload
 ): Promise<SelectCompanyPublicationAccountResult> => api().selectCompanyPublicationAccount(payload)

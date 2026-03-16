@@ -5,6 +5,7 @@ import base64
 import json
 import os
 import re
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -27,10 +28,44 @@ DEFAULT_TIMEOUT_SEC = 60
 DEFAULT_WEBHOOK_URL = get_env("N8N_WEBHOOK_PUBLICAR_IMG_LOCAL_FB", "https://n8n-dev.noyecode.com/webhook/publicar-img-local-fb")
 FREEIMAGE_UPLOAD_URL = get_env("FREEIMAGE_UPLOAD_URL", "https://freeimage.host/api/1/upload")
 FREEIMAGE_API_KEY = get_env("FREEIMAGE_API_KEY", "6d207e02198a847aa98d0a2a901485a5")
+COMPANY_DB_FILES = (
+    PROJECT_ROOT / "Backend" / "facebook.sqlite3",
+    PROJECT_ROOT / "Backend" / "instagram.sqlite3",
+    PROJECT_ROOT / "Backend" / "linkedin.sqlite3",
+    PROJECT_ROOT / "Backend" / "tiktok.sqlite3",
+    PROJECT_ROOT / "Backend" / "googleads.sqlite3",
+)
 
 
 class PublicImageError(RuntimeError):
     pass
+
+
+def is_company_active(company_name: str) -> bool | None:
+    normalized = str(company_name or "").strip()
+    if not normalized:
+        return None
+
+    for db_path in COMPANY_DB_FILES:
+        if not db_path.exists():
+            continue
+        try:
+            with sqlite3.connect(db_path) as conn:
+                row = conn.execute(
+                    """
+                    SELECT activo
+                    FROM empresas
+                    WHERE lower(trim(nombre)) = lower(trim(?))
+                    ORDER BY updated_at DESC, id DESC
+                    LIMIT 1
+                    """,
+                    (normalized,),
+                ).fetchone()
+        except sqlite3.Error:
+            continue
+        if row is not None:
+            return int(row[0] or 0) == 1
+    return None
 
 
 def find_latest_image(image_dir: Path) -> Path:
@@ -259,6 +294,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    company_name = str(os.getenv("PUBLICIDAD_COMPANY_NAME", "")).strip()
 
     image_path = Path(args.image_path).expanduser().resolve() if args.image_path else find_latest_image(IMG_PUBLICITARIAS_DIR)
     if not image_path.exists():
@@ -277,6 +313,14 @@ def main() -> int:
     )
     platform = str(args.platform or "facebook").strip().lower()
     metadata["platform"] = platform
+    if company_name:
+        metadata["company_name"] = company_name
+
+    company_active = is_company_active(company_name)
+    if company_name and company_active is False:
+        raise PublicImageError(
+            f"La empresa {company_name} esta inactiva. No se enviaron credenciales ni se publico en n8n."
+        )
 
     access_token = get_platform_access_token(platform)
     if access_token:

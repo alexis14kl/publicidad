@@ -597,15 +597,29 @@ export default function App() {
       .then((records) => {
         if (cancelled) return
         setCompanies(records)
-        if (records.length > 0) {
-          const saved = window.localStorage.getItem('selectedCompany') || ''
-          const found = records.find((c) => c.nombre === saved)
-          setSelectedCompany(found ? found.nombre : records[0].nombre)
-        }
       })
       .catch(() => { /* ignore */ })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    const activeCompanies = companies.filter((company) => company.activo)
+    if (activeCompanies.length === 0) {
+      if (selectedCompany) {
+        setSelectedCompany('')
+      }
+      return
+    }
+    if (activeCompanies.some((company) => company.nombre === selectedCompany)) {
+      return
+    }
+    const saved = window.localStorage.getItem('selectedCompany') || ''
+    const fallback = activeCompanies.find((company) => company.nombre === saved) || activeCompanies[0]
+    setSelectedCompany(fallback.nombre)
+    try {
+      window.localStorage.setItem('selectedCompany', fallback.nombre)
+    } catch { /* ignore */ }
+  }, [companies, selectedCompany])
 
   const rememberPrompt = (prompt: string) => {
     const normalized = prompt.trim()
@@ -643,8 +657,9 @@ export default function App() {
     } catch { /* ignore */ }
   }
 
-  const activeCompany = companies.find((c) => c.nombre === selectedCompany) || null
-  const hasCompany = companies.length > 0
+  const promptCompanies = companies.filter((company) => company.activo)
+  const activeCompany = promptCompanies.find((c) => c.nombre === selectedCompany) || null
+  const hasCompany = promptCompanies.length > 0
 
   const isExecuting = botStatus.status === 'executing'
 
@@ -698,8 +713,10 @@ export default function App() {
   const refreshBrand = async () => {
     try {
       const companies = await listCompanyRecords()
+      setCompanies(companies)
       applyBrandFromCompanies(companies)
     } catch {
+      setCompanies([])
       setBrandName('NoyeCode')
       setBrandLogoUrl(null)
     }
@@ -762,7 +779,7 @@ export default function App() {
             imagePrompt={imagePrompt}
             onChangeImagePrompt={setImagePrompt}
             imagePromptHistory={imagePromptHistory}
-            companies={companies}
+            companies={promptCompanies}
             selectedCompany={selectedCompany}
             onChangeCompany={handleChangeCompany}
             imageService={imageService}
