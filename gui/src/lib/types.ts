@@ -50,6 +50,11 @@ export interface SaveCompanyPayload {
   activo?: boolean
 }
 
+export interface PromptHistoryEntry {
+  text: string
+  createdAt: string | null
+}
+
 export interface StartBotPayload {
   profileName?: string
   imagePrompt?: string

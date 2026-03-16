@@ -14,7 +14,7 @@ import { useLogTail } from './hooks/useLogTail'
 import { useBotLogTail } from './hooks/useBotLogTail'
 import { useLastJob } from './hooks/useLastJob'
 import { generateDefaultPrompt, onMarketingRunUpdate, runMarketingCampaignPreview, startBot, stopBot } from './lib/commands'
-import type { MarketingRunUpdate } from './lib/types'
+import type { MarketingRunUpdate, PromptHistoryEntry } from './lib/types'
 
 function MarketingCampaignModal({
   open,
@@ -538,7 +538,7 @@ export default function App() {
   const [marketingOpen, setMarketingOpen] = useState(false)
   const [botLoading, setBotLoading] = useState(false)
   const [imagePrompt, setImagePrompt] = useState('')
-  const [imagePromptHistory, setImagePromptHistory] = useState<string[]>([])
+  const [imagePromptHistory, setImagePromptHistory] = useState<PromptHistoryEntry[]>([])
   const botStatus = useBotStatus()
   const poller = usePollerProcess()
   const { lines: workerLines, clearLines: clearWorkerLines } = useLogTail()
@@ -551,10 +551,18 @@ export default function App() {
       if (!raw) return
       const parsed = JSON.parse(raw)
       if (!Array.isArray(parsed)) return
-      const history = parsed
-        .filter((value): value is string => typeof value === 'string')
-        .map((value) => value.trim())
-        .filter(Boolean)
+      const history: PromptHistoryEntry[] = parsed
+        .map((item: unknown) => {
+          if (typeof item === 'string') {
+            return { text: item.trim(), createdAt: null }
+          }
+          if (typeof item === 'object' && item !== null && 'text' in item) {
+            const entry = item as { text: string; createdAt?: string | null }
+            return { text: String(entry.text || '').trim(), createdAt: entry.createdAt ?? null }
+          }
+          return null
+        })
+        .filter((entry): entry is PromptHistoryEntry => entry !== null && entry.text !== '')
         .slice(0, 10)
       setImagePromptHistory(history)
     } catch {
@@ -577,8 +585,9 @@ export default function App() {
   const rememberPrompt = (prompt: string) => {
     const normalized = prompt.trim()
     if (!normalized) return
+    const entry: PromptHistoryEntry = { text: normalized, createdAt: new Date().toISOString() }
     setImagePromptHistory((current) => {
-      const next = [normalized, ...current.filter((p) => p !== normalized)].slice(0, 10)
+      const next = [entry, ...current.filter((p) => p.text !== normalized)].slice(0, 10)
       try {
         window.localStorage.setItem('imagePromptHistory', JSON.stringify(next))
       } catch {

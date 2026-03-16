@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { PromptHistoryEntry } from '../lib/types'
 
 interface LogPanelProps {
   title: string
@@ -102,7 +103,7 @@ interface DualLogViewerProps {
   onClearBot: () => void
   imagePrompt: string
   onChangeImagePrompt: (value: string) => void
-  imagePromptHistory: string[]
+  imagePromptHistory: PromptHistoryEntry[]
   promptDisabled: boolean
 }
 
@@ -170,19 +171,28 @@ export function DualLogViewer({
                 </button>
                 {historyOpen && (
                   <div className="prompt-history" role="menu" aria-label="Historial de prompts">
-                    {imagePromptHistory.slice(0, 10).map((prompt, index) => (
-                      <button
-                        key={`${index}-${prompt}`}
-                        className="prompt-history__item"
-                        onClick={() => {
-                          onChangeImagePrompt(prompt)
-                          setHistoryOpen(false)
-                        }}
-                        type="button"
-                      >
-                        {prompt}
-                      </button>
-                    ))}
+                    {imagePromptHistory.slice(0, 10).map((entry, index) => {
+                      const dateLabel = entry.createdAt
+                        ? new Date(entry.createdAt).toLocaleString('es-CO', {
+                            day: '2-digit', month: '2-digit', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit',
+                          })
+                        : 'Sin fecha'
+                      return (
+                        <button
+                          key={`${index}-${entry.text.slice(0, 20)}`}
+                          className="prompt-history__item"
+                          onClick={() => {
+                            onChangeImagePrompt(entry.text)
+                            setHistoryOpen(false)
+                          }}
+                          type="button"
+                        >
+                          <span className="prompt-history__date">{dateLabel}</span>
+                          <span className="prompt-history__text">{entry.text}</span>
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
               </div>
