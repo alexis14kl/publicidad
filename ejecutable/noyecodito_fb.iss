@@ -5,10 +5,10 @@
 ; ============================================================
 
 #define MyAppName "noyecodito_fb"
-#define MyAppVersion "1.4.0"
+#define MyAppVersion "2.0.0"
 #define MyAppPublisher "NoyeCode"
 #define MyAppURL "https://noyecode.com"
-#define MyAppExeName "iniciar.bat"
+#define MyAppExeName "iniciar_gui.vbs"
 
 ; Ruta raiz del proyecto (relativa al .iss)
 #define ProjectRoot ".."
@@ -29,7 +29,7 @@ DefaultDirName=C:\{#MyAppName}
 DefaultGroupName={#MyAppName}
 LicenseFile=LICENSE.txt
 OutputDir=.
-OutputBaseFilename=noyecodito_fb_setup_v1.4.0
+OutputBaseFilename=noyecodito_fb_setup_v2.0.0
 SetupIconFile=icon\noyecodito.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -47,7 +47,7 @@ Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Messages]
 spanish.WelcomeLabel1=Bienvenido al instalador de {#MyAppName}
-spanish.WelcomeLabel2=Este asistente instalara {#MyAppName} v{#MyAppVersion} en su equipo.%n%n{#MyAppName} es un bot de publicidad automatizada que genera imagenes con IA y las publica en Facebook.%n%nSe recomienda cerrar todas las aplicaciones antes de continuar.%n%nEl instalador descargara automaticamente Python y Node.js si no estan instalados.
+spanish.WelcomeLabel2=Este asistente instalara {#MyAppName} v{#MyAppVersion} en su equipo.%n%n{#MyAppName} es un bot de publicidad automatizada con GUI, selector de empresa/servicio/formato, generacion de imagenes con IA y publicacion directa en Facebook, Instagram, TikTok y LinkedIn.%n%nSe recomienda cerrar todas las aplicaciones antes de continuar.%n%nEl instalador descargara automaticamente Python y Node.js si no estan instalados.
 spanish.FinishedHeadingLabel=Instalacion completada
 spanish.FinishedLabel={#MyAppName} se ha instalado correctamente en su equipo.
 
@@ -64,6 +64,9 @@ Name: "shortcuts"; Description: "Acceso directo en escritorio"; Types: full cust
 [Files]
 ; --- Core: scripts de entrada ---
 Source: "{#ProjectRoot}\iniciar.bat"; DestDir: "{app}"; Flags: ignoreversion; Components: core
+Source: "{#ProjectRoot}\iniciar_gui.bat"; DestDir: "{app}"; Flags: ignoreversion; Components: core
+Source: "{#ProjectRoot}\iniciar_gui.vbs"; DestDir: "{app}"; Flags: ignoreversion; Components: core
+Source: "{#ProjectRoot}\.env.example"; DestDir: "{app}"; DestName: ".env"; Flags: onlyifdoesntexist; Components: core
 Source: "{#ProjectRoot}\package.json"; DestDir: "{app}"; Flags: ignoreversion; Components: core
 Source: "{#ProjectRoot}\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion; Components: core
 Source: "{#ProjectRoot}\.gitignore"; DestDir: "{app}"; Flags: ignoreversion; Components: core
@@ -91,6 +94,30 @@ Source: "{#ProjectRoot}\utils\*.txt"; DestDir: "{app}\utils"; Flags: onlyifdoesn
 ; --- Core: inicio (cleanup) ---
 Source: "{#ProjectRoot}\inicio\*"; DestDir: "{app}\inicio"; Flags: ignoreversion recursesubdirs; Components: core
 
+; --- Core: Backend (SQLite schemas) ---
+Source: "{#ProjectRoot}\Backend\*.sql"; DestDir: "{app}\Backend"; Flags: ignoreversion; Components: core
+
+; --- Core: GUI Electron ---
+Source: "{#ProjectRoot}\gui\electron\*.js"; DestDir: "{app}\gui\electron"; Flags: ignoreversion; Components: core
+Source: "{#ProjectRoot}\gui\electron\*.py"; DestDir: "{app}\gui\electron"; Flags: ignoreversion; Components: core
+Source: "{#ProjectRoot}\gui\src\*"; DestDir: "{app}\gui\src"; Flags: ignoreversion recursesubdirs; Components: core
+Source: "{#ProjectRoot}\gui\index.html"; DestDir: "{app}\gui"; Flags: ignoreversion; Components: core
+Source: "{#ProjectRoot}\gui\package.json"; DestDir: "{app}\gui"; Flags: ignoreversion; Components: core
+Source: "{#ProjectRoot}\gui\package-lock.json"; DestDir: "{app}\gui"; Flags: ignoreversion; Components: core
+Source: "{#ProjectRoot}\gui\vite.config.ts"; DestDir: "{app}\gui"; Flags: ignoreversion; Components: core
+Source: "{#ProjectRoot}\gui\tsconfig.json"; DestDir: "{app}\gui"; Flags: ignoreversion; Components: core
+Source: "{#ProjectRoot}\gui\tsconfig.node.json"; DestDir: "{app}\gui"; Flags: ignoreversion; Components: core
+
+; --- Core: Logos de empresas ---
+Source: "{#ProjectRoot}\utils\logos\*"; DestDir: "{app}\utils\logos"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: core
+Source: "{#ProjectRoot}\utils\*.png"; DestDir: "{app}\utils"; Flags: ignoreversion; Components: core
+
+; --- Core: orchestrator ---
+Source: "{#ProjectRoot}\orchestrator.py"; DestDir: "{app}"; Flags: ignoreversion; Components: core
+
+; --- Core: n8n update_bot ---
+Source: "{#ProjectRoot}\n8n\update_bot\*"; DestDir: "{app}\n8n\update_bot"; Flags: ignoreversion recursesubdirs; Components: workflows
+
 ; --- Core: icono e instalador ---
 Source: "icon\noyecodito.ico"; DestDir: "{app}\ejecutable\icon"; Flags: ignoreversion; Components: core
 Source: "LICENSE.txt"; DestDir: "{app}\ejecutable"; Flags: ignoreversion; Components: core
@@ -113,6 +140,8 @@ Name: "{app}\logs"
 Name: "{app}\img_publicitarias"
 Name: "{app}\debug"
 Name: "{app}\memory\profile"
+Name: "{app}\Backend"
+Name: "{app}\utils\logos\companies"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\iniciar.bat"; WorkingDir: "{app}"; IconFilename: "{app}\ejecutable\icon\noyecodito.ico"; Comment: "Ejecutar {#MyAppName}"
@@ -122,19 +151,25 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\iniciar.bat"; WorkingDir: "
 [Run]
 ; Post-instalacion: instalar dependencias Python (solo si faltan)
 Filename: "cmd.exe"; Parameters: "/c python -m pip install --upgrade pip && python -m pip install -r ""{app}\requirements.txt"""; WorkingDir: "{app}"; StatusMsg: "Instalando dependencias Python..."; Flags: runhidden waituntilterminated; Check: NeedPipInstall
-; Post-instalacion: instalar dependencias Node (solo si falta node_modules)
+; Post-instalacion: instalar dependencias Node (raiz)
 Filename: "cmd.exe"; Parameters: "/c npm install"; WorkingDir: "{app}"; StatusMsg: "Instalando dependencias Node.js..."; Flags: runhidden waituntilterminated; Check: NeedNpmInstall
+; Post-instalacion: instalar dependencias Node (GUI)
+Filename: "cmd.exe"; Parameters: "/c npm install"; WorkingDir: "{app}\gui"; StatusMsg: "Instalando dependencias GUI Electron..."; Flags: runhidden waituntilterminated; Check: NeedGuiNpmInstall
+; Post-instalacion: buildear frontend (Vite compila React/TSX a dist/)
+Filename: "cmd.exe"; Parameters: "/c npm run build:frontend"; WorkingDir: "{app}\gui"; StatusMsg: "Compilando interfaz grafica..."; Flags: runhidden waituntilterminated; Check: NeedGuiBuild
 ; Post-instalacion: instalar Playwright browsers (solo si falta chromium)
 Filename: "cmd.exe"; Parameters: "/c python -m playwright install chromium"; WorkingDir: "{app}"; StatusMsg: "Instalando navegador Playwright (Chromium)..."; Flags: runhidden waituntilterminated; Check: NeedPlaywrightInstall
 ; Post-instalacion: registrar worker en inicio de sesion de Windows
 Filename: "cmd.exe"; Parameters: "/c ""{app}\instalar_inicio_poller_sesion.bat"""; WorkingDir: "{app}"; StatusMsg: "Registrando worker en inicio automatico..."; Flags: runhidden waituntilterminated
 ; Post-instalacion: iniciar worker en background ahora
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\iniciar_poller_oculto.ps1"""; WorkingDir: "{app}"; StatusMsg: "Iniciando worker en background..."; Flags: runhidden nowait
-; Opcion de ejecutar al finalizar
-Filename: "{app}\iniciar.bat"; WorkingDir: "{app}"; Description: "Ejecutar {#MyAppName} ahora"; Flags: nowait postinstall skipifsilent shellexec
+; Opcion de ejecutar al finalizar (GUI Electron sin consola)
+Filename: "{app}\iniciar_gui.vbs"; WorkingDir: "{app}"; Description: "Ejecutar {#MyAppName} ahora"; Flags: nowait postinstall skipifsilent shellexec
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\node_modules"
+Type: filesandordirs; Name: "{app}\gui\node_modules"
+Type: filesandordirs; Name: "{app}\gui\dist"
 Type: filesandordirs; Name: "{app}\logs"
 Type: filesandordirs; Name: "{app}\debug"
 Type: filesandordirs; Name: "{app}\memory"
@@ -386,6 +421,24 @@ begin
     Log('npm: node_modules ya existe, omitiendo.')
   else
     Log('npm: se necesita ejecutar npm install.');
+end;
+
+function NeedGuiNpmInstall: Boolean;
+begin
+  Result := not DirExists(ExpandConstant('{app}\gui\node_modules\electron'));
+  if not Result then
+    Log('gui npm: node_modules ya existe, omitiendo.')
+  else
+    Log('gui npm: se necesita ejecutar npm install en gui/.');
+end;
+
+function NeedGuiBuild: Boolean;
+begin
+  Result := not FileExists(ExpandConstant('{app}\gui\dist\index.html'));
+  if not Result then
+    Log('gui build: dist/ ya existe, omitiendo.')
+  else
+    Log('gui build: se necesita compilar el frontend.');
 end;
 
 function NeedPlaywrightInstall: Boolean;
