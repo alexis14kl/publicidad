@@ -70,6 +70,12 @@
               "name": "source",
               "value": "={{ $json.source || \"chatgpt_local_bot\" }}",
               "type": "string"
+            },
+            {
+              "id": "fb-access-token",
+              "name": "access_token",
+              "value": "={{ $json.body.access_token || $json.access_token || \"\" }}",
+              "type": "string"
             }
           ]
         },
@@ -124,8 +130,6 @@
       "parameters": {
         "method": "POST",
         "url": "https://graph.facebook.com/v21.0/115406607722279/photos",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "facebookGraphApi",
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {
@@ -137,6 +141,10 @@
             {
               "name": "message",
               "value": "={{ $('Preparar Imagen Local').item.json.postText }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Preparar Imagen Local').item.json.access_token }}"
             }
           ]
         },
@@ -151,13 +159,7 @@
         0
       ],
       "id": "60caef0f-e4b0-4f94-b258-8747e508b91d",
-      "name": "Publicar en Facebook IA",
-      "credentials": {
-        "facebookGraphApi": {
-          "id": "bACRgILlcPROzumK",
-          "name": "Facebook Graph account"
-        }
-      }
+      "name": "Publicar en Facebook IA"
     },
     {
       "parameters": {
@@ -459,8 +461,6 @@
         "parameters": {
           "method": "POST",
           "url": "https://graph.facebook.com/v21.0/115406607722279/photos",
-          "authentication": "predefinedCredentialType",
-          "nodeCredentialType": "facebookGraphApi",
           "sendBody": true,
           "contentType": "form-urlencoded",
           "bodyParameters": {
@@ -472,6 +472,10 @@
               {
                 "name": "message",
                 "value": "={{ $('Preparar Imagen Local').item.json.postText }}"
+              },
+              {
+                "name": "access_token",
+                "value": "={{ $('Preparar Imagen Local').item.json.access_token }}"
               }
             ]
           },
@@ -486,13 +490,7 @@
           0
         ],
         "id": "60caef0f-e4b0-4f94-b258-8747e508b91d",
-        "name": "Publicar en Facebook IA",
-        "credentials": {
-          "facebookGraphApi": {
-            "id": "bACRgILlcPROzumK",
-            "name": "Facebook Graph account"
-          }
-        }
+        "name": "Publicar en Facebook IA"
       },
       {
         "parameters": {

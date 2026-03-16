@@ -68,6 +68,12 @@
               "name": "image_url",
               "value": "={{ $json.body.image_url || $json.image_url || \"\" }}",
               "type": "string"
+            },
+            {
+              "id": "fb-access-token",
+              "name": "access_token",
+              "value": "={{ $json.body.access_token || $json.access_token || \"\" }}",
+              "type": "string"
             }
           ]
         },
@@ -101,7 +107,7 @@
             },
             {
               "name": "access_token",
-              "value": "EAALTDIaJuDIBQZC3o2m1XjKJw27MpqyGyKE4uYKFIIn48ZCEgcg1YnhaWEZCxWR9oiTXleaq6I5OjxeQVyzNl4GosKzVewqcSBrjyMFwXpPt82mOnZAElRmvqN1TwJlhEeNrxjiitrZCo1XNEMbWC9sI0CSMW7ZAZCsJFP1Jj6W3DSKj3K7BmTKZC5xVA9nUMqNPjDgaTA68LgymStIql7kZBDE0oFUSDBkimi4Mz5ZBFBTBr39kH24iZBffvxNYwZDZD"
+              "value": "={{ $('Preparar Imagen Local').item.json.access_token }}"
             }
           ]
         },

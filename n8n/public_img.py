@@ -93,6 +93,22 @@ def build_metadata(
     }
 
 
+def get_platform_access_token(platform: str) -> str:
+    platform_key = str(platform or "").strip().lower()
+    env_keys = {
+        "facebook": ("FB_ACCESS_TOKEN", "FACEBOOK_ACCESS_TOKEN", "META_ACCESS_TOKEN"),
+        "instagram": ("INSTAGRAM_ACCESS_TOKEN",),
+        "tiktok": ("TIKTOK_ACCESS_TOKEN",),
+        "linkedin": ("LINKEDIN_ACCESS_TOKEN",),
+        "googleads": ("GOOGLE_ADS_ACCESS_TOKEN",),
+    }
+    for env_key in env_keys.get(platform_key, ()):
+        value = str(get_env(env_key, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def upload_to_freeimage(image_base64: str, timeout_sec: int) -> str:
     payload = urlencode(
         {
@@ -250,6 +266,10 @@ def main() -> int:
     platform = str(args.platform or "facebook").strip().lower()
     metadata["platform"] = platform
 
+    access_token = get_platform_access_token(platform)
+    if access_token:
+        metadata["access_token"] = access_token
+
     if args.dry_run:
         print(
             json.dumps(
@@ -280,6 +300,10 @@ def main() -> int:
     if not webhook_url:
         raise PublicImageError(
             "Debes indicar --webhook-url (o definir el webhook en .env) para enviar la imagen a n8n"
+        )
+    if platform == "facebook" and not access_token:
+        raise PublicImageError(
+            "No hay token activo para Facebook. Selecciona una cuenta en Empresas o define FB_ACCESS_TOKEN."
         )
 
     response = post_image_to_n8n(
