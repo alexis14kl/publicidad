@@ -3,6 +3,8 @@ import logoSvg from '../assets/logo.svg'
 
 interface HeaderProps {
   status: BotStatus
+  brandName?: string
+  brandLogoUrl?: string | null
   onOpenSettings?: () => void
 }
 
@@ -12,14 +14,14 @@ const STATUS_LABELS: Record<string, string> = {
   executing: 'Ejecutando',
 }
 
-export function Header({ status, onOpenSettings }: HeaderProps) {
+export function Header({ status, brandName, brandLogoUrl, onOpenSettings }: HeaderProps) {
   return (
     <header className="header">
       <div className="header-left">
-        <img src={logoSvg} alt="NoyeCode" className="header-logo" />
+        <img src={brandLogoUrl || logoSvg} alt={brandName || 'NoyeCode'} className="header-logo" />
         <div>
           <h1 className="header-title">Bot Publicitario</h1>
-          <span className="header-subtitle">NoyeCode</span>
+          <span className="header-subtitle">{brandName || 'NoyeCode'}</span>
         </div>
       </div>
       <div className="header-right">

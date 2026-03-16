@@ -535,6 +535,8 @@ function MarketingCampaignModal({
 }
 
 export default function App() {
+  const [brandName, setBrandName] = useState('NoyeCode')
+  const [brandLogoUrl, setBrandLogoUrl] = useState<string | null>(null)
   const [page, setPage] = useState<'home' | 'companies' | 'settings'>('home')
   const [marketingOpen, setMarketingOpen] = useState(false)
   const [botLoading, setBotLoading] = useState(false)
@@ -697,9 +699,40 @@ export default function App() {
     }
   }
 
+  const applyBrandFromCompanies = (companies: CompanyRecord[]) => {
+    const ordered = [...companies].sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
+    const preferred = ordered.find((company) => company.logo_url) || ordered[0]
+    if (!preferred) {
+      setBrandName('NoyeCode')
+      setBrandLogoUrl(null)
+      return
+    }
+    setBrandName(preferred.nombre || 'NoyeCode')
+    setBrandLogoUrl(preferred.logo_url || null)
+  }
+
+  const refreshBrand = async () => {
+    try {
+      const companies = await listCompanyRecords()
+      applyBrandFromCompanies(companies)
+    } catch {
+      setBrandName('NoyeCode')
+      setBrandLogoUrl(null)
+    }
+  }
+
+  useEffect(() => {
+    void refreshBrand()
+  }, [])
+
   return (
     <div className="app">
-      <Header status={botStatus} onOpenSettings={() => setPage('settings')} />
+      <Header
+        status={botStatus}
+        brandName={brandName}
+        brandLogoUrl={brandLogoUrl}
+        onOpenSettings={() => setPage('settings')}
+      />
       <nav className="app-tabs">
         <button className={`app-tab ${page === 'home' ? 'app-tab--active' : ''}`} onClick={() => setPage('home')}>
           Panel
@@ -759,9 +792,9 @@ export default function App() {
         </>
       )}
 
-      {page === 'companies' && <CompanyProfilesPage />}
+      {page === 'companies' && <CompanyProfilesPage onCompaniesChanged={() => void refreshBrand()} />}
 
-      {page === 'settings' && <SettingsPage />}
+      {page === 'settings' && <SettingsPage brandName={brandName} brandLogoUrl={brandLogoUrl} />}
       <MarketingCampaignModal open={marketingOpen} onClose={() => setMarketingOpen(false)} />
     </div>
   )

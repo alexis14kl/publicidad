@@ -61,7 +61,11 @@ const EMPTY_FORM = {
 
 type FormState = typeof EMPTY_FORM
 
-export function CompanyProfilesPage() {
+interface CompanyProfilesPageProps {
+  onCompaniesChanged?: () => void
+}
+
+export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageProps) {
   const [records, setRecords] = useState<CompanyRecord[]>([])
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [visibleAccountCounts, setVisibleAccountCounts] = useState(createVisibleAccountCounts)
@@ -286,7 +290,7 @@ export function CompanyProfilesPage() {
     })
     setVisibleAccountCounts(nextVisibleCounts)
     setLogoFileName(formatLogoLabel(record.logo))
-    setLogoPreviewUrl(null)
+    setLogoPreviewUrl(record.logo_url || null)
     setEditingCompanyName(record.nombre)
     setMessage(`Editando empresa: ${record.nombre}`)
     setError(null)
@@ -318,6 +322,7 @@ export function CompanyProfilesPage() {
       }
       setMessage(`Empresa eliminada: ${result.deletedName || record.nombre}`)
       await loadRecords()
+      onCompaniesChanged?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo eliminar la empresa.')
     } finally {
@@ -396,6 +401,7 @@ export function CompanyProfilesPage() {
       setLogoPreviewUrl(null)
       setEditingCompanyName(null)
       await loadRecords()
+      onCompaniesChanged?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la empresa.')
     } finally {

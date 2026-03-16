@@ -49,3 +49,7 @@ gui/release/
 # Packaged desktop binaries
 ejecutable/mac/*.app/
 ejecutable/mac/*.dmg
+Backend/facebook.sqlite3
+Backend/instragram.sqlite3
+Backend/tiktok.sqlite3
+Backend/linkedin.sqlite3

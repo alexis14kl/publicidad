@@ -44,6 +44,7 @@ export interface CompanyRecord {
   id: string
   nombre: string
   logo: string | null
+  logo_url?: string | null
   telefono: string | null
   correo: string | null
   sitio_web: string | null

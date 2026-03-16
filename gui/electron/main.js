@@ -326,11 +326,21 @@ function normalizeCompanyKey(name) {
   return String(name || '').trim().toLowerCase()
 }
 
+function resolveCompanyLogoUrl(logoPath) {
+  const raw = String(logoPath || '').trim()
+  if (!raw) return null
+  if (/^https?:\/\//i.test(raw) || raw.startsWith('file://')) return raw
+  const absolutePath = path.isAbsolute(raw) ? raw : path.join(PROJECT_ROOT, raw)
+  if (!fs.existsSync(absolutePath)) return null
+  return `file://${absolutePath.replace(/\\/g, '/')}?t=${Date.now()}`
+}
+
 function getEmptyCompanyAggregation(row = {}) {
   return {
     id: normalizeCompanyKey(row.nombre),
     nombre: String(row.nombre || '').trim(),
     logo: row.logo || null,
+    logo_url: resolveCompanyLogoUrl(row.logo),
     telefono: row.telefono || null,
     correo: row.correo || null,
     sitio_web: row.sitio_web || null,
