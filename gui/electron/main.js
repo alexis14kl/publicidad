@@ -3767,6 +3767,24 @@ function buildFormatRule(formatValue) {
   )
 }
 
+function buildFullPrompt(userIdea, companyName, imageService, imageFormat) {
+  const seedPath = path.join(PROJECT_ROOT, 'utils', 'prompt_seed.txt')
+  let seed = ''
+  try {
+    seed = fs.readFileSync(seedPath, 'utf-8').trim()
+  } catch { /* ignore */ }
+
+  const parts = [seed]
+  if (userIdea) {
+    parts.push(`\n\n[USER IDEA — INCORPORATE THIS INTO THE AD]\n${userIdea}`)
+  }
+  parts.push(buildCompanyRule(companyName))
+  parts.push(buildColorRule(companyName))
+  parts.push(buildServiceRule(imageService))
+  parts.push(buildFormatRule(imageFormat))
+  return parts.join('')
+}
+
 ipcMain.handle('start-bot', async (_event, payload) => {
   const lockPath = path.join(PROJECT_ROOT, '.bot_runner.lock')
   if (fs.existsSync(lockPath)) {
@@ -3826,11 +3844,7 @@ ipcMain.handle('start-bot', async (_event, payload) => {
   }
   env.PUBLISH_PLATFORMS = publishPlatforms
 
-  if (!rawPrompt) {
-    return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar.' }
-  }
-
-  const imagePrompt = rawPrompt + buildCompanyRule(companyName) + buildColorRule(companyName) + buildServiceRule(imageService) + buildFormatRule(imageFormat)
+  const imagePrompt = buildFullPrompt(rawPrompt, companyName, imageService, imageFormat)
 
   const botRunnerPath = path.join(PROJECT_ROOT, 'server', 'bot_runner.py')
   const pythonBin = findPython()
@@ -3916,14 +3930,11 @@ ipcMain.handle('start-poller', async (_event, payload) => {
   const pollerCompany = typeof payload === 'object' && payload !== null
     ? String(payload.companyName || '').trim()
     : ''
-  if (!rawPollerPrompt) {
-    return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar el poller.' }
-  }
   if (pollerCompany && !isCompanyActive(pollerCompany)) {
     return { success: false, error: `La empresa ${pollerCompany} esta inactiva y no puede generar publicaciones.` }
   }
 
-  const finalPollerPrompt = rawPollerPrompt + buildCompanyRule(pollerCompany) + buildColorRule(pollerCompany) + buildServiceRule(pollerService) + buildFormatRule(pollerFormat)
+  const finalPollerPrompt = buildFullPrompt(rawPollerPrompt, pollerCompany, pollerService, pollerFormat)
 
   const env = getProjectEnv()
   // Persist poller logs so the GUI can tail them.
@@ -4017,69 +4028,9 @@ ipcMain.handle('read-log-lines', async (_event, count = 200) => {
 })
 
 ipcMain.handle('generate-default-prompt', async () => {
-  const pythonBin = findPython()
-  if (!pythonBin) {
-    return { success: false, prompt: '' }
-  }
-  const seedFile = path.join(PROJECT_ROOT, 'utils', 'prompt_seed.txt')
-  const promptFile = path.join(PROJECT_ROOT, 'utils', 'prontm.txt')
-  const scriptPath = path.join(PROJECT_ROOT, 'utils', 'n8n_prompt_client.py')
-
-  if (!fs.existsSync(scriptPath) || !fs.existsSync(seedFile)) {
-    // Fallback: leer seed limpio (NO prontm.txt que tiene reglas inyectadas)
-    try {
-      const seed = fs.readFileSync(seedFile, 'utf-8').trim()
-      if (seed) return { success: true, prompt: seed }
-    } catch { /* ignore */ }
-    return { success: false, prompt: '' }
-  }
-
-  return new Promise((resolve) => {
-    const child = spawn(pythonBin, [
-      scriptPath,
-      '--idea-file', seedFile,
-      '--stdout-only',
-      '--no-db',
-    ], {
-      cwd: PROJECT_ROOT,
-      env: getProjectEnv(),
-      timeout: 30000,
-    })
-
-    let stdout = ''
-    let stderr = ''
-    child.stdout.on('data', (d) => { stdout += d.toString() })
-    child.stderr.on('data', (d) => { stderr += d.toString() })
-
-    child.on('close', (code) => {
-      const prompt = stdout.trim()
-      if (code === 0 && prompt) {
-        resolve({ success: true, prompt })
-        return
-      }
-      // Fallback: leer seed limpio
-      try {
-        const seed = fs.readFileSync(seedFile, 'utf-8').trim()
-        if (seed) {
-          resolve({ success: true, prompt: seed })
-          return
-        }
-      } catch { /* ignore */ }
-      resolve({ success: false, prompt: '' })
-    })
-
-    child.on('error', () => {
-      // Fallback: leer seed limpio
-      try {
-        const seed = fs.readFileSync(seedFile, 'utf-8').trim()
-        if (seed) {
-          resolve({ success: true, prompt: seed })
-          return
-        }
-      } catch { /* ignore */ }
-      resolve({ success: false, prompt: '' })
-    })
-  })
+  // El textarea ahora solo muestra la idea del usuario, no el seed completo
+  // El seed se inyecta internamente en buildFullPrompt()
+  return { success: true, prompt: '' }
 })
 
 ipcMain.handle('get-env-config', async () => {

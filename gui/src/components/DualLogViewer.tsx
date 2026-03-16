@@ -314,7 +314,7 @@ export function DualLogViewer({
               <span className="control-prompt__label">Prompt</span>
               <textarea
                 className="control-prompt__input"
-                placeholder="Ingresa aqui el prompt que el bot usara para generar la imagen..."
+                placeholder="Escribe tu idea para la imagen... Ej: 'Lanza oferta del 20%', 'Imagen con persona en oficina moderna', 'Promociona desarrollo movil' (opcional - el bot tiene configuracion base)"
                 value={imagePrompt}
                 onChange={(event) => onChangeImagePrompt(event.target.value)}
                 rows={4}

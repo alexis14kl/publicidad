@@ -27,8 +27,8 @@ export function ControlPanel({
   onStopBot,
 }: ControlPanelProps) {
   const isExecuting = botStatus.status === 'executing'
-  const canStartBot = !isExecuting && !botLoading && !!imagePrompt.trim() && hasCompany
-  const canStartPoller = !pollerRunning && !pollerLoading && !!imagePrompt.trim() && hasCompany
+  const canStartBot = !isExecuting && !botLoading && hasCompany
+  const canStartPoller = !pollerRunning && !pollerLoading && hasCompany
 
   return (
     <GlassCard className="control-panel">
