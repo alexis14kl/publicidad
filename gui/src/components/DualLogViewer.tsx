@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PromptHistoryEntry } from '../lib/types'
-import { IMAGE_FORMAT_GROUPS } from '../lib/types'
+import { IMAGE_FORMAT_GROUPS, NOYECODE_SERVICES } from '../lib/types'
 
 interface LogPanelProps {
   title: string
@@ -105,6 +105,9 @@ interface DualLogViewerProps {
   imagePrompt: string
   onChangeImagePrompt: (value: string) => void
   imagePromptHistory: PromptHistoryEntry[]
+  imageService: string
+  onChangeImageService: (value: string) => void
+  lastUsedService: string
   imageFormat: string
   onChangeImageFormat: (value: string) => void
   promptDisabled: boolean
@@ -118,6 +121,9 @@ export function DualLogViewer({
   imagePrompt,
   onChangeImagePrompt,
   imagePromptHistory,
+  imageService,
+  onChangeImageService,
+  lastUsedService,
   imageFormat,
   onChangeImageFormat,
   promptDisabled,
@@ -201,6 +207,22 @@ export function DualLogViewer({
                   </div>
                 )}
               </div>
+            </div>
+            <div className="format-select">
+              <label className="format-select__label" htmlFor="image-service">Servicio</label>
+              <select
+                id="image-service"
+                className="format-select__input"
+                value={imageService}
+                onChange={(e) => onChangeImageService(e.target.value)}
+                disabled={promptDisabled}
+              >
+                {NOYECODE_SERVICES.map((svc) => (
+                  <option key={svc.value} value={svc.value}>
+                    {svc.emoji} {svc.label}{svc.value === lastUsedService ? ' (ultimo usado)' : ''}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="format-select">
               <label className="format-select__label" htmlFor="image-format">Formato</label>
