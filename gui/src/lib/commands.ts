@@ -5,6 +5,9 @@ import type {
   CompanyPlatform,
   CompanyRecord,
   SaveCompanyPayload,
+  CompanyLogoSelectionResult,
+  DeleteCompanyPayload,
+  DeleteCompanyResult,
   StartBotPayload,
   StartPollerPayload,
   MarketingCampaignPayload,
@@ -27,9 +30,12 @@ export const getEnvConfig = (): Promise<Record<string, string>> => api().getEnvC
 export const saveEnvConfig = (config: Record<string, string>) => api().saveEnvConfig(config)
 export const listCompanyRecords = (platform: CompanyPlatform): Promise<CompanyRecord[]> => api().listCompanyRecords(platform)
 export const saveCompanyRecord = (payload: SaveCompanyPayload): Promise<CompanyRecord> => api().saveCompanyRecord(payload)
+export const deleteCompanyRecord = (payload: DeleteCompanyPayload): Promise<DeleteCompanyResult> =>
+  api().deleteCompanyRecord(payload)
 export const resetBotState = () => api().resetBotState()
 export const generateDefaultPrompt = (): Promise<{ success: boolean; prompt: string }> => api().generateDefaultPrompt()
 export const changeLogo = (): Promise<{ success: boolean; logoUrl?: string; canceled?: boolean }> => api().changeLogo()
+export const selectCompanyLogoSvg = (): Promise<CompanyLogoSelectionResult> => api().selectCompanyLogoSvg()
 export const getLogoPath = (): Promise<string | null> => api().getLogoPath()
 export const listLogos = (): Promise<{ filename: string; url: string }[]> => api().listLogos()
 export const setActiveLogo = (filename: string): Promise<{ success: boolean; logoUrl?: string }> => api().setActiveLogo(filename)

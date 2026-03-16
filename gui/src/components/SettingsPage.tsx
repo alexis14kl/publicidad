@@ -41,6 +41,27 @@ const FIELDS: FieldDef[] = [
     placeholder: 'EAAB...'
   },
   {
+    key: 'INSTAGRAM_ACCESS_TOKEN',
+    label: 'Instagram Token',
+    group: 'Meta Ads',
+    type: 'password',
+    placeholder: 'IGQVJ...'
+  },
+  {
+    key: 'LINKEDIN_ACCESS_TOKEN',
+    label: 'LinkedIn Token',
+    group: 'Meta Ads',
+    type: 'password',
+    placeholder: 'linkedin-token'
+  },
+  {
+    key: 'TIKTOK_ACCESS_TOKEN',
+    label: 'TikTok Token',
+    group: 'Meta Ads',
+    type: 'password',
+    placeholder: 'tiktok-token'
+  },
+  {
     key: 'FB_PAGE_ID',
     label: 'Page ID',
     group: 'Meta Ads',

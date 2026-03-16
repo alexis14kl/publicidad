@@ -24,6 +24,8 @@ export type CompanyPlatform = 'facebook' | 'tiktok' | 'linkedin' | 'instagram'
 
 export interface CompanyRecord {
   id: number
+  red_id?: number
+  empresa_id?: number
   nombre: string
   token: string
   logo: string | null
@@ -33,8 +35,12 @@ export interface CompanyRecord {
   direccion: string | null
   descripcion: string | null
   activo: number
+  empresa_activa?: number
+  plataforma_activa?: number
   created_at: string
   updated_at: string
+  config_env_key?: string
+  config_synced?: number
 }
 
 export interface SaveCompanyPayload {
@@ -48,6 +54,27 @@ export interface SaveCompanyPayload {
   direccion?: string
   descripcion?: string
   activo?: boolean
+  syncToConfig?: boolean
+}
+
+export interface CompanyLogoSelectionResult {
+  success: boolean
+  canceled?: boolean
+  error?: string
+  logoPath?: string
+  logoName?: string
+  logoUrl?: string
+}
+
+export interface DeleteCompanyPayload {
+  platform: CompanyPlatform
+  empresaId: number
+}
+
+export interface DeleteCompanyResult {
+  success: boolean
+  deletedId?: number
+  deletedName?: string
 }
 
 export interface StartBotPayload {
