@@ -2354,6 +2354,7 @@ function buildLeadTargeting(orchestrator = null) {
     },
     age_min: segment.ageMin || 24,
     age_max: segment.ageMax || 54,
+    targeting_automation: { advantage_audience: 0 },
   }
 }
 
@@ -2385,11 +2386,77 @@ function buildOrchestratorPlan(preview, segment = getDefaultMarketingSegment()) 
   }
 }
 
+function buildMarketingAgentPrompt(preview, segment = getDefaultMarketingSegment(), selectedImage = null) {
+  const websiteUrl = ensureAbsoluteUrl(preview?.url || getProjectEnv().BUSINESS_WEBSITE || 'https://noyecode.com')
+  const imageStatus = selectedImage?.preparedPath
+    ? `Asset listo: ${selectedImage.fileName} (${selectedImage.width || 0}x${selectedImage.height || 0}) en ${selectedImage.preparedPath}.`
+    : 'No hay asset final confirmado; el agente debe trabajar con recomendacion de formato y briefing visual.'
+
+  return [
+    '# Prompt: Bot Asistente para Crear Campanas de Facebook Ads',
+    '',
+    '## Instruccion para el Bot',
+    'Eres un experto en Facebook Ads y Meta Business Suite. Tu rol es guiar paso a paso al usuario para crear una campana de publicidad en Facebook Ads, desde la estrategia hasta la publicacion. Siempre preguntas antes de asumir y adaptas las recomendaciones al presupuesto, industria y objetivo del usuario.',
+    '',
+    '## Reglas Operativas Obligatorias',
+    '1. Siempre pregunta antes de asumir y deja explicitas las variables faltantes.',
+    '2. Justifica el objetivo de campana segun la meta del negocio.',
+    '3. Para presupuestos menores a 50 USD/dia, recomienda audiencias entre 100K y 1M.',
+    '4. Para campanas nuevas, inicia con presupuesto diario y menor costo durante 3-5 dias.',
+    '5. Para leads B2B con formulario instantaneo, recomienda formularios de mayor intencion.',
+    '6. Genera 2-3 variantes de copy y propone formato visual segun objetivo.',
+    '7. Incluye checklist de revision pre-publicacion y pautas de optimizacion dia 3-5 y dia 7+.',
+    '',
+    '## Objetivos Disponibles en Meta Ads Manager',
+    '- Reconocimiento: para awareness de marca.',
+    '- Trafico: para enviar usuarios a sitio web o app.',
+    '- Interaccion: para likes, comentarios, mensajes y compartidos.',
+    '- Clientes potenciales: para capturar datos con formulario dentro de Facebook.',
+    '- Promocion de app: para descargas.',
+    '- Ventas: para compras en sitio web con Pixel configurado.',
+    '',
+    '## Contexto Actual de la Campana',
+    `- Objetivo de negocio recomendado: leads.`,
+    `- Producto/servicio: ${segment.categoryStatement}.`,
+    `- Publico base: ${segment.role} del sector ${segment.industry} en ${segment.country}, empresas de ${segment.companySize}.`,
+    `- Dolor principal: ${segment.pain}.`,
+    `- Consecuencia: ${segment.consequence}.`,
+    `- Trigger: ${segment.trigger}.`,
+    `- Presupuesto maximo actual: ${preview.budget}.`,
+    `- Duracion actual: ${preview.startDate} -> ${preview.endDate}.`,
+    `- Activos disponibles: landing ${websiteUrl}, formulario con campos ${getDefaultLeadFormFieldLabels().join(', ')}, ${imageStatus}`,
+    `- Experiencia previa del usuario: no confirmada; explicar con lenguaje claro pero profesional.`,
+    '',
+    '## Configuracion Recomendada para este Caso',
+    '- Objetivo de campana: Clientes potenciales.',
+    '- Tipo de formulario: Mayor intencion.',
+    '- Ubicaciones minimas: Facebook Feed, Instagram Feed y Stories.',
+    '- Estrategia de puja: Menor costo.',
+    '- Formato creativo recomendado: Imagen unica para pruebas rapidas de lead ads.',
+    '- CTA sugerido: Mas informacion o Registrarte, segun el formulario.',
+    '',
+    '## Copy Framework',
+    '- Texto principal: hook + valor + prueba social si existe + CTA.',
+    '- Titulo: beneficio directo en maximo 40 caracteres.',
+    '- Descripcion: complemento breve en maximo 30 caracteres.',
+    '- Generar 2-3 variantes para testing.',
+    '',
+    '## Contexto Noyecode',
+    '- Empresa: Monjekey Jobs S.A.S (marca Noyecode).',
+    '- Web: https://www.noyecode.com/',
+    '- WhatsApp: +57 301 385 9952.',
+    '- Email: gerson@noyecode.com.',
+    '- Mercado: Colombia B2B, empresas 20-120 empleados.',
+    '- Pagina Facebook: Noyecode (ID 115406607722279).',
+  ].join('\n')
+}
+
 function runLocalMarketingOrchestrator(preview) {
   const segment = getDefaultMarketingSegment()
   const plan = buildOrchestratorPlan(preview, segment)
   const pageId = getMetaPageId()
   const selectedImage = preview?.imageAsset || null
+  const marketingAgentPrompt = buildMarketingAgentPrompt(preview, segment, selectedImage)
   const campaignName = buildDraftCampaignName(preview, { execution: { segment } })
   const adsetName = buildDraftAdsetName(preview, { execution: { segment } })
   const leadFormFieldLabels = getDefaultLeadFormFieldLabels()
@@ -2435,7 +2502,9 @@ function runLocalMarketingOrchestrator(preview) {
   const marketing = {
     status: 'approved_with_assumptions',
     verdict: 'APROBADO para borrador',
+    prompt: marketingAgentPrompt,
     notes: [
+      'Se aplico el prompt operativo de Facebook Ads para definir objetivo, audiencia, presupuesto, creatividad y checklist.',
       `CTA de baja friccion alineado con el segmento ${segment.shortLabel}.`,
       `Narrativa B2B centrada en ${segment.pain.toLowerCase()}`,
       'Pendiente activo visual final y leadgen_form_id para completar creative y anuncio.',
@@ -2845,6 +2914,7 @@ function buildLeadCampaignRunnerContext(preview, orchestrator) {
       marketing: {
         status: String(orchestrator?.marketing?.status || '').trim(),
         verdict: String(orchestrator?.marketing?.verdict || '').trim(),
+        prompt: String(orchestrator?.marketing?.prompt || '').trim(),
         notes: Array.isArray(orchestrator?.marketing?.notes)
           ? orchestrator.marketing.notes.map((note) => String(note || '').trim()).filter(Boolean)
           : [],

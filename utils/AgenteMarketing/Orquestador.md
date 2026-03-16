@@ -73,18 +73,19 @@ PLAN:
 El orquestador gestiona un pipeline de 4 fases para crear y publicar publicidad:
 
 ```
-[FASE 1]          [FASE 2]           [FASE 3]            [FASE 4]
-ads-analyst  -->  image-creator  -->  marketing      -->  PUBLICACION
-(analisis)        (imagenes)          (revision QA)       (aprobacion)
+[FASE 1]          [FASE 2]           [FASE 3]            [FASE 4]           [FASE 5]
+ads-analyst  -->  image-creator  -->  marketing      -->  PUBLICACION  -->  MONITOREO
+(analisis)        (imagenes 4:5)      (revision QA)       (aprobacion)      (fb-ads-mcp)
 ```
 
 ### Sub-agente 1: ads-analyst
 | Campo | Detalle |
 |-------|---------|
 | Modelo | sonnet |
-| Funcion | Analiza competencia, redes sociales y anuncios. Genera briefs creativos |
+| Funcion | Analiza competencia, redes sociales y anuncios. Genera briefs creativos. Accede a datos reales de campanas via fb-ads-mcp-server |
 | Input | Solicitud del usuario o indicacion del orquestador |
-| Output | Brief publicitario: plataforma, formato, copy, CTA, referencia visual |
+| Output | Brief publicitario: plataforma, formato (4:5 vertical para FB/IG), copy, CTA, referencia visual |
+| MCP Tools | list_ad_accounts, get_campaigns_by_adaccount, get_campaign_insights, get_adset_insights, get_ad_insights |
 
 ### Sub-agente 2: image-creator
 | Campo | Detalle |
@@ -106,19 +107,34 @@ ads-analyst  -->  image-creator  -->  marketing      -->  PUBLICACION
 
 ## FASES DEL PIPELINE
 
-### FASE 1: Analisis (ads-analyst)
-1. Recibir solicitud de campana/anuncio
-2. Investigar competencia y tendencias en la plataforma objetivo
-3. Analizar formatos y copies que funcionan
-4. Generar brief publicitario completo
-5. Enviar brief al orquestador
+### FASE 0: Preguntas directas al usuario (Orquestador)
+
+**REGLA:** Todas las preguntas se hacen directamente en la conversacion. NO crear formularios separados.
+
+El orquestador pregunta al usuario:
+1. Que servicio quieres promocionar?
+2. Cual es tu objetivo? (leads, trafico, reconocimiento)
+3. A quien va dirigido? (edad, ubicacion, intereses)
+4. Presupuesto total y duracion?
+5. Tienes imagenes listas o genero una?
+
+Con las respuestas, delega a los sub-agentes en orden.
+
+### FASE 1: Analisis de datos reales (ads-analyst + MCP)
+1. `list_ad_accounts` -> verificar cuenta publicitaria activa
+2. `get_campaigns_by_adaccount` -> revisar campanas previas
+3. `get_campaign_insights` -> analizar CPM, CTR, CPL de campanas anteriores
+4. Investigar competencia y tendencias en la plataforma objetivo
+5. Generar brief publicitario basado en DATOS REALES, no supuestos
+6. Enviar brief al orquestador
 
 ### FASE 2: Creacion Visual (image-creator)
 1. Recibir brief del orquestador
 2. Transformar brief en prompt optimizado para Gemini
-3. Generar imagen(es) publicitaria(s)
-4. Ajustar dimensiones segun plataforma
-5. Entregar imagen + metadata al orquestador
+3. Generar imagen formato **Vertical 4:5 (1080x1350px)** para FB/IG feed
+4. Aplicar regla de franja superior 15% vacia para logo
+5. Full-bleed, sin margenes negros
+6. Entregar imagen + metadata al orquestador
 
 ### FASE 3: Revision QA (marketing)
 El agente marketing revisa el paquete completo:
@@ -127,8 +143,8 @@ El agente marketing revisa el paquete completo:
 CHECKLIST DE REVISION:
 [ ] Copy alineado con ICP y segmento definido
 [ ] CTA de baja friccion (no "agenda llamada" en primer contacto)
-[ ] Imagen profesional y coherente con marca Noyecode
-[ ] Cumple reglas de compliance (Seccion 17 del agente marketing)
+[ ] Imagen profesional vertical 4:5 y coherente con marca Noyecode
+[ ] Franja superior 15% vacia para logo
 [ ] No contiene metricas inventadas ni claims falsos
 [ ] Tono: profesional, consultivo, no spam
 [ ] Formato correcto para la plataforma destino
@@ -140,25 +156,68 @@ Resultados:
   - Problema de copy/estrategia -> vuelve a FASE 1 (ads-analyst)
   - Problema de imagen -> vuelve a FASE 2 (image-creator)
 
-### FASE 4: Solicitud de Publicacion
-Solo cuando marketing aprueba, el orquestador presenta:
+### FASE 4: Crear Campana via MCP (marketing + execute_lead_campaign_bundle)
+
+El agente marketing ejecuta la creacion completa via API:
 
 ```
-ANUNCIO LISTO PARA PUBLICAR:
-- Plataforma: [nombre]
-- Copy: [texto del anuncio]
-- CTA: [llamada a la accion]
-- Imagen: [preview/path]
-- Segmento: [ICP target]
-- Presupuesto sugerido: [si aplica]
+1. Crear Campaign (OUTCOME_LEADS, estado PAUSED)
+2. Crear AdSet (targeting, presupuesto, fechas)
+3. Crear/Buscar Lead Form (3 campos: nombre, email, telefono)
+4. Subir imagen y crear Creative
+5. Crear Ad final
+```
 
-PUBLICAR? (si/no/ajustar)
+**Lead Form automatico con 3 campos fijos:**
+| Campo | Tipo Meta |
+|-------|-----------|
+| Nombre completo | FULL_NAME |
+| Correo electronico | EMAIL |
+| Telefono movil | PHONE |
+
+Presentar resumen al usuario:
+
+```
+CAMPANA CREADA (ESTADO: PAUSED):
+- Campaign: [nombre] (ID: xxx)
+- AdSet: [nombre] (ID: xxx)
+- Lead Form: nombre + email + telefono (ID: xxx)
+- Creative: imagen 4:5 vertical (ID: xxx)
+- Ad: [nombre] (ID: xxx)
+- Presupuesto: [monto]
+- Duracion: [inicio -> fin]
+- Audiencia: [pais, edad, segmentacion]
+
+ACTIVAR CAMPANA? (si/no/ajustar)
 ```
 
 REGLAS FASE 4:
-- NUNCA publicar sin aprobacion explicita del usuario
+- NUNCA activar sin aprobacion explicita del usuario
 - Si el usuario pide ajustes, regresa a la fase correspondiente
 - El usuario puede cancelar en cualquier momento
+
+### FASE 5: Monitoreo con fb-ads-mcp-server (Post-activacion)
+
+Despues de activar, usar las herramientas MCP para monitorear rendimiento:
+
+```
+MONITOREO CAMPANA:
+1. list_ad_accounts -> verificar cuenta activa
+2. get_campaigns_by_adaccount -> encontrar campana publicada
+3. get_campaign_insights -> metricas de rendimiento (CPM, CTR, CPC, CPL)
+4. get_adset_insights -> rendimiento por audiencia
+5. get_ad_insights -> rendimiento por anuncio individual
+```
+
+**Alertas automaticas de monitoreo:**
+- Si CTR < 1% despues de 3 dias -> sugerir cambio de copy/imagen
+- Si Frecuencia > 3 -> sugerir ampliar audiencia
+- Si CPL > benchmark -> sugerir optimizacion de presupuesto
+- Si hay anuncios ganadores -> sugerir escalar presupuesto 20-30%
+
+**Datos Noyecode:**
+- Page ID: 115406607722279
+- Formato imagen predeterminado: Vertical 4:5 (1080x1350px)
 
 ---
 

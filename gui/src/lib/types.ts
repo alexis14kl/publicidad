@@ -360,6 +360,7 @@ export interface MarketingRunUpdate {
       marketing: {
         status: string
         verdict: string
+        prompt?: string
         notes: string[]
       }
       execution: {

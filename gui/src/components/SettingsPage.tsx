@@ -28,6 +28,32 @@ const FIELDS: FieldDef[] = [
   { key: 'N8N_WEBHOOK_POST_FB_TEXT', label: 'Webhook Post FB Text', group: 'N8N', type: 'text' },
   { key: 'N8N_WEBHOOK_PUBLICAR_IMG_LOCAL_FB', label: 'Webhook Publicar Img', group: 'N8N', type: 'text' },
 
+  // MCP Meta Ads
+  {
+    key: 'FB_ACCESS_TOKEN',
+    label: 'Meta Access Token',
+    group: 'MCP Meta Ads',
+    type: 'password',
+    placeholder: 'EAAB...',
+    help: 'Token principal que usa el MCP para validar Meta y crear campañas.',
+  },
+  {
+    key: 'FB_PAGE_ID',
+    label: 'Facebook Page ID',
+    group: 'MCP Meta Ads',
+    type: 'text',
+    placeholder: '115406607722279',
+    help: 'Page ID usado por el MCP para formularios instantáneos y promoted_object.',
+  },
+  {
+    key: 'FB_AD_ACCOUNT_ID',
+    label: 'Ad Account ID',
+    group: 'MCP Meta Ads',
+    type: 'text',
+    placeholder: '438871067037500',
+    help: 'Cuenta publicitaria objetivo. Puedes guardarla con o sin prefijo act_.',
+  },
+
   // FreeImage
   { key: 'FREEIMAGE_API_KEY', label: 'API Key', group: 'FreeImage', type: 'password' },
   { key: 'FREEIMAGE_UPLOAD_URL', label: 'Upload URL', group: 'FreeImage', type: 'text' },

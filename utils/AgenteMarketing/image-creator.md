@@ -40,14 +40,17 @@ PROMPT ESTRUCTURA:
 
 ## 3. Dimensiones por Plataforma
 
-| Plataforma | Formato | Dimensiones |
-|-----------|---------|-------------|
-| Facebook Feed | Imagen | 1200x628 px |
-| Facebook Stories | Vertical | 1080x1920 px |
-| Instagram Feed | Cuadrado | 1080x1080 px |
-| Instagram Stories | Vertical | 1080x1920 px |
-| LinkedIn Feed | Horizontal | 1200x627 px |
-| Google Display | Varios | 300x250, 728x90, 160x600 |
+| Plataforma | Formato | Dimensiones | Notas |
+|-----------|---------|-------------|-------|
+| Facebook Feed | Vertical 4:5 | 1080x1350 px | PREFERIDO - evita corte en feed |
+| Facebook Feed | Horizontal | 1200x628 px | Solo si se pide explicitamente |
+| Facebook Stories/Reels | Vertical 9:16 | 1080x1920 px | |
+| Instagram Feed | Vertical 4:5 | 1080x1350 px | Mismo que Facebook |
+| Instagram Stories/Reels | Vertical 9:16 | 1080x1920 px | |
+| LinkedIn Feed | Horizontal | 1200x627 px | |
+| Google Display | Varios | 300x250, 728x90, 160x600 | |
+
+**IMPORTANTE:** Para Facebook e Instagram Feed, usar SIEMPRE formato vertical 4:5 (1080x1350px) por defecto. Este formato ocupa mas espacio en el feed y evita que la imagen se corte.
 
 ## 4. Generacion con Gemini
 
@@ -90,6 +93,9 @@ response = client.models.generate_content(
 3. **Profesional**: Nada generico ni clipart, aspecto premium
 4. **Contexto cultural**: Imagenes relevantes para mercado colombiano/LATAM
 5. **Alta resolucion**: Minimo 1080px en el lado menor
+6. **Franja superior 15% vacia**: Reservar la franja superior (15% del alto) con fondo claro para el logo. NO colocar texto ni elementos importantes en esa zona
+7. **Full-bleed**: Fondo claro de borde a borde, sin margenes negros
+8. **Formato vertical**: Para Facebook/Instagram feed usar 4:5 (1080x1350px) por defecto
 
 ## 6. Paleta de Marca Noyecode
 - Primario: Usar colores del sitio web noyecode.com

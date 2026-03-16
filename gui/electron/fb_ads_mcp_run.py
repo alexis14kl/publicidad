@@ -12,6 +12,7 @@ DEFAULT_TARGETING = {
     "geo_locations": {"countries": ["CO"]},
     "age_min": 24,
     "age_max": 54,
+    "targeting_automation": {"advantage_audience": 0},
 }
 DEFAULT_REQUIRED_FIELDS = ["full_name", "email", "phone_number"]
 REQUIRED_FIELD_ALIASES = {
