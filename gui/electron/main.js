@@ -3324,6 +3324,37 @@ ipcMain.handle('get-last-job', async () => {
   return readJsonFile(path.join(PROJECT_ROOT, '.job_poller_state.json'))
 })
 
+// ─── Image Format Lookup ──────────────────────────────────────────────────
+const IMAGE_FORMATS = {
+  'fb-vertical':   { platform: 'Facebook',  label: 'Vertical 4:5',      w: 1080, h: 1350, ratio: '4:5' },
+  'fb-square':     { platform: 'Facebook',  label: 'Square 1:1',        w: 1080, h: 1080, ratio: '1:1' },
+  'fb-horizontal': { platform: 'Facebook',  label: 'Horizontal 1.91:1', w: 1200, h: 628,  ratio: '1.91:1' },
+  'fb-story':      { platform: 'Facebook',  label: 'Story 9:16',        w: 1080, h: 1920, ratio: '9:16' },
+  'ig-vertical':   { platform: 'Instagram', label: 'Vertical 4:5',      w: 1080, h: 1350, ratio: '4:5' },
+  'ig-square':     { platform: 'Instagram', label: 'Square 1:1',        w: 1080, h: 1080, ratio: '1:1' },
+  'ig-story':      { platform: 'Instagram', label: 'Story 9:16',        w: 1080, h: 1920, ratio: '9:16' },
+  'ig-landscape':  { platform: 'Instagram', label: 'Horizontal 1.91:1', w: 1080, h: 566,  ratio: '1.91:1' },
+  'tt-vertical':   { platform: 'TikTok',    label: 'Vertical 9:16',     w: 1080, h: 1920, ratio: '9:16' },
+  'tt-square':     { platform: 'TikTok',    label: 'Square 1:1',        w: 1080, h: 1080, ratio: '1:1' },
+  'li-horizontal': { platform: 'LinkedIn',  label: 'Horizontal 1.91:1', w: 1200, h: 628,  ratio: '1.91:1' },
+  'li-square':     { platform: 'LinkedIn',  label: 'Square 1:1',        w: 1080, h: 1080, ratio: '1:1' },
+  'li-vertical':   { platform: 'LinkedIn',  label: 'Vertical 4:5',      w: 1080, h: 1350, ratio: '4:5' },
+  'li-story':      { platform: 'LinkedIn',  label: 'Story 9:16',        w: 1080, h: 1920, ratio: '9:16' },
+}
+
+function buildFormatRule(formatValue) {
+  const fmt = IMAGE_FORMATS[formatValue]
+  if (!fmt) return ''
+  return (
+    `\n\n[MANDATORY IMAGE FORMAT — THIS OVERRIDES ANY OTHER SIZE INSTRUCTION]\n` +
+    `Platform: ${fmt.platform}. Aspect ratio: ${fmt.ratio}. ` +
+    `Resolution: exactly ${fmt.w}x${fmt.h} pixels. ` +
+    `Orientation: ${fmt.h > fmt.w ? 'vertical (portrait)' : fmt.h === fmt.w ? 'square' : 'horizontal (landscape)'}. ` +
+    `YOU MUST generate the image at ${fmt.w}x${fmt.h} pixels with ${fmt.ratio} aspect ratio. ` +
+    `Do NOT use any other dimensions. This is a hard requirement from the client.`
+  )
+}
+
 ipcMain.handle('start-bot', async (_event, payload) => {
   const lockPath = path.join(PROJECT_ROOT, '.bot_runner.lock')
   if (fs.existsSync(lockPath)) {
@@ -3345,13 +3376,18 @@ ipcMain.handle('start-bot', async (_event, payload) => {
   const profileName = typeof payload === 'string'
     ? payload
     : String(payload?.profileName || '').trim()
-  const imagePrompt = typeof payload === 'object' && payload !== null
+  const rawPrompt = typeof payload === 'object' && payload !== null
     ? String(payload.imagePrompt || '').trim()
     : ''
+  const imageFormat = typeof payload === 'object' && payload !== null
+    ? String(payload.imageFormat || '').trim()
+    : ''
 
-  if (!imagePrompt) {
+  if (!rawPrompt) {
     return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar.' }
   }
+
+  const imagePrompt = rawPrompt + buildFormatRule(imageFormat)
 
   const botRunnerPath = path.join(PROJECT_ROOT, 'server', 'bot_runner.py')
   const pythonBin = findPython()
@@ -3425,17 +3461,22 @@ ipcMain.handle('start-poller', async (_event, payload) => {
     return { success: false, error: `Poller ya esta corriendo (${poller.source}, PIDs: ${poller.pids.join(',')})` }
   }
 
-  const imagePrompt = typeof payload === 'object' && payload !== null
+  const rawPollerPrompt = typeof payload === 'object' && payload !== null
     ? String(payload.imagePrompt || '').trim()
     : ''
-  if (!imagePrompt) {
+  const pollerFormat = typeof payload === 'object' && payload !== null
+    ? String(payload.imageFormat || '').trim()
+    : ''
+  if (!rawPollerPrompt) {
     return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar el poller.' }
   }
+
+  const finalPollerPrompt = rawPollerPrompt + buildFormatRule(pollerFormat)
 
   const env = getProjectEnv()
   // Persist poller logs so the GUI can tail them.
   env.PUBLICIDAD_LOG_FILE = path.join(PROJECT_ROOT, 'logs', 'job_poller.log')
-  env.BOT_CUSTOM_IMAGE_PROMPT = imagePrompt
+  env.BOT_CUSTOM_IMAGE_PROMPT = finalPollerPrompt
   env.PYTHONIOENCODING = 'utf-8'
   env.PYTHONUNBUFFERED = '1'
   const pollerPath = path.join(PROJECT_ROOT, 'server', 'job_poller.py')
