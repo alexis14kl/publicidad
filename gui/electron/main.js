@@ -168,6 +168,16 @@ function getCompanyPlatformConfig(platform) {
   return config
 }
 
+function findSqlite3() {
+  // Bundled sqlite3 in project bin/
+  const bundled = path.join(PROJECT_ROOT, 'bin', 'sqlite3.exe')
+  if (fs.existsSync(bundled)) return bundled
+  // Fallback: system PATH
+  return 'sqlite3'
+}
+
+const SQLITE3_BIN = findSqlite3()
+
 function ensureCompanyDb(platform) {
   const platformConfig = getCompanyPlatformConfig(platform)
   const dbPath = getCompanyDbPath(platform)
@@ -175,7 +185,7 @@ function ensureCompanyDb(platform) {
   const schemaSql = fs.readFileSync(schemaPath, 'utf-8')
   const platformSchemaPath = path.join(PROJECT_ROOT, 'Backend', platformConfig.schemaFile)
   const platformSchemaSql = fs.readFileSync(platformSchemaPath, 'utf-8')
-  execFileSync('sqlite3', [dbPath], {
+  execFileSync(SQLITE3_BIN, [dbPath], {
     input: `${schemaSql}\n${platformSchemaSql}`,
     encoding: 'utf-8',
   })
@@ -191,7 +201,7 @@ function sqlLiteral(value) {
 }
 
 function runSqliteJson(dbPath, sql) {
-  const stdout = execFileSync('sqlite3', ['-json', dbPath, sql], {
+  const stdout = execFileSync(SQLITE3_BIN, ['-json', dbPath, sql], {
     encoding: 'utf-8',
   })
   const trimmed = String(stdout || '').trim()
@@ -200,7 +210,7 @@ function runSqliteJson(dbPath, sql) {
 }
 
 function runSqlite(dbPath, sql) {
-  return execFileSync('sqlite3', [dbPath], {
+  return execFileSync(SQLITE3_BIN, [dbPath], {
     input: sql,
     encoding: 'utf-8',
   })

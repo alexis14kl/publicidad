@@ -112,6 +112,9 @@ Source: "{#ProjectRoot}\gui\tsconfig.node.json"; DestDir: "{app}\gui"; Flags: ig
 Source: "{#ProjectRoot}\utils\logos\*"; DestDir: "{app}\utils\logos"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: core
 Source: "{#ProjectRoot}\utils\*.png"; DestDir: "{app}\utils"; Flags: ignoreversion; Components: core
 
+; --- Core: sqlite3 bundled ---
+Source: "{#ProjectRoot}\bin\sqlite3.exe"; DestDir: "{app}\bin"; Flags: ignoreversion; Components: core
+
 ; --- Core: orchestrator ---
 Source: "{#ProjectRoot}\orchestrator.py"; DestDir: "{app}"; Flags: ignoreversion; Components: core
 
