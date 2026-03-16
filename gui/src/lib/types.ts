@@ -190,12 +190,14 @@ export interface StartBotPayload {
   imagePrompt?: string
   imageFormat?: string
   imageService?: string
+  companyName?: string
 }
 
 export interface StartPollerPayload {
   imagePrompt?: string
   imageFormat?: string
   imageService?: string
+  companyName?: string
 }
 
 export interface MarketingCampaignPayload {

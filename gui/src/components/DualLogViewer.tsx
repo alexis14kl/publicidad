@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { PromptHistoryEntry } from '../lib/types'
+import type { CompanyRecord, PromptHistoryEntry } from '../lib/types'
 import { IMAGE_FORMAT_GROUPS, NOYECODE_SERVICES } from '../lib/types'
 
 interface LogPanelProps {
@@ -105,6 +105,9 @@ interface DualLogViewerProps {
   imagePrompt: string
   onChangeImagePrompt: (value: string) => void
   imagePromptHistory: PromptHistoryEntry[]
+  companies: CompanyRecord[]
+  selectedCompany: string
+  onChangeCompany: (value: string) => void
   imageService: string
   onChangeImageService: (value: string) => void
   lastUsedService: string
@@ -121,6 +124,9 @@ export function DualLogViewer({
   imagePrompt,
   onChangeImagePrompt,
   imagePromptHistory,
+  companies,
+  selectedCompany,
+  onChangeCompany,
   imageService,
   onChangeImageService,
   lastUsedService,
@@ -207,6 +213,32 @@ export function DualLogViewer({
                   </div>
                 )}
               </div>
+            </div>
+            <div className="format-select">
+              <label className="format-select__label" htmlFor="image-company">Empresa</label>
+              <select
+                id="image-company"
+                className="format-select__input"
+                value={selectedCompany}
+                onChange={(e) => onChangeCompany(e.target.value)}
+                disabled={promptDisabled || companies.length === 0}
+              >
+                {companies.length === 0 ? (
+                  <option value="">Sin empresas registradas</option>
+                ) : (
+                  companies.map((c) => {
+                    const info = [
+                      c.sitio_web || 'xxxxxx',
+                      c.telefono || 'xxxxxx',
+                    ].join(' | ')
+                    return (
+                      <option key={c.nombre} value={c.nombre}>
+                        {c.nombre} ({info})
+                      </option>
+                    )
+                  })
+                )}
+              </select>
             </div>
             <div className="format-select">
               <label className="format-select__label" htmlFor="image-service">Servicio</label>

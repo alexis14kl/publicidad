@@ -13,8 +13,8 @@ import { usePollerProcess } from './hooks/usePollerProcess'
 import { useLogTail } from './hooks/useLogTail'
 import { useBotLogTail } from './hooks/useBotLogTail'
 import { useLastJob } from './hooks/useLastJob'
-import { generateDefaultPrompt, onMarketingRunUpdate, runMarketingCampaignPreview, startBot, stopBot } from './lib/commands'
-import type { MarketingRunUpdate, PromptHistoryEntry } from './lib/types'
+import { generateDefaultPrompt, listCompanyRecords, onMarketingRunUpdate, runMarketingCampaignPreview, startBot, stopBot } from './lib/commands'
+import type { CompanyRecord, MarketingRunUpdate, PromptHistoryEntry } from './lib/types'
 import { IMAGE_FORMAT_GROUPS, NOYECODE_SERVICES } from './lib/types'
 
 function MarketingCampaignModal({
@@ -549,6 +549,8 @@ export default function App() {
   const [lastUsedService, setLastUsedService] = useState(() =>
     window.localStorage.getItem('lastUsedService') || ''
   )
+  const [companies, setCompanies] = useState<CompanyRecord[]>([])
+  const [selectedCompany, setSelectedCompany] = useState('')
   const botStatus = useBotStatus()
   const poller = usePollerProcess()
   const { lines: workerLines, clearLines: clearWorkerLines } = useLogTail()
@@ -589,6 +591,17 @@ export default function App() {
         }
       })
       .catch(() => { /* ignore */ })
+    listCompanyRecords()
+      .then((records) => {
+        if (cancelled) return
+        setCompanies(records)
+        if (records.length > 0) {
+          const saved = window.localStorage.getItem('selectedCompany') || ''
+          const found = records.find((c) => c.nombre === saved)
+          setSelectedCompany(found ? found.nombre : records[0].nombre)
+        }
+      })
+      .catch(() => { /* ignore */ })
     return () => { cancelled = true }
   }, [])
 
@@ -621,6 +634,16 @@ export default function App() {
     } catch { /* ignore */ }
   }
 
+  const handleChangeCompany = (value: string) => {
+    setSelectedCompany(value)
+    try {
+      window.localStorage.setItem('selectedCompany', value)
+    } catch { /* ignore */ }
+  }
+
+  const activeCompany = companies.find((c) => c.nombre === selectedCompany) || null
+  const hasCompany = companies.length > 0
+
   const isExecuting = botStatus.status === 'executing'
 
   const handleStartPoller = async () => {
@@ -630,7 +653,7 @@ export default function App() {
     rememberPrompt(prompt)
     setLastUsedService(imageService)
     try { window.localStorage.setItem('lastUsedService', imageService) } catch { /* ignore */ }
-    await poller.start({ imagePrompt: prompt, imageFormat, imageService })
+    await poller.start({ imagePrompt: prompt, imageFormat, imageService, companyName: selectedCompany })
   }
 
   const handleStartBot = async () => {
@@ -642,7 +665,7 @@ export default function App() {
       rememberPrompt(prompt)
       setLastUsedService(imageService)
       try { window.localStorage.setItem('lastUsedService', imageService) } catch { /* ignore */ }
-      await startBot({ imagePrompt: prompt, imageFormat, imageService })
+      await startBot({ imagePrompt: prompt, imageFormat, imageService, companyName: selectedCompany })
     } finally {
       setBotLoading(false)
     }
@@ -687,6 +710,7 @@ export default function App() {
               botStatus={botStatus}
               botLoading={botLoading}
               imagePrompt={imagePrompt}
+              hasCompany={hasCompany}
               pollerRunning={poller.running}
               pollerLoading={poller.loading}
               onStartPoller={handleStartPoller}
@@ -704,6 +728,9 @@ export default function App() {
             imagePrompt={imagePrompt}
             onChangeImagePrompt={setImagePrompt}
             imagePromptHistory={imagePromptHistory}
+            companies={companies}
+            selectedCompany={selectedCompany}
+            onChangeCompany={handleChangeCompany}
             imageService={imageService}
             onChangeImageService={handleChangeService}
             lastUsedService={lastUsedService}

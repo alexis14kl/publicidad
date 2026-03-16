@@ -3521,6 +3521,36 @@ const IMAGE_FORMATS = {
   'li-story':      { platform: 'LinkedIn',  label: 'Story 9:16',        w: 1080, h: 1920, ratio: '9:16' },
 }
 
+// ─── Company Data Lookup ──────────────────────────────────────────────────
+function lookupCompanyData(companyName) {
+  if (!companyName) return null
+  try {
+    const records = aggregateCompanyRows(
+      Object.fromEntries([...COMPANY_PLATFORMS].map(p => [p, fetchCompanyRowsForPlatform(p)]))
+    )
+    return records.find(c => c.nombre === companyName) || null
+  } catch { return null }
+}
+
+function buildCompanyRule(companyName) {
+  const company = lookupCompanyData(companyName)
+  if (!company) return ''
+  const name = company.nombre || 'xxxxxx'
+  const phone = company.telefono || 'xxxxxx'
+  const email = company.correo || 'xxxxxx'
+  const website = company.sitio_web || 'xxxxxx'
+  const address = company.direccion || 'xxxxxx'
+  return (
+    `\n\n[MANDATORY COMPANY INFO — USE THIS BUSINESS DATA IN THE IMAGE]\n` +
+    `Company name: "${name}". ` +
+    `Website: "${website}". Phone/WhatsApp: "${phone}". ` +
+    `Email: "${email}". Address: "${address}". ` +
+    `Use this EXACT contact information in the ad image. ` +
+    `Do NOT use "noyecode.com" or "+57 301 385 9952" or any other hardcoded data. ` +
+    `The contact info in the image must match the company selected by the client.`
+  )
+}
+
 // ─── Service Lookup ───────────────────────────────────────────────────────
 const NOYECODE_SERVICES = {
   'desarrollo-a-la-medida':        'Desarrollo a la Medida',
@@ -3592,6 +3622,9 @@ ipcMain.handle('start-bot', async (_event, payload) => {
   const imageService = typeof payload === 'object' && payload !== null
     ? String(payload.imageService || '').trim()
     : ''
+  const companyName = typeof payload === 'object' && payload !== null
+    ? String(payload.companyName || '').trim()
+    : ''
 
   // Pass image dimensions to overlay_logo.py via env
   const botFmt = IMAGE_FORMATS[imageFormat]
@@ -3604,7 +3637,7 @@ ipcMain.handle('start-bot', async (_event, payload) => {
     return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar.' }
   }
 
-  const imagePrompt = rawPrompt + buildServiceRule(imageService) + buildFormatRule(imageFormat)
+  const imagePrompt = rawPrompt + buildCompanyRule(companyName) + buildServiceRule(imageService) + buildFormatRule(imageFormat)
 
   const botRunnerPath = path.join(PROJECT_ROOT, 'server', 'bot_runner.py')
   const pythonBin = findPython()
@@ -3687,11 +3720,14 @@ ipcMain.handle('start-poller', async (_event, payload) => {
   const pollerService = typeof payload === 'object' && payload !== null
     ? String(payload.imageService || '').trim()
     : ''
+  const pollerCompany = typeof payload === 'object' && payload !== null
+    ? String(payload.companyName || '').trim()
+    : ''
   if (!rawPollerPrompt) {
     return { success: false, error: 'Debes ingresar el prompt de imagen antes de iniciar el poller.' }
   }
 
-  const finalPollerPrompt = rawPollerPrompt + buildServiceRule(pollerService) + buildFormatRule(pollerFormat)
+  const finalPollerPrompt = rawPollerPrompt + buildCompanyRule(pollerCompany) + buildServiceRule(pollerService) + buildFormatRule(pollerFormat)
 
   const env = getProjectEnv()
   // Persist poller logs so the GUI can tail them.
