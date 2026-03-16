@@ -3536,7 +3536,11 @@ function buildServiceRule(serviceValue) {
     `The ad image MUST promote ONLY this service: "${label}". ` +
     `Do NOT mix with other services. Do NOT change the service name. ` +
     `All text, headlines, and benefits in the image must be about "${label}". ` +
-    `This is a hard requirement from the client.`
+    `This is a hard requirement from the client.\n\n` +
+    `[MANDATORY LANGUAGE — ALL TEXT IN THE IMAGE MUST BE IN SPANISH]\n` +
+    `Every piece of text visible in the image (headlines, subtitles, benefits, CTA, contact info) ` +
+    `MUST be written in Spanish. Do NOT use English for any visible text in the image. ` +
+    `The prompt instructions are in English but the IMAGE CONTENT must be 100% in Spanish.`
   )
 }
 
