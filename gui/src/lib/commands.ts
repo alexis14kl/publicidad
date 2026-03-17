@@ -16,6 +16,8 @@ import type {
   StartPollerPayload,
   MarketingCampaignPayload,
   MarketingRunUpdate,
+  FacebookPagePhoto,
+  ListFacebookPagePhotosPayload,
 } from './types'
 
 const api = () => window.electronAPI
@@ -43,6 +45,8 @@ export const selectCompanyPublicationAccount = (
 ): Promise<SelectCompanyPublicationAccountResult> => api().selectCompanyPublicationAccount(payload)
 export const resetBotState = () => api().resetBotState()
 export const generateDefaultPrompt = (): Promise<{ success: boolean; prompt: string }> => api().generateDefaultPrompt()
+export const listFacebookPagePhotos = (payload?: ListFacebookPagePhotosPayload): Promise<FacebookPagePhoto[]> =>
+  api().listFacebookPagePhotos(payload)
 export const changeLogo = (): Promise<{ success: boolean; logoUrl?: string; canceled?: boolean }> => api().changeLogo()
 export const selectCompanyLogoSvg = (): Promise<CompanyLogoSelectionResult> => api().selectCompanyLogoSvg()
 export const getLogoPath = (): Promise<string | null> => api().getLogoPath()

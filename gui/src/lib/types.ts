@@ -131,6 +131,23 @@ export interface PromptHistoryEntry {
   createdAt: string | null
 }
 
+export interface FacebookPagePhoto {
+  id: string
+  name: string
+  picture: string
+  imageUrl: string
+  createdTime: string
+  link: string
+}
+
+export interface ListFacebookPagePhotosPayload {
+  pageId?: string
+  accessToken?: string
+  pageAccessToken?: string
+  adAccountId?: string
+  limit?: number
+}
+
 export interface NoyeCodeService {
   value: string
   label: string
@@ -426,6 +443,7 @@ export interface ElectronAPI {
   resetBotState: () => Promise<{ success: boolean; deleted: string[] }>
   runPreflight: (force?: boolean) => Promise<PreflightResult>
   generateDefaultPrompt: () => Promise<{ success: boolean; prompt: string }>
+  listFacebookPagePhotos: (payload?: ListFacebookPagePhotosPayload) => Promise<FacebookPagePhoto[]>
   onLogNewLines: (callback: (lines: string[]) => void) => () => void
   onBotLogLines: (callback: (lines: string[]) => void) => () => void
   onMarketingRunUpdate: (callback: (update: MarketingRunUpdate) => void) => () => void

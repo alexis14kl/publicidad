@@ -1075,8 +1075,13 @@ function resolveFacebookUiFlowRules(preview, orchestrator = null) {
     campaignName: buildDraftCampaignName(preview, orchestrator),
     campaignObjectiveLabel: String(orchestrator?.execution?.objectiveUiLabel || objectiveRule.uiLabel).trim() || objectiveRule.uiLabel,
     campaignObjectiveAliases: objectiveRule.uiAliases,
-    budgetModeLabel: String(orchestrator?.execution?.budgetModeUiLabel || '').trim() || 'Presupuesto total',
-    budgetModeAliases: budgetModeAliases.length > 0 ? budgetModeAliases : ['Presupuesto total', 'Lifetime budget'],
+    budgetModeLabel: String(orchestrator?.execution?.budgetModeUiLabel || '').trim() || 'Presupuesto de la campaña',
+    budgetModeAliases: budgetModeAliases.length > 0 ? budgetModeAliases : [
+      'Presupuesto de la campaña',
+      'Campaign budget',
+      'Presupuesto total',
+      'Lifetime budget',
+    ],
     budgetAmount: normalizeBudgetForUi(preview?.budget),
     adsetName: buildDraftAdsetName(preview, orchestrator),
     conversionLocationLabel: String(orchestrator?.execution?.conversionLocationUiLabel || '').trim() || 'Formularios instantáneos',
@@ -1207,8 +1212,8 @@ async function continueCampaignCreationModal(page) {
 
 async function clickBudgetTypeTrigger(root) {
   const trigger = await findVisibleLocator(root, [
-    (ctx) => ctx.getByRole('button', { name: /presupuesto diario|presupuesto total|daily budget|lifetime budget/i }),
-    (ctx) => ctx.locator('button, [role="button"], [aria-haspopup="listbox"], [aria-expanded]').filter({ hasText: /presupuesto diario|presupuesto total|daily budget|lifetime budget/i }),
+    (ctx) => ctx.getByRole('button', { name: /presupuesto de la campana|presupuesto del conjunto de anuncios|presupuesto diario|presupuesto total|campaign budget|ad set budget|daily budget|lifetime budget/i }),
+    (ctx) => ctx.locator('button, [role="button"], [aria-haspopup="listbox"], [aria-expanded]').filter({ hasText: /presupuesto de la campana|presupuesto del conjunto de anuncios|presupuesto diario|presupuesto total|campaign budget|ad set budget|daily budget|lifetime budget/i }),
   ], 2600)
 
   if (trigger) {
@@ -1233,7 +1238,16 @@ async function clickBudgetTypeTrigger(root) {
       .filter(isVisible)
     const match = all.find((element) => {
       const text = normalize(element.innerText || element.textContent)
-      return text === 'presupuesto diario' || text === 'daily budget' || text === 'presupuesto total' || text === 'lifetime budget'
+      return (
+        text === 'presupuesto diario' ||
+        text === 'daily budget' ||
+        text === 'presupuesto total' ||
+        text === 'lifetime budget' ||
+        text === 'presupuesto de la campana' ||
+        text === 'campaign budget' ||
+        text === 'presupuesto del conjunto de anuncios' ||
+        text === 'ad set budget'
+      )
     })
     if (!match) return false
     match.click()
@@ -1241,7 +1255,7 @@ async function clickBudgetTypeTrigger(root) {
   })
 }
 
-async function selectTotalBudgetMode(page, aliases = ['Presupuesto total', 'Lifetime budget']) {
+async function selectTotalBudgetMode(page, aliases = ['Presupuesto de la campaña', 'Campaign budget', 'Presupuesto total', 'Lifetime budget']) {
   const budgetSection = await findSectionRoot(page, /presupuesto|budget/i, 2400).catch(() => null)
   if (budgetSection) {
     await budgetSection.scrollIntoViewIfNeeded().catch(() => {})
@@ -1427,17 +1441,17 @@ async function fillNamedEditorInput(page, config) {
 }
 
 async function clickRadioOptionInSection(page, sectionPattern, aliases, errorMessage) {
-  const section = await findSectionRoot(page, sectionPattern, 5000)
-  if (!section) {
-    throw new Error(errorMessage)
+  const section = await findSectionRoot(page, sectionPattern, 5000).catch(() => null)
+  const searchRoot = section || page
+  if (section) {
+    await section.scrollIntoViewIfNeeded().catch(() => {})
   }
-
-  await section.scrollIntoViewIfNeeded().catch(() => {})
   const optionPattern = new RegExp(aliases.join('|'), 'i')
-  const option = await findVisibleLocator(section, [
+  const option = await findVisibleLocator(searchRoot, [
     (ctx) => ctx.getByRole('radio', { name: optionPattern }),
     (ctx) => ctx.locator('[role="radio"]').filter({ hasText: optionPattern }),
     (ctx) => ctx.locator('label').filter({ hasText: optionPattern }),
+    (ctx) => ctx.locator('button, [role="button"], div, span').filter({ hasText: optionPattern }),
     (ctx) => ctx.getByText(optionPattern),
   ], 2800)
 
@@ -1446,7 +1460,7 @@ async function clickRadioOptionInSection(page, sectionPattern, aliases, errorMes
     return
   }
 
-  const clicked = await section.evaluate((root, payload) => {
+  const clicked = await searchRoot.evaluate((root, payload) => {
     const normalize = (text) => String(text || '')
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -1484,20 +1498,19 @@ async function clickRadioOptionInSection(page, sectionPattern, aliases, errorMes
 }
 
 async function selectDropdownOptionInSection(page, sectionPattern, aliases, errorMessage) {
-  const section = await findSectionRoot(page, sectionPattern, 4500)
-  if (!section) {
-    throw new Error(errorMessage)
+  const section = await findSectionRoot(page, sectionPattern, 4500).catch(() => null)
+  const searchRoot = section || page
+  if (section) {
+    await section.scrollIntoViewIfNeeded().catch(() => {})
   }
-
-  await section.scrollIntoViewIfNeeded().catch(() => {})
-  const trigger = await findVisibleLocator(section, [
+  const trigger = await findVisibleLocator(searchRoot, [
     (ctx) => ctx.getByRole('combobox'),
-    (ctx) => ctx.locator('[role="combobox"], [aria-haspopup="listbox"], button').filter({ hasText: /maximizar|lead|conversion|resultado/i }),
+    (ctx) => ctx.locator('[role="combobox"], [aria-haspopup="listbox"], button').filter({ hasText: /maximizar|lead|conversion|resultado|cliente potencial|whatsapp/i }),
     (ctx) => ctx.locator('[role="combobox"], [aria-haspopup="listbox"], button'),
   ], 2600)
 
   if (!trigger) {
-    throw new Error(errorMessage)
+    return await clickRadioOptionInSection(page, sectionPattern, aliases, errorMessage)
   }
 
   await trigger.click({ timeout: 5000, force: true })
@@ -1554,6 +1567,7 @@ async function fillCampaignBudgetValue(page, budgetValue) {
   }
   const input = await findVisibleLocator(page, [
     (ctx) => ctx.locator('input[inputmode="numeric"], input[aria-label*="presupuesto" i], input[placeholder*="presupuesto" i]'),
+    (ctx) => ctx.locator('input[type="text"], input').filter({ hasText: /^\s*$/ }),
   ], 2600)
 
   if (input) {
@@ -1624,6 +1638,7 @@ async function clickCampaignEditorNext(page) {
   const nextButton = await findVisibleLocator(page, [
     (ctx) => ctx.getByRole('button', { name: /siguiente|next|continuar|continue|guardar|save/i }),
     (ctx) => ctx.locator('button, [role="button"]').filter({ hasText: /siguiente|next|continuar|continue|guardar|save/i }),
+    (ctx) => ctx.locator('div[role="button"], a').filter({ hasText: /siguiente|next|continuar|continue|guardar|save/i }),
   ], 3000)
   if (!nextButton) {
     throw new Error('No encontre el boton Siguiente en el editor de campaña.')
@@ -1642,7 +1657,7 @@ async function clickCampaignEditorNext(page) {
 
 async function getAdsetSchedulePanel(page) {
   return await findVisibleLocator(page, [
-    (ctx) => ctx.locator('section, div').filter({ hasText: /presupuesto y calendario|calendario|budget|schedule/i }),
+    (ctx) => ctx.locator('section, div').filter({ hasText: /presupuesto y calendario|presupuesto|calendario|programacion|budget|schedule/i }),
   ], 5000)
 }
 
@@ -2000,6 +2015,370 @@ function getTargetAdAccountId() {
     env.META_AD_ACCOUNT_ID ||
     '438871067037500'
   )
+}
+
+function getFacebookPagePhotosUrl() {
+  const env = getProjectEnv()
+  return String(env.FB_PAGE_PHOTOS_URL || 'https://www.facebook.com/Noyecode12/photos').trim()
+}
+
+async function resolveFacebookPageIdentity({ pageId = '', accessToken = '', pageAccessToken = '' } = {}) {
+  const normalizedPageId = String(pageId || '').trim()
+  if (normalizedPageId) {
+    return {
+      pageId: normalizedPageId,
+      source: 'config',
+    }
+  }
+
+  const normalizedPageAccessToken = String(pageAccessToken || '').trim()
+  if (normalizedPageAccessToken) {
+    try {
+      const pageMe = await facebookApiRequest('GET', 'me', {
+        fields: 'id,name,username,link',
+      }, normalizedPageAccessToken)
+      const detectedId = String(pageMe?.id || '').trim()
+      if (detectedId) {
+        return {
+          pageId: detectedId,
+          source: 'page_access_token',
+          page: pageMe,
+        }
+      }
+    } catch {
+      // Continue with user token fallback.
+    }
+  }
+
+  const normalizedAccessToken = String(accessToken || '').trim()
+  if (normalizedAccessToken) {
+    try {
+      const accounts = await facebookApiRequest('GET', 'me/accounts', {
+        fields: 'id,name,username,link,access_token',
+        limit: 25,
+      }, normalizedAccessToken)
+      const pages = Array.isArray(accounts?.data) ? accounts.data : []
+      const preferred =
+        pages.find((page) => /noyecode/i.test(String(page?.name || ''))) ||
+        pages.find((page) => /noyecode12/i.test(String(page?.username || ''))) ||
+        pages[0]
+      const detectedId = String(preferred?.id || '').trim()
+      if (detectedId) {
+        return {
+          pageId: detectedId,
+          source: 'user_access_token',
+          page: preferred,
+        }
+      }
+    } catch {
+      // Fallback to public photos URL.
+    }
+  }
+
+  return {
+    pageId: '',
+    source: 'none',
+  }
+}
+
+function listPublicFacebookPagePhotos(pagePhotosUrl, limit = 10) {
+  return new Promise((resolve, reject) => {
+    if (!pagePhotosUrl) {
+      resolve([])
+      return
+    }
+
+    const url = new URL(pagePhotosUrl)
+    const request = https.request(url, {
+      method: 'GET',
+      timeout: 15000,
+      headers: {
+        Accept: 'text/html,application/xhtml+xml',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      },
+    }, (response) => {
+      let raw = ''
+      response.setEncoding('utf8')
+      response.on('data', (chunk) => {
+        raw += chunk
+      })
+      response.on('end', () => {
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          reject(new Error(`No se pudo leer la pagina publica de Facebook. HTTP ${response.statusCode}`))
+          return
+        }
+
+        const matches = [
+          ...(raw.match(/https:\\\/\\\/scontent[^"'\\<\s]+/g) || []),
+          ...(raw.match(/https:\/\/scontent[^"'\\<\s]+/g) || []),
+        ]
+
+        const urls = [...new Set(
+          matches
+            .map((value) => String(value || '').replace(/\\\//g, '/').replace(/&amp;/g, '&'))
+            .filter((value) => /\.(jpg|jpeg|png|webp)(\?|$)/i.test(value))
+        )].slice(0, limit)
+
+        resolve(urls.map((imageUrl, index) => ({
+          id: `public-photo-${index + 1}`,
+          name: `Foto publica ${index + 1}`,
+          picture: imageUrl,
+          imageUrl,
+          createdTime: '',
+          link: pagePhotosUrl,
+        })))
+      })
+    })
+
+    request.on('timeout', () => {
+      request.destroy(new Error('timeout'))
+    })
+    request.on('error', reject)
+    request.end()
+  })
+}
+
+function extractFacebookImagesFromAttachments(attachments = [], pagePhotosUrl = '', limit = 10) {
+  const imageMap = new Map()
+
+  const pushImage = (candidate = {}, fallbackName = 'Publicacion de Facebook', fallbackCreatedTime = '') => {
+    const mediaType = String(candidate?.media_type || '').trim().toLowerCase()
+    if (mediaType && mediaType !== 'photo' && mediaType !== 'album') {
+      return
+    }
+
+    const imageUrl = String(
+      candidate?.media?.image?.src ||
+      candidate?.media?.source ||
+      candidate?.url ||
+      candidate?.unshimmed_url ||
+      ''
+    ).trim()
+
+    if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) return
+
+    const targetId = String(candidate?.target?.id || candidate?.media?.target?.id || imageUrl).trim()
+    if (imageMap.has(targetId)) return
+
+    imageMap.set(targetId, {
+      id: targetId,
+      name: String(candidate?.title || fallbackName).trim() || fallbackName,
+      picture: imageUrl,
+      imageUrl,
+      createdTime: String(candidate?.created_time || fallbackCreatedTime || '').trim(),
+      link: String(candidate?.url || pagePhotosUrl).trim() || pagePhotosUrl,
+    })
+  }
+
+  const visitAttachment = (attachment, fallbackName, fallbackCreatedTime) => {
+    pushImage(attachment, fallbackName, fallbackCreatedTime)
+    const subattachments = Array.isArray(attachment?.subattachments?.data) ? attachment.subattachments.data : []
+    for (const item of subattachments) {
+      pushImage(item, fallbackName, fallbackCreatedTime)
+    }
+  }
+
+  for (const post of attachments) {
+    const fallbackName = String(post?.message || 'Publicacion de Facebook').trim().slice(0, 80) || 'Publicacion de Facebook'
+    const fallbackCreatedTime = String(post?.created_time || '').trim()
+    const items = Array.isArray(post?.attachments?.data) ? post.attachments.data : []
+    for (const item of items) {
+      visitAttachment(item, fallbackName, fallbackCreatedTime)
+    }
+  }
+
+  return Array.from(imageMap.values()).slice(0, limit)
+}
+
+function extractFacebookImagesFromPosts(posts = [], pagePhotosUrl = '', limit = 10) {
+  const imageMap = new Map()
+
+  for (const post of Array.isArray(posts) ? posts : []) {
+    const attachmentItems = Array.isArray(post?.attachments?.data) ? post.attachments.data : []
+    const hasVideoAttachment = attachmentItems.some((item) => {
+      const mediaType = String(item?.media_type || '').trim().toLowerCase()
+      return mediaType.includes('video')
+    })
+    const postType = String(post?.type || '').trim().toLowerCase()
+    if (hasVideoAttachment || postType.includes('video')) {
+      continue
+    }
+
+    const imageUrl = String(post?.full_picture || '').trim()
+    if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
+      continue
+    }
+
+    const postId = String(post?.id || imageUrl).trim()
+    if (imageMap.has(postId)) {
+      continue
+    }
+
+    imageMap.set(postId, {
+      id: postId,
+      name: String(post?.message || 'Publicacion de Facebook').trim().slice(0, 80) || 'Publicacion de Facebook',
+      picture: imageUrl,
+      imageUrl,
+      createdTime: String(post?.created_time || '').trim(),
+      link: String(post?.permalink_url || pagePhotosUrl).trim() || pagePhotosUrl,
+    })
+  }
+
+  return Array.from(imageMap.values()).slice(0, limit)
+}
+
+function sortFacebookPhotosByNewest(items = []) {
+  return [...items].sort((a, b) => {
+    const timeA = Date.parse(String(a?.createdTime || ''))
+    const timeB = Date.parse(String(b?.createdTime || ''))
+    const safeA = Number.isFinite(timeA) ? timeA : 0
+    const safeB = Number.isFinite(timeB) ? timeB : 0
+    return safeB - safeA
+  })
+}
+
+function mergeFacebookPhotoLists(...lists) {
+  const merged = new Map()
+  for (const list of lists) {
+    for (const item of Array.isArray(list) ? list : []) {
+      const key = String(item?.id || item?.link || item?.imageUrl || item?.picture || '').trim()
+      if (!key) continue
+      const current = merged.get(key)
+      if (!current) {
+        merged.set(key, item)
+        continue
+      }
+
+      const currentTime = Date.parse(String(current?.createdTime || ''))
+      const nextTime = Date.parse(String(item?.createdTime || ''))
+      const safeCurrent = Number.isFinite(currentTime) ? currentTime : 0
+      const safeNext = Number.isFinite(nextTime) ? nextTime : 0
+      if (safeNext > safeCurrent) {
+        merged.set(key, { ...current, ...item })
+      } else {
+        merged.set(key, { ...item, ...current })
+      }
+    }
+  }
+  return sortFacebookPhotosByNewest(Array.from(merged.values()))
+}
+
+async function listFacebookPagePhotos(options = {}) {
+  const env = getProjectEnv()
+  const hasOwnOption = (key) => Object.prototype.hasOwnProperty.call(options, key)
+  const limit = Number(options?.limit) > 0 ? Math.min(Number(options.limit), 10) : 10
+  const fetchLimit = Math.max(limit * 3, 20)
+  const configuredPageId = String(
+    hasOwnOption('pageId')
+      ? options.pageId
+      : (
+        env.FB_PAGE_ID ||
+        env.FACEBOOK_PAGE_ID ||
+        env.META_PAGE_ID ||
+        ''
+      )
+  ).trim()
+  const pagePhotosUrl = String(hasOwnOption('pagePhotosUrl') ? options.pagePhotosUrl : getFacebookPagePhotosUrl()).trim()
+  const pageAccessToken = String(
+    hasOwnOption('pageAccessToken')
+      ? options.pageAccessToken
+      : (env.FB_PAGE_ACCESS_TOKEN || env.FACEBOOK_PAGE_ACCESS_TOKEN || '')
+  ).trim()
+  const tokenSource = hasOwnOption('accessToken')
+    ? options.accessToken
+    : (
+      env.FB_ACCESS_TOKEN ||
+      env.FACEBOOK_ACCESS_TOKEN ||
+      ''
+    )
+  const token = String(tokenSource || '').trim()
+  const resolvedPage = await resolveFacebookPageIdentity({
+    pageId: configuredPageId,
+    accessToken: token,
+    pageAccessToken,
+  })
+  const pageId = String(resolvedPage?.pageId || '').trim()
+
+  let postImages = []
+  const graphToken = pageAccessToken || token
+
+  if (graphToken && pageId) {
+    try {
+      const postsResponse = await facebookApiRequest('GET', `${pageId}/published_posts`, {
+        fields: 'id,message,created_time,attachments{media_type,media,url,subattachments,target,title,unshimmed_url}',
+        limit: fetchLimit,
+      }, graphToken)
+
+      postImages = extractFacebookImagesFromAttachments(
+        Array.isArray(postsResponse?.data) ? postsResponse.data : [],
+        pagePhotosUrl,
+        fetchLimit
+      )
+    } catch {
+      postImages = []
+    }
+  }
+
+  let feedPostImages = []
+  if (graphToken && pageId) {
+    try {
+      const feedResponse = await facebookApiRequest('GET', `${pageId}/posts`, {
+        fields: 'id,message,created_time,full_picture,permalink_url,type,attachments{media_type}',
+        limit: fetchLimit,
+      }, graphToken)
+
+      feedPostImages = extractFacebookImagesFromPosts(
+        Array.isArray(feedResponse?.data) ? feedResponse.data : [],
+        pagePhotosUrl,
+        fetchLimit
+      )
+    } catch {
+      feedPostImages = []
+    }
+  }
+
+  let uploadedPhotos = []
+  if (graphToken && pageId) {
+    try {
+      const response = await facebookApiRequest('GET', `${pageId}/photos`, {
+        type: 'uploaded',
+        fields: 'id,name,picture,images,created_time,link',
+        limit: fetchLimit,
+      }, graphToken)
+
+      const rawPhotos = Array.isArray(response?.data) ? response.data : []
+      uploadedPhotos = rawPhotos.map((photo) => {
+        const images = Array.isArray(photo?.images) ? photo.images : []
+        const bestImage = images[0] || {}
+        return {
+          id: String(photo?.id || '').trim(),
+          name: String(photo?.name || '').trim() || `Foto ${String(photo?.id || '').slice(0, 8)}`,
+          picture: String(photo?.picture || bestImage?.source || '').trim(),
+          imageUrl: String(bestImage?.source || photo?.picture || '').trim(),
+          createdTime: String(photo?.created_time || '').trim(),
+          link: String(photo?.link || '').trim(),
+        }
+      }).filter((photo) => photo.id && (photo.imageUrl || photo.picture))
+    } catch {
+      uploadedPhotos = []
+    }
+  }
+
+  const graphPhotos = mergeFacebookPhotoLists(uploadedPhotos, postImages, feedPostImages).slice(0, limit)
+  if (graphPhotos.length > 0) {
+    return graphPhotos
+  }
+
+  if (!pageId && !pagePhotosUrl) {
+    return []
+  }
+
+  const publicPhotos = await listPublicFacebookPagePhotos(pagePhotosUrl, limit).catch(() => [])
+  if (publicPhotos.length > 0) {
+    return publicPhotos
+  }
+
+  return []
 }
 
 function getMarketingImagesDir() {
@@ -2729,8 +3108,8 @@ function runLocalMarketingOrchestrator(preview) {
       targetingSummary: buildTargetingSummary(segment),
       objectiveUiLabel: objectiveRule.uiLabel,
       apiObjective: objectiveRule.apiObjective,
-      budgetModeUiLabel: 'Presupuesto total',
-      budgetModeUiAliases: ['Presupuesto total', 'Lifetime budget'],
+      budgetModeUiLabel: 'Presupuesto de la campaña',
+      budgetModeUiAliases: ['Presupuesto de la campaña', 'Campaign budget', 'Presupuesto total', 'Lifetime budget'],
       conversionLocationUiLabel: contactConfig.mode === 'whatsapp' ? 'WhatsApp' : 'Formularios instantáneos',
       conversionLocationUiAliases: contactConfig.mode === 'whatsapp'
         ? ['WhatsApp', 'Whatsapp', 'Messages']
@@ -3145,16 +3524,38 @@ function buildLeadCampaignBundleSpec(preview, orchestrator) {
   const campaignName = uiRules.campaignName
   const adsetName = uiRules.adsetName
   const pageId = String(orchestrator?.execution?.pageId || getMetaPageId()).trim()
-  const selectedLeadgenFormId = String(preview?.selectedLeadgenFormId || '').trim()
+  const contactMode = String(preview?.contactMode || '').trim()
+  const isWhatsApp = contactMode === 'whatsapp'
+
+  // Switch por modo de contacto: lead_form vs whatsapp
+  const adsetConfig = isWhatsApp
+    ? {
+      optimization_goal: 'CONVERSATIONS',
+      destination_type: 'WHATSAPP',
+      ui_conversion_location_label: 'WhatsApp',
+      ui_conversion_location_aliases: ['WhatsApp', 'Mensajes de WhatsApp'],
+      ui_performance_goal_label: 'Maximizar el número de conversaciones',
+    }
+    : {
+      optimization_goal: 'LEAD_GENERATION',
+      destination_type: 'ON_AD',
+      ui_conversion_location_label: uiRules.conversionLocationLabel,
+      ui_conversion_location_aliases: uiRules.conversionLocationAliases,
+      ui_performance_goal_label: uiRules.performanceGoalLabel,
+    }
+
+  const ctaType = isWhatsApp ? 'WHATSAPP_MESSAGE' : 'SIGN_UP'
+  const selectedLeadgenFormId = isWhatsApp ? '' : String(preview?.selectedLeadgenFormId || '').trim()
   const creativeDraft = selectedLeadgenFormId
     ? buildDraftCreativeConfig({ ...preview, selectedLeadgenFormId }, orchestrator)
     : null
-  const leadFormSpec = buildLeadFormSpec(preview, orchestrator)
+  const leadFormSpec = isWhatsApp ? null : buildLeadFormSpec(preview, orchestrator)
 
   return {
     ad_account_id: String(orchestrator?.execution?.accountHint || `act_${getTargetAdAccountId()}`),
     account_name: orchestrator?.execution?.accountHint || `act_${getTargetAdAccountId()}`,
     page_id: pageId,
+    contact_mode: contactMode || 'lead_form',
     campaign: {
       name: campaignName,
       objective: objectiveRule.apiObjective,
@@ -3167,14 +3568,14 @@ function buildLeadCampaignBundleSpec(preview, orchestrator) {
       name: adsetName,
       lifetime_budget: toMetaMoney(preview.budget),
       billing_event: 'IMPRESSIONS',
-      optimization_goal: 'LEAD_GENERATION',
+      optimization_goal: adsetConfig.optimization_goal,
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-      destination_type: 'ON_AD',
+      destination_type: adsetConfig.destination_type,
       ui_budget_mode_label: uiRules.budgetModeLabel,
       ui_budget_mode_aliases: uiRules.budgetModeAliases,
-      ui_conversion_location_label: uiRules.conversionLocationLabel,
-      ui_conversion_location_aliases: uiRules.conversionLocationAliases,
-      ui_performance_goal_label: uiRules.performanceGoalLabel,
+      ui_conversion_location_label: adsetConfig.ui_conversion_location_label,
+      ui_conversion_location_aliases: adsetConfig.ui_conversion_location_aliases,
+      ui_performance_goal_label: adsetConfig.ui_performance_goal_label,
       status: 'PAUSED',
       start_time: toMetaDateTime(preview.startDate, false),
       end_time: toMetaDateTime(preview.endDate, true),
@@ -3187,17 +3588,18 @@ function buildLeadCampaignBundleSpec(preview, orchestrator) {
     },
     lead_form: leadFormSpec,
     creative: {
-      name: `Creative | ${segment.shortLabel} | ${selectedLeadgenFormId || 'auto-form'}`,
+      name: `Creative | ${segment.shortLabel} | ${isWhatsApp ? 'whatsapp' : (selectedLeadgenFormId || 'auto-form')}`,
       message: orchestrator?.adsAnalyst?.copy || '',
       headline: orchestrator?.adsAnalyst?.hook || '',
       description: orchestrator?.adsAnalyst?.strategicAngle || '',
       link: preview?.url || '',
-      call_to_action_type: 'SIGN_UP',
+      call_to_action_type: ctaType,
       image_path: String(preview?.imageAsset?.preparedPath || '').trim(),
+      image_url: String(preview?.facebookPhotoUrl || '').trim(),
       object_story_spec: creativeDraft?.objectStorySpec || null,
     },
     ad: {
-      name: `Ad | ${segment.shortLabel} | ${selectedLeadgenFormId || 'auto-form'}`,
+      name: `Ad | ${segment.shortLabel} | ${isWhatsApp ? 'whatsapp' : (selectedLeadgenFormId || 'auto-form')}`,
       status: 'PAUSED',
     },
     runner_context: buildLeadCampaignRunnerContext(preview, orchestrator),
@@ -3318,6 +3720,8 @@ async function runLeadCampaignBundleViaN8n(preview, orchestrator) {
   }
 
   const spec = buildLeadCampaignBundleSpec(preview, orchestrator)
+  // n8n Parse & Validate requires access_token in the spec
+  spec.access_token = String(env.FB_ACCESS_TOKEN || '').trim()
   const imagePath = String(spec.creative?.image_path || '').trim()
 
   // Build multipart payload: JSON spec + image file
@@ -3654,12 +4058,14 @@ function emitMarketingUpdate(update) {
 }
 
 async function openMetaAdsManager(creation = null) {
-  const accountId = String(creation?.account?.account_id || '').trim()
+  const accountId = String(creation?.account?.account_id || '').replace(/^act_/, '').trim()
   const campaignId = String(creation?.campaignId || '').trim()
   const targetUrl =
     accountId && campaignId
-      ? `https://www.facebook.com/adsmanager/manage/campaigns?act=${encodeURIComponent(accountId)}&selected_campaign_ids=${encodeURIComponent(campaignId)}`
-      : 'https://adsmanager.facebook.com/'
+      ? `https://adsmanager.facebook.com/adsmanager/manage/campaigns/edit/standalone?act=${encodeURIComponent(accountId)}&selected_campaign_ids=${encodeURIComponent(campaignId)}`
+      : accountId
+        ? `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${encodeURIComponent(accountId)}`
+        : 'https://adsmanager.facebook.com/'
   try {
     if (facebookVisualPage && !facebookVisualPage.isClosed()) {
       await facebookVisualPage.bringToFront()
@@ -4312,6 +4718,14 @@ ipcMain.handle('get-env-config', async () => {
   return parseEnvFile(path.join(PROJECT_ROOT, '.env'))
 })
 
+ipcMain.handle('list-facebook-page-photos', async (_event, payload = {}) => {
+  try {
+    return await listFacebookPagePhotos(payload)
+  } catch (err) {
+    throw new Error(err.message || 'No se pudieron consultar las fotos de Facebook.')
+  }
+})
+
 ipcMain.handle('run-preflight', async (_event, force = false) => {
   const pythonBin = findPython()
   if (!pythonBin) {
@@ -4797,6 +5211,8 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
   const budget = String(payload.budget || '').trim()
   const startDate = String(payload.startDate || '').trim()
   const endDate = String(payload.endDate || '').trim()
+  const facebookPhotoUrl = String(payload.facebookPhotoUrl || '').trim()
+  const facebookPhotoId = String(payload.facebookPhotoId || '').trim()
 
   if (!campaignIdea || !city || !budget || !startDate || !endDate) {
     return { success: false, error: 'Faltan concepto de campana, ciudad, presupuesto o fechas para ejecutar el agente' }
@@ -4827,6 +5243,8 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
     selectedLeadgenFormId: '',
     selectedLeadgenFormName: '',
     selectedLeadgenFormReason: '',
+    facebookPhotoUrl,
+    facebookPhotoId,
     imageAsset: null,
     creativeDraftConfig: null,
     adDraftConfig: null,
@@ -4894,35 +5312,29 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
       await sleep(650)
     }
 
-    // ── n8n campaign creation (replaces MCP) ──
+    // ── n8n campaign creation (supports lead_form + whatsapp) ──
     const n8nWebhookUrl = String(getProjectEnv().N8N_WEBHOOK_CREAR_CAMPANA_FB || '').trim()
     const n8nIssues = []
     if (!n8nWebhookUrl) {
       n8nIssues.push('N8N_WEBHOOK_CREAR_CAMPANA_FB no configurado en .env')
     }
-    if (contactMode === 'whatsapp') {
-      n8nIssues.push('El workflow actual de n8n automatiza formularios instantaneos; WhatsApp queda como brief asistido.')
-    }
-    const n8nReady = Boolean(n8nWebhookUrl) && contactMode === 'lead_form'
+    const n8nReady = Boolean(n8nWebhookUrl)
 
     preview.mcpAvailable = n8nReady
     preview.process = buildCampaignProcess({ ready: n8nReady, issues: n8nReady ? [] : n8nIssues }, preview, null, orchestrator)
 
+    const modeLabel = contactMode === 'whatsapp' ? 'WhatsApp' : 'Lead Form'
     emitMarketingUpdate({
       type: 'log',
       line: n8nReady
-        ? `[n8n] Webhook de campanas configurado: ${n8nWebhookUrl}`
-        : contactMode === 'whatsapp'
-          ? '[n8n] Modo WhatsApp detectado. El agente generara brief, copy y prompt visual, pero el workflow actual no automatiza todavia ese tipo de campana.'
-          : '[n8n] No se configuro N8N_WEBHOOK_CREAR_CAMPANA_FB en .env. No se puede crear la campana.',
+        ? `[n8n] Webhook de campanas configurado: ${n8nWebhookUrl} (modo: ${modeLabel})`
+        : '[n8n] No se configuro N8N_WEBHOOK_CREAR_CAMPANA_FB en .env. No se puede crear la campana.',
     })
     await sleep(650)
 
     emitMarketingUpdate({
       type: 'log',
-      line: contactMode === 'lead_form'
-        ? '[n8n] El brief del orquestador esta listo. Enviando payload al workflow de n8n...'
-        : '[n8n] El brief del orquestador esta listo. Dejando copy, publico sugerido y prompt visual preparados para la campana de WhatsApp.',
+      line: `[n8n] El brief del orquestador esta listo. Enviando payload al workflow de n8n (${modeLabel})...`,
     })
     await sleep(450)
 
@@ -5037,9 +5449,7 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
       emitMarketingUpdate({
         type: 'done',
         status: 'warning',
-        summary: contactMode === 'whatsapp'
-          ? 'Brief generado para campana de WhatsApp. El workflow actual aun no automatiza esa creacion en n8n.'
-          : 'No se puede crear la campana: falta configurar N8N_WEBHOOK_CREAR_CAMPANA_FB en .env',
+        summary: 'No se puede crear la campana: falta configurar N8N_WEBHOOK_CREAR_CAMPANA_FB en .env',
         preview,
       })
     }

@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resetBotState: () => ipcRenderer.invoke('reset-bot-state'),
   runPreflight: (force) => ipcRenderer.invoke('run-preflight', force),
   generateDefaultPrompt: () => ipcRenderer.invoke('generate-default-prompt'),
+  listFacebookPagePhotos: (payload) => ipcRenderer.invoke('list-facebook-page-photos', payload),
   changeLogo: () => ipcRenderer.invoke('change-logo'),
   selectCompanyLogoSvg: () => ipcRenderer.invoke('select-company-logo-svg'),
   getLogoPath: () => ipcRenderer.invoke('get-logo-path'),

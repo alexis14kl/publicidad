@@ -359,6 +359,30 @@ body::after {
   margin-top: 12px;
 }
 
+.marketing-facebook-photo-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(7, 10, 24, 0.72);
+}
+
+.marketing-facebook-photo-preview__image {
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.marketing-facebook-photo-preview__meta {
+  display: grid;
+  gap: 4px;
+}
+
 .marketing-modal__footer {
   margin-top: 20px;
   padding-top: 18px;

@@ -16,6 +16,7 @@ import { useLastJob } from './hooks/useLastJob'
 import {
   generateDefaultPrompt,
   getEnvConfig,
+  listFacebookPagePhotos,
   listCompanyRecords,
   onMarketingRunUpdate,
   runMarketingCampaignPreview,
@@ -23,7 +24,7 @@ import {
   startBot,
   stopBot,
 } from './lib/commands'
-import type { CompanyRecord, MarketingRunUpdate, PromptHistoryEntry } from './lib/types'
+import type { CompanyRecord, FacebookPagePhoto, MarketingRunUpdate, PromptHistoryEntry } from './lib/types'
 import { IMAGE_FORMAT_GROUPS, NOYECODE_SERVICES } from './lib/types'
 
 const CITY_ZONE_OPTIONS: Record<string, string[]> = {
@@ -107,8 +108,13 @@ function MarketingCampaignModal({
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [mcpAccessToken, setMcpAccessToken] = useState('')
+  const [mcpPageAccessToken, setMcpPageAccessToken] = useState('')
   const [mcpPageId, setMcpPageId] = useState('')
   const [mcpAdAccountId, setMcpAdAccountId] = useState('')
+  const [facebookPhotos, setFacebookPhotos] = useState<FacebookPagePhoto[]>([])
+  const [facebookPhotosLoading, setFacebookPhotosLoading] = useState(false)
+  const [facebookPhotosError, setFacebookPhotosError] = useState('')
+  const [selectedFacebookPhotoId, setSelectedFacebookPhotoId] = useState('')
   const [runState, setRunState] = useState<'idle' | 'running' | 'success' | 'warning' | 'error'>('idle')
   const [runSummary, setRunSummary] = useState('Completa el formulario para ejecutar el agente.')
   const [runLines, setRunLines] = useState<string[]>([])
@@ -172,12 +178,14 @@ function MarketingCampaignModal({
       .then((config) => {
         if (cancelled) return
         setMcpAccessToken(config.FB_ACCESS_TOKEN || '')
+        setMcpPageAccessToken(config.FB_PAGE_ACCESS_TOKEN || '')
         setMcpPageId(config.FB_PAGE_ID || '')
         setMcpAdAccountId(config.FB_AD_ACCOUNT_ID || '')
       })
       .catch(() => {
         if (cancelled) return
         setMcpAccessToken('')
+        setMcpPageAccessToken('')
         setMcpPageId('')
         setMcpAdAccountId('')
       })
@@ -185,6 +193,44 @@ function MarketingCampaignModal({
       cancelled = true
     }
   }, [open])
+
+  const handleLoadFacebookPhotos = async () => {
+    setFacebookPhotosLoading(true)
+    setFacebookPhotosError('')
+    try {
+      const photos = await listFacebookPagePhotos({
+        pageId: mcpPageId.trim(),
+        accessToken: mcpAccessToken.trim(),
+        pageAccessToken: mcpPageAccessToken.trim(),
+        limit: 10,
+      })
+      setFacebookPhotos(photos)
+      setSelectedFacebookPhotoId((current) => {
+        if (current && photos.some((photo) => photo.id === current)) return current
+        return photos[0]?.id || ''
+      })
+    } catch (error) {
+      setFacebookPhotos([])
+      setSelectedFacebookPhotoId('')
+      setFacebookPhotosError(error instanceof Error ? error.message : 'No se pudieron cargar las fotos de Facebook.')
+    } finally {
+      setFacebookPhotosLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return
+    if (!mcpPageId.trim() && !mcpAccessToken.trim() && !mcpPageAccessToken.trim()) {
+      setFacebookPhotos([])
+      setSelectedFacebookPhotoId('')
+      setFacebookPhotosError('')
+      setFacebookPhotosLoading(false)
+      return
+    }
+    void handleLoadFacebookPhotos()
+  }, [mcpAccessToken, mcpPageAccessToken, mcpPageId, open])
+
+  const selectedFacebookPhoto = facebookPhotos.find((photo) => photo.id === selectedFacebookPhotoId) || null
 
   useEffect(() => {
     const unsubscribe = onMarketingRunUpdate((update) => {
@@ -230,6 +276,7 @@ function MarketingCampaignModal({
     try {
       await saveEnvConfig({
         FB_ACCESS_TOKEN: mcpAccessToken.trim(),
+        FB_PAGE_ACCESS_TOKEN: mcpPageAccessToken.trim(),
         FB_PAGE_ID: mcpPageId.trim(),
         FB_AD_ACCOUNT_ID: mcpAdAccountId.trim(),
       })
@@ -242,6 +289,8 @@ function MarketingCampaignModal({
         budget,
         startDate,
         endDate,
+        facebookPhotoUrl: selectedFacebookPhoto?.imageUrl || selectedFacebookPhoto?.picture || '',
+        facebookPhotoId: selectedFacebookPhoto?.id || '',
       })
     } catch (error) {
       setRunState('error')
@@ -402,6 +451,16 @@ function MarketingCampaignModal({
               </label>
 
               <label className="marketing-field">
+                <span>Meta Page Access Token</span>
+                <input
+                  type="password"
+                  placeholder="EAAB... (token de pagina)"
+                  value={mcpPageAccessToken}
+                  onChange={(event) => setMcpPageAccessToken(event.target.value)}
+                />
+              </label>
+
+              <label className="marketing-field">
                 <span>Ad Account ID</span>
                 <input
                   type="text"
@@ -453,6 +512,65 @@ function MarketingCampaignModal({
             <p className="helper-text">
               Si dejas vacio el Page ID, el flujo intentara resolver la pagina automaticamente con el token antes de crear la campana.
             </p>
+            <div className="marketing-generated-card">
+              <div className="card-header">
+                <span className="card-icon">&#128247;</span>
+                <span className="card-title">Fotos de la Pagina de Facebook</span>
+              </div>
+              <label className="marketing-field marketing-field--full">
+                <span>Ultimas imagenes publicadas en la pagina</span>
+                <select
+                  value={selectedFacebookPhotoId}
+                  onChange={(event) => setSelectedFacebookPhotoId(event.target.value)}
+                  disabled={facebookPhotosLoading || facebookPhotos.length === 0}
+                >
+                  {facebookPhotos.length === 0 ? (
+                    <option value="">
+                      {facebookPhotosLoading ? 'Cargando fotos de la pagina...' : 'No se encontraron fotos en la pagina'}
+                    </option>
+                  ) : (
+                    facebookPhotos.map((photo) => (
+                      <option key={photo.id} value={photo.id}>
+                        {photo.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
+              <div className="marketing-prompt-actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--small"
+                  onClick={() => void handleLoadFacebookPhotos()}
+                  disabled={facebookPhotosLoading}
+                >
+                  {facebookPhotosLoading ? 'Cargando...' : 'Recargar fotos'}
+                </button>
+                <span className="helper-text">
+                  Este selector mezcla fotos subidas y publicaciones con imagen, excluye videos y ordena las 10 mas recientes de la pagina de Noyecode.
+                </span>
+              </div>
+              {facebookPhotosError && (
+                <p className="helper-text" style={{ color: '#fca5a5' }}>
+                  {facebookPhotosError}
+                </p>
+              )}
+              {selectedFacebookPhoto && (
+                <div className="marketing-facebook-photo-preview">
+                  <img
+                    src={selectedFacebookPhoto.imageUrl || selectedFacebookPhoto.picture}
+                    alt={selectedFacebookPhoto.name}
+                    className="marketing-facebook-photo-preview__image"
+                  />
+                  <div className="marketing-facebook-photo-preview__meta">
+                    <span className="job-label">Seleccionada</span>
+                    <span className="job-value">{selectedFacebookPhoto.name}</span>
+                    <span className="job-value">{selectedFacebookPhoto.createdTime || selectedFacebookPhoto.id}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="marketing-generated-card">
               <div className="card-header">
                 <span className="card-icon">&#129504;</span>

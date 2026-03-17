@@ -278,9 +278,12 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
         "runner.default.page_id",
     )
 
+    contact_mode = _string(source.get("contact_mode")) or "lead_form"
+    is_whatsapp = contact_mode == "whatsapp"
+
     campaign = _dict(source.get("campaign"))
     adset = _dict(source.get("adset"))
-    lead_form = _dict(source.get("lead_form"))
+    lead_form = _dict(source.get("lead_form")) if not is_whatsapp else {}
     creative = _dict(source.get("creative"))
     ad = _dict(source.get("ad"))
 
@@ -288,6 +291,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
         "ad_account_id": ad_account_id,
         "account_name": account_name,
         "page_id": page_id,
+        "contact_mode": contact_mode,
     }
 
     _emit_rule(
@@ -475,71 +479,76 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
         f"Usando promoted_object={json.dumps(promoted_object, ensure_ascii=False)}." if promoted_object else "Sin promoted_object; si Meta lo exige, el flujo visual completara ese paso.",
     )
 
-    required_fields, required_fields_source, required_fields_fallback = _resolve_string_list(
-        [
-            ("lead_form.required_fields", lead_form.get("required_fields")),
-            ("runner_context.uiFlow.leadFormRequiredKeys", ui_flow_context.get("leadFormRequiredKeys")),
-            ("runner_context.execution.leadFormRequiredKeys", execution_context.get("leadFormRequiredKeys")),
-            ("runner_context.execution.formFields", execution_context.get("formFields")),
-            ("runner_context.preview.formFields", preview_context.get("formFields")),
-        ],
-        DEFAULT_REQUIRED_FIELDS,
-        "runner.default.required_fields",
-        normalizer=_normalize_required_fields,
-    )
-    lead_form_page_id, lead_form_page_id_source, lead_form_page_id_fallback = _resolve_string(
-        [
-            ("lead_form.page_id", lead_form.get("page_id")),
-            (f"resolved.{page_id_source}", page_id),
-        ],
-        page_id,
-        "runner.default.lead_form_page_id",
-    )
-    lead_form_name, lead_form_name_source, lead_form_name_fallback = _resolve_string(
-        [("lead_form.name", lead_form.get("name"))],
-        _build_named_fallback("Formulario", segment_label, preview_start, preview_end) or "Formulario Lead Ads",
-        "runner.default.lead_form_name",
-    )
-    normalized["lead_form"] = {
-        "page_id": lead_form_page_id,
-        "form_id": _string(lead_form.get("form_id")),
-        "discover": _bool(lead_form.get("discover"), True),
-        "create_if_missing": _bool(lead_form.get("create_if_missing"), True),
-        "name": lead_form_name,
-        "locale": _string(lead_form.get("locale")) or "es_LA",
-        "privacy_policy_url": _string(lead_form.get("privacy_policy_url")),
-        "privacy_policy_link_text": _string(lead_form.get("privacy_policy_link_text")) or "Politica de privacidad",
-        "follow_up_action_url": _string(lead_form.get("follow_up_action_url")),
-        "required_fields": required_fields,
-    }
-    _emit_rule(
-        progress,
-        rules,
-        9,
-        total_steps,
-        "lead_form",
-        (
-            f"page_id='{lead_form_page_id}' desde {lead_form_page_id_source}"
-            f"{' (fallback)' if lead_form_page_id_fallback else ''}, "
-            f"form_id='{normalized['lead_form']['form_id'] or 'auto'}', discover={normalized['lead_form']['discover']}, "
-            f"create_if_missing={normalized['lead_form']['create_if_missing']}, "
-            f"name='{lead_form_name}' desde {lead_form_name_source}"
-            f"{' (fallback)' if lead_form_name_fallback else ''}."
-        ),
-    )
-    _emit_rule(
-        progress,
-        rules,
-        10,
-        total_steps,
-        "lead_form.required_fields",
-        (
-            f"required_fields={required_fields} desde {required_fields_source}"
-            f"{' (fallback)' if required_fields_fallback else ''}, "
-            f"locale='{normalized['lead_form']['locale']}', privacy_policy_url='{_truncate(normalized['lead_form']['privacy_policy_url'], 80)}', "
-            f"follow_up_action_url='{_truncate(normalized['lead_form']['follow_up_action_url'], 80)}'."
-        ),
-    )
+    if is_whatsapp:
+        normalized["lead_form"] = None
+        _emit_rule(progress, rules, 9, total_steps, "lead_form", "Modo WhatsApp: no se requiere formulario de leads.")
+        _emit_rule(progress, rules, 10, total_steps, "lead_form.required_fields", "Modo WhatsApp: sin campos de formulario.")
+    else:
+        required_fields, required_fields_source, required_fields_fallback = _resolve_string_list(
+            [
+                ("lead_form.required_fields", lead_form.get("required_fields")),
+                ("runner_context.uiFlow.leadFormRequiredKeys", ui_flow_context.get("leadFormRequiredKeys")),
+                ("runner_context.execution.leadFormRequiredKeys", execution_context.get("leadFormRequiredKeys")),
+                ("runner_context.execution.formFields", execution_context.get("formFields")),
+                ("runner_context.preview.formFields", preview_context.get("formFields")),
+            ],
+            DEFAULT_REQUIRED_FIELDS,
+            "runner.default.required_fields",
+            normalizer=_normalize_required_fields,
+        )
+        lead_form_page_id, lead_form_page_id_source, lead_form_page_id_fallback = _resolve_string(
+            [
+                ("lead_form.page_id", lead_form.get("page_id")),
+                (f"resolved.{page_id_source}", page_id),
+            ],
+            page_id,
+            "runner.default.lead_form_page_id",
+        )
+        lead_form_name, lead_form_name_source, lead_form_name_fallback = _resolve_string(
+            [("lead_form.name", lead_form.get("name"))],
+            _build_named_fallback("Formulario", segment_label, preview_start, preview_end) or "Formulario Lead Ads",
+            "runner.default.lead_form_name",
+        )
+        normalized["lead_form"] = {
+            "page_id": lead_form_page_id,
+            "form_id": _string(lead_form.get("form_id")),
+            "discover": _bool(lead_form.get("discover"), True),
+            "create_if_missing": _bool(lead_form.get("create_if_missing"), True),
+            "name": lead_form_name,
+            "locale": _string(lead_form.get("locale")) or "es_LA",
+            "privacy_policy_url": _string(lead_form.get("privacy_policy_url")),
+            "privacy_policy_link_text": _string(lead_form.get("privacy_policy_link_text")) or "Politica de privacidad",
+            "follow_up_action_url": _string(lead_form.get("follow_up_action_url")),
+            "required_fields": required_fields,
+        }
+        _emit_rule(
+            progress,
+            rules,
+            9,
+            total_steps,
+            "lead_form",
+            (
+                f"page_id='{lead_form_page_id}' desde {lead_form_page_id_source}"
+                f"{' (fallback)' if lead_form_page_id_fallback else ''}, "
+                f"form_id='{normalized['lead_form']['form_id'] or 'auto'}', discover={normalized['lead_form']['discover']}, "
+                f"create_if_missing={normalized['lead_form']['create_if_missing']}, "
+                f"name='{lead_form_name}' desde {lead_form_name_source}"
+                f"{' (fallback)' if lead_form_name_fallback else ''}."
+            ),
+        )
+        _emit_rule(
+            progress,
+            rules,
+            10,
+            total_steps,
+            "lead_form.required_fields",
+            (
+                f"required_fields={required_fields} desde {required_fields_source}"
+                f"{' (fallback)' if required_fields_fallback else ''}, "
+                f"locale='{normalized['lead_form']['locale']}', privacy_policy_url='{_truncate(normalized['lead_form']['privacy_policy_url'], 80)}', "
+                f"follow_up_action_url='{_truncate(normalized['lead_form']['follow_up_action_url'], 80)}'."
+            ),
+        )
 
     headline, headline_source, headline_fallback = _resolve_string(
         [
@@ -592,7 +601,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
         headline,
         description,
         cta_type,
-        _string(normalized["lead_form"]["form_id"]),
+        _string(_dict(normalized.get("lead_form")).get("form_id")),
     )
     normalized["creative"] = {
         "name": creative_name,
@@ -672,8 +681,9 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
         total_steps,
         "ui_flow.summary",
         (
-            "Regla operativa de UI: modal='Clientes potenciales', editor de campaña con "
-            f"'{ui_budget_mode}', ad set con '{ui_conversion_location}', formulario con {required_fields}."
+            f"Regla operativa de UI: modal='{normalized['campaign'].get('ui_objective_label', 'Clientes potenciales')}', editor de campaña con "
+            f"'{ui_budget_mode}', ad set con '{ui_conversion_location}'"
+            f"{', formulario con ' + str(_dict(normalized.get('lead_form')).get('required_fields', [])) if not is_whatsapp else ', canal WhatsApp'}."
         ),
     )
     _emit_rule(
@@ -692,9 +702,11 @@ def build_runner_summary(spec: Dict[str, Any]) -> Dict[str, Any]:
     adset = _dict(spec.get("adset"))
     creative = _dict(spec.get("creative"))
     lead_form = _dict(spec.get("lead_form"))
-    return {
+    contact_mode = _string(spec.get("contact_mode")) or "lead_form"
+    summary: Dict[str, Any] = {
         "ad_account_id": _string(spec.get("ad_account_id")),
         "page_id": _string(spec.get("page_id")),
+        "contact_mode": contact_mode,
         "campaign_name": _string(_dict(spec.get("campaign")).get("name")),
         "campaign_ui_objective_label": _string(_dict(spec.get("campaign")).get("ui_objective_label")),
         "adset_name": _string(adset.get("name")),
@@ -702,11 +714,6 @@ def build_runner_summary(spec: Dict[str, Any]) -> Dict[str, Any]:
         "adset_ui_conversion_location": _string(adset.get("ui_conversion_location_label")),
         "adset_ui_performance_goal": _string(adset.get("ui_performance_goal_label")),
         "targeting_summary": _targeting_summary(_dict(adset.get("targeting"))),
-        "lead_form_id": _string(lead_form.get("form_id")),
-        "lead_form_name": _string(lead_form.get("name")),
-        "lead_form_create_if_missing": bool(lead_form.get("create_if_missing")),
-        "lead_form_required_fields": list(lead_form.get("required_fields") or []),
-        "lead_form_discover": bool(lead_form.get("discover")),
         "creative_name": _string(creative.get("name")),
         "creative_headline": _string(creative.get("headline")),
         "creative_message_preview": _truncate(creative.get("message"), 80),
@@ -714,6 +721,13 @@ def build_runner_summary(spec: Dict[str, Any]) -> Dict[str, Any]:
         "creative_has_image": bool(_string(creative.get("image_path"))),
         "ad_name": _string(_dict(spec.get("ad")).get("name")),
     }
+    if contact_mode != "whatsapp" and lead_form:
+        summary["lead_form_id"] = _string(lead_form.get("form_id"))
+        summary["lead_form_name"] = _string(lead_form.get("name"))
+        summary["lead_form_create_if_missing"] = bool(lead_form.get("create_if_missing"))
+        summary["lead_form_required_fields"] = list(lead_form.get("required_fields") or [])
+        summary["lead_form_discover"] = bool(lead_form.get("discover"))
+    return summary
 
 
 def main() -> int:
