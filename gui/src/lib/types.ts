@@ -231,6 +231,11 @@ export interface StartPollerPayload {
 }
 
 export interface MarketingCampaignPayload {
+  campaignIdea: string
+  city: string
+  zones: string[]
+  contactMode: 'lead_form' | 'whatsapp'
+  marketingPrompt?: string
   budget: string
   startDate: string
   endDate: string
@@ -245,6 +250,11 @@ export interface MarketingRunUpdate {
     objective: string
     url: string
     country: string
+    city?: string
+    zones?: string[]
+    campaignIdea?: string
+    contactMode?: 'lead_form' | 'whatsapp'
+    marketingPrompt?: string
     formFields: string[]
     budget: string
     startDate: string
@@ -349,6 +359,9 @@ export interface MarketingRunUpdate {
         copy: string
         cta: string
         visualReference: string
+        city?: string
+        zones?: string[]
+        service?: string
         assumptions: string[]
       }
       imageCreator: {
@@ -369,6 +382,9 @@ export interface MarketingRunUpdate {
         campaignType: string
         budgetCap: string
         formFields: string[]
+        city?: string
+        zones?: string[]
+        contactChannel?: string
       }
     } | null
     process?: {

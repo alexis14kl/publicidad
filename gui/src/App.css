@@ -248,6 +248,10 @@ body::after {
   gap: 8px;
 }
 
+.marketing-field--full {
+  grid-column: 1 / -1;
+}
+
 .marketing-field span {
   font-size: 12px;
   font-weight: 700;
@@ -256,7 +260,8 @@ body::after {
   color: var(--text-secondary);
 }
 
-.marketing-field input {
+.marketing-field input,
+.marketing-field select {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
@@ -267,10 +272,91 @@ body::after {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.marketing-field input:focus {
+.marketing-field input:focus,
+.marketing-field select:focus {
   border-color: rgba(255, 145, 0, 0.85);
   box-shadow: 0 0 0 4px rgba(255, 145, 0, 0.14);
   transform: translateY(-1px);
+}
+
+.marketing-prompt-textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: rgba(7, 10, 24, 0.92);
+  color: var(--text-primary);
+  outline: none;
+  font: inherit;
+  line-height: 1.55;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.marketing-prompt-textarea:focus {
+  border-color: rgba(255, 145, 0, 0.85);
+  box-shadow: 0 0 0 4px rgba(255, 145, 0, 0.14);
+  transform: translateY(-1px);
+}
+
+.helper-text {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.marketing-zone-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.marketing-zone-chip {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.85);
+  color: var(--text-secondary);
+  padding: 9px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.marketing-zone-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 145, 0, 0.45);
+  color: var(--text-primary);
+}
+
+.marketing-zone-chip--active {
+  border-color: rgba(255, 145, 0, 0.85);
+  background: rgba(255, 145, 0, 0.16);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 3px rgba(255, 145, 0, 0.1);
+}
+
+.marketing-zone-empty {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.marketing-generated-card {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(9, 14, 30, 0.72);
+}
+
+.marketing-prompt-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
 }
 
 .marketing-modal__footer {
