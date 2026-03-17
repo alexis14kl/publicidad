@@ -1008,6 +1008,21 @@ function resolveCampaignObjectiveRule(preview, orchestrator = null) {
         source: candidate.source,
       }
     }
+    if (
+      normalized.includes('whatsapp') ||
+      normalized.includes('mensaje') ||
+      normalized.includes('mensajes') ||
+      normalized.includes('message') ||
+      normalized.includes('messages') ||
+      normalized.includes('interaccion')
+    ) {
+      return {
+        apiObjective: 'OUTCOME_ENGAGEMENT',
+        uiLabel: 'Interaccion',
+        uiAliases: ['Interaccion', 'Engagement', 'Messages', 'Mensajes'],
+        source: candidate.source,
+      }
+    }
   }
 
   return {
@@ -2340,12 +2355,166 @@ function getDefaultMarketingSegment() {
   }
 }
 
+function getMarketingContactModeConfig(contactMode = 'lead_form') {
+  if (String(contactMode || '').trim() === 'whatsapp') {
+    return {
+      mode: 'whatsapp',
+      channelLabel: 'WhatsApp',
+      objectiveLabel: 'Mensajes / WhatsApp',
+      campaignType: 'WhatsApp',
+      copyCta: 'Enviar mensaje',
+      creativeCta: 'WHATSAPP_MESSAGE',
+      formFields: ['Conversacion por WhatsApp'],
+      requiredKeys: [],
+    }
+  }
+
+  return {
+    mode: 'lead_form',
+    channelLabel: 'Formulario instantaneo',
+    objectiveLabel: 'Clientes potenciales',
+    campaignType: 'Instant Form',
+    copyCta: 'Registrarte',
+    creativeCta: 'SIGN_UP',
+    formFields: getDefaultLeadFormFieldLabels(),
+    requiredKeys: getDefaultLeadFormRequiredKeys(),
+  }
+}
+
+function buildMarketingZoneLabel(zones = []) {
+  const cleaned = Array.isArray(zones)
+    ? zones.map((value) => String(value || '').trim()).filter(Boolean)
+    : []
+  return cleaned.length > 0 ? cleaned.join(', ') : 'toda la ciudad'
+}
+
+function slugifyMarketingValue(value) {
+  return normalizeUiText(value).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'segment'
+}
+
+function inferCampaignProfile(campaignIdea = '') {
+  const normalized = normalizeUiText(campaignIdea)
+
+  if (/veterin|mascota|pet|perro|gato/.test(normalized)) {
+    return {
+      industry: 'Servicios veterinarios',
+      role: 'duenos de mascotas y familias con perros o gatos',
+      companySize: 'hogares con mascotas',
+      pain: 'Necesitan atencion veterinaria confiable, cercana y rapida para su mascota.',
+      consequence: 'Retrasar una revision, vacuna o atencion preventiva aumenta el estres y el riesgo para la mascota.',
+      trigger: 'Vacunas, desparasitacion, grooming, consulta preventiva o urgencia menor.',
+      affectedKpi: 'Reservas, consultas y reactivacion de clientes.',
+      categoryStatement: 'Servicio veterinario cercano que transmite confianza y rapidez para el cuidado de mascotas.',
+      strategicAngle: 'La salud de tu mascota merece atencion profesional sin vueltas ni esperas largas.',
+      hook: 'Cuida a tu mascota con atencion veterinaria cercana.',
+      visualReference: 'Veterinario profesional atendiendo a un perro o un gato en un entorno limpio, cercano y confiable.',
+      ageMin: 24,
+      ageMax: 55,
+    }
+  }
+
+  if (/odont|dental|sonrisa|ortodon/.test(normalized)) {
+    return {
+      industry: 'Salud dental',
+      role: 'adultos interesados en mejorar su salud oral o estetica dental',
+      companySize: 'consumidores locales',
+      pain: 'Quieren resolver molestias, mejorar su sonrisa o agendar una valoracion confiable.',
+      consequence: 'Postergar el tratamiento suele aumentar el costo y el malestar.',
+      trigger: 'Limpieza, ortodoncia, implantes o valoracion odontologica.',
+      affectedKpi: 'Citas agendadas y valoraciones.',
+      categoryStatement: 'Servicio odontologico local orientado a confianza, cercania y conversion de citas.',
+      strategicAngle: 'Una valoracion a tiempo evita tratamientos mas largos y costosos.',
+      hook: 'Agenda tu valoracion dental con confianza.',
+      visualReference: 'Consultorio odontologico moderno, sonrisa saludable y trato cercano.',
+      ageMin: 24,
+      ageMax: 55,
+    }
+  }
+
+  if (/inmobili|apartamento|casa|propiedad|arriendo|venta inmueble/.test(normalized)) {
+    return {
+      industry: 'Bienes raices',
+      role: 'personas interesadas en comprar, vender o arrendar vivienda',
+      companySize: 'consumidores locales',
+      pain: 'Necesitan una opcion confiable y clara para encontrar o mover una propiedad.',
+      consequence: 'Sin acompanamiento se pierde tiempo en opciones poco adecuadas o contactos de baja calidad.',
+      trigger: 'Mudanza, inversion o necesidad de vender rapido.',
+      affectedKpi: 'Leads calificados y visitas agendadas.',
+      categoryStatement: 'Campana inmobiliaria enfocada en captar interesados con alta intencion.',
+      strategicAngle: 'Una buena asesoria ahorra tiempo y evita decisiones costosas.',
+      hook: 'Encuentra tu proxima propiedad con mejor filtro.',
+      visualReference: 'Propiedad atractiva, asesor confiable y sensacion de oportunidad real.',
+      ageMin: 26,
+      ageMax: 58,
+    }
+  }
+
+  return {
+    industry: 'Servicios locales',
+    role: `personas con interes o necesidad relacionada con ${campaignIdea || 'la oferta anunciada'}`,
+    companySize: 'consumidores locales',
+    pain: `Necesitan una solucion confiable relacionada con ${campaignIdea || 'el servicio anunciado'}.`,
+    consequence: 'Si no encuentran una opcion clara, retrasan la compra o terminan eligiendo una alternativa menos conveniente.',
+    trigger: 'Busqueda activa, necesidad inmediata o interes reciente en el servicio.',
+    affectedKpi: 'Contactos calificados y conversaciones comerciales.',
+    categoryStatement: `Campana local orientada a convertir interes en contacto para ${campaignIdea || 'el servicio'}.`,
+    strategicAngle: `La mejor respuesta comercial conecta la necesidad del usuario con una accion inmediata sobre ${campaignIdea || 'la oferta'}.`,
+    hook: `Haz visible ${campaignIdea || 'tu oferta'} donde ya te estan buscando.`,
+    visualReference: `Escena comercial limpia y aspiracional relacionada con ${campaignIdea || 'el servicio anunciado'}.`,
+    ageMin: 24,
+    ageMax: 55,
+  }
+}
+
+function buildMarketingSegmentFromPreview(preview = {}) {
+  const campaignIdea = String(preview?.campaignIdea || '').trim() || 'Campana local'
+  const city = String(preview?.city || '').trim() || 'Bogota'
+  const zones = Array.isArray(preview?.zones)
+    ? preview.zones.map((value) => String(value || '').trim()).filter(Boolean)
+    : []
+  const zoneLabel = buildMarketingZoneLabel(zones)
+  const contactConfig = getMarketingContactModeConfig(preview?.contactMode)
+  const profile = inferCampaignProfile(campaignIdea)
+  const shortBaseLabel = campaignIdea.length > 24 ? `${campaignIdea.slice(0, 21).trim()}...` : campaignIdea
+
+  return {
+    key: `${slugifyMarketingValue(campaignIdea)}-${slugifyMarketingValue(city)}`,
+    shortLabel: `${shortBaseLabel} | ${city}`,
+    serviceLabel: campaignIdea,
+    city,
+    zones,
+    zoneLabel,
+    contactMode: contactConfig.mode,
+    contactChannelLabel: contactConfig.channelLabel,
+    country: 'Colombia',
+    countryCode: 'CO',
+    industry: profile.industry,
+    role: profile.role,
+    companySize: profile.companySize,
+    pain: profile.pain,
+    consequence: profile.consequence,
+    trigger: profile.trigger,
+    affectedKpi: profile.affectedKpi,
+    categoryStatement: profile.categoryStatement,
+    strategicAngle: profile.strategicAngle,
+    primaryCta: contactConfig.mode === 'whatsapp'
+      ? `Escribenos por WhatsApp para recibir informacion sobre ${campaignIdea}.`
+      : `Dejanos tus datos y te contactamos sobre ${campaignIdea}.`,
+    hook: profile.hook,
+    visualReference: `${profile.visualReference} La pieza debe sentirse localizada en ${city} y priorizar las zonas ${zoneLabel}.`,
+    ageMin: profile.ageMin,
+    ageMax: profile.ageMax,
+  }
+}
+
 function buildAudienceSummary(segment = getDefaultMarketingSegment()) {
-  return `${segment.country} | ${segment.industry} | ${segment.role} | ${segment.companySize}`
+  const locationBits = [segment.city, segment.zoneLabel].filter(Boolean)
+  return `${segment.country}${locationBits.length > 0 ? ` | ${locationBits.join(' | ')}` : ''} | ${segment.industry} | ${segment.role}`
 }
 
 function buildTargetingSummary(segment = getDefaultMarketingSegment()) {
-  return `${segment.country}, ${segment.role}, ${segment.industry}, ${segment.ageMin}-${segment.ageMax}`
+  const locationBits = [segment.city, segment.zoneLabel].filter(Boolean)
+  return `${segment.country}${locationBits.length > 0 ? `, ${locationBits.join(', ')}` : ''}, ${segment.role}, ${segment.industry}, ${segment.ageMin}-${segment.ageMax}`
 }
 
 function buildLeadTargeting(orchestrator = null) {
@@ -2370,8 +2539,8 @@ function buildLeadFormSpec(preview, orchestrator) {
     create_if_missing: true,
     name: `Formulario | ${segment.shortLabel} | ${preview.startDate} -> ${preview.endDate}`,
     locale: 'es_LA',
-    required_fields: getDefaultLeadFormRequiredKeys(),
-    ui_field_labels: getDefaultLeadFormFieldLabels(),
+    required_fields: getMarketingContactModeConfig(segment.contactMode).requiredKeys,
+    ui_field_labels: getMarketingContactModeConfig(segment.contactMode).formFields,
     follow_up_action_url: websiteUrl,
     privacy_policy_url: buildPrivacyPolicyUrl(websiteUrl),
     privacy_policy_link_text: 'Politica de privacidad',
@@ -2379,8 +2548,10 @@ function buildLeadFormSpec(preview, orchestrator) {
 }
 
 function buildOrchestratorPlan(preview, segment = getDefaultMarketingSegment()) {
+  const locationSummary = segment.city ? `${segment.city}${segment.zoneLabel ? ` (${segment.zoneLabel})` : ''}` : segment.country
+  const contactSummary = segment.contactChannelLabel || 'Formulario instantaneo'
   return {
-    task: `Configurar borrador de campana Facebook Ads para ${segment.role} de ${segment.industry} en ${segment.country}, con presupuesto maximo ${preview.budget} entre ${preview.startDate} y ${preview.endDate}.`,
+    task: `Configurar borrador de campana Facebook Ads para "${segment.serviceLabel || segment.shortLabel}" en ${locationSummary}, orientada a ${contactSummary}, con presupuesto maximo ${preview.budget} entre ${preview.startDate} y ${preview.endDate}.`,
     agent: 'orchestrator',
     reason: 'Coordina ads-analyst, image-creator y marketing antes de enviar la configuracion a Meta Ads.',
     cost: 'medio',
@@ -2389,7 +2560,13 @@ function buildOrchestratorPlan(preview, segment = getDefaultMarketingSegment()) 
 }
 
 function buildMarketingAgentPrompt(preview, segment = getDefaultMarketingSegment(), selectedImage = null) {
+  const promptOverride = String(preview?.marketingPrompt || '').trim()
+  if (promptOverride) {
+    return promptOverride
+  }
+
   const websiteUrl = ensureAbsoluteUrl(preview?.url || getProjectEnv().BUSINESS_WEBSITE || 'https://noyecode.com')
+  const contactConfig = getMarketingContactModeConfig(segment.contactMode)
   const imageStatus = selectedImage?.preparedPath
     ? `Asset listo: ${selectedImage.fileName} (${selectedImage.width || 0}x${selectedImage.height || 0}) en ${selectedImage.preparedPath}.`
     : 'No hay asset final confirmado; el agente debe trabajar con recomendacion de formato y briefing visual.'
@@ -2418,24 +2595,25 @@ function buildMarketingAgentPrompt(preview, segment = getDefaultMarketingSegment
     '- Ventas: para compras en sitio web con Pixel configurado.',
     '',
     '## Contexto Actual de la Campana',
-    `- Objetivo de negocio recomendado: leads.`,
+    `- Concepto de campana: ${segment.serviceLabel || preview.campaignIdea || segment.shortLabel}.`,
+    `- Objetivo de negocio recomendado: ${contactConfig.objectiveLabel}.`,
     `- Producto/servicio: ${segment.categoryStatement}.`,
-    `- Publico base: ${segment.role} del sector ${segment.industry} en ${segment.country}, empresas de ${segment.companySize}.`,
+    `- Publico base: ${segment.role} del sector ${segment.industry} en ${segment.country}, ciudad ${segment.city || segment.country}, zonas ${segment.zoneLabel || 'toda la ciudad'}.`,
     `- Dolor principal: ${segment.pain}.`,
     `- Consecuencia: ${segment.consequence}.`,
     `- Trigger: ${segment.trigger}.`,
     `- Presupuesto maximo actual: ${preview.budget}.`,
     `- Duracion actual: ${preview.startDate} -> ${preview.endDate}.`,
-    `- Activos disponibles: landing ${websiteUrl}, formulario con campos ${getDefaultLeadFormFieldLabels().join(', ')}, ${imageStatus}`,
+    `- Activos disponibles: landing ${websiteUrl}, canal de contacto ${contactConfig.channelLabel}${contactConfig.formFields.length > 0 ? ` con ${contactConfig.formFields.join(', ')}` : ''}, ${imageStatus}`,
     `- Experiencia previa del usuario: no confirmada; explicar con lenguaje claro pero profesional.`,
     '',
     '## Configuracion Recomendada para este Caso',
-    '- Objetivo de campana: Clientes potenciales.',
-    '- Tipo de formulario: Mayor intencion.',
+    `- Objetivo de campana: ${contactConfig.objectiveLabel}.`,
+    `- Tipo de contacto: ${contactConfig.channelLabel}.`,
     '- Ubicaciones minimas: Facebook Feed, Instagram Feed y Stories.',
     '- Estrategia de puja: Menor costo.',
     '- Formato creativo recomendado: Imagen unica para pruebas rapidas de lead ads.',
-    '- CTA sugerido: Mas informacion o Registrarte, segun el formulario.',
+    `- CTA sugerido: ${contactConfig.copyCta}.`,
     '',
     '## Copy Framework',
     '- Texto principal: hook + valor + prueba social si existe + CTA.',
@@ -2454,25 +2632,31 @@ function buildMarketingAgentPrompt(preview, segment = getDefaultMarketingSegment
 }
 
 function runLocalMarketingOrchestrator(preview) {
-  const segment = getDefaultMarketingSegment()
+  const segment = buildMarketingSegmentFromPreview(preview)
+  const contactConfig = getMarketingContactModeConfig(preview?.contactMode)
   const plan = buildOrchestratorPlan(preview, segment)
   const pageId = getMetaPageId()
   const selectedImage = preview?.imageAsset || null
   const marketingAgentPrompt = buildMarketingAgentPrompt(preview, segment, selectedImage)
   const campaignName = buildDraftCampaignName(preview, { execution: { segment } })
   const adsetName = buildDraftAdsetName(preview, { execution: { segment } })
-  const leadFormFieldLabels = getDefaultLeadFormFieldLabels()
-  const leadFormRequiredKeys = getDefaultLeadFormRequiredKeys()
+  const leadFormFieldLabels = contactConfig.formFields
+  const leadFormRequiredKeys = contactConfig.requiredKeys
   const adsAnalyst = {
     platform: 'Facebook Ads',
-    format: 'Imagen unica para Lead Ads',
-    objective: 'Leads',
+    format: contactConfig.mode === 'whatsapp' ? 'Imagen unica para mensajes de WhatsApp' : 'Imagen unica para Lead Ads',
+    objective: contactConfig.objectiveLabel,
     audience: buildAudienceSummary(segment),
     hook: segment.hook,
     copy:
-      `Si tu operacion de despacho sigue coordinandose entre WhatsApp, hojas de calculo y sistemas desconectados, Noyecode te ayuda a modernizar tracking, alertas y handoffs para reducir retrasos, errores y costo operativo. ${segment.primaryCta}`,
-    cta: segment.primaryCta,
+      contactConfig.mode === 'whatsapp'
+        ? `Si estas buscando ${segment.serviceLabel.toLowerCase()} en ${segment.city}, esta campana prioriza ${segment.zoneLabel}. ${segment.strategicAngle} ${segment.primaryCta}`
+        : `Si necesitas ${segment.serviceLabel.toLowerCase()} en ${segment.city}, esta campana prioriza ${segment.zoneLabel}. ${segment.strategicAngle} ${segment.primaryCta}`,
+    cta: contactConfig.copyCta,
     visualReference: segment.visualReference,
+    city: segment.city,
+    zones: segment.zones,
+    service: segment.serviceLabel,
     industry: segment.industry,
     role: segment.role,
     pain: segment.pain,
@@ -2480,16 +2664,17 @@ function runLocalMarketingOrchestrator(preview) {
     trigger: segment.trigger,
     strategicAngle: segment.strategicAngle,
     assumptions: [
-      `Se tomo el micro-segmento predefinido ${segment.shortLabel} porque la UI actual solo solicita presupuesto y fechas.`,
-      'La promesa se centra en eficiencia operativa y modernizacion, sin metricas inventadas.',
+      `Se tomo como base el concepto "${segment.serviceLabel}" con foco geografico en ${segment.city} y zonas ${segment.zoneLabel}.`,
+      `El canal de contacto solicitado fue ${contactConfig.channelLabel}.`,
+      'La promesa se mantiene concreta y sin metricas inventadas.',
     ],
   }
 
   const imageCreator = {
     dimensions: '1200x628',
-    style: 'Premium tech corporativo',
+    style: contactConfig.mode === 'whatsapp' ? 'Local service cercano y confiable' : 'Captacion local premium',
     prompt:
-      'Create a premium Facebook lead ad image for Noyecode focused on Colombian logistics operations managers. Show a LATAM dispatch team, route tracking dashboard, delivery flow automation, clean orange-accent brand palette, premium B2B lighting, realistic warehouse-office hybrid environment, no clutter, no tiny unreadable text, landscape 1200x628.',
+      `Create a Facebook ad image for ${segment.serviceLabel} in ${segment.city}, Colombia. Prioritize visual cues from ${segment.zoneLabel}. Show ${segment.visualReference}. Keep it clean, high-contrast, mobile-friendly, no tiny unreadable text, and aligned with a ${contactConfig.mode === 'whatsapp' ? 'WhatsApp conversation' : 'lead generation'} campaign.`,
     status: selectedImage?.preparedPath ? 'asset_local_listo' : 'brief_listo',
     selectedAsset: selectedImage
       ? {
@@ -2507,9 +2692,11 @@ function runLocalMarketingOrchestrator(preview) {
     prompt: marketingAgentPrompt,
     notes: [
       'Se aplico el prompt operativo de Facebook Ads para definir objetivo, audiencia, presupuesto, creatividad y checklist.',
-      `CTA de baja friccion alineado con el segmento ${segment.shortLabel}.`,
-      `Narrativa B2B centrada en ${segment.pain.toLowerCase()}`,
-      'Pendiente activo visual final y leadgen_form_id para completar creative y anuncio.',
+      `CTA de baja friccion alineado con ${contactConfig.channelLabel}.`,
+      `Narrativa centrada en ${segment.pain.toLowerCase()}`,
+      contactConfig.mode === 'lead_form'
+        ? 'Pendiente activo visual final y leadgen_form_id para completar creative y anuncio.'
+        : 'Modo WhatsApp: el flujo actual deja brief, copy y prompt visual listos; la automatizacion completa del anuncio se conecta despues.',
     ],
     compliance: {
       specialAdCategories: [],
@@ -2517,7 +2704,7 @@ function runLocalMarketingOrchestrator(preview) {
     },
   }
   const objectiveRule = resolveCampaignObjectiveRule(preview, {
-    execution: { campaignType: 'Instant Form', segment },
+    execution: { campaignType: contactConfig.campaignType, segment },
     adsAnalyst,
   })
 
@@ -2530,20 +2717,27 @@ function runLocalMarketingOrchestrator(preview) {
       accountHint: `act_${getTargetAdAccountId()}`,
       accountId: getTargetAdAccountId(),
       pageId,
-      campaignType: 'Instant Form',
+      campaignType: contactConfig.campaignType,
       campaignName,
       adsetName,
       budgetCap: preview.budget,
-      formFields: preview.formFields,
+      formFields: contactConfig.formFields,
       segment,
+      city: segment.city,
+      zones: segment.zones,
+      contactChannel: contactConfig.channelLabel,
       targetingSummary: buildTargetingSummary(segment),
       objectiveUiLabel: objectiveRule.uiLabel,
       apiObjective: objectiveRule.apiObjective,
       budgetModeUiLabel: 'Presupuesto total',
       budgetModeUiAliases: ['Presupuesto total', 'Lifetime budget'],
-      conversionLocationUiLabel: 'Formularios instantáneos',
-      conversionLocationUiAliases: ['Formularios instantáneos', 'Instant forms', 'Instant form'],
-      performanceGoalUiLabel: 'Maximizar el número de clientes potenciales',
+      conversionLocationUiLabel: contactConfig.mode === 'whatsapp' ? 'WhatsApp' : 'Formularios instantáneos',
+      conversionLocationUiAliases: contactConfig.mode === 'whatsapp'
+        ? ['WhatsApp', 'Whatsapp', 'Messages']
+        : ['Formularios instantáneos', 'Instant forms', 'Instant form'],
+      performanceGoalUiLabel: contactConfig.mode === 'whatsapp'
+        ? 'Maximizar conversaciones'
+        : 'Maximizar el número de clientes potenciales',
       leadFormFieldLabels,
       leadFormRequiredKeys,
     },
@@ -3114,6 +3308,81 @@ async function runLeadCampaignBundleViaMcp(preview, orchestrator) {
   })
 }
 
+// ─── n8n Campaign Creation (replaces MCP for marketing campaigns) ────────────
+
+async function runLeadCampaignBundleViaN8n(preview, orchestrator) {
+  const env = getProjectEnv()
+  const webhookUrl = String(env.N8N_WEBHOOK_CREAR_CAMPANA_FB || '').trim()
+  if (!webhookUrl) {
+    throw new Error('No se configuro N8N_WEBHOOK_CREAR_CAMPANA_FB en .env')
+  }
+
+  const spec = buildLeadCampaignBundleSpec(preview, orchestrator)
+  const imagePath = String(spec.creative?.image_path || '').trim()
+
+  // Build multipart payload: JSON spec + image file
+  const boundary = `----NoyeCampaignBoundary${Date.now().toString(16)}`
+  const chunks = []
+
+  // Add JSON spec as field
+  chunks.push(Buffer.from(`--${boundary}\r\n`))
+  chunks.push(Buffer.from('Content-Disposition: form-data; name="spec"\r\nContent-Type: application/json\r\n\r\n'))
+  chunks.push(Buffer.from(JSON.stringify(spec)))
+  chunks.push(Buffer.from('\r\n'))
+
+  // Add image file if exists
+  if (imagePath && fs.existsSync(imagePath)) {
+    const fileName = path.basename(imagePath)
+    const ext = path.extname(imagePath).toLowerCase()
+    const contentType = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png'
+    const fileContent = fs.readFileSync(imagePath)
+    chunks.push(Buffer.from(`--${boundary}\r\n`))
+    chunks.push(Buffer.from(`Content-Disposition: form-data; name="image"; filename="${fileName}"\r\nContent-Type: ${contentType}\r\n\r\n`))
+    chunks.push(fileContent)
+    chunks.push(Buffer.from('\r\n'))
+  }
+
+  chunks.push(Buffer.from(`--${boundary}--\r\n`))
+  const body = Buffer.concat(chunks)
+
+  const parsedUrl = new URL(webhookUrl)
+  const httpModule = parsedUrl.protocol === 'https:' ? https : http
+
+  return new Promise((resolve, reject) => {
+    const request = httpModule.request(parsedUrl, {
+      method: 'POST',
+      timeout: 120000,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': body.length,
+        'User-Agent': 'noyecode-marketing-gui/1.0',
+      },
+    }, (response) => {
+      let raw = ''
+      response.setEncoding('utf8')
+      response.on('data', (chunk) => { raw += chunk })
+      response.on('end', () => {
+        try {
+          const data = raw ? JSON.parse(raw) : {}
+          if (response.statusCode >= 200 && response.statusCode < 300 && !data.error) {
+            resolve(data)
+            return
+          }
+          reject(new Error(data?.error?.message || data?.error || `HTTP ${response.statusCode}: ${raw.slice(0, 300)}`))
+        } catch (error) {
+          reject(new Error(`Respuesta invalida de n8n: ${error.message || error}`))
+        }
+      })
+    })
+
+    request.on('timeout', () => request.destroy(new Error('timeout: n8n no respondio en 120s')))
+    request.on('error', reject)
+    request.write(body)
+    request.end()
+  })
+}
+
 function postMultipartForm(url, fields = {}, files = {}, headers = {}) {
   return new Promise((resolve, reject) => {
     const boundary = `----NoyeBoundary${Date.now().toString(16)}`
@@ -3409,6 +3678,8 @@ async function openMetaAdsManager(creation = null) {
 }
 
 function buildCampaignProcess(preflight, preview, creation = null, orchestrator = null) {
+  const contactMode = String(preview?.contactMode || '').trim()
+  const usesWhatsapp = contactMode === 'whatsapp'
   const ready = Boolean(preflight?.ready)
   const issuesText = Array.isArray(preflight?.issues) && preflight.issues.length > 0
     ? preflight.issues.join(' | ')
@@ -3505,15 +3776,17 @@ function buildCampaignProcess(preflight, preview, creation = null, orchestrator 
     },
     {
       id: 'leadgen-form',
-      title: 'Consulta de formularios Instant Form',
-      detail: formsLoaded
-        ? formsFound > 0
-          ? selectedLeadgenFormId
-            ? `Se encontraron ${formsFound} formulario(s) y se selecciono ${preview.selectedLeadgenFormName} (${selectedLeadgenFormId}).`
-            : `Se encontraron ${formsFound} formulario(s), pero ninguno cumple exacto con los campos requeridos.`
-          : `No se encontraron formularios en la pagina ${orchestrator?.execution?.pageId || getMetaPageId()}.`
-        : `Se consultarian los formularios de la pagina ${orchestrator?.execution?.pageId || getMetaPageId()} para obtener el leadgen_form_id.`,
-      status: formsLoaded ? (formsFound > 0 ? 'success' : 'warning') : ready ? 'pending' : 'warning',
+      title: usesWhatsapp ? 'Canal de contacto' : 'Consulta de formularios Instant Form',
+      detail: usesWhatsapp
+        ? 'El usuario selecciono WhatsApp. El agente deja copy, publico sugerido y prompt visual listos, pero el workflow actual de n8n aun automatiza formularios instantaneos.'
+        : formsLoaded
+          ? formsFound > 0
+            ? selectedLeadgenFormId
+              ? `Se encontraron ${formsFound} formulario(s) y se selecciono ${preview.selectedLeadgenFormName} (${selectedLeadgenFormId}).`
+              : `Se encontraron ${formsFound} formulario(s), pero ninguno cumple exacto con los campos requeridos.`
+            : `No se encontraron formularios en la pagina ${orchestrator?.execution?.pageId || getMetaPageId()}.`
+          : `Se consultarian los formularios de la pagina ${orchestrator?.execution?.pageId || getMetaPageId()} para obtener el leadgen_form_id.`,
+      status: usesWhatsapp ? 'warning' : formsLoaded ? (formsFound > 0 ? 'success' : 'warning') : ready ? 'pending' : 'warning',
     },
     {
       id: 'creative',
@@ -4514,22 +4787,37 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
     return { success: false, error: 'Ya hay una ejecucion del agente de marketing en curso' }
   }
 
+  const campaignIdea = String(payload.campaignIdea || '').trim()
+  const city = String(payload.city || '').trim()
+  const zones = Array.isArray(payload.zones)
+    ? payload.zones.map((value) => String(value || '').trim()).filter(Boolean)
+    : []
+  const contactMode = String(payload.contactMode || '').trim() === 'whatsapp' ? 'whatsapp' : 'lead_form'
+  const marketingPrompt = String(payload.marketingPrompt || '').trim()
   const budget = String(payload.budget || '').trim()
   const startDate = String(payload.startDate || '').trim()
   const endDate = String(payload.endDate || '').trim()
 
-  if (!budget || !startDate || !endDate) {
-    return { success: false, error: 'Faltan presupuesto y/o fechas para ejecutar el agente' }
+  if (!campaignIdea || !city || !budget || !startDate || !endDate) {
+    return { success: false, error: 'Faltan concepto de campana, ciudad, presupuesto o fechas para ejecutar el agente' }
   }
+
+  const contactConfig = getMarketingContactModeConfig(contactMode)
+  const segmentPreview = buildMarketingSegmentFromPreview({ campaignIdea, city, zones, contactMode })
 
   marketingRunInProgress = true
   emitMarketingUpdate({ type: 'status', status: 'running', summary: 'Ejecutando agente de marketing...' })
 
   const preview = {
-    objective: 'Clientes potenciales',
+    objective: contactConfig.objectiveLabel,
     url: ensureAbsoluteUrl(getProjectEnv().BUSINESS_WEBSITE || 'https://noyecode.com'),
-    country: 'Colombia',
-    formFields: getDefaultLeadFormFieldLabels(),
+    country: segmentPreview.country,
+    city,
+    zones,
+    campaignIdea,
+    contactMode,
+    marketingPrompt,
+    formFields: contactConfig.formFields,
     budget,
     startDate,
     endDate,
@@ -4555,7 +4843,9 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
     preview.browserMonitorUrl = await openMarketingBrowserMonitor()
     preview.imageAsset = prepareLatestMarketingImageAsset()
     const targetActId = getTargetAdAccountId()
-    await ensureFacebookVisualBrowser(targetActId)
+    if (contactMode === 'lead_form') {
+      await ensureFacebookVisualBrowser(targetActId)
+    }
 
     const orchestrator = runLocalMarketingOrchestrator(preview)
     preview.orchestrator = orchestrator
@@ -4568,13 +4858,15 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
     })
     await sleep(450)
 
-    emitMarketingUpdate({
-      type: 'log',
-      status: 'running',
-      line: `[FACEBOOK] Navegador visual abierto en Ads Manager para la cuenta act_${targetActId}. Si Facebook pide login, inicia sesion ahi y el overlay seguira mostrando el paso a paso.`,
-      summary: 'Facebook Ads Manager abierto en navegador normal.',
-    })
-    await sleep(450)
+    if (contactMode === 'lead_form') {
+      emitMarketingUpdate({
+        type: 'log',
+        status: 'running',
+        line: `[FACEBOOK] Navegador visual abierto en Ads Manager para la cuenta act_${targetActId}. Si Facebook pide login, inicia sesion ahi y el overlay seguira mostrando el paso a paso.`,
+        summary: 'Facebook Ads Manager abierto en navegador normal.',
+      })
+      await sleep(450)
+    }
 
     emitMarketingUpdate({
       type: 'log',
@@ -4587,15 +4879,14 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
     await sleep(450)
 
     const preflightSteps = [
-      '[1/9] Iniciando agente orquestador...',
+      '[1/7] Iniciando agente orquestador...',
       `PLAN: ${orchestrator.plan.task}`,
-      `[2/9] Orquestador -> ads-analyst: generando brief para ${orchestrator.execution.campaignType} con cuenta ${orchestrator.execution.accountHint}...`,
-      `[3/9] ads-analyst listo: ${orchestrator.adsAnalyst.hook}`,
-      `[4/9] Orquestador -> image-creator: preparando direccion visual ${orchestrator.imageCreator.dimensions}...`,
-      '[5/9] image-creator listo: prompt creativo preparado para la pieza principal...',
-      `[6/9] Orquestador -> marketing: validando copy, CTA y compliance para ${preview.country}...`,
-      `[7/9] marketing ${orchestrator.marketing.verdict}.`,
-      '[8/9] Verificando disponibilidad del MCP de Facebook Ads...',
+      `[2/7] Orquestador -> ads-analyst: generando brief para ${orchestrator.execution.campaignType} con cuenta ${orchestrator.execution.accountHint}...`,
+      `[3/7] ads-analyst listo: ${orchestrator.adsAnalyst.hook}`,
+      `[4/7] Orquestador -> image-creator: preparando direccion visual ${orchestrator.imageCreator.dimensions}...`,
+      '[5/7] image-creator listo: prompt creativo preparado para la pieza principal...',
+      `[6/7] Orquestador -> marketing: validando copy, CTA y compliance para ${preview.country}...`,
+      `[7/7] marketing ${orchestrator.marketing.verdict}.`,
     ]
 
     for (const line of preflightSteps) {
@@ -4603,54 +4894,66 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
       await sleep(650)
     }
 
-    const preflight = await runFacebookAdsMcpPreflight()
-    preview.mcpAvailable = preflight.ready
-    preview.process = buildCampaignProcess(preflight, preview, null, orchestrator)
+    // ── n8n campaign creation (replaces MCP) ──
+    const n8nWebhookUrl = String(getProjectEnv().N8N_WEBHOOK_CREAR_CAMPANA_FB || '').trim()
+    const n8nIssues = []
+    if (!n8nWebhookUrl) {
+      n8nIssues.push('N8N_WEBHOOK_CREAR_CAMPANA_FB no configurado en .env')
+    }
+    if (contactMode === 'whatsapp') {
+      n8nIssues.push('El workflow actual de n8n automatiza formularios instantaneos; WhatsApp queda como brief asistido.')
+    }
+    const n8nReady = Boolean(n8nWebhookUrl) && contactMode === 'lead_form'
+
+    preview.mcpAvailable = n8nReady
+    preview.process = buildCampaignProcess({ ready: n8nReady, issues: n8nReady ? [] : n8nIssues }, preview, null, orchestrator)
 
     emitMarketingUpdate({
       type: 'log',
-      line: preflight.ready
-        ? `[9/9] Preflight MCP correcto. ${preflight.tokenValidation.reason}`
-        : `[9/9] Preflight MCP incompleto. ${preflight.issues[0] || 'Faltan requisitos para publicar.'}`,
+      line: n8nReady
+        ? `[n8n] Webhook de campanas configurado: ${n8nWebhookUrl}`
+        : contactMode === 'whatsapp'
+          ? '[n8n] Modo WhatsApp detectado. El agente generara brief, copy y prompt visual, pero el workflow actual no automatiza todavia ese tipo de campana.'
+          : '[n8n] No se configuro N8N_WEBHOOK_CREAR_CAMPANA_FB en .env. No se puede crear la campana.',
     })
     await sleep(650)
 
     emitMarketingUpdate({
       type: 'log',
-      line: '[UI] El brief del orquestador ya esta listo. Comenzando a llenar Facebook Ads Manager paso a paso en el navegador...',
+      line: contactMode === 'lead_form'
+        ? '[n8n] El brief del orquestador esta listo. Enviando payload al workflow de n8n...'
+        : '[n8n] El brief del orquestador esta listo. Dejando copy, publico sugerido y prompt visual preparados para la campana de WhatsApp.',
     })
     await sleep(450)
 
-    await tryFacebookUiCreateCampaign(preview)
-
-    if (preflight.ready) {
+    if (n8nReady) {
       emitMarketingUpdate({
         type: 'log',
-        line: `[REAL] Orquestador autoriza borrador. El MCP de Facebook Ads recibira el brief y configurara la campaña directamente para ${orchestrator.execution.accountHint}...`,
+        line: `[n8n] Enviando campana a n8n para ${orchestrator.execution.accountHint}...`,
       })
       await sleep(650)
 
       let creationState = null
       let bundleError = null
       try {
-        const bundleResult = await runLeadCampaignBundleViaMcp(preview, orchestrator)
+        const bundleResult = await runLeadCampaignBundleViaN8n(preview, orchestrator)
         creationState = applyMcpBundleResultToPreview(preview, orchestrator, bundleResult)
-        preview.process = buildCampaignProcess(preflight, preview, creationState, orchestrator)
+        preview.process = buildCampaignProcess({ ready: true, issues: [] }, preview, creationState, orchestrator)
 
         emitMarketingUpdate({
           type: 'log',
           line: preview.leadgenForms.length > 0
-            ? `[REAL] El MCP consulto ${preview.leadgenForms.length} formulario(s) Instant Form y selecciono ${preview.selectedLeadgenFormName || 'ninguno'} ${preview.selectedLeadgenFormId ? `(${preview.selectedLeadgenFormId})` : ''}.`
+            ? `[n8n] Consulto ${preview.leadgenForms.length} formulario(s) Instant Form y selecciono ${preview.selectedLeadgenFormName || 'ninguno'} ${preview.selectedLeadgenFormId ? `(${preview.selectedLeadgenFormId})` : ''}.`
             : bundleResult?.leadgen_forms_error
-              ? `[REAL] El MCP no pudo consultar formularios Instant Form: ${bundleResult.leadgen_forms_error}`
-              : `[REAL] El MCP no encontro formularios Instant Form utilizables para la pagina ${orchestrator.execution.pageId}.`
+              ? `[n8n] No pudo consultar formularios Instant Form: ${bundleResult.leadgen_forms_error}`
+              : `[n8n] No encontro formularios Instant Form utilizables para la pagina ${orchestrator.execution.pageId}.`
         })
         await sleep(650)
 
         if (creationState.campaignId) {
           emitMarketingUpdate({
             type: 'log',
-            line: `[REAL] Campaign creada por el MCP. ID ${creationState.campaignId} en cuenta ${creationState.account?.name || creationState.account?.id}.`,
+            line: `[n8n] Campaign creada. ID ${creationState.campaignId} en cuenta ${creationState.account?.name || creationState.account?.id}.`,
           })
           await sleep(650)
         }
@@ -4658,21 +4961,21 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
         if (creationState.adsetId) {
           emitMarketingUpdate({
             type: 'log',
-            line: `[REAL] Ad set creado por el MCP. ID ${creationState.adsetId}. Publico temporal ${creationState.targetingSummary}.`,
+            line: `[n8n] Ad set creado. ID ${creationState.adsetId}. Publico: ${creationState.targetingSummary}.`,
           })
           await sleep(650)
         } else if (creationState.adsetDeferredToUi) {
           emitMarketingUpdate({
             type: 'log',
             status: 'running',
-            line: '[REAL] El ad set se terminara por la UI de Ads Manager porque Meta requiere seleccionar manualmente un objeto promocionado valido.',
+            line: '[n8n] El ad set se terminara por la UI de Ads Manager porque Meta requiere seleccionar manualmente un objeto promocionado valido.',
           })
           await sleep(650)
         } else if (creationState.adsetError) {
           emitMarketingUpdate({
             type: 'log',
             status: 'warning',
-            line: `[REAL] El MCP no pudo crear el ad set, pero la automatizacion visual seguira: ${creationState.adsetError}`,
+            line: `[n8n] No pudo crear el ad set: ${creationState.adsetError}`,
           })
           await sleep(650)
         }
@@ -4680,7 +4983,7 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
         if (preview.metaCreative?.creativeId) {
           emitMarketingUpdate({
             type: 'log',
-            line: `[REAL] Creative creado por el MCP. ID ${preview.metaCreative.creativeId}. image_hash ${preview.metaCreative.imageHash}.`,
+            line: `[n8n] Creative creado. ID ${preview.metaCreative.creativeId}. image_hash ${preview.metaCreative.imageHash}.`,
           })
           await sleep(650)
         }
@@ -4688,7 +4991,7 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
         if (preview.metaAd?.adId) {
           emitMarketingUpdate({
             type: 'log',
-            line: `[REAL] Anuncio creado por el MCP. ID ${preview.metaAd.adId} en estado PAUSED.`,
+            line: `[n8n] Anuncio creado. ID ${preview.metaAd.adId} en estado PAUSED.`,
           })
           await sleep(650)
         }
@@ -4697,7 +5000,7 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
         emitMarketingUpdate({
           type: 'log',
           status: 'warning',
-          line: `[REAL] El MCP no completo el backend de Meta Ads, pero la automatizacion visual seguira en el navegador: ${error.message || error}`,
+          line: `[n8n] Error creando campana via n8n: ${error.message || error}`,
         })
         await sleep(650)
       }
@@ -4720,21 +5023,23 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
         type: 'done',
         status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) ? 'warning' : 'success',
         summary: bundleError
-          ? `La automatizacion visual continuo en Facebook Ads Manager, pero el MCP devolvio un error de backend: ${bundleError.message || bundleError}`
+          ? `Error al crear campana via n8n: ${bundleError.message || bundleError}`
           : creationState?.adsetDeferredToUi
-            ? 'La campaña se creo y el conjunto de anuncios quedo delegado a la UI de Ads Manager para seleccionar manualmente el objeto promocionado antes de continuar con el anuncio.'
+            ? 'Campana creada via n8n. El conjunto de anuncios quedo delegado a Ads Manager para seleccionar el objeto promocionado.'
           : creationState?.adsetError
-            ? `La automatizacion visual continuo en Facebook Ads Manager, pero el MCP no pudo crear el ad set: ${creationState.adsetError}`
+            ? `Campana creada via n8n, pero no se pudo crear el ad set: ${creationState.adsetError}`
           : browserOpen.ok
-            ? 'Orquestador y subagentes dejaron listo el brief; campaña y ad set borrador creados desde el MCP de Meta Ads. Se abrió Ads Manager para continuar la configuración.'
-            : 'Orquestador y subagentes dejaron listo el brief; campaña y ad set borrador creados desde el MCP de Meta Ads, pero no se pudo abrir el navegador automáticamente.',
+            ? 'Campana creada exitosamente via n8n. Se abrio Ads Manager para verificar.'
+            : 'Campana creada exitosamente via n8n, pero no se pudo abrir el navegador automaticamente.',
         preview,
       })
     } else {
       emitMarketingUpdate({
         type: 'done',
         status: 'warning',
-        summary: `Previsualizacion generada. MCP no listo: ${preflight.issues.join(' | ')}`,
+        summary: contactMode === 'whatsapp'
+          ? 'Brief generado para campana de WhatsApp. El workflow actual aun no automatiza esa creacion en n8n.'
+          : 'No se puede crear la campana: falta configurar N8N_WEBHOOK_CREAR_CAMPANA_FB en .env',
         preview,
       })
     }

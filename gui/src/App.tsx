@@ -13,9 +13,82 @@ import { usePollerProcess } from './hooks/usePollerProcess'
 import { useLogTail } from './hooks/useLogTail'
 import { useBotLogTail } from './hooks/useBotLogTail'
 import { useLastJob } from './hooks/useLastJob'
-import { generateDefaultPrompt, listCompanyRecords, onMarketingRunUpdate, runMarketingCampaignPreview, startBot, stopBot } from './lib/commands'
+import {
+  generateDefaultPrompt,
+  getEnvConfig,
+  listCompanyRecords,
+  onMarketingRunUpdate,
+  runMarketingCampaignPreview,
+  saveEnvConfig,
+  startBot,
+  stopBot,
+} from './lib/commands'
 import type { CompanyRecord, MarketingRunUpdate, PromptHistoryEntry } from './lib/types'
 import { IMAGE_FORMAT_GROUPS, NOYECODE_SERVICES } from './lib/types'
+
+const CITY_ZONE_OPTIONS: Record<string, string[]> = {
+  Bogota: ['Norte', 'Chapinero', 'Centro', 'Occidente', 'Sur', 'Suba', 'Usaquen'],
+  Medellin: ['El Poblado', 'Laureles', 'Belen', 'Envigado', 'Sabaneta', 'Centro'],
+  Cali: ['Norte', 'Sur', 'Oeste', 'Centro', 'Jamundi'],
+  Barranquilla: ['Norte', 'Centro', 'Riomar', 'Soledad'],
+  Cartagena: ['Bocagrande', 'Centro', 'Manga', 'Zona Norte'],
+  Bucaramanga: ['Cabecera', 'Centro', 'Cacique', 'Floridablanca'],
+}
+
+const CONTACT_MODE_OPTIONS = [
+  {
+    value: 'lead_form' as const,
+    label: 'Formulario de clientes potenciales',
+    objective: 'Clientes potenciales',
+  },
+  {
+    value: 'whatsapp' as const,
+    label: 'Contactarme por WhatsApp',
+    objective: 'Mensajes / WhatsApp',
+  },
+]
+
+function buildMarketingPromptPreview(params: {
+  campaignIdea: string
+  city: string
+  zones: string[]
+  contactMode: 'lead_form' | 'whatsapp'
+  budget: string
+  startDate: string
+  endDate: string
+}) {
+  const campaignIdea = params.campaignIdea.trim()
+  const city = params.city.trim()
+  const zonesLabel = params.zones.length > 0 ? params.zones.join(', ') : 'toda la ciudad'
+  const contactLabel = params.contactMode === 'whatsapp'
+    ? 'generar conversaciones por WhatsApp'
+    : 'captar clientes potenciales con formulario'
+  const objectiveLabel = params.contactMode === 'whatsapp' ? 'Mensajes / WhatsApp' : 'Clientes potenciales'
+  const budgetLabel = params.budget.trim() || 'pendiente'
+  const dateLabel = params.startDate && params.endDate
+    ? `${params.startDate} -> ${params.endDate}`
+    : 'pendiente'
+
+  if (!campaignIdea || !city) return ''
+
+  return [
+    `Quiero una campana de Facebook Ads para "${campaignIdea}".`,
+    `Ciudad objetivo: ${city}.`,
+    `Zonas prioritarias: ${zonesLabel}.`,
+    `Objetivo principal: ${objectiveLabel}.`,
+    `Canal de contacto: ${contactLabel}.`,
+    `Presupuesto estimado: ${budgetLabel}.`,
+    `Fechas de campana: ${dateLabel}.`,
+    'Genera un brief completo usando el ads-analyst, image-creator y marketing con esta estructura:',
+    '1. copy sugerido del anuncio',
+    '2. publico recomendado',
+    '3. hook principal',
+    '4. CTA recomendado',
+    '5. direccion visual de la imagen',
+    '6. recomendacion de segmentacion local',
+    `La imagen debe estar directamente relacionada con "${campaignIdea}" y sentirse coherente con ${city}.`,
+  ].join('\n')
+}
 
 function MarketingCampaignModal({
   open,
@@ -24,20 +97,94 @@ function MarketingCampaignModal({
   open: boolean
   onClose: () => void
 }) {
+  const [campaignIdea, setCampaignIdea] = useState('')
+  const [city, setCity] = useState('')
+  const [selectedZones, setSelectedZones] = useState<string[]>([])
+  const [contactMode, setContactMode] = useState<'lead_form' | 'whatsapp'>('lead_form')
+  const [marketingPrompt, setMarketingPrompt] = useState('')
+  const [promptEdited, setPromptEdited] = useState(false)
   const [budget, setBudget] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [mcpAccessToken, setMcpAccessToken] = useState('')
+  const [mcpPageId, setMcpPageId] = useState('')
+  const [mcpAdAccountId, setMcpAdAccountId] = useState('')
   const [runState, setRunState] = useState<'idle' | 'running' | 'success' | 'warning' | 'error'>('idle')
   const [runSummary, setRunSummary] = useState('Completa el formulario para ejecutar el agente.')
   const [runLines, setRunLines] = useState<string[]>([])
   const [preview, setPreview] = useState<MarketingRunUpdate['preview'] | null>(null)
+  const zoneOptions = city ? (CITY_ZONE_OPTIONS[city] || []) : []
+  const selectedContactMode = CONTACT_MODE_OPTIONS.find((option) => option.value === contactMode) || CONTACT_MODE_OPTIONS[0]
 
   const validationMessage = useMemo(() => {
-    if (!budget || !startDate || !endDate) return 'Completa los 3 datos para continuar.'
+    if (!campaignIdea || !city) return 'Completa el concepto de la campana y la ciudad objetivo.'
+    if (!budget || !startDate || !endDate) return 'Completa presupuesto y fechas para continuar.'
+    if (!mcpAccessToken || !mcpAdAccountId) return 'Completa las credenciales principales del MCP Meta Ads.'
     if (Number(budget) <= 0) return 'El presupuesto debe ser mayor a 0.'
     if (endDate < startDate) return 'La fecha de fin no puede ser menor que la fecha de inicio.'
     return 'Formulario listo para continuar a la vista previa de la campaña.'
-  }, [budget, startDate, endDate])
+  }, [budget, campaignIdea, city, endDate, mcpAccessToken, mcpAdAccountId, startDate])
+
+  const promptPreview = useMemo(
+    () => buildMarketingPromptPreview({
+      campaignIdea,
+      city,
+      zones: selectedZones,
+      contactMode,
+      budget,
+      startDate,
+      endDate,
+    }),
+    [budget, campaignIdea, city, contactMode, endDate, selectedZones, startDate]
+  )
+
+  const audiencePreview = useMemo(() => {
+    if (!campaignIdea || !city) return 'Completa el concepto y la ciudad para ver el publico sugerido.'
+    const zonesLabel = selectedZones.length > 0 ? selectedZones.join(', ') : 'cobertura general de la ciudad'
+    if (/veterinari|mascota|pet/i.test(campaignIdea)) {
+      return `Duenos de mascotas en ${city}, zonas ${zonesLabel}, 24-55 anos, interesados en bienestar animal, vacunas, grooming y atencion veterinaria.`
+    }
+    return `Personas en ${city}, zonas ${zonesLabel}, con interes o necesidad relacionada con ${campaignIdea}, 24-55 anos, con intencion de contacto o compra.`
+  }, [campaignIdea, city, selectedZones])
+
+  const visualPreview = useMemo(() => {
+    if (!campaignIdea || !city) return 'La direccion visual aparecera cuando completes el concepto de la campana.'
+    const contactContext = contactMode === 'whatsapp'
+      ? 'con enfoque cercano, conversacional y listo para escribir por WhatsApp'
+      : 'con enfoque de captacion y llamada clara al formulario'
+    return `Imagen de Facebook Ads relacionada con "${campaignIdea}" en ${city}, ${contactContext}, composicion limpia, foco en el beneficio principal y contexto visual coherente con el negocio.`
+  }, [campaignIdea, city, contactMode])
+
+  useEffect(() => {
+    setSelectedZones((current) => current.filter((zone) => zoneOptions.includes(zone)))
+  }, [zoneOptions])
+
+  useEffect(() => {
+    if (!promptEdited) {
+      setMarketingPrompt(promptPreview)
+    }
+  }, [promptEdited, promptPreview])
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    getEnvConfig()
+      .then((config) => {
+        if (cancelled) return
+        setMcpAccessToken(config.FB_ACCESS_TOKEN || '')
+        setMcpPageId(config.FB_PAGE_ID || '')
+        setMcpAdAccountId(config.FB_AD_ACCOUNT_ID || '')
+      })
+      .catch(() => {
+        if (cancelled) return
+        setMcpAccessToken('')
+        setMcpPageId('')
+        setMcpAdAccountId('')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open])
 
   useEffect(() => {
     const unsubscribe = onMarketingRunUpdate((update) => {
@@ -62,9 +209,13 @@ function MarketingCampaignModal({
   }, [])
 
   const canRun =
+    !!campaignIdea &&
+    !!city &&
     !!budget &&
     !!startDate &&
     !!endDate &&
+    !!mcpAccessToken &&
+    !!mcpAdAccountId &&
     Number(budget) > 0 &&
     endDate >= startDate &&
     runState !== 'running'
@@ -74,8 +225,28 @@ function MarketingCampaignModal({
     setRunLines([])
     setPreview(null)
     setRunState('running')
-    setRunSummary('Ejecutando agente de marketing...')
-    await runMarketingCampaignPreview({ budget, startDate, endDate })
+    setRunSummary('Guardando credenciales del MCP y ejecutando agente de marketing...')
+
+    try {
+      await saveEnvConfig({
+        FB_ACCESS_TOKEN: mcpAccessToken.trim(),
+        FB_PAGE_ID: mcpPageId.trim(),
+        FB_AD_ACCOUNT_ID: mcpAdAccountId.trim(),
+      })
+      await runMarketingCampaignPreview({
+        campaignIdea,
+        city,
+        zones: selectedZones,
+        contactMode,
+        marketingPrompt,
+        budget,
+        startDate,
+        endDate,
+      })
+    } catch (error) {
+      setRunState('error')
+      setRunSummary(error instanceof Error ? error.message : 'No pude guardar la configuracion del MCP Meta Ads.')
+    }
   }
 
   if (!open) return null
@@ -99,11 +270,16 @@ function MarketingCampaignModal({
         <div className="marketing-modal__body">
           <div className="marketing-top-grid">
             <div className="marketing-copy">
-              <p>jhordan, para avanzar con la campana necesito estos 3 datos primero:</p>
+              <p>jhordan, aqui ya puedes bajar una idea como "Campana veterinaria" y convertirla en brief listo para copy, publico, zonas y creativo.</p>
               <ol className="marketing-copy__list">
+                <li>Concepto o frase base de la campana.</li>
+                <li>Ciudad y zonas donde quieres pautar.</li>
+                <li>Si quieres formulario de leads o contacto por WhatsApp.</li>
+                <li>Editar el prompt final que se enviara a los agentes.</li>
                 <li>Presupuesto maximo a gastar.</li>
                 <li>Fecha de inicio de la campana.</li>
                 <li>Fecha de fin de la campana.</li>
+                <li>Meta Access Token y cuenta publicitaria del MCP.</li>
               </ol>
             </div>
 
@@ -129,11 +305,11 @@ function MarketingCampaignModal({
                 </div>
                 <div className="status-item">
                   <span className="status-item-label">Objetivo</span>
-                  <span className="status-item-value">Leads</span>
+                  <span className="status-item-value">{selectedContactMode.objective}</span>
                 </div>
                 <div className="status-item">
                   <span className="status-item-label">Canal</span>
-                  <span className="status-item-value">Facebook Ads MCP</span>
+                  <span className="status-item-value">Facebook Ads MCP + {selectedContactMode.label}</span>
                 </div>
                 <div className="status-item">
                   <span className="status-item-label">Resumen</span>
@@ -149,6 +325,42 @@ function MarketingCampaignModal({
               <span className="card-title">Formulario de Campana</span>
             </div>
             <form className="marketing-form">
+              <label className="marketing-field">
+                <span>Concepto de campana</span>
+                <input
+                  type="text"
+                  placeholder="Ej. Campana veterinaria"
+                  value={campaignIdea}
+                  onChange={(event) => setCampaignIdea(event.target.value)}
+                />
+              </label>
+
+              <label className="marketing-field">
+                <span>Ciudad objetivo</span>
+                <select value={city} onChange={(event) => setCity(event.target.value)}>
+                  <option value="">Selecciona una ciudad</option>
+                  {Object.keys(CITY_ZONE_OPTIONS).map((cityOption) => (
+                    <option key={cityOption} value={cityOption}>
+                      {cityOption}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="marketing-field">
+                <span>Tipo de contacto</span>
+                <select
+                  value={contactMode}
+                  onChange={(event) => setContactMode(event.target.value === 'whatsapp' ? 'whatsapp' : 'lead_form')}
+                >
+                  {CONTACT_MODE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               <label className="marketing-field">
                 <span>Presupuesto maximo</span>
                 <input
@@ -178,7 +390,123 @@ function MarketingCampaignModal({
                   onChange={(event) => setEndDate(event.target.value)}
                 />
               </label>
+
+              <label className="marketing-field">
+                <span>Meta Access Token</span>
+                <input
+                  type="password"
+                  placeholder="EAAB..."
+                  value={mcpAccessToken}
+                  onChange={(event) => setMcpAccessToken(event.target.value)}
+                />
+              </label>
+
+              <label className="marketing-field">
+                <span>Ad Account ID</span>
+                <input
+                  type="text"
+                  placeholder="438871067037500 o act_438871067037500"
+                  value={mcpAdAccountId}
+                  onChange={(event) => setMcpAdAccountId(event.target.value)}
+                />
+              </label>
+
+              <label className="marketing-field">
+                <span>Facebook Page ID (opcional)</span>
+                <input
+                  type="text"
+                  placeholder="115406607722279"
+                  value={mcpPageId}
+                  onChange={(event) => setMcpPageId(event.target.value)}
+                />
+              </label>
+
+              <div className="marketing-field marketing-field--full">
+                <span>Zonas de la ciudad</span>
+                <div className="marketing-zone-grid">
+                  {zoneOptions.length === 0 ? (
+                    <span className="marketing-zone-empty">Selecciona una ciudad para habilitar las zonas.</span>
+                  ) : (
+                    zoneOptions.map((zone) => {
+                      const active = selectedZones.includes(zone)
+                      return (
+                        <button
+                          key={zone}
+                          type="button"
+                          className={`marketing-zone-chip ${active ? 'marketing-zone-chip--active' : ''}`}
+                          onClick={() => {
+                            setSelectedZones((current) =>
+                              current.includes(zone)
+                                ? current.filter((item) => item !== zone)
+                                : [...current, zone]
+                            )
+                          }}
+                        >
+                          {zone}
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
             </form>
+            <p className="helper-text">
+              Si dejas vacio el Page ID, el flujo intentara resolver la pagina automaticamente con el token antes de crear la campana.
+            </p>
+            <div className="marketing-generated-card">
+              <div className="card-header">
+                <span className="card-icon">&#129504;</span>
+                <span className="card-title">Resumen Inteligente del Agente</span>
+              </div>
+              <div className="job-grid">
+                <div className="job-item">
+                  <span className="job-label">Prompt base</span>
+                  <span className="job-value">{promptPreview || 'Completa el concepto, ciudad y tipo de contacto.'}</span>
+                </div>
+                <div className="job-item">
+                  <span className="job-label">Publico sugerido</span>
+                  <span className="job-value">{audiencePreview}</span>
+                </div>
+                <div className="job-item">
+                  <span className="job-label">Direccion visual</span>
+                  <span className="job-value">{visualPreview}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="marketing-generated-card">
+              <div className="card-header">
+                <span className="card-icon">&#9997;</span>
+                <span className="card-title">Prompt Editable para los Agentes</span>
+              </div>
+              <label className="marketing-field marketing-field--full">
+                <span>Prompt final</span>
+                <textarea
+                  className="marketing-prompt-textarea"
+                  placeholder="Aqui aparecera el prompt generado para ads-analyst, image-creator y marketing..."
+                  value={marketingPrompt}
+                  onChange={(event) => {
+                    setMarketingPrompt(event.target.value)
+                    setPromptEdited(true)
+                  }}
+                />
+              </label>
+              <div className="marketing-prompt-actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--small"
+                  onClick={() => {
+                    setMarketingPrompt(promptPreview)
+                    setPromptEdited(false)
+                  }}
+                >
+                  Regenerar prompt
+                </button>
+                <span className="helper-text">
+                  Este texto es el que se enviara al orquestador. Puedes ajustarlo antes de ejecutar la campana.
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="marketing-grid">
@@ -189,16 +517,24 @@ function MarketingCampaignModal({
               </div>
               <div className="marketing-execution__content">
                 <div className="status-item">
+                  <span className="status-item-label">Concepto</span>
+                  <span className="status-item-value">{campaignIdea || 'Pendiente'}</span>
+                </div>
+                <div className="status-item">
                   <span className="status-item-label">Objetivo</span>
-                  <span className="status-item-value">Clientes potenciales</span>
+                  <span className="status-item-value">{selectedContactMode.objective}</span>
                 </div>
                 <div className="status-item">
                   <span className="status-item-label">Landing</span>
-                  <span className="status-item-value">noyecode.com</span>
+                  <span className="status-item-value">{contactMode === 'whatsapp' ? 'WhatsApp' : 'noyecode.com + Instant Form'}</span>
                 </div>
                 <div className="status-item">
                   <span className="status-item-label">Publico</span>
-                  <span className="status-item-value">Colombia</span>
+                  <span className="status-item-value">
+                    {city
+                      ? `${city}${selectedZones.length > 0 ? ` | ${selectedZones.join(', ')}` : ''}`
+                      : 'Selecciona una ciudad'}
+                  </span>
                 </div>
                 <div className="status-item">
                   <span className="status-item-label">Resumen</span>
@@ -236,6 +572,10 @@ function MarketingCampaignModal({
                 </div>
                 <div className="job-grid">
                   <div className="job-item">
+                    <span className="job-label">Concepto</span>
+                    <span className="job-value">{preview.campaignIdea || 'Sin concepto'}</span>
+                  </div>
+                  <div className="job-item">
                     <span className="job-label">Objetivo</span>
                     <span className="job-value">{preview.objective}</span>
                   </div>
@@ -246,6 +586,23 @@ function MarketingCampaignModal({
                   <div className="job-item">
                     <span className="job-label">Pais</span>
                     <span className="job-value">{preview.country}</span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">Ciudad / zonas</span>
+                    <span className="job-value">
+                      {preview.city || 'Sin ciudad'}
+                      {preview.zones && preview.zones.length > 0 ? ` | ${preview.zones.join(', ')}` : ''}
+                    </span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">Canal de contacto</span>
+                    <span className="job-value">
+                      {preview.contactMode === 'whatsapp' ? 'WhatsApp' : 'Formulario instantaneo'}
+                    </span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">Prompt enviado</span>
+                    <span className="job-value">{preview.marketingPrompt || 'Sin prompt'}</span>
                   </div>
                   <div className="job-item">
                     <span className="job-label">Presupuesto</span>
@@ -313,6 +670,19 @@ function MarketingCampaignModal({
                         <span className="job-value">
                           {preview.orchestrator.execution.accountHint} {'/'} {preview.orchestrator.execution.campaignType}
                         </span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Ciudad / zonas</span>
+                        <span className="job-value">
+                          {preview.orchestrator.execution.city || 'Sin ciudad'}
+                          {preview.orchestrator.execution.zones && preview.orchestrator.execution.zones.length > 0
+                            ? ` | ${preview.orchestrator.execution.zones.join(', ')}`
+                            : ''}
+                        </span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Canal</span>
+                        <span className="job-value">{preview.orchestrator.execution.contactChannel || 'Sin definir'}</span>
                       </div>
                       <div className="job-item">
                         <span className="job-label">ads-analyst</span>
