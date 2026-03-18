@@ -46,6 +46,7 @@ DOWNLOAD_GENERATED_IMAGE_PY = PROMPT_DIR / "download_generated_image.py"
 N8N_PROMPT_CLIENT_PY = UTILS_DIR / "n8n_prompt_client.py"
 N8N_POST_TEXT_CLIENT_PY = UTILS_DIR / "n8n_post_text_client.py"
 PUBLIC_IMG_PY = PROJECT_ROOT / "n8n" / "public_img.py"
+VERIFY_TOKEN_FB_PY = PROJECT_ROOT / "n8n" / "verify_token_fb.py"
 OVERLAY_LOGO_PY = UTILS_DIR / "overlay_logo.py"
 RUN_WITH_PROGRESS_PY = UTILS_DIR / "run_with_progress.py"
 

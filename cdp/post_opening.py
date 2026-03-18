@@ -255,6 +255,17 @@ def post_opening_automation(cdp_port: int = 9225, skip_force_cdp: bool = False) 
         else:
             log_ok("Logo superpuesto con exito")
 
+    # Step 6.5: Verificar/renovar token de Facebook antes de publicar
+    if "facebook" in str(get_env("PUBLISH_PLATFORMS", "facebook") or "").lower():
+        try:
+            from n8n.verify_token_fb import run_token_verification
+            log_info("Verificando token de Facebook...")
+            renewed = run_token_verification()
+            if renewed:
+                log_ok("Token de Facebook renovado exitosamente.")
+        except Exception as exc:
+            log_warn(f"No se pudo verificar token FB (se usara el actual): {exc}")
+
     # Step 7: Send to n8n
     if not PUBLIC_IMG_PY.exists():
         log_warn(f"No existe script de publicacion local a n8n: {PUBLIC_IMG_PY}")
