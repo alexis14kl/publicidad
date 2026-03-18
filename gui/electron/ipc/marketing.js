@@ -17,6 +17,7 @@ const {
   openMetaAdsManager,
   buildCampaignProcess,
   runLeadCampaignBundleViaCdp,
+  runLeadCampaignBundleViaN8n,
 } = require('../marketing/campaign-process')
 const { applyMcpBundleResultToPreview } = require('../marketing/campaign-bundle')
 
@@ -372,12 +373,83 @@ function registerMarketingHandlers(ipcMain) {
           })
         }
       } else {
-        emitMarketingUpdate({
-          type: 'done',
-          status: 'warning',
-          summary: 'No se puede crear la campana: falta configurar N8N_WEBHOOK_CREAR_CAMPANA_FB en .env',
-          preview,
-        })
+        const env = getProjectEnv()
+        const webhookUrl = String(
+          env.N8N_WEBHOOK_CREAR_CAMPANA_FB ||
+          env.N8N_WEBHOOK_CREATE_CAMPAIGN_FACEBOOK ||
+          '',
+        ).trim()
+
+        if (!webhookUrl) {
+          emitMarketingUpdate({
+            type: 'done',
+            status: 'warning',
+            summary: 'No se puede crear la campana: falta configurar N8N_WEBHOOK_CREAR_CAMPANA_FB en .env',
+            preview,
+          })
+        } else {
+          emitMarketingUpdate({
+            type: 'log',
+            status: 'running',
+            line: `[n8n] Webhook de campanas configurado: ${webhookUrl} (modo: ${modeLabel})`,
+          })
+          await sleep(450)
+
+          emitMarketingUpdate({
+            type: 'log',
+            status: 'running',
+            line: `[n8n] El brief del orquestador esta listo. Enviando payload al workflow de n8n (${modeLabel})...`,
+          })
+          await sleep(450)
+
+          let creationState = null
+          let bundleError = null
+
+          try {
+            emitMarketingUpdate({
+              type: 'log',
+              status: 'running',
+              line: `[n8n] Enviando campana a n8n para ${orchestrator.execution.accountHint}...`,
+            })
+            await sleep(650)
+
+            const bundleResult = await runLeadCampaignBundleViaN8n(preview, orchestrator)
+            creationState = applyMcpBundleResultToPreview(preview, orchestrator, bundleResult)
+            preview.process = buildCampaignProcess({ ready: true, issues: [] }, preview, creationState, orchestrator)
+          } catch (error) {
+            bundleError = error
+            emitMarketingUpdate({
+              type: 'log',
+              status: 'warning',
+              line: `[n8n] Error creando campana via n8n: ${error.message || error}`,
+            })
+            await sleep(650)
+          }
+
+          const browserOpen = await openMetaAdsManager(creationState)
+          emitMarketingUpdate({
+            type: 'log',
+            line: browserOpen.ok
+              ? `[OPEN] Navegador abierto en ${browserOpen.url} para visualizar Meta Ads Manager.`
+              : `[OPEN] No se pudo abrir el navegador automaticamente: ${browserOpen.reason}`,
+          })
+          await sleep(650)
+
+          emitMarketingUpdate({
+            type: 'done',
+            status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) ? 'warning' : 'success',
+            summary: bundleError
+              ? `Error al crear campana via n8n: ${bundleError.message || bundleError}`
+              : creationState?.adsetDeferredToUi
+                ? 'Campana creada via n8n. El conjunto de anuncios quedo delegado a Ads Manager para seleccionar el objeto promocionado.'
+                : creationState?.adsetError
+                  ? `Campana creada via n8n, pero no se pudo crear el ad set: ${creationState.adsetError}`
+                  : browserOpen.ok
+                    ? 'Campana creada exitosamente via n8n. Se abrio Ads Manager para verificar.'
+                    : 'Campana creada exitosamente via n8n, pero no se pudo abrir el navegador automaticamente.',
+            preview,
+          })
+        }
       }
 
       return { success: true }
