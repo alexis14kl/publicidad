@@ -390,7 +390,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
             ("runner_context.uiFlow.budgetModeLabel", ui_flow_context.get("budgetModeLabel")),
             ("runner_context.execution.budgetModeUiLabel", execution_context.get("budgetModeUiLabel")),
         ],
-        "Presupuesto total",
+        "Presupuesto diario",
         "runner.default.ui_budget_mode_label",
     )
     ui_conversion_location, ui_conversion_source, ui_conversion_fallback = _resolve_string(
@@ -414,6 +414,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
     targeting, targeting_source, targeting_fallback = _resolve_targeting(_dict(adset.get("targeting")), segment_context)
     normalized["adset"] = {
         "name": adset_name,
+        "daily_budget": _string(adset.get("daily_budget")),
         "lifetime_budget": _string(adset.get("lifetime_budget")),
         "billing_event": _string(adset.get("billing_event")) or "IMPRESSIONS",
         "optimization_goal": _string(adset.get("optimization_goal")) or "LEAD_GENERATION",
@@ -436,7 +437,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
         (
             f"name='{normalized['adset']['name']}' desde {adset_name_source}"
             f"{' (fallback)' if adset_name_fallback else ''}, "
-            f"budget='{normalized['adset']['lifetime_budget']}', "
+            f"budget='{normalized['adset']['daily_budget'] or normalized['adset']['lifetime_budget']}', "
             f"start='{normalized['adset']['start_time']}', end='{normalized['adset']['end_time']}', "
             f"optimization='{normalized['adset']['optimization_goal']}', status='{normalized['adset']['status']}'."
         ),
@@ -511,6 +512,7 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
         )
         normalized["lead_form"] = {
             "page_id": lead_form_page_id,
+            "page_access_token": _string(lead_form.get("page_access_token")),
             "form_id": _string(lead_form.get("form_id")),
             "discover": _bool(lead_form.get("discover"), True),
             "create_if_missing": _bool(lead_form.get("create_if_missing"), True),
@@ -520,6 +522,13 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
             "privacy_policy_link_text": _string(lead_form.get("privacy_policy_link_text")) or "Politica de privacidad",
             "follow_up_action_url": _string(lead_form.get("follow_up_action_url")),
             "required_fields": required_fields,
+            "ui_field_labels": _list_of_strings(lead_form.get("ui_field_labels")),
+            "form_type": _string(lead_form.get("form_type")) or "higher_intent",
+            "intro_headline": _string(lead_form.get("intro_headline")),
+            "intro_body": _string(lead_form.get("intro_body")),
+            "thank_you_title": _string(lead_form.get("thank_you_title")),
+            "thank_you_body": _string(lead_form.get("thank_you_body")),
+            "thank_you_button_text": _string(lead_form.get("thank_you_button_text")),
         }
         _emit_rule(
             progress,
@@ -546,7 +555,8 @@ def normalize_bundle_spec(payload: Dict[str, Any], progress) -> Tuple[Dict[str, 
                 f"required_fields={required_fields} desde {required_fields_source}"
                 f"{' (fallback)' if required_fields_fallback else ''}, "
                 f"locale='{normalized['lead_form']['locale']}', privacy_policy_url='{_truncate(normalized['lead_form']['privacy_policy_url'], 80)}', "
-                f"follow_up_action_url='{_truncate(normalized['lead_form']['follow_up_action_url'], 80)}'."
+                f"follow_up_action_url='{_truncate(normalized['lead_form']['follow_up_action_url'], 80)}', "
+                f"form_type='{normalized['lead_form']['form_type']}'."
             ),
         )
 

@@ -575,6 +575,31 @@ function normalizeUiText(value) {
     .toLowerCase()
 }
 
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function buildAliasPatterns(aliases = []) {
+  const normalizedAliases = [...new Set(
+    aliases
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+  )]
+  if (normalizedAliases.length === 0) {
+    return {
+      aliases: [],
+      exactPattern: /$^/,
+      loosePattern: /$^/,
+    }
+  }
+  const escaped = normalizedAliases.map(escapeRegex)
+  return {
+    aliases: normalizedAliases,
+    exactPattern: new RegExp(`^(?:${escaped.join('|')})$`, 'i'),
+    loosePattern: new RegExp(escaped.join('|'), 'i'),
+  }
+}
+
 function ensureAbsoluteUrl(value, fallback = 'https://noyecode.com') {
   let raw = String(value || '').trim()
   if (!raw) {
@@ -1061,6 +1086,35 @@ function buildDraftAdsetName(preview, orchestrator = null) {
   return `Conjunto Leads | ${segmentLabel} | ${preview.startDate} -> ${preview.endDate}`
 }
 
+function buildDraftAdName(preview, orchestrator = null) {
+  const explicitName = String(
+    preview?.adDraftConfig?.adName ||
+    orchestrator?.execution?.adName ||
+    orchestrator?.adsAnalyst?.adName ||
+    ''
+  ).trim()
+  if (explicitName) {
+    return explicitName
+  }
+
+  const segmentLabel = orchestrator?.execution?.segment?.shortLabel || getDefaultMarketingSegment().shortLabel
+  return `Anuncio Leads | ${segmentLabel} | ${preview.startDate} -> ${preview.endDate}`
+}
+
+function buildDraftLeadFormName(preview, orchestrator = null) {
+  const explicitName = String(
+    orchestrator?.execution?.leadFormName ||
+    preview?.selectedLeadgenFormName ||
+    ''
+  ).trim()
+  if (explicitName) {
+    return explicitName
+  }
+
+  const segmentLabel = orchestrator?.execution?.segment?.shortLabel || getDefaultMarketingSegment().shortLabel
+  return `Formulario | ${segmentLabel} | ${preview.startDate} -> ${preview.endDate}`
+}
+
 function resolveFacebookUiFlowRules(preview, orchestrator = null) {
   const objectiveRule = resolveCampaignObjectiveRule(preview, orchestrator)
   const segment = orchestrator?.execution?.segment || getDefaultMarketingSegment()
@@ -1082,10 +1136,22 @@ function resolveFacebookUiFlowRules(preview, orchestrator = null) {
       'Presupuesto total',
       'Lifetime budget',
     ],
+    budgetAmountModeLabel: String(orchestrator?.execution?.budgetAmountModeUiLabel || '').trim() || 'Presupuesto diario',
+    budgetAmountModeAliases: Array.isArray(orchestrator?.execution?.budgetAmountModeUiAliases)
+      ? orchestrator.execution.budgetAmountModeUiAliases.map((value) => String(value || '').trim()).filter(Boolean)
+      : ['Presupuesto diario', 'Daily budget'],
     budgetAmount: normalizeBudgetForUi(preview?.budget),
     adsetName: buildDraftAdsetName(preview, orchestrator),
-    conversionLocationLabel: String(orchestrator?.execution?.conversionLocationUiLabel || '').trim() || 'Formularios instantáneos',
-    conversionLocationAliases: conversionAliases.length > 0 ? conversionAliases : ['Formularios instantáneos', 'Instant forms', 'Instant form'],
+    adName: buildDraftAdName(preview, orchestrator),
+    conversionLocationLabel: String(orchestrator?.execution?.conversionLocationUiLabel || '').trim() || 'Sitio web y formularios instantáneos',
+    conversionLocationAliases: conversionAliases.length > 0 ? conversionAliases : [
+      'Sitio web y formularios instantáneos',
+      'Sitio web y formularios instantaneos',
+      'Website and instant forms',
+      'Formularios instantáneos',
+      'Instant forms',
+      'Instant form',
+    ],
     performanceGoalLabel: String(orchestrator?.execution?.performanceGoalUiLabel || '').trim() || 'Maximizar el número de clientes potenciales',
     audienceLocationLabel: String(segment?.country || 'Colombia').trim() || 'Colombia',
     leadFormFieldLabels: Array.isArray(orchestrator?.execution?.leadFormFieldLabels)
@@ -1323,10 +1389,319 @@ async function selectTotalBudgetMode(page, aliases = ['Presupuesto de la campañ
   }
 }
 
+async function selectCampaignBudgetAmountMode(page, aliases = ['Presupuesto diario', 'Daily budget']) {
+  const budgetSection = await findSectionRoot(page, /presupuesto|budget/i, 2600).catch(() => null)
+  if (budgetSection) {
+    await budgetSection.scrollIntoViewIfNeeded().catch(() => {})
+    await page.waitForTimeout(250)
+  }
+
+  const optionPattern = new RegExp(aliases.join('|'), 'i')
+  const trigger = await findVisibleLocator(budgetSection || page, [
+    (ctx) => ctx.getByRole('button', { name: /presupuesto diario|presupuesto total|daily budget|lifetime budget/i }),
+    (ctx) => ctx.locator('[role="combobox"], [aria-haspopup="listbox"], button, div[role="button"]').filter({ hasText: /presupuesto diario|presupuesto total|daily budget|lifetime budget/i }),
+  ], 2600)
+
+  if (trigger) {
+    const alreadySelected = await trigger.textContent().catch(() => '')
+    if (optionPattern.test(String(alreadySelected || ''))) {
+      return
+    }
+    await trigger.click({ timeout: 5000, force: true })
+    await page.waitForTimeout(450)
+  } else {
+    throw new Error('No encontre el selector interno de Presupuesto diario/total.')
+  }
+
+  const option = await findVisibleLocator(page, [
+    (ctx) => ctx.getByRole('option', { name: optionPattern }),
+    (ctx) => ctx.getByRole('menuitem', { name: optionPattern }),
+    (ctx) => ctx.locator('[role="option"], [role="menuitem"], li, button, div').filter({ hasText: optionPattern }),
+  ], 2400)
+
+  if (option) {
+    await option.click({ timeout: 5000, force: true })
+    await page.waitForTimeout(450)
+    return
+  }
+
+  const changed = await page.evaluate((payload) => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const labels = (payload.aliases || []).map(normalize).filter(Boolean)
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const match = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, button, div'))
+      .filter(isVisible)
+      .find((element) => {
+        const text = normalize(element.innerText || element.textContent)
+        return labels.some((label) => text === label || text.includes(label))
+      })
+    if (!match) return false
+    match.click()
+    return true
+  }, { aliases })
+
+  if (!changed) {
+    throw new Error(`No pude cambiar el selector interno a ${aliases[0] || 'Presupuesto diario'}.`)
+  }
+}
+
 async function findSectionRoot(page, pattern, timeout = 4000) {
   return await findVisibleLocator(page, [
     (ctx) => ctx.locator('section, div').filter({ hasText: pattern }),
   ], timeout)
+}
+
+async function locateDynamicSection(page, {
+  labels = [],
+  mustContainTexts = [],
+  controlType = 'any',
+} = {}, timeout = 2600) {
+  const scopeId = `scope-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const found = await page.evaluate((payload) => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const labels = Array.isArray(payload.labels) ? payload.labels.map(normalize).filter(Boolean) : []
+    const mustContainTexts = Array.isArray(payload.mustContainTexts) ? payload.mustContainTexts.map(normalize).filter(Boolean) : []
+    const supportsControlType = (element) => {
+      if (!element) return false
+      if (payload.controlType === 'radio') {
+        return Array.from(element.querySelectorAll('[role="radio"], input[type="radio"]')).some(isVisible)
+      }
+      if (payload.controlType === 'combobox') {
+        return Array.from(element.querySelectorAll('[role="combobox"], [aria-haspopup="listbox"], button')).some(isVisible)
+      }
+      if (payload.controlType === 'input') {
+        return Array.from(element.querySelectorAll('input, textarea'))
+          .filter(isVisible)
+          .some((field) => {
+            const type = normalize(field.getAttribute('type') || field.type || '')
+            return !['checkbox', 'radio', 'hidden', 'button', 'submit', 'reset', 'file', 'image'].includes(type)
+          })
+      }
+      return true
+    }
+    Array.from(document.querySelectorAll('[data-noye-scope]')).forEach((element) => element.removeAttribute('data-noye-scope'))
+    const candidates = Array.from(document.querySelectorAll('section, div'))
+      .filter(isVisible)
+      .filter((element) => {
+        const text = normalize(element.innerText || element.textContent)
+        if (labels.length > 0 && !labels.some((label) => text.includes(label))) return false
+        if (mustContainTexts.length > 0 && !mustContainTexts.every((label) => text.includes(label))) return false
+        return supportsControlType(element)
+      })
+      .sort((a, b) => normalize(a.innerText || a.textContent).length - normalize(b.innerText || b.textContent).length)
+    const winner = candidates[0]
+    if (!winner) return false
+    winner.setAttribute('data-noye-scope', payload.scopeId)
+    return true
+  }, { labels, mustContainTexts, controlType, scopeId }).catch(() => false)
+
+  if (!found) {
+    return null
+  }
+
+  const locator = page.locator(`[data-noye-scope="${scopeId}"]`).first()
+  try {
+    await locator.waitFor({ state: 'visible', timeout })
+    return locator
+  } catch {
+    return null
+  }
+}
+
+async function isRadioOptionSelectedInLocator(scope, aliases = []) {
+  return await scope.evaluate((root, payload) => {
+    const normalize = (text) => String(text || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const labels = (payload.aliases || []).map(normalize).filter(Boolean)
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const candidates = Array.from(root.querySelectorAll('[role="radio"], input[type="radio"], label, button, div'))
+      .filter(isVisible)
+    return candidates.some((element) => {
+      const checked =
+        element.getAttribute('aria-checked') === 'true' ||
+        element.matches?.('input[type="radio"]:checked') ||
+        Boolean(element.querySelector?.('input[type="radio"]:checked'))
+      if (!checked) return false
+      const text = normalize(element.innerText || element.textContent || element.getAttribute?.('aria-label') || '')
+      return labels.some((label) => text === label || text.startsWith(label) || text.includes(label))
+    })
+  }, { aliases }).catch(() => false)
+}
+
+async function clickRadioOptionInLocator(scope, page, aliases, errorMessage) {
+  const aliasPatterns = buildAliasPatterns(aliases)
+  const option = await findVisibleLocator(scope, [
+    (ctx) => ctx.getByRole('radio', { name: aliasPatterns.exactPattern }),
+    (ctx) => ctx.locator('[role="radio"]').filter({ hasText: aliasPatterns.exactPattern }),
+    (ctx) => ctx.locator('label').filter({ hasText: aliasPatterns.exactPattern }),
+    (ctx) => ctx.getByRole('radio', { name: aliasPatterns.loosePattern }),
+    (ctx) => ctx.locator('[role="radio"]').filter({ hasText: aliasPatterns.loosePattern }),
+    (ctx) => ctx.locator('label').filter({ hasText: aliasPatterns.loosePattern }),
+  ], 2400)
+  if (option) {
+    await option.click({ timeout: 5000, force: true }).catch(() => {})
+    await page.waitForTimeout(700)
+    if (await isRadioOptionSelectedInLocator(scope, aliasPatterns.aliases)) {
+      return
+    }
+  }
+
+  const clicked = await scope.evaluate((root, payload) => {
+    const normalize = (text) => String(text || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const labels = (payload.aliases || []).map(normalize).filter(Boolean)
+    const all = Array.from(root.querySelectorAll('*')).filter(isVisible)
+    const match = all.find((element) => {
+      const text = normalize(element.innerText || element.textContent)
+      return labels.some((label) => text === label || text.startsWith(`${label} `))
+    }) || all.find((element) => {
+      const text = normalize(element.innerText || element.textContent)
+      return labels.some((label) => text === label || text.startsWith(label) || text.includes(label))
+    })
+    if (!match) return false
+    const clickable = [
+      match.closest('[role="radio"]'),
+      match.closest('label'),
+      match.closest('button'),
+      match.closest('[role="button"]'),
+      match.closest('div'),
+    ].find((element) => element && isVisible(element))
+    if (!clickable) return false
+    clickable.click()
+    return true
+  }, { aliases: aliasPatterns.aliases }).catch(() => false)
+
+  if (!clicked) {
+    throw new Error(errorMessage)
+  }
+
+  await page.waitForTimeout(700)
+  if (!await isRadioOptionSelectedInLocator(scope, aliasPatterns.aliases)) {
+    throw new Error(errorMessage)
+  }
+}
+
+async function readDropdownValueInLocator(scope) {
+  const trigger = await findVisibleLocator(scope, [
+    (ctx) => ctx.getByRole('combobox'),
+    (ctx) => ctx.locator('[role="combobox"], [aria-haspopup="listbox"], button, div[role="button"]'),
+  ], 1600)
+  if (!trigger) return ''
+  return String(await trigger.textContent().catch(() => '') || '').trim()
+}
+
+async function selectDropdownOptionInLocator(scope, page, aliases, errorMessage) {
+  const aliasPatterns = buildAliasPatterns(aliases)
+  const trigger = await findVisibleLocator(scope, [
+    (ctx) => ctx.getByRole('combobox'),
+    (ctx) => ctx.locator('[role="combobox"], [aria-haspopup="listbox"], button, div[role="button"]'),
+  ], 2600)
+
+  if (!trigger) {
+    throw new Error(errorMessage)
+  }
+
+  const alreadySelected = String(await trigger.textContent().catch(() => '') || '')
+  if (aliasPatterns.loosePattern.test(alreadySelected)) {
+    return
+  }
+
+  await trigger.click({ timeout: 5000, force: true }).catch(() => {})
+  await page.waitForTimeout(500)
+
+  const option = await findVisibleLocator(page, [
+    (ctx) => ctx.getByRole('option', { name: aliasPatterns.exactPattern }),
+    (ctx) => ctx.getByRole('menuitem', { name: aliasPatterns.exactPattern }),
+    (ctx) => ctx.locator('[role="option"], [role="menuitem"], li, button, div').filter({ hasText: aliasPatterns.exactPattern }),
+    (ctx) => ctx.getByRole('option', { name: aliasPatterns.loosePattern }),
+    (ctx) => ctx.getByRole('menuitem', { name: aliasPatterns.loosePattern }),
+    (ctx) => ctx.locator('[role="option"], [role="menuitem"], li, button, div').filter({ hasText: aliasPatterns.loosePattern }),
+  ], 2600)
+
+  if (option) {
+    await option.click({ timeout: 5000, force: true }).catch(() => {})
+    await page.waitForTimeout(700)
+  } else {
+    const clicked = await page.evaluate((payload) => {
+      const normalize = (text) => String(text || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase()
+      const labels = (payload.aliases || []).map(normalize).filter(Boolean)
+      const isVisible = (element) => {
+        if (!element) return false
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      }
+      const match = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, button, div'))
+        .filter(isVisible)
+        .find((element) => {
+          const text = normalize(element.innerText || element.textContent)
+          return labels.some((label) => text === label || text.startsWith(`${label} `))
+        }) || Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, button, div'))
+        .filter(isVisible)
+        .find((element) => {
+          const text = normalize(element.innerText || element.textContent)
+          return labels.some((label) => text === label || text.includes(label))
+        })
+      if (!match) return false
+      match.click()
+      return true
+    }, { aliases: aliasPatterns.aliases }).catch(() => false)
+    if (!clicked) {
+      throw new Error(errorMessage)
+    }
+  }
+
+  const currentValue = await readDropdownValueInLocator(scope)
+  const normalizedCurrentValue = normalizeUiText(currentValue)
+  const isMatch = aliasPatterns.aliases.some((alias) => normalizedCurrentValue.includes(normalizeUiText(alias)))
+  if (!isMatch) {
+    throw new Error(errorMessage)
+  }
 }
 
 async function fillVisibleInput(locator, value) {
@@ -1356,11 +1731,13 @@ async function fillNamedEditorInput(page, config) {
     labelTexts = [],
     sectionTexts = [],
     errorMessage,
+    useLabelLookup = true,
+    allowFirstVisibleFallback = false,
   } = config
 
   const section = sectionPattern ? await findSectionRoot(page, sectionPattern, 4200) : null
   const scopedBuilders = [
-    (ctx) => ctx.getByLabel(labelPattern),
+    ...(useLabelLookup ? [(ctx) => ctx.getByLabel(labelPattern)] : []),
     ...selectors.map((selector) => (ctx) => ctx.locator(selector)),
     // Avoid checkbox/radio fallbacks that cause `locator.fill` to throw.
     (ctx) => ctx.locator('input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])'),
@@ -1416,7 +1793,7 @@ async function fillNamedEditorInput(page, config) {
       const ariaLabel = normalize(element.getAttribute('aria-label'))
       const placeholder = normalize(element.getAttribute('placeholder'))
       return fieldLabels.some((label) => ariaLabel.includes(label) || placeholder.includes(label) || parentText.includes(label))
-    }) || inputs[0]
+    }) || (payload.allowFirstVisibleFallback ? inputs[0] : null)
 
     if (!target) return false
 
@@ -1433,6 +1810,7 @@ async function fillNamedEditorInput(page, config) {
     labelTexts,
     sectionTexts,
     value,
+    allowFirstVisibleFallback,
   })
 
   if (!setByDom) {
@@ -1443,11 +1821,15 @@ async function fillNamedEditorInput(page, config) {
 async function clickRadioOptionInSection(page, sectionPattern, aliases, errorMessage) {
   const section = await findSectionRoot(page, sectionPattern, 5000).catch(() => null)
   const searchRoot = section || page
+  const aliasPatterns = buildAliasPatterns(aliases)
   if (section) {
     await section.scrollIntoViewIfNeeded().catch(() => {})
   }
-  const optionPattern = new RegExp(aliases.join('|'), 'i')
+  const optionPattern = aliasPatterns.loosePattern
   const option = await findVisibleLocator(searchRoot, [
+    (ctx) => ctx.getByRole('radio', { name: aliasPatterns.exactPattern }),
+    (ctx) => ctx.locator('[role="radio"]').filter({ hasText: aliasPatterns.exactPattern }),
+    (ctx) => ctx.locator('label').filter({ hasText: aliasPatterns.exactPattern }),
     (ctx) => ctx.getByRole('radio', { name: optionPattern }),
     (ctx) => ctx.locator('[role="radio"]').filter({ hasText: optionPattern }),
     (ctx) => ctx.locator('label').filter({ hasText: optionPattern }),
@@ -1457,42 +1839,90 @@ async function clickRadioOptionInSection(page, sectionPattern, aliases, errorMes
 
   if (option) {
     await option.click({ timeout: 5000, force: true })
-    return
+    await page.waitForTimeout(700)
+    const selected = await isRadioOptionSelectedInSection(page, sectionPattern, aliasPatterns.aliases)
+    if (selected) {
+      return
+    }
   }
 
-  const clicked = await searchRoot.evaluate((root, payload) => {
-    const normalize = (text) => String(text || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase()
-    const isVisible = (element) => {
-      if (!element) return false
-      const style = window.getComputedStyle(element)
-      const rect = element.getBoundingClientRect()
-      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
-    }
-    const labels = (payload.aliases || []).map(normalize).filter(Boolean)
-    const all = Array.from(root.querySelectorAll('*')).filter(isVisible)
-    const match = all.find((element) => {
-      const text = normalize(element.innerText || element.textContent)
-      return labels.some((label) => text === label || text.startsWith(label) || text.includes(label))
-    })
-    if (!match) return false
-    const clickable = [
-      match.closest('[role="radio"]'),
-      match.closest('label'),
-      match.closest('button'),
-      match.closest('[role="button"]'),
-      match.closest('div'),
-    ].find((element) => element && isVisible(element))
-    if (!clickable) return false
-    clickable.click()
-    return true
-  }, { aliases })
+  const clicked = section
+    ? await section.evaluate((root, payload) => {
+      const normalize = (text) => String(text || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase()
+      const isVisible = (element) => {
+        if (!element) return false
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      }
+      const labels = (payload.aliases || []).map(normalize).filter(Boolean)
+      const all = Array.from(root.querySelectorAll('*')).filter(isVisible)
+      const match = all.find((element) => {
+        const text = normalize(element.innerText || element.textContent)
+        return labels.some((label) => text === label || text.startsWith(`${label} `))
+      }) || all.find((element) => {
+        const text = normalize(element.innerText || element.textContent)
+        return labels.some((label) => text === label || text.startsWith(label) || text.includes(label))
+      })
+      if (!match) return false
+      const clickable = [
+        match.closest('[role="radio"]'),
+        match.closest('label'),
+        match.closest('button'),
+        match.closest('[role="button"]'),
+        match.closest('div'),
+      ].find((element) => element && isVisible(element))
+      if (!clickable) return false
+      clickable.click()
+      return true
+    }, { aliases: aliasPatterns.aliases })
+    : await page.evaluate((payload) => {
+      const normalize = (text) => String(text || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase()
+      const isVisible = (element) => {
+        if (!element) return false
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      }
+      const labels = (payload.aliases || []).map(normalize).filter(Boolean)
+      const all = Array.from(document.querySelectorAll('*')).filter(isVisible)
+      const match = all.find((element) => {
+        const text = normalize(element.innerText || element.textContent)
+        return labels.some((label) => text === label || text.startsWith(`${label} `))
+      }) || all.find((element) => {
+        const text = normalize(element.innerText || element.textContent)
+        return labels.some((label) => text === label || text.startsWith(label) || text.includes(label))
+      })
+      if (!match) return false
+      const clickable = [
+        match.closest('[role="radio"]'),
+        match.closest('label'),
+        match.closest('button'),
+        match.closest('[role="button"]'),
+        match.closest('div'),
+      ].find((element) => element && isVisible(element))
+      if (!clickable) return false
+      clickable.click()
+      return true
+    }, { aliases: aliasPatterns.aliases })
 
   if (!clicked) {
+    throw new Error(errorMessage)
+  }
+
+  await page.waitForTimeout(700)
+  const selected = await isRadioOptionSelectedInSection(page, sectionPattern, aliasPatterns.aliases)
+  if (!selected) {
     throw new Error(errorMessage)
   }
 }
@@ -1500,6 +1930,7 @@ async function clickRadioOptionInSection(page, sectionPattern, aliases, errorMes
 async function selectDropdownOptionInSection(page, sectionPattern, aliases, errorMessage) {
   const section = await findSectionRoot(page, sectionPattern, 4500).catch(() => null)
   const searchRoot = section || page
+  const aliasPatterns = buildAliasPatterns(aliases)
   if (section) {
     await section.scrollIntoViewIfNeeded().catch(() => {})
   }
@@ -1516,8 +1947,11 @@ async function selectDropdownOptionInSection(page, sectionPattern, aliases, erro
   await trigger.click({ timeout: 5000, force: true })
   await page.waitForTimeout(500)
 
-  const optionPattern = new RegExp(aliases.join('|'), 'i')
+  const optionPattern = aliasPatterns.loosePattern
   const option = await findVisibleLocator(page, [
+    (ctx) => ctx.getByRole('option', { name: aliasPatterns.exactPattern }),
+    (ctx) => ctx.getByRole('menuitem', { name: aliasPatterns.exactPattern }),
+    (ctx) => ctx.locator('[role="option"], [role="menuitem"], li, button, div').filter({ hasText: aliasPatterns.exactPattern }),
     (ctx) => ctx.getByRole('option', { name: optionPattern }),
     (ctx) => ctx.getByRole('menuitem', { name: optionPattern }),
     (ctx) => ctx.locator('[role="option"], [role="menuitem"], li, button, div').filter({ hasText: optionPattern }),
@@ -1525,7 +1959,13 @@ async function selectDropdownOptionInSection(page, sectionPattern, aliases, erro
 
   if (option) {
     await option.click({ timeout: 5000, force: true })
-    return
+    await page.waitForTimeout(700)
+    const currentValue = await readDropdownValueInSection(page, sectionPattern)
+    const normalizedCurrentValue = normalizeUiText(currentValue)
+    const isMatch = aliasPatterns.aliases.some((alias) => normalizedCurrentValue.includes(normalizeUiText(alias)))
+    if (isMatch) {
+      return
+    }
   }
 
   const clicked = await page.evaluate((payload) => {
@@ -1546,28 +1986,690 @@ async function selectDropdownOptionInSection(page, sectionPattern, aliases, erro
       .filter(isVisible)
       .find((element) => {
         const text = normalize(element.innerText || element.textContent)
+        return labels.some((label) => text === label || text.startsWith(`${label} `))
+      }) || Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, button, div'))
+      .filter(isVisible)
+      .find((element) => {
+        const text = normalize(element.innerText || element.textContent)
         return labels.some((label) => text === label || text.includes(label))
       })
     if (!match) return false
     match.click()
     return true
-  }, { aliases })
+  }, { aliases: aliasPatterns.aliases })
 
   if (!clicked) {
     throw new Error(errorMessage)
+  }
+
+  await page.waitForTimeout(700)
+  const currentValue = await readDropdownValueInSection(page, sectionPattern)
+  const normalizedCurrentValue = normalizeUiText(currentValue)
+  const isMatch = aliasPatterns.aliases.some((alias) => normalizedCurrentValue.includes(normalizeUiText(alias)))
+  if (!isMatch) {
+    throw new Error(errorMessage)
+  }
+}
+
+async function isRadioOptionSelectedInSection(page, sectionPattern, aliases = []) {
+  const section = await findSectionRoot(page, sectionPattern, 2600).catch(() => null)
+  const searchRoot = section || page
+  const selected = await (section
+    ? section.evaluate((root, payload) => {
+      const normalize = (text) => String(text || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase()
+      const labels = (payload.aliases || []).map(normalize).filter(Boolean)
+      const isVisible = (element) => {
+        if (!element) return false
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      }
+      const candidates = Array.from(root.querySelectorAll('[role="radio"], input[type="radio"], label, button, div'))
+        .filter(isVisible)
+      return candidates.some((element) => {
+        const checked =
+          element.getAttribute('aria-checked') === 'true' ||
+          element.matches?.('input[type="radio"]:checked') ||
+          Boolean(element.querySelector?.('input[type="radio"]:checked'))
+        if (!checked) return false
+        const text = normalize(
+          element.innerText ||
+          element.textContent ||
+          element.getAttribute?.('aria-label') ||
+          ''
+        )
+        return labels.some((label) => text === label || text.startsWith(label) || text.includes(label))
+      })
+    }, { aliases })
+    : page.evaluate((payload) => {
+      const normalize = (text) => String(text || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase()
+      const labels = (payload.aliases || []).map(normalize).filter(Boolean)
+      const isVisible = (element) => {
+        if (!element) return false
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      }
+      const candidates = Array.from(document.querySelectorAll('[role="radio"], input[type="radio"], label, button, div'))
+        .filter(isVisible)
+      return candidates.some((element) => {
+        const checked =
+          element.getAttribute('aria-checked') === 'true' ||
+          element.matches?.('input[type="radio"]:checked') ||
+          Boolean(element.querySelector?.('input[type="radio"]:checked'))
+        if (!checked) return false
+        const text = normalize(
+          element.innerText ||
+          element.textContent ||
+          element.getAttribute?.('aria-label') ||
+          ''
+        )
+        return labels.some((label) => text === label || text.startsWith(label) || text.includes(label))
+      })
+    }, { aliases })).catch(() => false)
+
+  return Boolean(selected)
+}
+
+async function readDropdownValueInSection(page, sectionPattern) {
+  const section = await findSectionRoot(page, sectionPattern, 2600).catch(() => null)
+  const trigger = await findVisibleLocator(section || page, [
+    (ctx) => ctx.getByRole('combobox'),
+    (ctx) => ctx.locator('[role="combobox"], [aria-haspopup="listbox"], button, div[role="button"]'),
+  ], 1600)
+
+  if (trigger) {
+    return String(await trigger.textContent().catch(() => '') || '').trim()
+  }
+
+  return ''
+}
+
+async function expandSectionIfNeeded(page, sectionPattern) {
+  const section = await findSectionRoot(page, sectionPattern, 2200).catch(() => null)
+  if (!section) return false
+
+  const clicked = await section.evaluate((root) => {
+    const normalize = (text) => String(text || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const toggler = Array.from(root.querySelectorAll('button, [role="button"], div, span'))
+      .filter(isVisible)
+      .find((element) => {
+        const text = normalize(element.innerText || element.textContent)
+        return (
+          element.getAttribute('aria-expanded') === 'false' ||
+          text === 'mostrar mas opciones' ||
+          text.startsWith('mostrar mas opciones') ||
+          text === 'mostrar más opciones' ||
+          text.startsWith('mostrar más opciones')
+        )
+      })
+    if (!toggler) return false
+    toggler.click()
+    return true
+  }).catch(() => false)
+
+  if (clicked) {
+    await page.waitForTimeout(600)
+  }
+  return clicked
+}
+
+async function hasEditableDateInputs(root) {
+  return await root.evaluate((element) => {
+    const normalize = (text) => String(text || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (node) => {
+      if (!node) return false
+      const style = window.getComputedStyle(node)
+      const rect = node.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    return Array.from(element.querySelectorAll('input'))
+      .filter(isVisible)
+      .some((input) => {
+        if (input.disabled || input.readOnly) return false
+        const type = normalize(input.getAttribute('type') || input.type || '')
+        const label = normalize(input.getAttribute('aria-label'))
+        const placeholder = normalize(input.getAttribute('placeholder'))
+        return type === 'date' || label.includes('fecha') || placeholder.includes('fecha')
+      }) || normalize(element.textContent).includes('fecha de inicio') || normalize(element.textContent).includes('fecha de finalizacion')
+  }).catch(() => false)
+}
+
+async function isFacebookAdEditorReady(page) {
+  const ready = await findVisibleLocator(page, [
+    (ctx) => ctx.getByText(/nombre del anuncio|identidad|configuracion del anuncio|configuración del anuncio|contenido del anuncio|destino|configurar contenido|vista previa|publicar/i),
+    (ctx) => ctx.locator('section, div, main, aside').filter({ hasText: /nombre del anuncio|identidad|configuracion del anuncio|configuración del anuncio|contenido del anuncio|destino|configurar contenido|vista previa|publicar/i }),
+    (ctx) => ctx.locator('[role="button"], button, a, div').filter({ hasText: /1 anuncio|nuevo anuncio|anuncio de clientes potenciales/i }),
+  ], 7000)
+  return Boolean(ready)
+}
+
+async function getVisibleAdEditorSectionNames(page) {
+  return await page.evaluate(() => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const titles = Array.from(document.querySelectorAll('h1, h2, h3, h4, legend, label, div, span'))
+      .filter(isVisible)
+      .map((element) => String(element.innerText || element.textContent || '').trim())
+      .filter(Boolean)
+    const interesting = []
+    const seen = new Set()
+    for (const title of titles) {
+      const text = normalize(title)
+      if (
+        text === 'nombre del anuncio' ||
+        text === 'identidad' ||
+        text === 'configuracion del anuncio' ||
+        text === 'configuración del anuncio' ||
+        text === 'contenido del anuncio' ||
+        text === 'texto principal' ||
+        text === 'titulo' ||
+        text === 'título' ||
+        text === 'descripcion' ||
+        text === 'descripción' ||
+        text === 'llamada a la accion' ||
+        text === 'llamada a la acción' ||
+        text === 'formulario instantaneo' ||
+        text === 'formulario instantáneo' ||
+        text === 'destino'
+      ) {
+        if (!seen.has(text)) {
+          seen.add(text)
+          interesting.push(title)
+        }
+      }
+    }
+    return interesting.slice(0, 16)
+  }).catch(() => [])
+}
+
+async function openPhotoAdContentModal(page, contentSection) {
+  const trigger = await findVisibleLocator(contentSection, [
+    (ctx) => ctx.getByRole('button', { name: /configurar contenido|editar contenido/i }),
+    (ctx) => ctx.locator('button, [role="button"]').filter({ hasText: /configurar contenido|editar contenido/i }),
+  ], 2600)
+  if (!trigger) {
+    throw new Error('No encontre el boton Configurar contenido.')
+  }
+
+  await trigger.click({ timeout: 5000, force: true }).catch(() => {})
+  await page.waitForTimeout(900)
+
+  const photoOption = await findVisibleLocator(page, [
+    (ctx) => ctx.getByRole('menuitem', { name: /anuncio con foto/i }),
+    (ctx) => ctx.getByRole('option', { name: /anuncio con foto/i }),
+    (ctx) => ctx.locator('button, [role="menuitem"], [role="option"], div').filter({ hasText: /anuncio con foto/i }),
+  ], 2600)
+  if (!photoOption) {
+    throw new Error('No encontre la opcion Anuncio con foto.')
+  }
+
+  await photoOption.click({ timeout: 5000, force: true }).catch(() => {})
+  await page.waitForTimeout(1500)
+
+  const modal = await findVisibleLocator(page, [
+    (ctx) => ctx.locator('[role="dialog"], [aria-modal="true"]').filter({ hasText: /configurar contenido|contenido multimedia/i }),
+    (ctx) => ctx.locator('div').filter({ hasText: /configurar contenido|contenido multimedia/i }),
+  ], 5000)
+  if (!modal) {
+    throw new Error('No se abrio el modal Configurar contenido.')
+  }
+  return modal
+}
+
+async function selectModalPageTab(modal) {
+  const pageTab = await findVisibleLocator(modal, [
+    (ctx) => ctx.getByRole('tab', { name: /pagina|página/i }),
+    (ctx) => ctx.getByRole('button', { name: /pagina|página/i }),
+    (ctx) => ctx.locator('button, [role="tab"], [role="button"], div').filter({ hasText: /pagina|página/i }),
+  ], 2200)
+  if (pageTab) {
+    await pageTab.click({ timeout: 5000, force: true }).catch(() => {})
+    await modal.page().waitForTimeout(800)
+  }
+}
+
+async function selectNoyecodeSourceInModal(modal) {
+  const sourceTrigger = await findVisibleLocator(modal, [
+    (ctx) => ctx.getByRole('combobox'),
+    (ctx) => ctx.locator('[role="combobox"], [aria-haspopup="listbox"], button').filter({ hasText: /noyecode|pagina|página/i }),
+  ], 2200)
+  if (!sourceTrigger) {
+    return
+  }
+
+  const sourceText = String(await sourceTrigger.textContent().catch(() => '') || '').trim()
+  if (/noyecode/i.test(sourceText)) {
+    return
+  }
+
+  await sourceTrigger.click({ timeout: 5000, force: true }).catch(() => {})
+  await modal.page().waitForTimeout(600)
+
+  const option = await findVisibleLocator(modal.page(), [
+    (ctx) => ctx.getByRole('option', { name: /noyecode/i }),
+    (ctx) => ctx.getByRole('menuitem', { name: /noyecode/i }),
+    (ctx) => ctx.locator('[role="option"], [role="menuitem"], li, button, div').filter({ hasText: /noyecode/i }),
+  ], 2200)
+  if (option) {
+    await option.click({ timeout: 5000, force: true }).catch(() => {})
+    await modal.page().waitForTimeout(800)
+  }
+}
+
+async function selectFirstNoyecodeImageInModal(modal, preview = null) {
+  const preferredPhotoId = String(preview?.facebookPhotoId || '').trim()
+  const preferredPhotoUrl = String(preview?.facebookPhotoUrl || '').trim()
+  const preferredPhotoName = String(preview?.facebookPhotoName || '').trim()
+  const clicked = await modal.evaluate((root, payload) => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const containers = Array.from(root.querySelectorAll('div, section')).filter(isVisible)
+    const noyecodeContainer =
+      containers.find((element) => normalize(element.textContent).includes('noyecode')) ||
+      root
+    const clickables = Array.from(noyecodeContainer.querySelectorAll('button, [role="button"], label, div'))
+      .filter(isVisible)
+      .filter((element) => element.querySelector?.('img'))
+    const target =
+      clickables.find((element) => {
+        const img = element.querySelector('img')
+        const src = String(img?.src || '')
+        const text = normalize(element.innerText || element.textContent)
+        return (
+          (payload.preferredPhotoName && text.includes(normalize(payload.preferredPhotoName))) ||
+          (payload.preferredPhotoId && src.includes(payload.preferredPhotoId)) ||
+          (payload.preferredPhotoUrl && src.includes(payload.preferredPhotoUrl))
+        )
+      }) ||
+      clickables[0]
+    if (!target) return false
+    target.click()
+    return true
+  }, {
+    preferredPhotoId,
+    preferredPhotoUrl,
+    preferredPhotoName,
+  }).catch(() => false)
+
+  if (!clicked) {
+    throw new Error('No encontre una imagen seleccionable en la seccion Noyecode del modal.')
+  }
+
+  await modal.page().waitForTimeout(1200)
+  const selectionConfirmed = await modal.evaluate((root) => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const selectionText = Array.from(root.querySelectorAll('div, span, p'))
+      .filter(isVisible)
+      .map((element) => normalize(element.innerText || element.textContent))
+      .find((text) => text.includes('1 seleccionado') || text.includes('1 seleccionados') || text.includes('1 selected'))
+    if (selectionText) {
+      return true
+    }
+    return Array.from(root.querySelectorAll('[aria-selected="true"], [aria-checked="true"], [data-selected="true"]'))
+      .filter(isVisible)
+      .length > 0
+  }).catch(() => false)
+
+  if (!selectionConfirmed) {
+    throw new Error('La imagen elegida no quedo marcada como seleccionada dentro del modal.')
+  }
+}
+
+async function clickModalPrimaryAction(page, modal, labelPattern) {
+  const searchTargets = [modal, page]
+  for (const target of searchTargets) {
+    const action = await findVisibleLocator(target, [
+      (ctx) => ctx.getByRole('button', { name: labelPattern }),
+      (ctx) => ctx.locator('button, [role="button"], [type="button"], [type="submit"]').filter({ hasText: labelPattern }),
+      (ctx) => ctx.locator('footer button, footer [role="button"], [role="dialog"] button, [role="dialog"] [role="button"]').filter({ hasText: labelPattern }),
+    ], 2200)
+    if (action) {
+      await action.click({ timeout: 5000, force: true }).catch(() => {})
+      await page.waitForTimeout(1200)
+      return
+    }
+  }
+
+  const clicked = await page.evaluate((patternSource, patternFlags) => {
+    const matcher = new RegExp(patternSource, patternFlags)
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const candidates = Array.from(document.querySelectorAll('[role="dialog"] button, [role="dialog"] [role="button"], button, [role="button"]'))
+      .filter(isVisible)
+      .filter((element) => matcher.test(normalize(element.innerText || element.textContent || element.getAttribute('aria-label') || '')))
+    const target = candidates.find((element) => !element.hasAttribute('disabled') && element.getAttribute('aria-disabled') !== 'true') || candidates[0]
+    if (!target) return false
+    target.click()
+    return true
+  }, labelPattern.source, labelPattern.flags).catch(() => false)
+
+  if (!clicked) {
+    throw new Error(`No encontre el boton ${labelPattern}.`)
+  }
+  await page.waitForTimeout(1200)
+}
+
+async function completePhotoAdContentModalFlow(page, preview) {
+  const contentSection = await findSectionRoot(page, /contenido del anuncio/i, 2600).catch(() => null)
+  if (!contentSection) {
+    return { visible: false, configured: false, textConfigured: false, ctaConfigured: false }
+  }
+
+  const pendingImage = await contentSection.evaluate((element) => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    return normalize(element.textContent).includes('especifica una imagen')
+  }).catch(() => false)
+
+  if (!pendingImage) {
+    return { visible: true, configured: true, textConfigured: false, ctaConfigured: false }
+  }
+
+  const modal = await openPhotoAdContentModal(page, contentSection)
+  await selectModalPageTab(modal)
+  await selectNoyecodeSourceInModal(modal)
+  await selectFirstNoyecodeImageInModal(modal, preview)
+  await clickModalPrimaryAction(page, modal, /siguiente|next/i)
+
+  let textStepReady = await findVisibleLocator(page, [
+    (ctx) => ctx.locator('[role="dialog"], [aria-modal="true"]').filter({ hasText: /texto principal|llamada a la accion|llamada a la acción/i }),
+    (ctx) => ctx.locator('div').filter({ hasText: /texto principal|llamada a la accion|llamada a la acción/i }),
+  ], 5000)
+  if (!textStepReady) {
+    const textNav = await findVisibleLocator(page, [
+      (ctx) => ctx.getByRole('button', { name: /texto/i }),
+      (ctx) => ctx.getByRole('tab', { name: /texto/i }),
+      (ctx) => ctx.locator('button, [role="button"], [role="tab"], div').filter({ hasText: /^texto$/i }),
+    ], 2200)
+    if (textNav) {
+      await textNav.click({ timeout: 5000, force: true }).catch(() => {})
+      await page.waitForTimeout(1200)
+      textStepReady = await findVisibleLocator(page, [
+        (ctx) => ctx.locator('[role="dialog"], [aria-modal="true"]').filter({ hasText: /texto principal|llamada a la accion|llamada a la acción/i }),
+        (ctx) => ctx.locator('div').filter({ hasText: /texto principal|llamada a la accion|llamada a la acción/i }),
+      ], 3500)
+    }
+  }
+  if (!textStepReady) {
+    throw new Error('No aparecio el paso Texto del modal Configurar contenido.')
+  }
+
+  const adsAnalyst = preview?.orchestrator?.adsAnalyst || {}
+  const primaryText = String(adsAnalyst?.copy || '').trim()
+  const ctaLabel = String(adsAnalyst?.cta || '').trim()
+  let textConfigured = false
+  let ctaConfigured = false
+
+  const textarea = await findVisibleLocator(textStepReady, [
+    (ctx) => ctx.getByLabel(/texto principal/i),
+    (ctx) => ctx.locator('textarea'),
+  ], 2600)
+  if (!textarea) {
+    throw new Error('No encontre el campo Texto principal dentro del modal.')
+  }
+  await fillVisibleInput(textarea, primaryText)
+  textConfigured = true
+
+  if (ctaLabel) {
+    const ctaTrigger = await findVisibleLocator(textStepReady, [
+      (ctx) => ctx.getByRole('combobox'),
+      (ctx) => ctx.locator('[role="combobox"], [aria-haspopup="listbox"], button'),
+    ], 2200)
+    if (ctaTrigger) {
+      await ctaTrigger.click({ timeout: 5000, force: true }).catch(() => {})
+      await page.waitForTimeout(500)
+      const ctaOption = await findVisibleLocator(page, [
+        (ctx) => ctx.getByRole('option', { name: new RegExp(ctaLabel, 'i') }),
+        (ctx) => ctx.getByRole('menuitem', { name: new RegExp(ctaLabel, 'i') }),
+        (ctx) => ctx.locator('[role="option"], [role="menuitem"], li, button, div').filter({ hasText: new RegExp(ctaLabel, 'i') }),
+      ], 2200)
+      if (ctaOption) {
+        await ctaOption.click({ timeout: 5000, force: true }).catch(() => {})
+        ctaConfigured = true
+      }
+    }
+  }
+
+  await clickModalPrimaryAction(page, textStepReady, /siguiente|next/i)
+  let improvementsStepReady = await findVisibleLocator(page, [
+    (ctx) => ctx.locator('[role="dialog"], [aria-modal="true"]').filter({ hasText: /mejoras|translation|traduccion|traducción/i }),
+    (ctx) => ctx.locator('div').filter({ hasText: /mejoras|translation|traduccion|traducción/i }),
+  ], 5000)
+  if (!improvementsStepReady) {
+    const improvementsNav = await findVisibleLocator(page, [
+      (ctx) => ctx.getByRole('button', { name: /mejoras/i }),
+      (ctx) => ctx.getByRole('tab', { name: /mejoras/i }),
+      (ctx) => ctx.locator('button, [role="button"], [role="tab"], div').filter({ hasText: /mejoras/i }),
+    ], 2200)
+    if (improvementsNav) {
+      await improvementsNav.click({ timeout: 5000, force: true }).catch(() => {})
+      await page.waitForTimeout(1200)
+      improvementsStepReady = await findVisibleLocator(page, [
+        (ctx) => ctx.locator('[role="dialog"], [aria-modal="true"]').filter({ hasText: /mejoras|translation|traduccion|traducción/i }),
+        (ctx) => ctx.locator('div').filter({ hasText: /mejoras|translation|traduccion|traducción/i }),
+      ], 3500)
+    }
+  }
+  if (!improvementsStepReady) {
+    throw new Error('No aparecio el paso Mejoras del modal Configurar contenido.')
+  }
+
+  await clickModalPrimaryAction(page, improvementsStepReady, /listo|done|hecho|finalizar|finish/i)
+  await page.waitForTimeout(1600)
+
+  const stillPending = await contentSection.evaluate((element) => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    return normalize(element.textContent).includes('especifica una imagen')
+  }).catch(() => true)
+
+  return {
+    visible: true,
+    configured: !stillPending,
+    textConfigured,
+    ctaConfigured,
+  }
+}
+
+async function configureAdDestinationField(page, destinationUrl) {
+  const destinationSection = await locateDynamicSection(page, {
+    labels: ['Destino', 'Sitio web', 'Website'],
+    controlType: 'input',
+  }, 3200).catch(() => null)
+
+  const searchRoot = destinationSection || page
+  const field = await findVisibleLocator(searchRoot, [
+    (ctx) => ctx.getByLabel(/sitio web|website|url del sitio web|website url/i),
+    (ctx) => ctx.locator('input:not([type="checkbox"]):not([type="radio"])[aria-label*="sitio web" i]'),
+    (ctx) => ctx.locator('input:not([type="checkbox"]):not([type="radio"])[placeholder*="sitio web" i]'),
+    (ctx) => ctx.locator('input:not([type="checkbox"]):not([type="radio"])[aria-label*="website" i]'),
+    (ctx) => ctx.locator('input:not([type="checkbox"]):not([type="radio"])[placeholder*="website" i]'),
+    (ctx) => ctx.locator('input:not([type="checkbox"]):not([type="radio"])[aria-label*="url" i]'),
+    (ctx) => ctx.locator('input:not([type="checkbox"]):not([type="radio"])[placeholder*="url" i]'),
+  ], 2600)
+
+  if (!field) {
+    throw new Error('No encontre el campo de destino del sitio web.')
+  }
+
+  await fillVisibleInput(field, destinationUrl)
+}
+
+async function ensureAdContentImageConfigured(page, preview) {
+  const contentSection = await findSectionRoot(page, /contenido del anuncio/i, 2600).catch(() => null)
+  if (!contentSection) {
+    return { visible: false, configured: false, attempted: false }
+  }
+
+  const hasPendingImage = await contentSection.evaluate((element) => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    return normalize(element.textContent).includes('especifica una imagen')
+  }).catch(() => false)
+
+  if (!hasPendingImage) {
+    return { visible: true, configured: true, attempted: false }
+  }
+
+  const preparedAssetPath = String(preview?.imageAsset?.preparedPath || '').trim()
+  if (!preparedAssetPath || !fs.existsSync(preparedAssetPath)) {
+    throw new Error('No tengo un asset local preparado para cargar en Contenido del anuncio.')
+  }
+
+  let attempted = false
+  const openButton = await findVisibleLocator(contentSection, [
+    (ctx) => ctx.getByRole('button', { name: /configurar contenido|editar contenido|agregar multimedia|añadir multimedia|agregar imagen|subir imagen|seleccionar imagen/i }),
+    (ctx) => ctx.locator('button, [role="button"]').filter({ hasText: /configurar contenido|editar contenido|agregar multimedia|añadir multimedia|agregar imagen|subir imagen|seleccionar imagen/i }),
+  ], 2600)
+
+  if (openButton) {
+    await openButton.click({ timeout: 5000, force: true }).catch(() => {})
+    attempted = true
+    await page.waitForTimeout(1200)
+  }
+
+  let fileInput = await findVisibleLocator(page, [
+    (ctx) => ctx.locator('input[type="file"]'),
+  ], 2500)
+
+  if (!fileInput) {
+    const mediaButton = await findVisibleLocator(page, [
+      (ctx) => ctx.getByRole('button', { name: /agregar multimedia|añadir multimedia|agregar imagen|subir imagen|seleccionar imagen|upload/i }),
+      (ctx) => ctx.locator('button, [role="button"]').filter({ hasText: /agregar multimedia|añadir multimedia|agregar imagen|subir imagen|seleccionar imagen|upload/i }),
+    ], 2200)
+    if (mediaButton) {
+      await mediaButton.click({ timeout: 5000, force: true }).catch(() => {})
+      attempted = true
+      await page.waitForTimeout(1200)
+      fileInput = await findVisibleLocator(page, [
+        (ctx) => ctx.locator('input[type="file"]'),
+      ], 2500)
+    }
+  }
+
+  if (!fileInput) {
+    throw new Error('No encontre un selector de archivo para cargar la imagen del anuncio.')
+  }
+
+  await fileInput.setInputFiles(preparedAssetPath)
+  attempted = true
+  await page.waitForTimeout(2200)
+
+  const stillPending = await contentSection.evaluate((element) => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    return normalize(element.textContent).includes('especifica una imagen')
+  }).catch(() => true)
+
+  return {
+    visible: true,
+    configured: !stillPending,
+    attempted,
   }
 }
 
 async function fillCampaignBudgetValue(page, budgetValue) {
   const normalizedBudget = normalizeBudgetForUi(budgetValue)
-  const budgetSection = await findSectionRoot(page, /presupuesto|budget/i, 1800).catch(() => null)
+  const budgetSection = await locateDynamicSection(page, {
+    labels: ['Presupuesto'],
+    mustContainTexts: ['COP'],
+    controlType: 'input',
+  }, 3200).catch(() => null)
   if (budgetSection) {
     await budgetSection.scrollIntoViewIfNeeded().catch(() => {})
     await page.waitForTimeout(250)
   }
-  const input = await findVisibleLocator(page, [
-    (ctx) => ctx.locator('input[inputmode="numeric"], input[aria-label*="presupuesto" i], input[placeholder*="presupuesto" i]'),
-    (ctx) => ctx.locator('input[type="text"], input').filter({ hasText: /^\s*$/ }),
+  if (!budgetSection) {
+    throw new Error('No encontre la seccion de presupuesto monetario de la campaña.')
+  }
+
+  const input = await findVisibleLocator(budgetSection, [
+    (ctx) => ctx.locator('xpath=.//input[not(@type="hidden") and not(@type="checkbox") and not(@type="radio") and not(@readonly)][ancestor::*[self::div or self::section][contains(translate(normalize-space(.), "ÁÉÍÓÚáéíóú", "AEIOUaeiou"), "cop")]][1]'),
+    (ctx) => ctx.locator('xpath=.//input[not(@type="hidden") and not(@type="checkbox") and not(@type="radio") and not(@readonly)][ancestor::*[self::div or self::section][contains(translate(normalize-space(.), "ÁÉÍÓÚáéíóú", "AEIOUaeiou"), "presupuesto diario") or contains(translate(normalize-space(.), "ÁÉÍÓÚáéíóú", "AEIOUaeiou"), "presupuesto total")]][1]'),
+    (ctx) => ctx.locator('input[aria-label*="cop" i], input[placeholder*="cop" i]'),
   ], 2600)
 
   if (input) {
@@ -1582,7 +2684,7 @@ async function fillCampaignBudgetValue(page, budgetValue) {
     }
   }
 
-  const setByDom = await page.evaluate((value) => {
+  const setByDom = await budgetSection.evaluate((root, value) => {
     const normalize = (text) => String(text || '')
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -1595,21 +2697,29 @@ async function fillCampaignBudgetValue(page, budgetValue) {
       const rect = element.getBoundingClientRect()
       return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
     }
-    const candidates = Array.from(document.querySelectorAll('input'))
+    const candidates = Array.from(root.querySelectorAll('input'))
       .filter(isVisible)
       .filter((element) => {
+        if (element.disabled || element.readOnly) return false
+        const type = normalize(element.getAttribute('type') || element.type || '')
+        if (['checkbox', 'radio', 'hidden', 'button', 'submit', 'reset', 'file', 'image'].includes(type)) return false
         const label = normalize(element.getAttribute('aria-label'))
         const placeholder = normalize(element.getAttribute('placeholder'))
         const valueText = normalize(element.value)
         const parentText = normalize(element.closest('section, form, div')?.textContent)
         return (
-          label.includes('presupuesto') ||
-          placeholder.includes('presupuesto') ||
-          /^\d[\d.,]*$/.test(valueText) ||
-          parentText.includes('presupuesto')
+          label.includes('cop') ||
+          placeholder.includes('cop') ||
+          parentText.includes('presupuesto diario') ||
+          parentText.includes('presupuesto total') ||
+          parentText.includes('cop')
         )
       })
-    const target = candidates.find((element) => /^\d[\d.,]*$/.test(String(element.value || '').trim())) || candidates[0]
+    const target =
+      candidates.find((element) => normalize(element.closest('div, section, form')?.textContent).includes('cop')) ||
+      candidates.find((element) => normalize(element.closest('div, section, form')?.textContent).includes('presupuesto diario')) ||
+      candidates.find((element) => normalize(element.closest('div, section, form')?.textContent).includes('presupuesto total')) ||
+      candidates.find((element) => /^\d[\d.,]*$/.test(String(element.value || '').trim()))
     if (!target) return false
     const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
     if (descriptor?.set) {
@@ -1618,9 +2728,9 @@ async function fillCampaignBudgetValue(page, budgetValue) {
       target.value = value
     }
     target.dispatchEvent(new Event('input', { bubbles: true }))
-    target.dispatchEvent(new Event('change', { bubbles: true }))
-    target.dispatchEvent(new Event('blur', { bubbles: true }))
-    return true
+      target.dispatchEvent(new Event('change', { bubbles: true }))
+      target.dispatchEvent(new Event('blur', { bubbles: true }))
+      return true
   }, normalizedBudget)
 
   if (!setByDom) {
@@ -1641,6 +2751,32 @@ async function clickCampaignEditorNext(page) {
     (ctx) => ctx.locator('div[role="button"], a').filter({ hasText: /siguiente|next|continuar|continue|guardar|save/i }),
   ], 3000)
   if (!nextButton) {
+    const clicked = await page.evaluate(() => {
+      const normalize = (value) => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase()
+      const isVisible = (element) => {
+        if (!element) return false
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      }
+      const match = Array.from(document.querySelectorAll('button, [role="button"], a, div'))
+        .filter(isVisible)
+        .find((element) => {
+          const text = normalize(element.innerText || element.textContent)
+          return text === 'siguiente' || text === 'next' || text === 'continuar' || text === 'continue'
+        })
+      if (!match) return false
+      match.click()
+      return true
+    }).catch(() => false)
+    if (clicked) {
+      return
+    }
     throw new Error('No encontre el boton Siguiente en el editor de campaña.')
   }
 
@@ -1655,17 +2791,172 @@ async function clickCampaignEditorNext(page) {
   throw new Error('El boton Siguiente no se habilito despues de configurar la campaña.')
 }
 
+async function scrollEditorWorkArea(page, amount = 900) {
+  await page.evaluate((step) => {
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const isScrollable = (element) => {
+      if (!element || element === document.body || element === document.documentElement) return false
+      const style = window.getComputedStyle(element)
+      const overflowY = style.overflowY || style.overflow || ''
+      return /(auto|scroll|overlay)/i.test(overflowY) && element.scrollHeight > element.clientHeight + 120
+    }
+    const candidates = Array.from(document.querySelectorAll('div, section, main, aside'))
+      .filter(isVisible)
+      .filter(isScrollable)
+      .sort((a, b) => {
+        const aScore = (a.clientHeight * a.clientWidth) + a.scrollHeight
+        const bScore = (b.clientHeight * b.clientWidth) + b.scrollHeight
+        return bScore - aScore
+      })
+      .slice(0, 6)
+
+    for (const element of candidates) {
+      try {
+        element.scrollBy({ top: step, behavior: 'instant' })
+      } catch {
+        element.scrollTop += step
+      }
+    }
+
+    try {
+      window.scrollBy(0, step)
+    } catch {}
+  }, amount).catch(() => {})
+  await page.waitForTimeout(450)
+}
+
 async function getAdsetSchedulePanel(page) {
-  return await findVisibleLocator(page, [
-    (ctx) => ctx.locator('section, div').filter({ hasText: /presupuesto y calendario|presupuesto|calendario|programacion|budget|schedule/i }),
-  ], 5000)
+  const attempts = [
+    { labels: ['Presupuesto y calendario', 'Budget and schedule'], mustContainTexts: ['Fecha de inicio'], controlType: 'input' },
+    { labels: ['Presupuesto y calendario', 'Calendario', 'Budget and schedule', 'Schedule'], mustContainTexts: [], controlType: 'input' },
+    { labels: ['Fecha de inicio', 'Fecha de finalización', 'Fecha de finalizacion'], mustContainTexts: [], controlType: 'input' },
+  ]
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (const config of attempts) {
+      const section = await locateDynamicSection(page, config, 2200).catch(() => null)
+      if (section) {
+        return section
+      }
+    }
+    await scrollEditorWorkArea(page, attempt === 0 ? 500 : 900)
+  }
+
+  return null
+}
+
+async function getVisibleAdsetSectionNames(page) {
+  return await page.evaluate(() => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (element) => {
+      if (!element) return false
+      const style = window.getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const titles = Array.from(document.querySelectorAll('h1, h2, h3, h4, legend, label, div, span'))
+      .filter(isVisible)
+      .map((element) => String(element.innerText || element.textContent || '').trim())
+      .filter(Boolean)
+    const interesting = []
+    const seen = new Set()
+    for (const title of titles) {
+      const text = normalize(title)
+      if (
+        text === 'conversion' ||
+        text === 'ubicacion de la conversion' ||
+        text === 'objetivo de rendimiento' ||
+        text === 'presupuesto y calendario' ||
+        text === 'conjunto de datos' ||
+        text === 'objetivo de costo por resultado' ||
+        text === 'reglas de valor' ||
+        text === 'modelo de atribucion' ||
+        text === 'modelo de atribución' ||
+        text === 'contenido dinamico' ||
+        text === 'contenido dinámico' ||
+        text === 'publico' ||
+        text === 'audiencia' ||
+        text === 'segmentacion'
+      ) {
+        if (!seen.has(text)) {
+          seen.add(text)
+          interesting.push(title)
+        }
+      }
+    }
+    return interesting.slice(0, 12)
+  }).catch(() => [])
 }
 
 async function findScheduleInput(root, labelText, fallbackIndex = 1, timeout = 2600) {
+  const normalizedLabelText = String(labelText || '')
+    .replace(/[áÁ]/g, 'a')
+    .replace(/[éÉ]/g, 'e')
+    .replace(/[íÍ]/g, 'i')
+    .replace(/[óÓ]/g, 'o')
+    .replace(/[úÚ]/g, 'u')
+  const labelLower = normalizedLabelText.toLowerCase()
   return await findVisibleLocator(root, [
+    (ctx) => ctx.locator(`xpath=(.//*[contains(translate(normalize-space(.), "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚabcdefghijklmnopqrstuvwxyzáéíóú", "abcdefghijklmnopqrstuvwxyzaeiouabcdefghijklmnopqrstuvwxyzaeiou"), "${labelLower}") and not(contains(translate(normalize-space(.), "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚabcdefghijklmnopqrstuvwxyzáéíóú", "abcdefghijklmnopqrstuvwxyzaeiouabcdefghijklmnopqrstuvwxyzaeiou"), "definir una fecha"))])[1]/ancestor::*[self::div or self::section or self::label][1]//input[not(@type="checkbox") and not(@type="radio") and ((@type="date") or contains(translate(@placeholder, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "dd/mm/aaaa") or contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚ", "abcdefghijklmnopqrstuvwxyzaeiou"), "fecha"))][1]`),
     (ctx) => ctx.getByLabel(new RegExp(labelText, 'i')),
-    (ctx) => ctx.locator(`xpath=(.//*[contains(normalize-space(.), "${labelText}")])[1]/following::input[${fallbackIndex}]`),
+    (ctx) => ctx.locator(`xpath=(.//*[contains(translate(normalize-space(.), "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚabcdefghijklmnopqrstuvwxyzáéíóú", "abcdefghijklmnopqrstuvwxyzaeiouabcdefghijklmnopqrstuvwxyzaeiou"), "${labelLower}") and not(contains(translate(normalize-space(.), "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚabcdefghijklmnopqrstuvwxyzáéíóú", "abcdefghijklmnopqrstuvwxyzaeiouabcdefghijklmnopqrstuvwxyzaeiou"), "definir una fecha"))])[1]/ancestor::*[self::div or self::section or self::label][1]//input[not(@type="checkbox") and not(@type="radio")][${fallbackIndex}]`),
+    (ctx) => ctx.locator(`xpath=(.//*[contains(translate(normalize-space(.), "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚabcdefghijklmnopqrstuvwxyzáéíóú", "abcdefghijklmnopqrstuvwxyzaeiouabcdefghijklmnopqrstuvwxyzaeiou"), "${labelLower}") and not(contains(translate(normalize-space(.), "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚabcdefghijklmnopqrstuvwxyzáéíóú", "abcdefghijklmnopqrstuvwxyzaeiouabcdefghijklmnopqrstuvwxyzaeiou"), "definir una fecha"))])[1]/following::input[not(@type="checkbox") and not(@type="radio") and ((@type="date") or contains(translate(@placeholder, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "dd/mm/aaaa") or contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚ", "abcdefghijklmnopqrstuvwxyzaeiou"), "fecha"))][1]`),
+    (ctx) => ctx.locator(`xpath=(.//*[contains(translate(normalize-space(.), "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚabcdefghijklmnopqrstuvwxyzáéíóú", "abcdefghijklmnopqrstuvwxyzaeiouabcdefghijklmnopqrstuvwxyzaeiou"), "${labelLower}")])[1]/following::input[not(@type="checkbox") and not(@type="radio")][${fallbackIndex}]`),
+    (ctx) => ctx.locator(`input[aria-label*="${labelText}" i]`),
   ], timeout)
+}
+
+async function isScheduleDateAlreadySet(root, labelText, guiDate) {
+  const expectedSlash = formatGuiDateForSlash(guiDate)
+  const expectedLong = formatGuiDateForLong(guiDate)
+  const expectedIso = String(guiDate || '').trim()
+  return await root.evaluate((element, payload) => {
+    const normalize = (text) => String(text || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (node) => {
+      if (!node) return false
+      const style = window.getComputedStyle(node)
+      const rect = node.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const labelNeedle = normalize(payload.labelText)
+    const expectedValues = [payload.expectedSlash, payload.expectedLong, payload.expectedIso]
+      .map(normalize)
+      .filter(Boolean)
+    const anchors = Array.from(element.querySelectorAll('label, div, span, p, strong'))
+      .filter(isVisible)
+      .filter((node) => normalize(node.innerText || node.textContent).includes(labelNeedle))
+    for (const anchor of anchors) {
+      const container = anchor.closest('section, div, label, form') || anchor.parentElement || element
+      const bucket = Array.from(container.querySelectorAll('input, div, span'))
+        .filter(isVisible)
+        .map((node) => normalize(node.value || node.innerText || node.textContent || node.getAttribute?.('aria-label') || ''))
+        .filter(Boolean)
+      if (expectedValues.some((value) => bucket.some((candidate) => candidate.includes(value)))) {
+        return true
+      }
+    }
+    return false
+  }, {
+    labelText,
+    expectedSlash,
+    expectedLong,
+    expectedIso,
+  }).catch(() => false)
 }
 
 async function setDateInputValue(locator, guiDate) {
@@ -1701,15 +2992,61 @@ async function setDateInputValue(locator, guiDate) {
 }
 
 async function enableAdsetEndDate(root) {
+  const alreadyVisible = await root.evaluate((element) => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+    const isVisible = (node) => {
+      if (!node) return false
+      const style = window.getComputedStyle(node)
+      const rect = node.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const endSection = Array.from(element.querySelectorAll('label, div, span, p, strong'))
+      .filter(isVisible)
+      .find((node) => normalize(node.innerText || node.textContent).includes('fecha de finalizacion'))
+    if (!endSection) return false
+    const container = endSection.closest('section, div, label, form') || endSection.parentElement || element
+    return Array.from(container.querySelectorAll('input'))
+      .filter(isVisible)
+      .some((input) => {
+        const type = normalize(input.getAttribute('type') || input.type || '')
+        const placeholder = normalize(input.getAttribute('placeholder'))
+        const ariaLabel = normalize(input.getAttribute('aria-label'))
+        return type !== 'checkbox' && type !== 'radio' && (
+          type === 'date' ||
+          placeholder.includes('dd/mm/aaaa') ||
+          ariaLabel.includes('fecha')
+        )
+      })
+  }).catch(() => false)
+
+  if (alreadyVisible) {
+    return
+  }
+
   const endCheckbox = await findVisibleLocator(root, [
-    (ctx) => ctx.getByRole('checkbox', { name: /definir una fecha de finalizacion/i }),
-    (ctx) => ctx.locator('input[type="checkbox"]'),
+    (ctx) => ctx.getByRole('checkbox', { name: /definir una fecha de finalizaci[oó]n/i }),
+    (ctx) => ctx.locator('label, div, span, button').filter({ hasText: /definir una fecha de finalizaci[oó]n/i }),
   ], 2000)
 
   if (endCheckbox) {
-    const checked = await endCheckbox.isChecked().catch(() => false)
+    const checked = await endCheckbox.evaluate((element) => {
+      if (element.matches?.('input[type="checkbox"]')) {
+        return Boolean(element.checked)
+      }
+      const nested = element.querySelector?.('input[type="checkbox"]')
+      return Boolean(nested?.checked) || element.getAttribute('aria-checked') === 'true'
+    }).catch(() => false)
     if (!checked) {
       await endCheckbox.click({ timeout: 5000, force: true }).catch(() => {})
+    }
+    const appeared = await findScheduleInput(root, 'Fecha de finalización', 1, 2500).catch(() => null)
+    if (!appeared) {
+      await sleep(900)
     }
     return
   }
@@ -1729,7 +3066,10 @@ async function enableAdsetEndDate(root) {
     }
     const target = Array.from(document.querySelectorAll('label, div, span, button'))
       .filter(isVisible)
-      .find((element) => normalize(element.innerText || element.textContent) === 'definir una fecha de finalizacion')
+      .find((element) => {
+        const text = normalize(element.innerText || element.textContent)
+        return text === 'definir una fecha de finalizacion' || text.includes('definir una fecha de finalizacion')
+      })
     if (!target) return false
     target.click()
     return true
@@ -1738,17 +3078,66 @@ async function enableAdsetEndDate(root) {
   if (!toggled) {
     throw new Error('No pude habilitar la fecha de finalización del conjunto de anuncios.')
   }
+  await sleep(900)
 }
 
 async function tryFacebookUiConfigureAdsetSchedule(preview) {
   if (!facebookVisualPage || facebookVisualPage.isClosed()) {
-    return
+    return {
+      anySuccess: false,
+      conversionConfigured: false,
+      performanceConfigured: false,
+      scheduleConfigured: false,
+      nextClicked: false,
+      visibleSections: [],
+      canAdvance: false,
+    }
   }
 
   const page = facebookVisualPage
   await page.bringToFront()
   await page.waitForTimeout(2400)
   const uiRules = resolveFacebookUiFlowRules(preview, preview?.orchestrator || null)
+  let anySuccess = false
+  let conversionConfigured = false
+  let performanceConfigured = false
+  let scheduleConfigured = false
+  let startDateConfigured = false
+  let endDateConfigured = false
+  const conversionAliases = [
+    ...(Array.isArray(uiRules.conversionLocationAliases) ? uiRules.conversionLocationAliases : []),
+    'Sitio web y formularios instantáneos',
+    'Sitio web y formularios instantaneos',
+    'Website and instant forms',
+  ]
+  const performanceAliases = [
+    uiRules.performanceGoalLabel,
+    'Maximizar el número de clientes potenciales',
+    'Maximizar el numero de clientes potenciales',
+    'Maximizar clientes potenciales',
+    'Maximizar el número de conversiones',
+    'Maximizar el numero de conversiones',
+    'Maximizar conversiones',
+    'Maximize number of leads',
+    'Maximize number of conversions',
+    'Leads',
+    'Conversions',
+  ].filter(Boolean)
+  const performanceSectionPattern = /objetivo de rendimiento|performance goal/i
+
+  try {
+    const adsetNav = await findVisibleLocator(page, [
+      (ctx) => ctx.locator('[role="treeitem"], [role="link"], [role="button"], a, button, div').filter({ hasText: /conjunto de anuncios|ad set/i }),
+      (ctx) => ctx.getByText(/conjunto de anuncios|ad set/i),
+    ], 2200)
+    if (adsetNav) {
+      await adsetNav.click({ timeout: 5000, force: true }).catch(() => {})
+      await page.waitForTimeout(900)
+      await logFacebookUiStep('Navegue al paso del conjunto de anuncios desde la barra lateral del editor.')
+    }
+  } catch {
+    // Optional helper navigation only.
+  }
 
   const adsetReady = await findVisibleLocator(page, [
     (ctx) => ctx.getByText(/nombre del conjunto de anuncios|conjunto de anuncios|ad set|ubicacion de la conversion|presupuesto y calendario/i),
@@ -1757,7 +3146,20 @@ async function tryFacebookUiConfigureAdsetSchedule(preview) {
 
   if (!adsetReady) {
     await logFacebookUiStep('No encontre la pantalla del conjunto de anuncios despues de configurar la campaña.', 'warning')
-    return
+    return {
+      anySuccess: false,
+      conversionConfigured: false,
+      performanceConfigured: false,
+      scheduleConfigured: false,
+      nextClicked: false,
+      visibleSections: [],
+      canAdvance: false,
+    }
+  }
+
+  let visibleSections = await getVisibleAdsetSectionNames(page)
+  if (visibleSections.length > 0) {
+    await logFacebookUiStep(`Apartados visibles del conjunto de anuncios: ${visibleSections.join(' | ')}.`)
   }
 
   try {
@@ -1767,6 +3169,7 @@ async function tryFacebookUiConfigureAdsetSchedule(preview) {
       labelTexts: ['Nombre del conjunto de anuncios', 'Ad set name'],
       sectionTexts: ['Nombre del conjunto de anuncios', 'Ad set name'],
       value: uiRules.adsetName,
+      allowFirstVisibleFallback: false,
       selectors: [
         'input[aria-label*="conjunto de anuncios" i]',
         'input[placeholder*="conjunto de anuncios" i]',
@@ -1777,86 +3180,546 @@ async function tryFacebookUiConfigureAdsetSchedule(preview) {
     })
     await logFacebookUiStep(`Nombre del conjunto de anuncios corregido en la UI: ${uiRules.adsetName}.`)
     await page.waitForTimeout(700)
+    anySuccess = true
   } catch (error) {
     await logFacebookUiStep(`No pude corregir el nombre del conjunto de anuncios: ${error.message || error}`, 'warning')
   }
 
+  const conversionSection = await locateDynamicSection(page, {
+    labels: ['Ubicación de la conversión', 'Ubicacion de la conversion', 'Conversion location'],
+    controlType: 'radio',
+  }, 3000).catch(() => null)
+
   try {
-    await clickRadioOptionInSection(
+    if (!conversionSection) {
+      throw new Error(`No encontre la seccion de conversion para "${uiRules.conversionLocationLabel}".`)
+    }
+    await clickRadioOptionInLocator(
+      conversionSection,
       page,
-      /ubicacion de la conversion|conversion/i,
-      uiRules.conversionLocationAliases,
+      conversionAliases,
       `No encontre la opcion de conversion "${uiRules.conversionLocationLabel}".`
     )
     await logFacebookUiStep(`Ubicacion de conversion fijada por regla del orquestador: ${uiRules.conversionLocationLabel}.`)
     await page.waitForTimeout(1200)
+    anySuccess = true
+    conversionConfigured = true
   } catch (error) {
-    await logFacebookUiStep(`No pude seleccionar la ubicacion de conversion del conjunto de anuncios: ${error.message || error}`, 'warning')
+    const alreadySelected = conversionSection
+      ? await isRadioOptionSelectedInLocator(conversionSection, conversionAliases)
+      : await isRadioOptionSelectedInSection(page, /ubicacion de la conversion|conversion/i, conversionAliases)
+    if (alreadySelected) {
+      await logFacebookUiStep('La ubicacion de conversion ya venia seleccionada en el conjunto de anuncios.')
+      anySuccess = true
+      conversionConfigured = true
+    } else {
+      await logFacebookUiStep(`No pude seleccionar la ubicacion de conversion del conjunto de anuncios: ${error.message || error}`, 'warning')
+    }
   }
 
+  const performanceSection = await locateDynamicSection(page, {
+    labels: ['Objetivo de rendimiento', 'Performance goal'],
+    controlType: 'combobox',
+  }, 3000).catch(() => null)
+
   try {
-    await selectDropdownOptionInSection(
+    if (!performanceSection) {
+      throw new Error(`No encontre la seccion de objetivo de rendimiento para "${uiRules.performanceGoalLabel}".`)
+    }
+    await selectDropdownOptionInLocator(
+      performanceSection,
       page,
-      /objetivo de rendimiento|performance goal/i,
-      [uiRules.performanceGoalLabel, 'Maximizar el numero de clientes potenciales', 'Maximize number of leads'],
+      performanceAliases,
       `No encontre el selector de objetivo de rendimiento para "${uiRules.performanceGoalLabel}".`
     )
     await logFacebookUiStep(`Objetivo de rendimiento alineado con la regla del orquestador: ${uiRules.performanceGoalLabel}.`)
     await page.waitForTimeout(900)
+    anySuccess = true
+    performanceConfigured = true
   } catch (error) {
-    await logFacebookUiStep(`No pude ajustar el objetivo de rendimiento del conjunto de anuncios: ${error.message || error}`, 'warning')
+    const currentValue = performanceSection
+      ? await readDropdownValueInLocator(performanceSection)
+      : await readDropdownValueInSection(page, performanceSectionPattern)
+    const normalizedCurrentValue = String(currentValue || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+    const currentValueMatches = performanceAliases.some((alias) => {
+      const normalizedAlias = String(alias || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+      return normalizedAlias && normalizedCurrentValue.includes(normalizedAlias)
+    })
+    if (currentValueMatches) {
+      await logFacebookUiStep(`El objetivo de rendimiento ya estaba definido como "${currentValue || uiRules.performanceGoalLabel}".`)
+      anySuccess = true
+      performanceConfigured = true
+    } else {
+      await logFacebookUiStep(`No pude ajustar el objetivo de rendimiento del conjunto de anuncios: ${error.message || error}`, 'warning')
+    }
   }
 
   const schedulePanel = await getAdsetSchedulePanel(page)
   if (!schedulePanel) {
     await logFacebookUiStep('No encontre la seccion Presupuesto y calendario del conjunto de anuncios.', 'warning')
-    return
-  }
-
-  try {
-    const startInput = await findScheduleInput(schedulePanel, 'Fecha de inicio', 1, 4000)
-    if (!startInput) {
-      throw new Error('No encontre el campo de Fecha de inicio.')
+    return {
+      anySuccess,
+      conversionConfigured,
+      performanceConfigured,
+      scheduleConfigured,
+      nextClicked: false,
+      visibleSections,
+      canAdvance: false,
     }
-    await setDateInputValue(startInput, preview?.startDate)
-    await logFacebookUiStep(`Fecha de inicio del conjunto de anuncios ajustada a ${preview?.startDate}.`)
-    await page.waitForTimeout(700)
-  } catch (error) {
-    await logFacebookUiStep(`No pude configurar la fecha de inicio del conjunto de anuncios: ${error.message || error}`, 'warning')
   }
 
-  try {
-    await enableAdsetEndDate(schedulePanel)
-    await page.waitForTimeout(700)
-    const endInput = await findScheduleInput(schedulePanel, 'Fecha de finalización', 1, 4000)
-    if (!endInput) {
-      throw new Error('No encontre el campo de Fecha de finalización.')
+  const refreshedSections = await getVisibleAdsetSectionNames(page)
+  if (refreshedSections.length > 0 && refreshedSections.join('|') !== visibleSections.join('|')) {
+    visibleSections = refreshedSections
+    await logFacebookUiStep(`Apartados visibles del conjunto de anuncios tras buscar calendario: ${visibleSections.join(' | ')}.`)
+  }
+
+  await expandSectionIfNeeded(page, /presupuesto y calendario|presupuesto|calendario|programacion|budget|schedule/i)
+  const hasEditableDates = await hasEditableDateInputs(schedulePanel)
+  if (!hasEditableDates) {
+    await logFacebookUiStep('No vi campos editables de fecha en Presupuesto y calendario; seguire con la configuracion visible del conjunto de anuncios.')
+    scheduleConfigured = true
+  }
+
+  if (hasEditableDates) {
+    try {
+      const startInput = await findScheduleInput(schedulePanel, 'Fecha de inicio', 1, 4000)
+      if (startInput) {
+        await setDateInputValue(startInput, preview?.startDate)
+        await logFacebookUiStep(`Fecha de inicio del conjunto de anuncios ajustada a ${preview?.startDate}.`)
+        await page.waitForTimeout(700)
+        anySuccess = true
+        startDateConfigured = true
+      } else {
+        const alreadySet = await isScheduleDateAlreadySet(schedulePanel, 'Fecha de inicio', preview?.startDate)
+        if (!alreadySet) {
+          throw new Error('No encontre el campo de Fecha de inicio.')
+        }
+        await logFacebookUiStep(`La fecha de inicio del conjunto de anuncios ya estaba en ${preview?.startDate}.`)
+        startDateConfigured = true
+      }
+    } catch (error) {
+      await logFacebookUiStep(`No pude configurar la fecha de inicio del conjunto de anuncios: ${error.message || error}`, 'warning')
     }
-    await setDateInputValue(endInput, preview?.endDate)
-    await logFacebookUiStep(`Fecha de finalización del conjunto de anuncios ajustada a ${preview?.endDate}.`)
-    await page.waitForTimeout(800)
-  } catch (error) {
-    await logFacebookUiStep(`No pude configurar la fecha de finalización del conjunto de anuncios: ${error.message || error}`, 'warning')
+
+    try {
+      await enableAdsetEndDate(schedulePanel)
+      await page.waitForTimeout(700)
+      const endInput = await findScheduleInput(schedulePanel, 'Fecha de finalización', 1, 4000)
+      if (endInput) {
+        await setDateInputValue(endInput, preview?.endDate)
+        await logFacebookUiStep(`Fecha de finalización del conjunto de anuncios ajustada a ${preview?.endDate}.`)
+        await page.waitForTimeout(800)
+        anySuccess = true
+        endDateConfigured = true
+      } else {
+        const alreadySet = await isScheduleDateAlreadySet(schedulePanel, 'Fecha de finalización', preview?.endDate)
+        if (!alreadySet) {
+          throw new Error('No encontre el campo de Fecha de finalización.')
+        }
+        await logFacebookUiStep(`La fecha de finalización del conjunto de anuncios ya estaba en ${preview?.endDate}.`)
+        endDateConfigured = true
+      }
+    } catch (error) {
+      await logFacebookUiStep(`No pude configurar la fecha de finalización del conjunto de anuncios: ${error.message || error}`, 'warning')
+    }
   }
 
+  const conversionVisible = visibleSections.some((item) => /conversion|ubicacion de la conversion/i.test(String(item)))
+  const performanceVisible = visibleSections.some((item) => /objetivo de rendimiento/i.test(String(item)))
+  const scheduleVisible = visibleSections.some((item) => /presupuesto y calendario|presupuesto/i.test(String(item)))
+  if (hasEditableDates) {
+    scheduleConfigured = startDateConfigured && endDateConfigured
+  }
+  const scheduleRelevant = scheduleVisible || Boolean(schedulePanel)
+  const canAdvance =
+    (!conversionVisible || conversionConfigured) &&
+    (!performanceVisible || performanceConfigured) &&
+    (!scheduleRelevant || scheduleConfigured)
+
+  if (!canAdvance) {
+    await logFacebookUiStep('No dare click en Siguiente todavia porque faltan apartados visibles del conjunto de anuncios por completar.', 'warning')
+    return {
+      anySuccess,
+      conversionConfigured,
+      performanceConfigured,
+      scheduleConfigured,
+      nextClicked: false,
+      visibleSections,
+      canAdvance,
+    }
+  }
+
+  let nextClicked = false
   try {
     await clickCampaignEditorNext(page)
     await logFacebookUiStep('Conjunto de anuncios configurado; avanzando al siguiente paso.')
     await page.waitForTimeout(1800)
+    anySuccess = true
+    nextClicked = true
   } catch (error) {
     await logFacebookUiStep(`No pude avanzar despues de configurar el calendario del conjunto de anuncios: ${error.message || error}`, 'warning')
+  }
+
+  return {
+    anySuccess,
+    conversionConfigured,
+    performanceConfigured,
+    scheduleConfigured,
+    nextClicked,
+    visibleSections,
+    canAdvance,
+  }
+}
+
+async function tryFacebookUiReachAdEditor(preview) {
+  if (!facebookVisualPage || facebookVisualPage.isClosed()) {
+    return {
+      reachedEditor: false,
+      nameFilled: false,
+      imageConfigured: false,
+      destinationConfigured: false,
+      primaryTextConfigured: false,
+      headlineConfigured: false,
+      descriptionConfigured: false,
+      ctaConfigured: false,
+      leadFormConfigured: false,
+      visibleSections: [],
+      canFinalize: false,
+    }
+  }
+
+  const page = facebookVisualPage
+  await page.bringToFront()
+  await page.waitForTimeout(1600)
+
+  let reachedEditor = false
+  for (let attempt = 0; attempt < 7; attempt += 1) {
+    reachedEditor = await isFacebookAdEditorReady(page)
+    if (reachedEditor) {
+      break
+    }
+    try {
+      await scrollEditorWorkArea(page, attempt === 0 ? 300 : 700)
+      const adNav = await findVisibleLocator(page, [
+        (ctx) => ctx.locator('[role="treeitem"], [role="link"], [role="button"], a, button, div').filter({ hasText: /nuevo anuncio|anuncio de clientes potenciales|1 anuncio|\banuncio\b|publicar|configurar contenido/i }),
+        (ctx) => ctx.getByText(/nuevo anuncio|anuncio de clientes potenciales|1 anuncio|\banuncio\b|publicar|configurar contenido/i),
+      ], 3200)
+      if (adNav) {
+        await adNav.click({ timeout: 5000, force: true }).catch(() => {})
+        await page.waitForTimeout(900)
+      }
+    } catch {
+      // Keep waiting below.
+    }
+    await page.waitForTimeout(2200 + (attempt * 900))
+  }
+
+  if (!reachedEditor) {
+    await logFacebookUiStep('No llegue todavia al apartado Nuevo anuncio de clientes potenciales.', 'warning')
+    return {
+      reachedEditor: false,
+      nameFilled: false,
+      imageConfigured: false,
+      destinationConfigured: false,
+      primaryTextConfigured: false,
+      headlineConfigured: false,
+      descriptionConfigured: false,
+      ctaConfigured: false,
+      leadFormConfigured: false,
+      visibleSections: [],
+      canFinalize: false,
+    }
+  }
+
+  await logFacebookUiStep('Ya estoy en el apartado Nuevo anuncio de clientes potenciales.')
+  const visibleSections = await getVisibleAdEditorSectionNames(page)
+  if (visibleSections.length > 0) {
+    await logFacebookUiStep(`Apartados visibles del anuncio: ${visibleSections.join(' | ')}.`)
+  }
+
+  let nameFilled = false
+  let imageConfigured = false
+  let destinationConfigured = false
+  let primaryTextConfigured = false
+  let headlineConfigured = false
+  let descriptionConfigured = false
+  let ctaConfigured = false
+  let leadFormConfigured = false
+  const uiRules = resolveFacebookUiFlowRules(preview, preview?.orchestrator || null)
+  const adsAnalyst = preview?.orchestrator?.adsAnalyst || {}
+  const primaryText = String(adsAnalyst?.copy || '').trim()
+  const headline = String(adsAnalyst?.hook || '').trim()
+  const description = String(adsAnalyst?.strategicAngle || '').trim()
+  const ctaLabel = String(adsAnalyst?.cta || '').trim()
+  const destinationUrl = ensureAbsoluteUrl(preview?.url || getProjectEnv().BUSINESS_WEBSITE || 'https://noyecode.com')
+  const selectedLeadgenFormId = String(preview?.selectedLeadgenFormId || '').trim()
+  const selectedLeadgenFormName = String(preview?.selectedLeadgenFormName || '').trim()
+  const expectedLeadFormName = String(
+    preview?.orchestrator?.execution?.leadFormName ||
+    buildDraftLeadFormName(preview, preview?.orchestrator || null)
+  ).trim()
+  try {
+    await fillNamedEditorInput(page, {
+      labelPattern: /nombre del anuncio|ad name/i,
+      sectionPattern: /nombre del anuncio|ad name/i,
+      labelTexts: ['Nombre del anuncio', 'Ad name'],
+      sectionTexts: ['Nombre del anuncio', 'Ad name'],
+      value: uiRules.adName,
+      allowFirstVisibleFallback: false,
+      selectors: [
+        'input[aria-label*="anuncio" i]',
+        'input[placeholder*="anuncio" i]',
+        'input[aria-label*="ad name" i]',
+        'input[placeholder*="ad name" i]',
+      ],
+      errorMessage: 'No encontre el campo de nombre del anuncio.',
+    })
+    await logFacebookUiStep(`Nombre del anuncio corregido en la UI: ${uiRules.adName}.`)
+    nameFilled = true
+  } catch (error) {
+    await logFacebookUiStep(`No pude corregir el nombre del anuncio: ${error.message || error}`, 'warning')
+  }
+
+  try {
+    await configureAdDestinationField(page, destinationUrl)
+    await logFacebookUiStep(`Destino del anuncio ajustado a ${destinationUrl}.`)
+    destinationConfigured = true
+  } catch (error) {
+    await logFacebookUiStep(`No pude configurar el destino del anuncio: ${error.message || error}`, 'warning')
+  }
+
+  try {
+    const modalState = await completePhotoAdContentModalFlow(page, preview)
+    if (modalState.visible && modalState.configured) {
+      await logFacebookUiStep('Contenido del anuncio alineado con una imagen de Noyecode y el modal Configurar contenido quedo completado.')
+      imageConfigured = true
+      if (modalState.textConfigured) {
+        primaryTextConfigured = true
+      }
+      if (modalState.ctaConfigured) {
+        ctaConfigured = true
+      }
+    } else if (!modalState.visible) {
+      imageConfigured = true
+    } else {
+      await logFacebookUiStep('Todavia falta una imagen valida en Contenido del anuncio.', 'warning')
+    }
+  } catch (error) {
+    await logFacebookUiStep(`No pude completar el modal de Contenido del anuncio: ${error.message || error}`, 'warning')
+    try {
+      const imageState = await ensureAdContentImageConfigured(page, preview)
+      if (imageState.visible && imageState.configured) {
+        await logFacebookUiStep('Contenido del anuncio alineado con la imagen seleccionada para la campaña.')
+        imageConfigured = true
+      } else if (!imageState.visible) {
+        imageConfigured = true
+      } else {
+        await logFacebookUiStep('Todavia falta una imagen valida en Contenido del anuncio.', 'warning')
+      }
+    } catch (fallbackError) {
+      await logFacebookUiStep(`No pude configurar la imagen del anuncio: ${fallbackError.message || fallbackError}`, 'warning')
+    }
+  }
+
+  if (!destinationConfigured) {
+    try {
+      await configureAdDestinationField(page, destinationUrl)
+      await logFacebookUiStep(`Destino del anuncio ajustado a ${destinationUrl}.`)
+      destinationConfigured = true
+    } catch (error) {
+      await logFacebookUiStep(`No pude configurar el destino del anuncio despues de seleccionar el contenido: ${error.message || error}`, 'warning')
+    }
+  }
+
+  try {
+    if (primaryTextConfigured) {
+      throw new Error('El texto principal ya quedo configurado desde el modal.')
+    }
+    if (!primaryText) {
+      throw new Error('No tengo copy del ads-analyst para el texto principal.')
+    }
+    await fillNamedEditorInput(page, {
+      labelPattern: /texto principal|primary text|texto del anuncio|ad text/i,
+      sectionPattern: /contenido del anuncio|texto principal|primary text/i,
+      labelTexts: ['Texto principal', 'Primary text', 'Texto del anuncio'],
+      sectionTexts: ['Contenido del anuncio', 'Texto principal', 'Primary text'],
+      value: primaryText,
+      allowFirstVisibleFallback: false,
+      selectors: [
+        'textarea[aria-label*="texto principal" i]',
+        'textarea[placeholder*="texto principal" i]',
+        'textarea[aria-label*="primary text" i]',
+        'textarea[placeholder*="primary text" i]',
+        'textarea',
+      ],
+      errorMessage: 'No encontre el campo de texto principal del anuncio.',
+    })
+    await logFacebookUiStep('Texto principal del anuncio rellenado con el copy del ads-analyst.')
+    primaryTextConfigured = true
+  } catch (error) {
+    if (!primaryTextConfigured) {
+      await logFacebookUiStep(`No pude rellenar el texto principal del anuncio: ${error.message || error}`, 'warning')
+    }
+  }
+
+  try {
+    if (!headline) {
+      throw new Error('No tengo headline del ads-analyst para el titulo.')
+    }
+    await fillNamedEditorInput(page, {
+      labelPattern: /titulo|título|headline/i,
+      sectionPattern: /contenido del anuncio|titulo|título|headline/i,
+      labelTexts: ['Título', 'Titulo', 'Headline'],
+      sectionTexts: ['Contenido del anuncio', 'Título', 'Titulo', 'Headline'],
+      value: headline,
+      useLabelLookup: false,
+      allowFirstVisibleFallback: false,
+      selectors: [
+        'input:not([type="checkbox"]):not([type="radio"])[aria-label*="título" i]',
+        'input:not([type="checkbox"]):not([type="radio"])[placeholder*="título" i]',
+        'input:not([type="checkbox"]):not([type="radio"])[aria-label*="titulo" i]',
+        'input:not([type="checkbox"]):not([type="radio"])[placeholder*="titulo" i]',
+        'input:not([type="checkbox"]):not([type="radio"])[aria-label*="headline" i]',
+        'input:not([type="checkbox"]):not([type="radio"])[placeholder*="headline" i]',
+      ],
+      errorMessage: 'No encontre el campo de titulo del anuncio.',
+    })
+    await logFacebookUiStep('Titulo del anuncio rellenado con el hook del ads-analyst.')
+    headlineConfigured = true
+  } catch (error) {
+    await logFacebookUiStep(`No pude rellenar el titulo del anuncio: ${error.message || error}`, 'warning')
+  }
+
+  try {
+    if (!description) {
+      throw new Error('No tengo descripcion del ads-analyst para el anuncio.')
+    }
+    await fillNamedEditorInput(page, {
+      labelPattern: /descripcion|descripción|description/i,
+      sectionPattern: /contenido del anuncio|descripcion|descripción|description/i,
+      labelTexts: ['Descripción', 'Descripcion', 'Description'],
+      sectionTexts: ['Contenido del anuncio', 'Descripción', 'Descripcion', 'Description'],
+      value: description,
+      useLabelLookup: false,
+      allowFirstVisibleFallback: false,
+      selectors: [
+        'input:not([type="checkbox"]):not([type="radio"])[aria-label*="descripción" i]',
+        'input:not([type="checkbox"]):not([type="radio"])[placeholder*="descripción" i]',
+        'input:not([type="checkbox"]):not([type="radio"])[aria-label*="descripcion" i]',
+        'input:not([type="checkbox"]):not([type="radio"])[placeholder*="descripcion" i]',
+        'input:not([type="checkbox"]):not([type="radio"])[aria-label*="description" i]',
+        'input:not([type="checkbox"]):not([type="radio"])[placeholder*="description" i]',
+      ],
+      errorMessage: 'No encontre el campo de descripcion del anuncio.',
+    })
+    await logFacebookUiStep('Descripcion del anuncio rellenada con el angulo estrategico.')
+    descriptionConfigured = true
+  } catch (error) {
+    await logFacebookUiStep(`No pude rellenar la descripcion del anuncio: ${error.message || error}`, 'warning')
+  }
+
+  try {
+    if (ctaConfigured) {
+      throw new Error('El CTA ya quedo configurado desde el modal.')
+    }
+    if (!ctaLabel) {
+      throw new Error('No tengo CTA sugerido para el anuncio.')
+    }
+    const ctaSection = await locateDynamicSection(page, {
+      labels: ['Llamada a la acción', 'Llamada a la accion', 'Call to action'],
+      controlType: 'combobox',
+    }, 3200).catch(() => null)
+    if (!ctaSection) {
+      throw new Error(`No encontre la seccion de CTA para "${ctaLabel}".`)
+    }
+    await selectDropdownOptionInLocator(
+      ctaSection,
+      page,
+      [ctaLabel, 'Registrarte', 'Sign up', 'Más información', 'Mas información', 'Learn more'],
+      `No encontre el selector de CTA para "${ctaLabel}".`
+    )
+    await logFacebookUiStep(`CTA del anuncio alineado con la recomendacion del ads-analyst: ${ctaLabel}.`)
+    ctaConfigured = true
+  } catch (error) {
+    if (!ctaConfigured) {
+      await logFacebookUiStep(`No pude ajustar el CTA del anuncio: ${error.message || error}`, 'warning')
+    }
+  }
+
+  try {
+    if (!selectedLeadgenFormId && !selectedLeadgenFormName && !expectedLeadFormName) {
+      throw new Error('No hay formulario Instant Form seleccionado en el flujo.')
+    }
+    const leadFormSection = await locateDynamicSection(page, {
+      labels: ['Formulario instantáneo', 'Formulario instantaneo', 'Instant form'],
+      controlType: 'combobox',
+    }, 3200).catch(() => null)
+    if (!leadFormSection) {
+      throw new Error(`No encontre la seccion de formulario instantaneo ${selectedLeadgenFormName || selectedLeadgenFormId || expectedLeadFormName}.`)
+    }
+    await selectDropdownOptionInLocator(
+      leadFormSection,
+      page,
+      [selectedLeadgenFormName, selectedLeadgenFormId, expectedLeadFormName].filter(Boolean),
+      `No encontre el selector del formulario instantaneo ${selectedLeadgenFormName || selectedLeadgenFormId || expectedLeadFormName}.`
+    )
+    await logFacebookUiStep(`Formulario instantaneo del anuncio alineado con ${selectedLeadgenFormName || selectedLeadgenFormId || expectedLeadFormName}.`)
+    leadFormConfigured = true
+  } catch (error) {
+    await logFacebookUiStep(`No pude ajustar el formulario instantaneo del anuncio: ${error.message || error}`, 'warning')
+  }
+
+  const contentVisible = visibleSections.some((item) => /contenido del anuncio|texto principal|titulo|título|descripcion|descripción/i.test(String(item)))
+  const imageVisible = visibleSections.some((item) => /contenido del anuncio/i.test(String(item)))
+  const destinationVisible = visibleSections.some((item) => /destino/i.test(String(item)))
+  const ctaVisible = visibleSections.some((item) => /llamada a la accion|llamada a la acción/i.test(String(item)))
+  const formVisible = visibleSections.some((item) => /formulario instantaneo|formulario instantáneo|destino/i.test(String(item)))
+  const canFinalize =
+    nameFilled &&
+    (!imageVisible || imageConfigured) &&
+    (!destinationVisible || destinationConfigured) &&
+    (!contentVisible || (primaryTextConfigured && headlineConfigured && descriptionConfigured)) &&
+    (!ctaVisible || ctaConfigured) &&
+    (!formVisible || leadFormConfigured)
+
+  if (!canFinalize) {
+    await logFacebookUiStep('No finalizare la campaña todavia porque el apartado del anuncio sigue con campos visibles pendientes.', 'warning')
+  }
+
+  return {
+    reachedEditor: true,
+    nameFilled,
+    imageConfigured,
+    destinationConfigured,
+    primaryTextConfigured,
+    headlineConfigured,
+    descriptionConfigured,
+    ctaConfigured,
+    leadFormConfigured,
+    visibleSections,
+    canFinalize,
   }
 }
 
 async function tryFacebookUiConfigureCampaignEditor(preview) {
   if (!facebookVisualPage || facebookVisualPage.isClosed()) {
-    return
+    return { nameFilled: false, budgetConfigured: false, nextClicked: false }
   }
 
   const page = facebookVisualPage
   await page.bringToFront()
   await page.waitForTimeout(2200)
   const uiRules = resolveFacebookUiFlowRules(preview, preview?.orchestrator || null)
+  let nameFilled = false
+  let budgetConfigured = false
+  let nextClicked = false
 
   try {
     await fillNamedEditorInput(page, {
@@ -1865,6 +3728,7 @@ async function tryFacebookUiConfigureCampaignEditor(preview) {
       labelTexts: ['Nombre de la campaña', 'Campaign name'],
       sectionTexts: ['Nombre de la campaña', 'Campaign name'],
       value: uiRules.campaignName,
+      allowFirstVisibleFallback: false,
       selectors: [
         'input[aria-label*="campa" i]',
         'input[placeholder*="campa" i]',
@@ -1874,6 +3738,7 @@ async function tryFacebookUiConfigureCampaignEditor(preview) {
       errorMessage: 'No encontre el campo de nombre en el editor de campaña.',
     })
     await logFacebookUiStep(`Nombre de campaña corregido en el editor: ${uiRules.campaignName}`)
+    nameFilled = true
   } catch (error) {
     await logFacebookUiStep(`No pude corregir el nombre de campaña en el editor: ${error.message || error}`, 'warning')
   }
@@ -1882,25 +3747,37 @@ async function tryFacebookUiConfigureCampaignEditor(preview) {
     await selectTotalBudgetMode(page, uiRules.budgetModeAliases)
     await logFacebookUiStep(`Tipo de presupuesto cambiado a ${uiRules.budgetModeLabel}.`)
     await page.waitForTimeout(700)
+    await selectCampaignBudgetAmountMode(page, uiRules.budgetAmountModeAliases)
+    await logFacebookUiStep(`Selector interno de presupuesto cambiado a ${uiRules.budgetAmountModeLabel}.`)
+    await page.waitForTimeout(500)
     await fillCampaignBudgetValue(page, preview?.budget)
-    await logFacebookUiStep(`Presupuesto total rellenado con el maximo de la GUI: ${uiRules.budgetAmount}.`)
+    await logFacebookUiStep(`Presupuesto diario rellenado con el valor de la GUI: ${uiRules.budgetAmount}.`)
     await page.waitForTimeout(900)
+    budgetConfigured = true
   } catch (error) {
-    await logFacebookUiStep(`No pude configurar el presupuesto total en el editor: ${error.message || error}`, 'warning')
+    await logFacebookUiStep(`No pude configurar el presupuesto diario en el editor: ${error.message || error}`, 'warning')
+  }
+
+  if (!budgetConfigured) {
+    await logFacebookUiStep('No dare click en Siguiente todavia porque el presupuesto de campaña no quedo configurado.', 'warning')
+    return { nameFilled, budgetConfigured, nextClicked }
   }
 
   try {
     await clickCampaignEditorNext(page)
     await logFacebookUiStep('Campaña configurada; avanzando al siguiente paso del editor.')
     await page.waitForTimeout(1800)
+    nextClicked = true
   } catch (error) {
     await logFacebookUiStep(`No pude avanzar al siguiente paso del editor de campaña: ${error.message || error}`, 'warning')
   }
+
+  return { nameFilled, budgetConfigured, nextClicked }
 }
 
 async function tryFacebookUiCreateCampaign(preview) {
   if (!facebookVisualPage || facebookVisualPage.isClosed()) {
-    return
+    return false
   }
 
   const page = facebookVisualPage
@@ -1918,7 +3795,7 @@ async function tryFacebookUiCreateCampaign(preview) {
     await page.waitForTimeout(1500)
   } catch (error) {
     await logFacebookUiStep(`No pude presionar el boton Crear: ${error.message || error}`, 'warning')
-    return
+    return false
   }
 
   try {
@@ -1937,7 +3814,7 @@ async function tryFacebookUiCreateCampaign(preview) {
     await page.waitForTimeout(1800)
   } catch (error) {
     await logFacebookUiStep(`No pude completar el modal de objetivo de campaña: ${error.message || error}`, 'warning')
-    return
+    return false
   }
 
   try {
@@ -1948,6 +3825,7 @@ async function tryFacebookUiCreateCampaign(preview) {
       labelTexts: ['Nombre de la campaña', 'Campaign name'],
       sectionTexts: ['Nombre de la campaña', 'Campaign name'],
       value: uiRules.campaignName,
+      allowFirstVisibleFallback: false,
       selectors: [
         'input[aria-label*="campa" i]',
         'input[placeholder*="campa" i]',
@@ -1960,6 +3838,8 @@ async function tryFacebookUiCreateCampaign(preview) {
   } catch (error) {
     await logFacebookUiStep(`No pude rellenar el nombre de la campana en la UI: ${error.message || error}`, 'warning')
   }
+
+  return true
 }
 
 function getFacebookAdsMcpInfo() {
@@ -2911,18 +4791,33 @@ function buildLeadTargeting(orchestrator = null) {
 function buildLeadFormSpec(preview, orchestrator) {
   const segment = orchestrator?.execution?.segment || getDefaultMarketingSegment()
   const websiteUrl = ensureAbsoluteUrl(preview?.url || getProjectEnv().BUSINESS_WEBSITE || 'https://noyecode.com')
+  const contactConfig = getMarketingContactModeConfig(segment.contactMode)
+  const env = getProjectEnv()
+  const serviceLabel = String(segment?.serviceLabel || segment?.shortLabel || 'nuestro servicio').trim()
+  const intentMode = /b2b|empresa|empresas|operaciones|logistics|software|desarrollo/i.test(
+    [segment?.industry, segment?.role, segment?.categoryStatement].filter(Boolean).join(' ')
+  )
+    ? 'higher_intent'
+    : 'higher_volume'
   return {
     page_id: String(orchestrator?.execution?.pageId || getMetaPageId()).trim(),
+    page_access_token: String(env.FB_PAGE_ACCESS_TOKEN || env.FACEBOOK_PAGE_ACCESS_TOKEN || '').trim(),
     form_id: String(preview?.selectedLeadgenFormId || '').trim(),
     discover: true,
     create_if_missing: true,
-    name: `Formulario | ${segment.shortLabel} | ${preview.startDate} -> ${preview.endDate}`,
+    name: buildDraftLeadFormName(preview, orchestrator),
     locale: 'es_LA',
-    required_fields: getMarketingContactModeConfig(segment.contactMode).requiredKeys,
-    ui_field_labels: getMarketingContactModeConfig(segment.contactMode).formFields,
+    required_fields: contactConfig.requiredKeys,
+    ui_field_labels: contactConfig.formFields,
+    form_type: intentMode,
     follow_up_action_url: websiteUrl,
     privacy_policy_url: buildPrivacyPolicyUrl(websiteUrl),
     privacy_policy_link_text: 'Politica de privacidad',
+    intro_headline: `Conoce mas sobre ${serviceLabel}`,
+    intro_body: String(segment?.strategicAngle || `Completa tus datos y te contactamos sobre ${serviceLabel}.`).trim(),
+    thank_you_title: 'Gracias por tu interes',
+    thank_you_body: String(segment?.primaryCta || `Revisaremos tu solicitud sobre ${serviceLabel} y te contactaremos pronto.`).trim(),
+    thank_you_button_text: contactConfig.mode === 'whatsapp' ? 'Abrir WhatsApp' : 'Visitar sitio web',
   }
 }
 
@@ -3019,6 +4914,7 @@ function runLocalMarketingOrchestrator(preview) {
   const marketingAgentPrompt = buildMarketingAgentPrompt(preview, segment, selectedImage)
   const campaignName = buildDraftCampaignName(preview, { execution: { segment } })
   const adsetName = buildDraftAdsetName(preview, { execution: { segment } })
+  const leadFormName = buildDraftLeadFormName(preview, { execution: { segment } })
   const leadFormFieldLabels = contactConfig.formFields
   const leadFormRequiredKeys = contactConfig.requiredKeys
   const adsAnalyst = {
@@ -3099,6 +4995,7 @@ function runLocalMarketingOrchestrator(preview) {
       campaignType: contactConfig.campaignType,
       campaignName,
       adsetName,
+      leadFormName,
       budgetCap: preview.budget,
       formFields: contactConfig.formFields,
       segment,
@@ -3110,10 +5007,12 @@ function runLocalMarketingOrchestrator(preview) {
       apiObjective: objectiveRule.apiObjective,
       budgetModeUiLabel: 'Presupuesto de la campaña',
       budgetModeUiAliases: ['Presupuesto de la campaña', 'Campaign budget', 'Presupuesto total', 'Lifetime budget'],
-      conversionLocationUiLabel: contactConfig.mode === 'whatsapp' ? 'WhatsApp' : 'Formularios instantáneos',
+      budgetAmountModeUiLabel: 'Presupuesto diario',
+      budgetAmountModeUiAliases: ['Presupuesto diario', 'Daily budget'],
+      conversionLocationUiLabel: contactConfig.mode === 'whatsapp' ? 'WhatsApp' : 'Sitio web y formularios instantáneos',
       conversionLocationUiAliases: contactConfig.mode === 'whatsapp'
         ? ['WhatsApp', 'Whatsapp', 'Messages']
-        : ['Formularios instantáneos', 'Instant forms', 'Instant form'],
+        : ['Sitio web y formularios instantáneos', 'Sitio web y formularios instantaneos', 'Website and instant forms', 'Formularios instantáneos', 'Instant forms', 'Instant form'],
       performanceGoalUiLabel: contactConfig.mode === 'whatsapp'
         ? 'Maximizar conversaciones'
         : 'Maximizar el número de clientes potenciales',
@@ -3192,7 +5091,7 @@ async function createDraftAdSet(preview, token, creation) {
       {
         name: adsetName,
         campaign_id: campaignId,
-        lifetime_budget: toMetaMoney(preview.budget),
+        daily_budget: toMetaMoney(preview.budget),
         billing_event: 'IMPRESSIONS',
         optimization_goal: 'LEAD_GENERATION',
         bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
@@ -3429,6 +5328,7 @@ function buildLeadCampaignRunnerContext(preview, orchestrator) {
       apiObjective: objectiveRule.apiObjective,
       campaignName: String(orchestrator?.execution?.campaignName || uiRules.campaignName).trim(),
       adsetName: String(orchestrator?.execution?.adsetName || uiRules.adsetName).trim(),
+      leadFormName: String(orchestrator?.execution?.leadFormName || buildDraftLeadFormName(preview, orchestrator)).trim(),
       budgetModeUiLabel: String(orchestrator?.execution?.budgetModeUiLabel || uiRules.budgetModeLabel).trim(),
       budgetModeUiAliases: Array.isArray(orchestrator?.execution?.budgetModeUiAliases)
         ? orchestrator.execution.budgetModeUiAliases.map((value) => String(value || '').trim()).filter(Boolean)
@@ -3566,7 +5466,7 @@ function buildLeadCampaignBundleSpec(preview, orchestrator) {
     },
     adset: {
       name: adsetName,
-      lifetime_budget: toMetaMoney(preview.budget),
+      daily_budget: toMetaMoney(preview.budget),
       billing_event: 'IMPRESSIONS',
       optimization_goal: adsetConfig.optimization_goal,
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
@@ -5427,24 +7327,107 @@ ipcMain.handle('run-marketing-campaign-preview', async (_event, payload = {}) =>
       await sleep(650)
 
       if (browserOpen.ok) {
-        await tryFacebookUiConfigureCampaignEditor(preview)
-        await tryFacebookUiConfigureAdsetSchedule(preview)
-      }
+        let campaignEditorState = { nameFilled: false, budgetConfigured: false, nextClicked: false }
+        let adsetUiState = {
+          anySuccess: false,
+          conversionConfigured: false,
+          performanceConfigured: false,
+          scheduleConfigured: false,
+          nextClicked: false,
+          visibleSections: [],
+          canAdvance: false,
+        }
+        let adUiState = {
+          reachedEditor: false,
+          nameFilled: false,
+          imageConfigured: false,
+          primaryTextConfigured: false,
+          headlineConfigured: false,
+          descriptionConfigured: false,
+          ctaConfigured: false,
+          leadFormConfigured: false,
+          visibleSections: [],
+          canFinalize: false,
+        }
+        if (creationState?.campaignId) {
+          emitMarketingUpdate({
+            type: 'log',
+            status: 'running',
+            line: `[FACEBOOK-UI] La campaña ya fue creada por n8n (${creationState.campaignId}). El flujo visual continuara sobre el editor existente para completar campos pendientes.`,
+          })
+          await sleep(450)
+          campaignEditorState = await tryFacebookUiConfigureCampaignEditor(preview)
+        } else {
+          const createdFromUi = await tryFacebookUiCreateCampaign(preview)
+          if (!createdFromUi) {
+            emitMarketingUpdate({
+              type: 'log',
+              status: 'warning',
+              line: '[FACEBOOK-UI] No pude iniciar la creación desde el listado de campañas. Intentare completar lo visible del editor actual.',
+            })
+            await sleep(450)
+          }
+          campaignEditorState = await tryFacebookUiConfigureCampaignEditor(preview)
+        }
 
-      emitMarketingUpdate({
-        type: 'done',
-        status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) ? 'warning' : 'success',
-        summary: bundleError
-          ? `Error al crear campana via n8n: ${bundleError.message || bundleError}`
-          : creationState?.adsetDeferredToUi
-            ? 'Campana creada via n8n. El conjunto de anuncios quedo delegado a Ads Manager para seleccionar el objeto promocionado.'
-          : creationState?.adsetError
-            ? `Campana creada via n8n, pero no se pudo crear el ad set: ${creationState.adsetError}`
-          : browserOpen.ok
-            ? 'Campana creada exitosamente via n8n. Se abrio Ads Manager para verificar.'
+        if (campaignEditorState.nextClicked) {
+          adsetUiState = await tryFacebookUiConfigureAdsetSchedule(preview)
+          if (adsetUiState.nextClicked) {
+            adUiState = await tryFacebookUiReachAdEditor(preview)
+          } else {
+            emitMarketingUpdate({
+              type: 'log',
+              status: 'warning',
+              line: '[FACEBOOK-UI] No pasare al apartado de anuncio porque el conjunto de anuncios todavia no quedo completo o no se pudo pulsar Siguiente.',
+            })
+            await sleep(450)
+          }
+        } else {
+          emitMarketingUpdate({
+            type: 'log',
+            status: 'warning',
+            line: '[FACEBOOK-UI] No pasare al conjunto de anuncios porque la campaña actual no termino de configurarse o no se pudo pulsar Siguiente.',
+          })
+          await sleep(450)
+        }
+
+        const uiIncomplete =
+          browserOpen.ok &&
+          (
+            !campaignEditorState.nextClicked ||
+            !adsetUiState.nextClicked ||
+            !adUiState.reachedEditor ||
+            !adUiState.canFinalize
+          )
+
+        emitMarketingUpdate({
+          type: 'done',
+          status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) || uiIncomplete ? 'warning' : 'success',
+          summary: bundleError
+            ? `Error al crear campana via n8n: ${bundleError.message || bundleError}`
+            : uiIncomplete
+              ? 'La campaña y el flujo visual siguen en progreso: la automatizacion debe completar campana, conjunto de anuncios y todos los campos visibles del anuncio antes de finalizar.'
+            : browserOpen.ok
+              ? 'Campana creada via n8n y la UI completo los campos visibles hasta Nuevo anuncio de clientes potenciales.'
+            : creationState?.adsetError
+              ? `Campana creada via n8n, pero no se pudo crear el ad set: ${creationState.adsetError}`
             : 'Campana creada exitosamente via n8n, pero no se pudo abrir el navegador automaticamente.',
-        preview,
-      })
+          preview,
+        })
+      } else {
+        emitMarketingUpdate({
+          type: 'done',
+          status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) ? 'warning' : 'success',
+          summary: bundleError
+            ? `Error al crear campana via n8n: ${bundleError.message || bundleError}`
+            : creationState?.adsetDeferredToUi
+              ? 'Campana creada via n8n. El conjunto de anuncios quedo delegado a Ads Manager para seleccionar el objeto promocionado.'
+            : creationState?.adsetError
+              ? `Campana creada via n8n, pero no se pudo crear el ad set: ${creationState.adsetError}`
+              : 'Campana creada exitosamente via n8n, pero no se pudo abrir el navegador automaticamente.',
+          preview,
+        })
+      }
     } else {
       emitMarketingUpdate({
         type: 'done',
