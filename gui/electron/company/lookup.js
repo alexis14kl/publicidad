@@ -1,7 +1,3 @@
-const fs = require('fs')
-const path = require('path')
-const { PROJECT_ROOT } = require('../config/project-paths')
-const { getProjectEnv } = require('../utils/env')
 const { COMPANY_PLATFORMS } = require('../config/company-platforms')
 const { IMAGE_FORMATS } = require('../config/image-formats')
 const { NOYECODE_SERVICES } = require('../config/noyecode-services')
@@ -123,21 +119,45 @@ function buildFormatRule(formatValue) {
 }
 
 function buildFullPrompt(userIdea, companyName, imageService, imageFormat) {
-  const seedPath = path.join(PROJECT_ROOT, 'utils', 'prompt_seed.txt')
-  let seed = ''
-  try {
-    seed = fs.readFileSync(seedPath, 'utf-8').trim()
-  } catch { /* ignore */ }
+  // NOTE: prompt_seed.txt is NOT included here — it contains meta-instructions
+  // meant for the n8n AI prompt generator ("Genera UN SOLO prompt en ingles
+  // listo para DALL-E..."). When pasted directly into ChatGPT, those meta-
+  // instructions cause ChatGPT to output plain text instead of calling DALL-E.
+  //
+  // Instead, we build a DIRECT image-generation request with "Generate this
+  // image now:" prefix (matching what clean_generated_prompt() in
+  // n8n_prompt_client.py produces) so ChatGPT invokes DALL-E.
+  //
+  // When this function returns '' (no user idea + no mandatory rules),
+  // BOT_CUSTOM_IMAGE_PROMPT stays unset and the orchestrator falls through
+  // to the n8n path which correctly processes the seed.
 
-  const parts = [seed]
+  const parts = []
   if (userIdea) {
-    parts.push(`\n\n[USER IDEA — INCORPORATE THIS INTO THE AD]\n${userIdea}`)
+    parts.push(userIdea)
   }
   parts.push(buildCompanyRule(companyName))
   parts.push(buildColorRule(companyName))
   parts.push(buildServiceRule(imageService))
   parts.push(buildFormatRule(imageFormat))
-  return parts.join('')
+
+  const body = parts.join('').trim()
+  if (!body) return ''
+
+  return (
+    'Generate this image now: Professional advertising image, realistic photography style ' +
+    'for social media marketing. Young real person working with laptop in modern professional ' +
+    'environment. Positive expression showing success. Clean layout with corporate text blocks, ' +
+    'large headline, orange CTA badge, benefits box, and contact banner at bottom. ' +
+    'Digital dashboards and floating tech interfaces around the person. ' +
+    'NO cartoons, NO illustrations, NO vectors. Only realistic high-quality photography. ' +
+    'All visible text in the image MUST be in Spanish.\n\n' +
+    body +
+    '\n\nCRITICAL: The top 15% of the image must be completely empty with clean light ' +
+    'background only, no text, no icons, no elements of any kind. Logo is added ' +
+    'programmatically later. Full-bleed design, light background edge to edge, no margins, ' +
+    'no black bars. Deliver exactly ONE final image.'
+  )
 }
 
 module.exports = {

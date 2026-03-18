@@ -4,6 +4,7 @@ const state = require('../state')
 const { getMarketingContactModeConfig, buildMarketingSegmentFromPreview } = require('../marketing/segment')
 const { runLocalMarketingOrchestrator } = require('../marketing/orchestrator')
 const { getMarketingImagesDir, prepareLatestMarketingImageAsset } = require('../marketing/image-asset')
+const { IMAGE_FORMATS } = require('../config/image-formats')
 const { openMarketingBrowserMonitor } = require('../marketing/monitor')
 const { ensureFacebookVisualBrowser } = require('../facebook/visual-browser')
 const { getMetaPageId, getTargetAdAccountId, getFacebookAdsCdpInfo } = require('../facebook/api')
@@ -45,6 +46,7 @@ function registerMarketingHandlers(ipcMain) {
     const endDate = String(payload.endDate || '').trim()
     const facebookPhotoUrl = String(payload.facebookPhotoUrl || '').trim()
     const facebookPhotoId = String(payload.facebookPhotoId || '').trim()
+    const imageFormat = String(payload.imageFormat || '').trim()
 
     if (!campaignIdea || !city || !budget || !startDate || !endDate) {
       return { success: false, error: 'Faltan concepto de campana, ciudad, presupuesto o fechas para ejecutar el agente' }
@@ -91,7 +93,7 @@ function registerMarketingHandlers(ipcMain) {
       state.marketingMonitorEvents = []
       state.marketingMonitorNextId = 1
       preview.browserMonitorUrl = await openMarketingBrowserMonitor()
-      preview.imageAsset = prepareLatestMarketingImageAsset()
+      preview.imageAsset = prepareLatestMarketingImageAsset(IMAGE_FORMATS[imageFormat])
       const targetActId = getTargetAdAccountId()
       if (contactMode === 'lead_form') {
         await ensureFacebookVisualBrowser(targetActId)

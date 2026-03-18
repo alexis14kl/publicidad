@@ -131,8 +131,8 @@ function registerPollerHandlers(ipcMain) {
   })
 
   ipcMain.handle('generate-default-prompt', async () => {
-    // El textarea ahora solo muestra la idea del usuario, no el seed completo
-    // El seed se inyecta internamente en buildFullPrompt()
+    // El textarea solo muestra la idea del usuario.
+    // buildFullPrompt() agrega las reglas MANDATORY y el prefijo "Generate this image now:"
     return { success: true, prompt: '' }
   })
 }

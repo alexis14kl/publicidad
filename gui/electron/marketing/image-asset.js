@@ -36,7 +36,11 @@ function getImageDimensionsWithSips(filePath) {
   return { width, height }
 }
 
-function prepareLatestMarketingImageAsset() {
+/**
+ * @param {{ w?: number, h?: number, label?: string }} [formatOverride]
+ *   Dimensiones objetivo. Si no se pasa, usa 1200x628 (Facebook Horizontal).
+ */
+function prepareLatestMarketingImageAsset(formatOverride) {
   const latest = getLatestMarketingImage()
   if (!latest) {
     return null
@@ -59,8 +63,9 @@ function prepareLatestMarketingImageAsset() {
     }
   }
 
-  const targetWidth = 1200
-  const targetHeight = 628
+  const targetWidth = (formatOverride && formatOverride.w) || 1200
+  const targetHeight = (formatOverride && formatOverride.h) || 628
+  const formatLabel = (formatOverride && formatOverride.label) || 'Facebook Horizontal'
   const targetRatio = targetWidth / targetHeight
   const currentRatio = dimensions.width > 0 && dimensions.height > 0 ? dimensions.width / dimensions.height : 0
   const alreadyClose = currentRatio > 0 && Math.abs(currentRatio - targetRatio) < 0.03
@@ -73,14 +78,14 @@ function prepareLatestMarketingImageAsset() {
       width: dimensions.width,
       height: dimensions.height,
       adjusted: false,
-      adjustmentReason: 'La imagen ya tiene una proporcion cercana a Facebook Feed.',
+      adjustmentReason: `La imagen ya tiene una proporcion cercana a ${formatLabel} (${targetWidth}x${targetHeight}).`,
       status: 'ready',
     }
   }
 
   const preparedDir = path.join(getMarketingImagesDir(), '_prepared')
   fs.mkdirSync(preparedDir, { recursive: true })
-  const preparedPath = path.join(preparedDir, `feed_${latest.name.replace(/\.(png|jpe?g|webp)$/i, '.png')}`)
+  const preparedPath = path.join(preparedDir, `campaign_${targetWidth}x${targetHeight}_${latest.name.replace(/\.(png|jpe?g|webp)$/i, '.png')}`)
 
   try {
     const cropWidth = currentRatio >= targetRatio
@@ -104,7 +109,7 @@ function prepareLatestMarketingImageAsset() {
       width: dimensions.width,
       height: dimensions.height,
       adjusted: true,
-      adjustmentReason: `El agente preparo una version Facebook Feed ${targetWidth}x${targetHeight} desde ${dimensions.width}x${dimensions.height}.`,
+      adjustmentReason: `El agente preparo una version ${formatLabel} ${targetWidth}x${targetHeight} desde ${dimensions.width}x${dimensions.height}.`,
       status: 'prepared',
     }
   } catch (error) {
