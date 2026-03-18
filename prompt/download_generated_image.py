@@ -37,17 +37,27 @@ def get_latest_downloadable_image_info(page) -> dict:
                 )
             );
 
-            const articleHasDownloadButton = (article) =>
-                Array.from(article.querySelectorAll('button,[role="button"],a')).some((el) =>
+            const blockHasDownloadButton = (block) =>
+                Array.from(block.querySelectorAll('button,[role="button"],a')).some((el) =>
                     /descargar esta imagen|download this image/i.test((el.innerText || el.getAttribute('aria-label') || '').trim())
                 );
 
-            const articleHasImageCreatedText = (article) =>
-                /imagen creada|image created/i.test(article.innerText || '');
+            const blockHasImageCreatedText = (block) =>
+                /imagen creada|image created/i.test(block.innerText || '');
 
+            const blockHasImageGenOverlay = (block) =>
+                block.querySelector('[data-testid="image-gen-overlay-actions"]') !== null;
+
+            // Try multiple selectors: new ChatGPT DOM first, then legacy <article>
+            const turns = Array.from(document.querySelectorAll('[data-testid^="conversation-turn"]')).reverse();
+            const messages = Array.from(document.querySelectorAll('[data-message-id]')).reverse();
             const articles = Array.from(document.querySelectorAll('article')).reverse();
-            const targetArticle = articles.find((article) => articleHasDownloadButton(article) || articleHasImageCreatedText(article));
-            if (!targetArticle) {
+            const candidates = turns.length > 0 ? turns : messages.length > 0 ? messages : articles;
+
+            const targetBlock = candidates.find((block) =>
+                blockHasDownloadButton(block) || blockHasImageGenOverlay(block) || blockHasImageCreatedText(block)
+            );
+            if (!targetBlock) {
                 return {
                     foundArticle: false,
                     hasDownloadButton: false,
@@ -57,16 +67,16 @@ def get_latest_downloadable_image_info(page) -> dict:
                 };
             }
 
-            const imgs = Array.from(targetArticle.querySelectorAll('img'));
+            const imgs = Array.from(targetBlock.querySelectorAll('img'));
             const matchingUrls = imgs
                 .map((img) => img.currentSrc || img.src || '')
                 .filter((src) => src.includes('/backend-api/estuary/content'));
 
             return {
                 foundArticle: true,
-                hasDownloadButton: articleHasDownloadButton(targetArticle),
+                hasDownloadButton: blockHasDownloadButton(targetBlock),
                 imageUrl: matchingUrls[matchingUrls.length - 1] || '',
-                articleText: (targetArticle.innerText || '').slice(0, 400),
+                articleText: (targetBlock.innerText || '').slice(0, 400),
                 hasComparisonChoice: comparisonButtons.length > 0,
             };
         }"""

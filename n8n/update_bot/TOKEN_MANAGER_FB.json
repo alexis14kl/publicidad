@@ -1,0 +1,99 @@
+{
+  "name": "TOKEN_MANAGER_FB",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "token-manager-fb",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        0
+      ],
+      "id": "tm-webhook-001",
+      "name": "Webhook Token",
+      "webhookId": "token-manager-fb"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const raw = $input.first().json ?? {};\nconst body = raw.body ?? raw;\nconst normalize = (value) => String(value ?? '').trim();\nconst generatedAt = new Date().toISOString();\nconst allowedActions = new Set(['validate', 'exchange', 'pages', 'full']);\nconst actionRaw = normalize(body.action || 'full').toLowerCase();\nconst action = allowedActions.has(actionRaw) ? actionRaw : 'full';\nconst shortToken = normalize(body.short_token || body.token);\nconst providedUserToken = normalize(body.long_lived_token || body.user_token || body.long_token);\nconst pageId = normalize(body.page_id);\nconst appId = normalize(body.app_id || '795000703662130');\nconst appSecret = normalize(body.app_secret || '8931002363214470aae2366a92a4f32e');\n\nconst buildError = (message, extra = {}) => [{\n  json: {\n    status: 'error',\n    action,\n    message,\n    generated_at: generatedAt,\n    ...extra,\n  },\n}];\n\nif (!appId || !appSecret) {\n  return buildError('Se requiere app_id y app_secret para procesar el token.');\n}\n\nif (action === 'validate') {\n  return [{\n    json: {\n      status: 'success',\n      action,\n      generated_at: generatedAt,\n      app_id: appId,\n      page_id_requested: pageId || null,\n      has_short_token: !!shortToken,\n      has_long_lived_token: !!providedUserToken,\n      note: 'Validacion local completada. No se hizo llamada a Facebook.',\n    },\n  }];\n}\n\nconst skipExchange = action === 'pages' && !!providedUserToken;\nif (!skipExchange && !shortToken) {\n  return buildError('Se requiere short_token o token en el body.');\n}\n\nconst request = this.helpers.request;\nconst requestDefaults = {\n  json: true,\n  simple: false,\n  resolveWithFullResponse: true,\n  headers: {\n    Accept: 'application/json',\n    'User-Agent': 'n8n-token-manager-fb/1.1',\n  },\n};\n\nlet longLivedToken = providedUserToken;\nlet tokenType = providedUserToken ? 'bearer' : '';\nlet expiresIn = 0;\nlet expiresAt = providedUserToken ? 'unknown' : '';\nlet tokenSource = providedUserToken ? 'request_body' : 'facebook_exchange';\n\nif (!skipExchange) {\n  const exchangeResponse = await request({\n    ...requestDefaults,\n    method: 'GET',\n    uri: 'https://graph.facebook.com/v21.0/oauth/access_token',\n    qs: {\n      grant_type: 'fb_exchange_token',\n      client_id: appId,\n      client_secret: appSecret,\n      fb_exchange_token: shortToken,\n    },\n  });\n\n  const exchangeBody = exchangeResponse?.body ?? {};\n  if (Number(exchangeResponse?.statusCode || 500) >= 400 || !exchangeBody.access_token) {\n    return buildError('Facebook no devolvio access_token en el exchange.', {\n      facebook_status_code: exchangeResponse?.statusCode ?? null,\n      facebook_error: exchangeBody?.error ?? exchangeBody,\n    });\n  }\n\n  longLivedToken = normalize(exchangeBody.access_token);\n  tokenType = normalize(exchangeBody.token_type);\n  expiresIn = Number(exchangeBody.expires_in || 0);\n  expiresAt = expiresIn > 0\n    ? new Date(Date.now() + expiresIn * 1000).toISOString()\n    : 'unknown';\n}\n\nconst result = {\n  status: 'success',\n  action,\n  generated_at: generatedAt,\n  app_id: appId,\n  page_id_requested: pageId || null,\n  token_source: tokenSource,\n  long_lived_user_token: longLivedToken,\n  token_type: tokenType || null,\n  long_lived_expires_in_seconds: expiresIn,\n  long_lived_expires_in_days: expiresIn > 0 ? Math.round(expiresIn / 86400) : null,\n  long_lived_expires_at: expiresAt || null,\n};\n\nif (action === 'exchange') {\n  return [{ json: result }];\n}\n\nconst pagesResponse = await request({\n  ...requestDefaults,\n  method: 'GET',\n  uri: 'https://graph.facebook.com/v21.0/me/accounts',\n  qs: {\n    access_token: longLivedToken,\n    fields: 'name,access_token,id,category',\n  },\n});\n\nconst pagesBody = pagesResponse?.body ?? {};\nif (Number(pagesResponse?.statusCode || 500) >= 400 || (pagesBody?.error && !Array.isArray(pagesBody?.data))) {\n  return buildError('No se pudieron obtener las paginas del usuario.', {\n    facebook_status_code: pagesResponse?.statusCode ?? null,\n    facebook_error: pagesBody?.error ?? pagesBody,\n  });\n}\n\nconst pages = Array.isArray(pagesBody.data) ? pagesBody.data : [];\nresult.pages = pages.map((page) => ({\n  page_id: normalize(page.id),\n  page_name: normalize(page.name),\n  category: normalize(page.category),\n  page_access_token: normalize(page.access_token),\n  is_permanent: true,\n  note: 'Este Page Access Token no expira mientras el User Token siga vigente.',\n}));\nresult.total_pages = pages.length;\n\nif (pageId) {\n  const target = pages.find((page) => normalize(page.id) === pageId);\n  result.selected_page_found = !!target;\n  if (target) {\n    result.selected_page = {\n      page_id: normalize(target.id),\n      page_name: normalize(target.name),\n      page_access_token: normalize(target.access_token),\n      category: normalize(target.category),\n    };\n  } else {\n    result.selected_page = null;\n    result.warning = `Page ID ${pageId} no encontrado en las paginas del usuario.`;\n  }\n}\n\nreturn [{ json: result }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        0
+      ],
+      "id": "tm-process-001",
+      "name": "Procesar Token FB"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "X-Workflow",
+                "value": "TOKEN_MANAGER_FB"
+              },
+              {
+                "name": "X-Webhook",
+                "value": "token-manager-fb"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        240,
+        0
+      ],
+      "id": "tm-respond-001",
+      "name": "Responder Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook Token": {
+      "main": [
+        [
+          {
+            "node": "Procesar Token FB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar Token FB": {
+      "main": [
+        [
+          {
+            "node": "Responder Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}
