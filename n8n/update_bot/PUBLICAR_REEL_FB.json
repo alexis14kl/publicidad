@@ -18,7 +18,7 @@
     {
       "parameters": {
         "language": "javaScript",
-        "jsCode": "// Parsear datos del request\nconst raw = $input.first().json ?? {};\nconst body = raw.body ?? raw;\nconst normalize = (v) => String(v ?? '').trim();\n\nconst accessToken = normalize(body.access_token);\nconst pageId = normalize(body.page_id);\nconst videoUrl = normalize(body.video_url);\nconst videoBase64 = normalize(body.videoBase64);\nconst title = normalize(body.title || 'Reel publicitario');\nconst description = normalize(body.description || body.post_text || body.caption || '');\nconst generatedAt = new Date().toISOString();\n\nif (!accessToken) {\n  return [{ json: { status: 'error', message: 'Se requiere access_token', generated_at: generatedAt } }];\n}\nif (!pageId) {\n  return [{ json: { status: 'error', message: 'Se requiere page_id', generated_at: generatedAt } }];\n}\nif (!videoUrl && !videoBase64) {\n  return [{ json: { status: 'error', message: 'Se requiere video_url o videoBase64', generated_at: generatedAt } }];\n}\n\nreturn [{\n  json: {\n    accessToken,\n    pageId,\n    videoUrl,\n    videoBase64,\n    title,\n    description,\n    generatedAt,\n    hasVideoUrl: !!videoUrl,\n    hasVideoBase64: !!videoBase64,\n  }\n}];"
+        "jsCode": "const raw = $input.first().json ?? {};\nconst body = raw.body ?? raw;\nconst normalize = (v) => String(v ?? '').trim();\n\nconst accessToken = normalize(body.access_token);\nconst pageId = normalize(body.page_id);\nconst videoUrl = normalize(body.video_url);\nconst videoBase64 = normalize(body.videoBase64);\nconst title = normalize(body.title || 'Reel publicitario');\nconst description = normalize(body.description || body.post_text || body.caption || '');\n\nif (!accessToken) throw new Error('Se requiere access_token');\nif (!pageId) throw new Error('Se requiere page_id');\nif (!videoUrl && !videoBase64) throw new Error('Se requiere video_url o videoBase64');\n\nreturn [{ json: { accessToken, pageId, videoUrl, videoBase64, title, description, hasVideoUrl: !!videoUrl, hasVideoBase64: !!videoBase64 } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -34,19 +34,11 @@
         "contentType": "form-urlencoded",
         "bodyParameters": {
           "parameters": [
-            {
-              "name": "upload_phase",
-              "value": "start"
-            },
-            {
-              "name": "access_token",
-              "value": "={{ $json.accessToken }}"
-            }
+            { "name": "upload_phase", "value": "start" },
+            { "name": "access_token", "value": "={{ $json.accessToken }}" }
           ]
         },
-        "options": {
-          "timeout": 30000
-        }
+        "options": { "timeout": 30000 }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -57,21 +49,33 @@
     {
       "parameters": {
         "language": "javaScript",
-        "jsCode": "// Extraer video_id y upload_url de la fase 1\nconst response = $input.first().json;\nconst parsedData = $('Parsear Request').first().json;\n\nconst videoId = String(response.video_id || '').trim();\nconst uploadUrl = String(response.upload_url || '').trim();\n\nif (!videoId || !uploadUrl) {\n  throw new Error('Facebook no devolvio video_id o upload_url. Response: ' + JSON.stringify(response));\n}\n\nreturn [{\n  json: {\n    videoId,\n    uploadUrl,\n    accessToken: parsedData.accessToken,\n    pageId: parsedData.pageId,\n    videoUrl: parsedData.videoUrl,\n    videoBase64: parsedData.videoBase64,\n    title: parsedData.title,\n    description: parsedData.description,\n    generatedAt: parsedData.generatedAt,\n    hasVideoUrl: parsedData.hasVideoUrl,\n    hasVideoBase64: parsedData.hasVideoBase64,\n  }\n}];"
+        "jsCode": "const response = $input.first().json;\nconst parsedData = $('Parsear Request').first().json;\nconst videoId = String(response.video_id || '').trim();\nconst uploadUrl = String(response.upload_url || '').trim();\nif (!videoId || !uploadUrl) throw new Error('Facebook no devolvio video_id o upload_url: ' + JSON.stringify(response));\n\nlet videoBuffer;\nif (parsedData.hasVideoUrl && parsedData.videoUrl) {\n  const resp = await fetch(parsedData.videoUrl);\n  if (!resp.ok) throw new Error('No se pudo descargar video desde URL: ' + resp.status);\n  const arrayBuf = await resp.arrayBuffer();\n  videoBuffer = Buffer.from(arrayBuf);\n} else if (parsedData.hasVideoBase64 && parsedData.videoBase64) {\n  const clean = parsedData.videoBase64.replace(/^data:video\\/\\w+;base64,/, '');\n  videoBuffer = Buffer.from(clean, 'base64');\n} else {\n  throw new Error('No hay video para subir');\n}\n\nreturn {\n  json: {\n    videoId,\n    uploadUrl,\n    accessToken: parsedData.accessToken,\n    pageId: parsedData.pageId,\n    title: parsedData.title,\n    description: parsedData.description,\n    fileSize: videoBuffer.length,\n  },\n  binary: {\n    video: {\n      data: videoBuffer,\n      mimeType: 'video/mp4',\n      fileName: 'reel.mp4',\n    }\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [300, 0],
-      "id": "reel-extract-001",
-      "name": "Extraer Upload URL"
+      "id": "reel-prepare-001",
+      "name": "Preparar Video Binario"
     },
     {
       "parameters": {
-        "language": "javaScript",
-        "jsCode": "// Fase 2: Subir el video al upload_url\nconst data = $input.first().json;\nconst request = this.helpers.request;\n\nlet videoBuffer;\nlet fileSize;\n\nif (data.hasVideoUrl && data.videoUrl) {\n  // Descargar video desde URL\n  const downloadResponse = await request({\n    method: 'GET',\n    uri: data.videoUrl,\n    encoding: null,\n    resolveWithFullResponse: true,\n  });\n  videoBuffer = downloadResponse.body;\n  fileSize = videoBuffer.length;\n} else if (data.hasVideoBase64 && data.videoBase64) {\n  // Decodificar base64\n  const cleanBase64 = data.videoBase64.replace(/^data:video\\/\\w+;base64,/, '');\n  videoBuffer = Buffer.from(cleanBase64, 'base64');\n  fileSize = videoBuffer.length;\n} else {\n  throw new Error('No hay video para subir (ni URL ni base64)');\n}\n\n// Subir al upload_url de Facebook\nconst uploadResponse = await request({\n  method: 'POST',\n  uri: data.uploadUrl,\n  headers: {\n    'Authorization': `OAuth ${data.accessToken}`,\n    'offset': '0',\n    'file_size': String(fileSize),\n    'Content-Type': 'application/octet-stream',\n  },\n  body: videoBuffer,\n  json: true,\n  simple: false,\n  resolveWithFullResponse: true,\n});\n\nconst uploadBody = uploadResponse?.body ?? {};\nif (Number(uploadResponse?.statusCode || 500) >= 400) {\n  throw new Error('Error subiendo video a Facebook: ' + JSON.stringify(uploadBody));\n}\n\nreturn [{\n  json: {\n    uploadSuccess: uploadBody.success || true,\n    videoId: data.videoId,\n    accessToken: data.accessToken,\n    pageId: data.pageId,\n    title: data.title,\n    description: data.description,\n    generatedAt: data.generatedAt,\n    fileSize,\n  }\n}];"
+        "method": "POST",
+        "url": "={{ $json.uploadUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=OAuth {{ $json.accessToken }}" },
+            { "name": "offset", "value": "0" },
+            { "name": "file_size", "value": "={{ $json.fileSize }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "video",
+        "options": { "timeout": 120000 }
       },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [600, 0],
       "id": "reel-upload-001",
       "name": "Fase 2 - Subir Video"
@@ -79,36 +83,19 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v21.0/{{ $json.pageId }}/video_reels",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('Preparar Video Binario').item.json.pageId }}/video_reels",
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {
           "parameters": [
-            {
-              "name": "upload_phase",
-              "value": "finish"
-            },
-            {
-              "name": "video_id",
-              "value": "={{ $json.videoId }}"
-            },
-            {
-              "name": "title",
-              "value": "={{ $json.title }}"
-            },
-            {
-              "name": "description",
-              "value": "={{ $json.description }}"
-            },
-            {
-              "name": "access_token",
-              "value": "={{ $json.accessToken }}"
-            }
+            { "name": "upload_phase", "value": "finish" },
+            { "name": "video_id", "value": "={{ $('Preparar Video Binario').item.json.videoId }}" },
+            { "name": "title", "value": "={{ $('Preparar Video Binario').item.json.title }}" },
+            { "name": "description", "value": "={{ $('Preparar Video Binario').item.json.description }}" },
+            { "name": "access_token", "value": "={{ $('Preparar Video Binario').item.json.accessToken }}" }
           ]
         },
-        "options": {
-          "timeout": 60000
-        }
+        "options": { "timeout": 60000 }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -119,7 +106,7 @@
     {
       "parameters": {
         "language": "javaScript",
-        "jsCode": "// Resultado final\nconst response = $input.first().json;\nconst uploadData = $('Fase 2 - Subir Video').first().json;\n\nreturn [{\n  json: {\n    status: response.success ? 'success' : 'error',\n    post_id: response.post_id || null,\n    video_id: uploadData.videoId,\n    page_id: uploadData.pageId,\n    title: uploadData.title,\n    description: uploadData.description,\n    file_size_bytes: uploadData.fileSize,\n    generated_at: uploadData.generatedAt,\n    published_at: new Date().toISOString(),\n    facebook_response: response,\n  }\n}];"
+        "jsCode": "const response = $input.first().json;\nconst videoData = $('Preparar Video Binario').first().json;\nreturn [{ json: {\n  status: response.success ? 'success' : 'error',\n  post_id: response.post_id || null,\n  video_id: videoData.videoId,\n  page_id: videoData.pageId,\n  title: videoData.title,\n  description: videoData.description,\n  file_size_bytes: videoData.fileSize,\n  published_at: new Date().toISOString(),\n  facebook_response: response,\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -133,14 +120,8 @@
           "responseCode": 200,
           "responseHeaders": {
             "entries": [
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "name": "X-Workflow",
-                "value": "PUBLICAR_REEL_FB"
-              }
+              { "name": "Content-Type", "value": "application/json" },
+              { "name": "X-Workflow", "value": "PUBLICAR_REEL_FB" }
             ]
           }
         }
@@ -160,9 +141,9 @@
       "main": [[{ "node": "Fase 1 - Iniciar Upload", "type": "main", "index": 0 }]]
     },
     "Fase 1 - Iniciar Upload": {
-      "main": [[{ "node": "Extraer Upload URL", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Preparar Video Binario", "type": "main", "index": 0 }]]
     },
-    "Extraer Upload URL": {
+    "Preparar Video Binario": {
       "main": [[{ "node": "Fase 2 - Subir Video", "type": "main", "index": 0 }]]
     },
     "Fase 2 - Subir Video": {
