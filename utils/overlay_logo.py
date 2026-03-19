@@ -1,7 +1,8 @@
 """Superpone branding real de la empresa sobre la imagen publicitaria.
 
-Aplica una franja superior limpia para el logo y una franja inferior para
-telefono, web y nombre comercial usando los datos del formulario de empresa.
+Recupera un look mas cercano al formato anterior:
+- logo flotante y limpio en la parte superior
+- barra/pildora de contacto redondeada en la parte inferior
 """
 from __future__ import annotations
 
@@ -14,9 +15,9 @@ from PIL import Image, ImageDraw, ImageFont
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LOGO_PNG = PROJECT_ROOT / "utils" / "logoapporange.png"
 
-HEADER_RATIO = 0.14
-FOOTER_RATIO = 0.10
-LOGO_WIDTH_RATIO = 0.16
+TOP_SAFE_RATIO = 0.08
+BOTTOM_SAFE_RATIO = 0.15
+LOGO_WIDTH_RATIO = 0.22
 _DEFAULT_WIDTH = 1080
 _DEFAULT_HEIGHT = 1350
 
@@ -116,16 +117,8 @@ def _normalize_website(value: str) -> str:
     return website
 
 
-def _draw_header(draw: ImageDraw.ImageDraw, bg: Image.Image, logo: Image.Image) -> None:
+def _draw_top_logo(bg: Image.Image, logo: Image.Image) -> None:
     bg_w, bg_h = bg.size
-    header_h = int(bg_h * HEADER_RATIO)
-    margin_x = int(bg_w * 0.035)
-    draw.rounded_rectangle(
-        (margin_x, int(bg_h * 0.02), bg_w - margin_x, int(bg_h * 0.02) + header_h),
-        radius=int(header_h * 0.22),
-        fill=(255, 255, 255, 230),
-    )
-
     target_w = int(bg_w * LOGO_WIDTH_RATIO)
     scale = target_w / max(logo.size[0], 1)
     target_h = int(logo.size[1] * scale)
@@ -134,47 +127,83 @@ def _draw_header(draw: ImageDraw.ImageDraw, bg: Image.Image, logo: Image.Image) 
     alpha = alpha.point(lambda a: 255 if a >= 96 else 0)
     logo_resized.putalpha(alpha)
 
-    x = bg_w - margin_x - target_w - int(bg_w * 0.01)
-    y = int(bg_h * 0.02) + max(0, (header_h - target_h) // 2)
+    x = (bg_w - target_w) // 2
+    y = max(int(bg_h * 0.015), int((bg_h * TOP_SAFE_RATIO - target_h) / 2))
     bg.paste(logo_resized, (x, y), logo_resized)
 
 
-def _draw_footer(draw: ImageDraw.ImageDraw, bg: Image.Image) -> None:
+def _draw_contact_pill(draw: ImageDraw.ImageDraw, bg: Image.Image) -> None:
     bg_w, bg_h = bg.size
-    footer_h = int(bg_h * FOOTER_RATIO)
-    top = bg_h - footer_h
+    pill_h = int(bg_h * 0.09)
+    pill_w = int(bg_w * 0.72)
+    pill_x = (bg_w - pill_w) // 2
+    pill_y = bg_h - int(bg_h * BOTTOM_SAFE_RATIO) + int(bg_h * 0.01)
 
     primary = _parse_color(os.environ.get("BOT_BRAND_PRIMARY"), (23, 87, 194, 255))
     cta = _parse_color(os.environ.get("BOT_BRAND_CTA"), (253, 145, 2, 255))
+    accent = _parse_color(os.environ.get("BOT_BRAND_ACCENT"), (0, 188, 212, 255))
     text_light = (255, 255, 255, 255)
+    text_dark = (33, 52, 88, 255)
 
-    draw.rectangle((0, top, bg_w, bg_h), fill=primary)
-    draw.rectangle((0, top, int(bg_w * 0.22), bg_h), fill=cta)
+    shadow_offset = max(4, pill_h // 12)
+    draw.rounded_rectangle(
+        (pill_x, pill_y + shadow_offset, pill_x + pill_w, pill_y + pill_h + shadow_offset),
+        radius=int(pill_h * 0.45),
+        fill=(0, 0, 0, 38),
+    )
+    draw.rounded_rectangle(
+        (pill_x, pill_y, pill_x + pill_w, pill_y + pill_h),
+        radius=int(pill_h * 0.45),
+        fill=(255, 255, 255, 236),
+    )
 
-    company_name = str(os.environ.get("BOT_COMPANY_NAME", "")).strip()
+    left_w = int(pill_w * 0.36)
+    draw.rounded_rectangle(
+        (pill_x, pill_y, pill_x + left_w, pill_y + pill_h),
+        radius=int(pill_h * 0.45),
+        fill=cta,
+    )
+    draw.rectangle(
+        (pill_x + int(pill_h * 0.45), pill_y, pill_x + left_w, pill_y + pill_h),
+        fill=cta,
+    )
+
     phone = str(os.environ.get("BOT_COMPANY_PHONE", "")).strip()
+    email = str(os.environ.get("BOT_COMPANY_EMAIL", "")).strip()
     website = _normalize_website(os.environ.get("BOT_COMPANY_WEBSITE", ""))
+    company_name = str(os.environ.get("BOT_COMPANY_NAME", "")).strip()
 
-    if not company_name and not phone and not website:
-        company_name = "Contactanos hoy"
+    if not website:
+        website = (company_name or "noyecode").lower().replace(" ", "")
+    if not phone and not email:
+        phone = "Contactanos hoy"
 
-    left_text = company_name or "Contactanos hoy"
-    right_parts = [part for part in [phone, website] if part]
-    right_text = "   |   ".join(right_parts)
+    left_text = website or (company_name or "noyecode")
+    right_parts = [part for part in [phone, email or website] if part]
+    right_text = "  •  ".join(right_parts)
 
-    left_font = _fit_font(draw, left_text, int(bg_w * 0.34), int(footer_h * 0.34), bold=True)
+    left_font = _fit_font(draw, left_text, int(left_w * 0.78), int(pill_h * 0.33), bold=True)
     left_bbox = draw.textbbox((0, 0), left_text, font=left_font)
-    left_y = top + (footer_h - (left_bbox[3] - left_bbox[1])) // 2
-    draw.text((int(bg_w * 0.03), left_y), left_text, font=left_font, fill=text_light)
+    left_x = pill_x + int(pill_w * 0.035)
+    left_y = pill_y + (pill_h - (left_bbox[3] - left_bbox[1])) // 2
+    draw.text((left_x, left_y), left_text, font=left_font, fill=text_light)
 
     if right_text:
-        right_font = _fit_font(draw, right_text, int(bg_w * 0.54), int(footer_h * 0.26), bold=False)
+        right_font = _fit_font(draw, right_text, int(pill_w * 0.54), int(pill_h * 0.28), bold=True)
         right_bbox = draw.textbbox((0, 0), right_text, font=right_font)
         right_w = right_bbox[2] - right_bbox[0]
         right_h = right_bbox[3] - right_bbox[1]
-        right_x = max(int(bg_w * 0.38), bg_w - right_w - int(bg_w * 0.03))
-        right_y = top + (footer_h - right_h) // 2
-        draw.text((right_x, right_y), right_text, font=right_font, fill=text_light)
+        right_x = max(pill_x + left_w + int(pill_w * 0.03), pill_x + pill_w - right_w - int(pill_w * 0.05))
+        right_y = pill_y + (pill_h - right_h) // 2
+        draw.text((right_x, right_y), right_text, font=right_font, fill=primary if primary[:3] != (23, 87, 194) else text_dark)
+
+    separator_x = pill_x + left_w + int(pill_w * 0.015)
+    separator_y = pill_y + int(pill_h * 0.2)
+    draw.rounded_rectangle(
+        (separator_x, separator_y, separator_x + max(3, pill_w // 220), pill_y + pill_h - int(pill_h * 0.2)),
+        radius=4,
+        fill=accent,
+    )
 
 
 def overlay_logo(image_path: str | Path) -> Path:
@@ -193,8 +222,8 @@ def overlay_logo(image_path: str | Path) -> Path:
     bg = _fit_to_target(bg, tw, th)
     draw = ImageDraw.Draw(bg)
 
-    _draw_header(draw, bg, logo)
-    _draw_footer(draw, bg)
+    _draw_top_logo(bg, logo)
+    _draw_contact_pill(draw, bg)
 
     bg.save(str(image_path), "PNG")
     return image_path

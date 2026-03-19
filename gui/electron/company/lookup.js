@@ -153,12 +153,12 @@ function buildFullPrompt(userIdea, companyName, imageService, imageFormat) {
     'NO cartoons, NO illustrations, NO vectors. Only realistic high-quality photography. ' +
     'All visible text in the image MUST be in Spanish.\n\n' +
     body +
-    '\n\nCRITICAL: The top 15% of the image must be completely empty with clean light ' +
-    'background only, no text, no icons, no elements of any kind. The bottom 12% of the image ' +
-    'must also stay clean and free of important text because the real contact bar is added ' +
-    'programmatically later with the company website and phone. Logo is added ' +
-    'programmatically later. Full-bleed design, light background edge to edge, no margins, ' +
-    'no black bars. Deliver exactly ONE final image.'
+    '\n\nCRITICAL: Reserve only a small clean area near the top center for the logo and a ' +
+    'compact floating contact pill near the bottom. Do NOT create giant white header bars or ' +
+    'full-width footer strips. Keep the composition premium, airy and balanced like a polished ' +
+    'social ad. The contact data and logo will be finished programmatically later, so avoid ' +
+    'placing critical text in the top 8% and bottom 14% of the image. Full-bleed design, light ' +
+    'background edge to edge, no margins, no black bars. Deliver exactly ONE final image.'
   )
 }
 
