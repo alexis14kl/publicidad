@@ -1,7 +1,7 @@
-"""Superpone el logo real de NoyeCode sobre la imagen publicitaria.
+"""Superpone branding real de la empresa sobre la imagen publicitaria.
 
-Solo pega el logo con transparencia limpia encima de la imagen.
-No modifica el fondo, no pinta, no aplica blur ni efectos.
+Aplica una franja superior limpia para el logo y una franja inferior para
+telefono, web y nombre comercial usando los datos del formulario de empresa.
 """
 from __future__ import annotations
 
@@ -9,19 +9,19 @@ import os
 import sys
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-LOGO_PNG = PROJECT_ROOT / "utils" / "logoapporange.png"
+DEFAULT_LOGO_PNG = PROJECT_ROOT / "utils" / "logoapporange.png"
 
-LOGO_WIDTH_RATIO = 0.25  # logo ocupa 25% del ancho (mas pequeno)
-HEADER_RATIO = 0.08  # zona superior donde va centrado el logo (pegado arriba)
+HEADER_RATIO = 0.14
+FOOTER_RATIO = 0.10
+LOGO_WIDTH_RATIO = 0.16
 _DEFAULT_WIDTH = 1080
 _DEFAULT_HEIGHT = 1350
 
 
 def _get_target_dimensions() -> tuple[int, int]:
-    """Lee dimensiones de env vars BOT_IMAGE_WIDTH/HEIGHT, fallback a 1080x1350."""
     try:
         w = int(os.environ.get("BOT_IMAGE_WIDTH", "0") or "0")
         h = int(os.environ.get("BOT_IMAGE_HEIGHT", "0") or "0")
@@ -33,58 +33,168 @@ def _get_target_dimensions() -> tuple[int, int]:
 
 
 def _fit_to_target(img: Image.Image, tw: int, th: int) -> Image.Image:
-    """Escala la imagen para que quepa en tw x th SIN recortar. Rellena con fondo claro."""
     w, h = img.size
     if w == tw and h == th:
         return img
-    # min() = fit-to-contain (no recorta, puede dejar bordes)
     scale = min(tw / w, th / h)
     new_w = int(w * scale)
     new_h = int(h * scale)
     img = img.resize((new_w, new_h), Image.LANCZOS)
-    # Crear canvas del tamaño exacto con fondo claro (#f0f0f5)
     canvas = Image.new("RGBA", (tw, th), (240, 240, 245, 255))
-    # Centrar la imagen en el canvas
     x = (tw - new_w) // 2
     y = (th - new_h) // 2
     canvas.paste(img, (x, y), img if img.mode == "RGBA" else None)
     return canvas
 
 
+def _parse_color(value: str | None, fallback: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    raw = str(value or "").strip().lstrip("#")
+    if len(raw) == 3:
+        raw = "".join(ch * 2 for ch in raw)
+    if len(raw) != 6:
+        return fallback
+    try:
+        return tuple(int(raw[i : i + 2], 16) for i in (0, 2, 4)) + (255,)
+    except ValueError:
+        return fallback
+
+
+def _resolve_logo_path() -> Path:
+    raw = str(os.environ.get("BOT_COMPANY_LOGO_PATH", "")).strip()
+    if raw and raw not in {".", "./"}:
+        custom = Path(raw)
+        if custom.exists() and custom.is_file():
+            return custom
+    if DEFAULT_LOGO_PNG.exists() and DEFAULT_LOGO_PNG.is_file():
+        return DEFAULT_LOGO_PNG
+    return Path("")
+
+
+def _load_font(size: int, bold: bool = False) -> ImageFont.ImageFont:
+    candidates = []
+    if sys.platform == "darwin":
+        candidates.extend(
+            [
+                "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
+                "/System/Library/Fonts/SFNS.ttf",
+                "/System/Library/Fonts/Supplemental/Helvetica.ttc",
+            ]
+        )
+    else:
+        candidates.extend(
+            [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+            ]
+        )
+
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            try:
+                return ImageFont.truetype(candidate, size=size)
+            except OSError:
+                continue
+    return ImageFont.load_default()
+
+
+def _fit_font(draw: ImageDraw.ImageDraw, text: str, max_width: int, start_size: int, bold: bool = False) -> ImageFont.ImageFont:
+    size = start_size
+    while size >= 16:
+        font = _load_font(size, bold=bold)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        if (bbox[2] - bbox[0]) <= max_width:
+            return font
+        size -= 2
+    return _load_font(16, bold=bold)
+
+
+def _normalize_website(value: str) -> str:
+    website = str(value or "").strip()
+    if not website:
+        return ""
+    website = website.replace("https://", "").replace("http://", "").strip("/")
+    return website
+
+
+def _draw_header(draw: ImageDraw.ImageDraw, bg: Image.Image, logo: Image.Image) -> None:
+    bg_w, bg_h = bg.size
+    header_h = int(bg_h * HEADER_RATIO)
+    margin_x = int(bg_w * 0.035)
+    draw.rounded_rectangle(
+        (margin_x, int(bg_h * 0.02), bg_w - margin_x, int(bg_h * 0.02) + header_h),
+        radius=int(header_h * 0.22),
+        fill=(255, 255, 255, 230),
+    )
+
+    target_w = int(bg_w * LOGO_WIDTH_RATIO)
+    scale = target_w / max(logo.size[0], 1)
+    target_h = int(logo.size[1] * scale)
+    logo_resized = logo.resize((target_w, target_h), Image.LANCZOS)
+    alpha = logo_resized.split()[3]
+    alpha = alpha.point(lambda a: 255 if a >= 96 else 0)
+    logo_resized.putalpha(alpha)
+
+    x = bg_w - margin_x - target_w - int(bg_w * 0.01)
+    y = int(bg_h * 0.02) + max(0, (header_h - target_h) // 2)
+    bg.paste(logo_resized, (x, y), logo_resized)
+
+
+def _draw_footer(draw: ImageDraw.ImageDraw, bg: Image.Image) -> None:
+    bg_w, bg_h = bg.size
+    footer_h = int(bg_h * FOOTER_RATIO)
+    top = bg_h - footer_h
+
+    primary = _parse_color(os.environ.get("BOT_BRAND_PRIMARY"), (23, 87, 194, 255))
+    cta = _parse_color(os.environ.get("BOT_BRAND_CTA"), (253, 145, 2, 255))
+    text_light = (255, 255, 255, 255)
+
+    draw.rectangle((0, top, bg_w, bg_h), fill=primary)
+    draw.rectangle((0, top, int(bg_w * 0.22), bg_h), fill=cta)
+
+    company_name = str(os.environ.get("BOT_COMPANY_NAME", "")).strip()
+    phone = str(os.environ.get("BOT_COMPANY_PHONE", "")).strip()
+    website = _normalize_website(os.environ.get("BOT_COMPANY_WEBSITE", ""))
+
+    if not company_name and not phone and not website:
+        company_name = "Contactanos hoy"
+
+    left_text = company_name or "Contactanos hoy"
+    right_parts = [part for part in [phone, website] if part]
+    right_text = "   |   ".join(right_parts)
+
+    left_font = _fit_font(draw, left_text, int(bg_w * 0.34), int(footer_h * 0.34), bold=True)
+    left_bbox = draw.textbbox((0, 0), left_text, font=left_font)
+    left_y = top + (footer_h - (left_bbox[3] - left_bbox[1])) // 2
+    draw.text((int(bg_w * 0.03), left_y), left_text, font=left_font, fill=text_light)
+
+    if right_text:
+        right_font = _fit_font(draw, right_text, int(bg_w * 0.54), int(footer_h * 0.26), bold=False)
+        right_bbox = draw.textbbox((0, 0), right_text, font=right_font)
+        right_w = right_bbox[2] - right_bbox[0]
+        right_h = right_bbox[3] - right_bbox[1]
+        right_x = max(int(bg_w * 0.38), bg_w - right_w - int(bg_w * 0.03))
+        right_y = top + (footer_h - right_h) // 2
+        draw.text((right_x, right_y), right_text, font=right_font, fill=text_light)
+
+
 def overlay_logo(image_path: str | Path) -> Path:
-    """Pega el logo centrado en la zona superior de la imagen. Sin modificar el fondo."""
     image_path = Path(image_path)
     if not image_path.exists():
         raise FileNotFoundError(f"Imagen no encontrada: {image_path}")
-    if not LOGO_PNG.exists():
-        raise FileNotFoundError(f"Logo no encontrado: {LOGO_PNG}")
+
+    logo_path = _resolve_logo_path()
+    if not logo_path.exists():
+        raise FileNotFoundError(f"Logo no encontrado: {logo_path}")
 
     bg = Image.open(image_path).convert("RGBA")
-    logo = Image.open(LOGO_PNG).convert("RGBA")
+    logo = Image.open(logo_path).convert("RGBA")
 
-    # Forzar dimensiones del formato seleccionado (o 1080x1350 por defecto)
     tw, th = _get_target_dimensions()
     bg = _fit_to_target(bg, tw, th)
-    bg_w, bg_h = bg.size
+    draw = ImageDraw.Draw(bg)
 
-    # Escalar logo
-    target_w = int(bg_w * LOGO_WIDTH_RATIO)
-    scale = target_w / logo.size[0]
-    target_h = int(logo.size[1] * scale)
-    logo_resized = logo.resize((target_w, target_h), Image.LANCZOS)
-
-    # Limpiar pixeles semi-transparentes del anti-aliasing (binario: visible o no)
-    alpha = logo_resized.split()[3]
-    alpha = alpha.point(lambda a: 255 if a >= 128 else 0)
-    logo_resized.putalpha(alpha)
-
-    # Centrar en zona superior
-    header_h = int(bg_h * HEADER_RATIO)
-    x = (bg_w - target_w) // 2
-    y = max(0, (header_h - target_h) // 2)
-
-    # Pegar logo directo sobre la imagen
-    bg.paste(logo_resized, (x, y), logo_resized)
+    _draw_header(draw, bg, logo)
+    _draw_footer(draw, bg)
 
     bg.save(str(image_path), "PNG")
     return image_path
