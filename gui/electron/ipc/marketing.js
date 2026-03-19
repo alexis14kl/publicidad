@@ -1,3 +1,6 @@
+const fs = require('fs')
+const os = require('os')
+const path = require('path')
 const { getProjectEnv } = require('../utils/env')
 const { ensureAbsoluteUrl, sleep } = require('../utils/helpers')
 const state = require('../state')
@@ -37,6 +40,28 @@ function syncFacebookUiAutomationState() {
   setCampaignUiState(sharedState)
   setAdsetUiState(sharedState)
   setCampaignEmitMarketingUpdate(emitMarketingUpdate)
+}
+
+function exportMarketingAssetToDownloads(preview) {
+  const sourcePath = String(
+    preview?.imageAsset?.preparedPath ||
+    preview?.imageAsset?.sourcePath ||
+    ''
+  ).trim()
+  if (!sourcePath || !fs.existsSync(sourcePath)) {
+    return ''
+  }
+
+  const downloadsDir = path.join(os.homedir(), 'Downloads')
+  fs.mkdirSync(downloadsDir, { recursive: true })
+
+  const sourceExt = path.extname(sourcePath) || '.png'
+  const sourceBase = path.basename(sourcePath, sourceExt) || 'campana_marketing'
+  const targetPath = path.join(downloadsDir, `${sourceBase}${sourceExt}`)
+  if (sourcePath !== targetPath) {
+    fs.copyFileSync(sourcePath, targetPath)
+  }
+  return targetPath
 }
 
 async function reopenCampaignAndVerifyAdUi(preview, creationState) {
@@ -243,6 +268,7 @@ function registerMarketingHandlers(ipcMain) {
       facebookPhotoUrl,
       facebookPhotoId,
       imageAsset: null,
+      manualUploadImagePath: '',
       creativeDraftConfig: null,
       adDraftConfig: null,
       metaCreative: null,
@@ -324,6 +350,17 @@ function registerMarketingHandlers(ipcMain) {
           })
           await sleep(450)
         }
+      }
+
+      preview.manualUploadImagePath = exportMarketingAssetToDownloads(preview)
+      if (preview.manualUploadImagePath) {
+        emitMarketingUpdate({
+          type: 'log',
+          status: 'running',
+          line: `[ASSET] Copie la imagen lista para anuncio a Descargas: ${preview.manualUploadImagePath}`,
+          summary: 'Imagen preparada para subir manualmente.',
+        })
+        await sleep(450)
       }
 
       emitMarketingUpdate({
@@ -494,108 +531,20 @@ function registerMarketingHandlers(ipcMain) {
         })
         await sleep(650)
 
-        if (browserOpen.ok) {
-          let campaignEditorState = { nameFilled: false, budgetConfigured: false, nextClicked: false }
-          let adsetUiState = {
-            anySuccess: false,
-            conversionConfigured: false,
-            performanceConfigured: false,
-            scheduleConfigured: false,
-            nextClicked: false,
-            visibleSections: [],
-            canAdvance: false,
-          }
-          let adUiState = {
-            reachedEditor: false,
-            nameFilled: false,
-            imageConfigured: false,
-            primaryTextConfigured: false,
-            headlineConfigured: false,
-            descriptionConfigured: false,
-            ctaConfigured: false,
-            leadFormConfigured: false,
-            visibleSections: [],
-            canFinalize: false,
-          }
-          if (creationState?.campaignId) {
-            emitMarketingUpdate({
-              type: 'log',
-              status: 'running',
-              line: `[FACEBOOK-UI] La campaña ya fue creada por n8n (${creationState.campaignId}). El flujo visual continuara sobre el editor existente para completar campos pendientes.`,
-            })
-            await sleep(450)
-            campaignEditorState = await tryFacebookUiConfigureCampaignEditor(preview)
-          } else {
-            const createdFromUi = await tryFacebookUiCreateCampaign(preview)
-            if (!createdFromUi) {
-              emitMarketingUpdate({
-                type: 'log',
-                status: 'warning',
-                line: '[FACEBOOK-UI] No pude iniciar la creación desde el listado de campañas. Intentare completar lo visible del editor actual.',
-              })
-              await sleep(450)
-            }
-            campaignEditorState = await tryFacebookUiConfigureCampaignEditor(preview)
-          }
-
-          if (campaignEditorState.nextClicked) {
-            adsetUiState = await tryFacebookUiConfigureAdsetSchedule(preview)
-            if (adsetUiState.nextClicked) {
-              adUiState = await tryFacebookUiReachAdEditor(preview)
-            } else {
-              emitMarketingUpdate({
-                type: 'log',
-                status: 'warning',
-                line: '[FACEBOOK-UI] No pasare al apartado de anuncio porque el conjunto de anuncios todavia no quedo completo o no se pudo pulsar Siguiente.',
-              })
-              await sleep(450)
-            }
-          } else {
-            emitMarketingUpdate({
-              type: 'log',
-              status: 'warning',
-              line: '[FACEBOOK-UI] No pasare al conjunto de anuncios porque la campaña actual no termino de configurarse o no se pudo pulsar Siguiente.',
-            })
-            await sleep(450)
-          }
-
-          const uiIncomplete =
-            browserOpen.ok &&
-            (
-              !campaignEditorState.nextClicked ||
-              !adsetUiState.nextClicked ||
-              !adUiState.reachedEditor ||
-              !adUiState.canFinalize
-            )
-
-          emitMarketingUpdate({
-            type: 'done',
-            status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) || uiIncomplete ? 'warning' : 'success',
-            summary: bundleError
-              ? `Error al crear campana via n8n: ${bundleError.message || bundleError}`
-              : uiIncomplete
-                ? 'La campaña y el flujo visual siguen en progreso: la automatizacion debe completar campana, conjunto de anuncios y todos los campos visibles del anuncio antes de finalizar.'
-              : browserOpen.ok
-                ? 'Campana creada via n8n y la UI completo los campos visibles hasta Nuevo anuncio de clientes potenciales.'
+        emitMarketingUpdate({
+          type: 'done',
+          status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) ? 'warning' : 'success',
+          summary: bundleError
+            ? `Error al crear campana via CDP: ${bundleError.message || bundleError}`
+            : creationState?.adsetDeferredToUi
+              ? `Campana creada. El conjunto de anuncios quedo delegado a Ads Manager y la imagen para subir manualmente esta en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`
               : creationState?.adsetError
-                ? `Campana creada via n8n, pero no se pudo crear el ad set: ${creationState.adsetError}`
-              : 'Campana creada exitosamente via n8n, pero no se pudo abrir el navegador automaticamente.',
-            preview,
-          })
-        } else {
-          emitMarketingUpdate({
-            type: 'done',
-            status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) ? 'warning' : 'success',
-            summary: bundleError
-              ? `Error al crear campana via n8n: ${bundleError.message || bundleError}`
-              : creationState?.adsetDeferredToUi
-                ? 'Campana creada via n8n. El conjunto de anuncios quedo delegado a Ads Manager para seleccionar el objeto promocionado.'
-              : creationState?.adsetError
-                ? `Campana creada via n8n, pero no se pudo crear el ad set: ${creationState.adsetError}`
-                : 'Campana creada exitosamente via n8n, pero no se pudo abrir el navegador automaticamente.',
-            preview,
-          })
-        }
+                ? `Campana creada, pero no se pudo crear el ad set: ${creationState.adsetError}. La imagen para subir manualmente esta en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`
+                : browserOpen.ok
+                  ? `Campana creada correctamente. Sube manualmente la imagen desde Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`
+                  : `Campana creada, pero no se pudo abrir Ads Manager automaticamente. La imagen para subir manualmente esta en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`,
+          preview,
+        })
       } else {
         const env = getProjectEnv()
         const webhookUrl = String(
@@ -650,28 +599,27 @@ function registerMarketingHandlers(ipcMain) {
             await sleep(650)
           }
 
-          const {
-            browserOpen,
-            adUiState,
-            uiIncomplete,
-          } = await reopenCampaignAndVerifyAdUi(preview, creationState)
+          const browserOpen = await openMetaAdsManager(creationState)
+          emitMarketingUpdate({
+            type: 'log',
+            line: browserOpen.ok
+              ? `[OPEN] Navegador abierto en ${browserOpen.url} para visualizar Meta Ads Manager.`
+              : `[OPEN] No se pudo abrir el navegador automaticamente: ${browserOpen.reason}`,
+          })
+          await sleep(650)
 
           emitMarketingUpdate({
             type: 'done',
-            status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) || uiIncomplete ? 'warning' : 'success',
+            status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) ? 'warning' : 'success',
             summary: bundleError
               ? `Error al crear campana via n8n: ${bundleError.message || bundleError}`
-              : uiIncomplete
-                ? preview.generateImageFromMarketingPrompt && !adUiState.imageConfigured
-                  ? 'La campaña fue creada por n8n, pero la automatizacion todavia no logro reabrir el anuncio y verificar el reemplazo de la imagen en Contenido multimedia.'
-                  : 'La campaña fue creada por n8n, pero el flujo visual aun no completa todos los campos visibles del anuncio.'
-                : creationState?.adsetDeferredToUi
-                  ? 'Campana creada via n8n. El conjunto de anuncios quedo delegado a Ads Manager para seleccionar el objeto promocionado.'
-                  : creationState?.adsetError
-                    ? `Campana creada via n8n, pero no se pudo crear el ad set: ${creationState.adsetError}`
-                    : browserOpen.ok
-                      ? 'Campana creada via n8n, la UI reabrio el anuncio y verifico el contenido multimedia antes de finalizar.'
-                      : 'Campana creada exitosamente via n8n, pero no se pudo abrir el navegador automaticamente.',
+              : creationState?.adsetDeferredToUi
+                ? `Campana creada via n8n. El conjunto de anuncios quedo delegado a Ads Manager y la imagen para subir manualmente esta en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`
+                : creationState?.adsetError
+                  ? `Campana creada via n8n, pero no se pudo crear el ad set: ${creationState.adsetError}. La imagen para subir manualmente esta en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`
+                  : browserOpen.ok
+                    ? `Campana creada via n8n. La imagen para subir manualmente quedo en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`
+                    : `Campana creada via n8n, pero no se pudo abrir Ads Manager automaticamente. La imagen para subir manualmente quedo en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`,
             preview,
           })
         }
