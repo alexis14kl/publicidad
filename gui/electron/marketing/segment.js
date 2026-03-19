@@ -139,7 +139,7 @@ function inferCampaignProfile(campaignIdea = '') {
 }
 
 function buildMarketingSegmentFromPreview(preview = {}) {
-  const campaignIdea = String(preview?.campaignIdea || '').trim() || 'Campana local'
+  const campaignIdea = String(preview?.campaignIdea || preview?.prePrompt || '').trim() || 'Campana local'
   const city = String(preview?.city || '').trim() || 'Bogota'
   const zones = Array.isArray(preview?.zones)
     ? preview.zones.map((value) => String(value || '').trim()).filter(Boolean)

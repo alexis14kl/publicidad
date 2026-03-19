@@ -435,7 +435,11 @@ function emitMarketingUpdate(update) {
 }
 
 async function openMetaAdsManager(creation = null) {
-  const accountId = String(creation?.account?.account_id || '').replace(/^act_/, '').trim()
+  const accountId = String(
+    creation?.account?.account_id ||
+    creation?.account?.id ||
+    getTargetAdAccountId()
+  ).replace(/^act_/, '').trim()
   const campaignId = String(creation?.campaignId || '').trim()
   const targetUrl =
     accountId && campaignId

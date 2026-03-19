@@ -28,6 +28,10 @@ async function logFacebookUiStep(message, status = 'running') {
   })
 }
 
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 async function clickObjectiveInCampaignModal(page, objectiveRule) {
   const modal = await findVisibleLocator(page, [
     (ctx) => ctx.locator('[role="dialog"]'),
@@ -607,6 +611,62 @@ async function tryFacebookUiConfigureCampaignEditor(preview) {
   return { nameFilled, budgetConfigured, nextClicked }
 }
 
+async function tryFacebookUiOpenCampaignFromList(preview) {
+  if (!getPage() || getPage().isClosed()) {
+    return false
+  }
+
+  const page = getPage()
+  await page.bringToFront()
+  await page.waitForTimeout(1800)
+
+  const uiRules = resolveFacebookUiFlowRules(preview, preview?.orchestrator || null)
+  const campaignName = String(uiRules.campaignName || '').trim()
+  if (!campaignName) {
+    return false
+  }
+
+  const namePattern = new RegExp(escapeRegex(campaignName), 'i')
+  const rowHit = await findVisibleLocator(page, [
+    (ctx) => ctx.getByText(namePattern),
+    (ctx) => ctx.locator('[role="row"], a, div, span').filter({ hasText: namePattern }),
+  ], 4500)
+
+  if (!rowHit) {
+    await logFacebookUiStep(`No encontre la campaña "${campaignName}" en el listado para reabrirla.`, 'warning')
+    return false
+  }
+
+  await rowHit.click({ timeout: 5000, force: true }).catch(() => {})
+  await page.waitForTimeout(1200)
+  await rowHit.dblclick({ timeout: 5000 }).catch(() => {})
+  await page.waitForTimeout(1600)
+
+  const editButton = await findVisibleLocator(page, [
+    (ctx) => ctx.getByRole('button', { name: /^editar$|^edit$/i }),
+    (ctx) => ctx.getByRole('button', { name: /editar|edit/i }),
+    (ctx) => ctx.locator('button, [role="button"]').filter({ hasText: /editar|edit/i }),
+  ], 2200)
+
+  if (editButton) {
+    await editButton.click({ timeout: 5000, force: true }).catch(() => {})
+    await page.waitForTimeout(2200)
+  }
+
+  const editorReady = await findVisibleLocator(page, [
+    (ctx) => ctx.locator('input[aria-label*="campa" i], input[placeholder*="campa" i], input[aria-label*="campaign" i], input[placeholder*="campaign" i]'),
+    (ctx) => ctx.locator('section, div').filter({ hasText: /nombre de la campa|campaign name|presupuesto/i }),
+  ], 4200)
+
+  if (editorReady) {
+    await logFacebookUiStep(`Campaña reabierta desde el listado: ${campaignName}.`)
+    return true
+  }
+
+  await logFacebookUiStep(`No pude confirmar la reapertura del editor para "${campaignName}".`, 'warning')
+  return false
+}
+
 async function fillCampaignBudgetValue(page, budgetValue) {
   const normalizedBudget = normalizeBudgetForUi(budgetValue)
   const budgetSection = await locateDynamicSection(page, {
@@ -802,6 +862,7 @@ module.exports = {
   buildDraftAdName,
   buildDraftLeadFormName,
   tryFacebookUiCreateCampaign,
+  tryFacebookUiOpenCampaignFromList,
   tryFacebookUiConfigureCampaignEditor,
   fillCampaignBudgetValue,
   clickCampaignEditorNext,

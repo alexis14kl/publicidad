@@ -154,7 +154,9 @@ function buildFullPrompt(userIdea, companyName, imageService, imageFormat) {
     'All visible text in the image MUST be in Spanish.\n\n' +
     body +
     '\n\nCRITICAL: The top 15% of the image must be completely empty with clean light ' +
-    'background only, no text, no icons, no elements of any kind. Logo is added ' +
+    'background only, no text, no icons, no elements of any kind. The bottom 12% of the image ' +
+    'must also stay clean and free of important text because the real contact bar is added ' +
+    'programmatically later with the company website and phone. Logo is added ' +
     'programmatically later. Full-bleed design, light background edge to edge, no margins, ' +
     'no black bars. Deliver exactly ONE final image.'
   )

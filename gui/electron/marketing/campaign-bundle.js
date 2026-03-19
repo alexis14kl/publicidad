@@ -384,15 +384,90 @@ function buildLeadCampaignBundleSpec(preview, orchestrator) {
   }
 }
 
+function pickFirstString(...values) {
+  for (const value of values) {
+    const normalized = String(value || '').trim()
+    if (normalized) return normalized
+  }
+  return ''
+}
+
+function normalizeBundleAccount(bundleResult = {}) {
+  const account =
+    bundleResult?.account ||
+    bundleResult?.ad_account ||
+    bundleResult?.adAccount ||
+    bundleResult?.result?.account ||
+    bundleResult?.data?.account ||
+    null
+
+  if (account && typeof account === 'object') {
+    return {
+      ...account,
+      id: pickFirstString(account.id, account.node_id, account.account_node, account.account_id ? `act_${String(account.account_id).replace(/^act_/, '').trim()}` : ''),
+      account_id: pickFirstString(account.account_id, account.id),
+      name: pickFirstString(account.name, account.account_name, account.label),
+    }
+  }
+
+  const rawAccountId = pickFirstString(
+    bundleResult?.ad_account_id,
+    bundleResult?.account_id,
+    bundleResult?.result?.ad_account_id,
+    bundleResult?.data?.ad_account_id
+  )
+
+  if (!rawAccountId) return null
+
+  return {
+    id: rawAccountId.startsWith('act_') ? rawAccountId : `act_${rawAccountId}`,
+    account_id: rawAccountId.replace(/^act_/, ''),
+    name: rawAccountId.startsWith('act_') ? rawAccountId : `act_${rawAccountId}`,
+  }
+}
+
 function applyMcpBundleResultToPreview(preview, orchestrator, bundleResult) {
   const forms = Array.isArray(bundleResult?.leadgen_forms) ? bundleResult.leadgen_forms : []
   const selectedForm = bundleResult?.selected_leadgen_form || {}
   const creationState = {
-    account: bundleResult?.account || null,
-    campaignId: String(bundleResult?.campaign?.id || '').trim(),
-    campaignName: String(bundleResult?.campaign?.name || '').trim(),
-    adsetId: String(bundleResult?.adset?.id || '').trim(),
-    adsetName: String(bundleResult?.adset?.name || '').trim(),
+    account: normalizeBundleAccount(bundleResult),
+    campaignId: pickFirstString(
+      bundleResult?.campaign?.id,
+      bundleResult?.campaignId,
+      bundleResult?.campaign_id,
+      bundleResult?.result?.campaign?.id,
+      bundleResult?.result?.campaignId,
+      bundleResult?.data?.campaign?.id,
+      bundleResult?.data?.campaignId
+    ),
+    campaignName: pickFirstString(
+      bundleResult?.campaign?.name,
+      bundleResult?.campaignName,
+      bundleResult?.campaign_name,
+      bundleResult?.result?.campaign?.name,
+      bundleResult?.result?.campaignName,
+      bundleResult?.data?.campaign?.name,
+      bundleResult?.data?.campaignName,
+      orchestrator?.execution?.campaignName
+    ),
+    adsetId: pickFirstString(
+      bundleResult?.adset?.id,
+      bundleResult?.adsetId,
+      bundleResult?.adset_id,
+      bundleResult?.result?.adset?.id,
+      bundleResult?.result?.adsetId,
+      bundleResult?.data?.adset?.id,
+      bundleResult?.data?.adsetId
+    ),
+    adsetName: pickFirstString(
+      bundleResult?.adset?.name,
+      bundleResult?.adsetName,
+      bundleResult?.adset_name,
+      bundleResult?.result?.adset?.name,
+      bundleResult?.result?.adsetName,
+      bundleResult?.data?.adset?.name,
+      bundleResult?.data?.adsetName
+    ),
     targetingSummary: String(bundleResult?.adset?.targeting_summary || orchestrator?.execution?.targetingSummary || buildTargetingSummary()),
     adsetError: String(bundleResult?.adset?.error || '').trim(),
     adsetDeferredToUi: Boolean(bundleResult?.adset?.deferred_to_ui),
