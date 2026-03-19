@@ -343,6 +343,91 @@ body::after {
   color: var(--text-secondary);
 }
 
+.marketing-trend-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.marketing-trend-tab {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: rgba(10, 15, 30, 0.92);
+  color: var(--text-primary);
+  padding: 12px 14px;
+  text-align: left;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.marketing-trend-tab:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 145, 0, 0.45);
+  background: rgba(12, 18, 36, 0.98);
+}
+
+.marketing-trend-tab--active {
+  border-color: rgba(255, 145, 0, 0.85);
+  background: rgba(255, 145, 0, 0.12);
+  box-shadow: 0 0 0 3px rgba(255, 145, 0, 0.08);
+}
+
+.marketing-trend-tab__number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 999px;
+  background: rgba(255, 145, 0, 0.16);
+  color: #ffb04d;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.marketing-trend-tab__label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.marketing-trend-panel {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(9, 14, 30, 0.72);
+}
+
+.marketing-trend-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.marketing-trend-panel__title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.marketing-trend-panel__city {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .marketing-generated-card {
   margin-top: 18px;
   padding: 16px;

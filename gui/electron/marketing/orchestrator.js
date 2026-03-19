@@ -7,6 +7,7 @@ const {
   buildAudienceSummary,
   buildTargetingSummary,
 } = require('./segment')
+const { buildMarketingIntelligence } = require('./intelligence')
 const {
   facebookApiRequest,
   getMetaPageId,
@@ -79,7 +80,7 @@ function buildOrchestratorPlan(preview, segment = getDefaultMarketingSegment()) 
   }
 }
 
-function buildMarketingAgentPrompt(preview, segment = getDefaultMarketingSegment(), selectedImage = null) {
+function buildMarketingAgentPrompt(preview, segment = getDefaultMarketingSegment(), selectedImage = null, intelligence = null) {
   const promptOverride = String(preview?.marketingPrompt || '').trim()
   if (promptOverride) {
     return promptOverride
@@ -118,10 +119,17 @@ function buildMarketingAgentPrompt(preview, segment = getDefaultMarketingSegment
     `- Concepto de campana: ${segment.serviceLabel || preview.campaignIdea || segment.shortLabel}.`,
     `- Objetivo de negocio recomendado: ${contactConfig.objectiveLabel}.`,
     `- Producto/servicio: ${segment.categoryStatement}.`,
+    `- Pre-prompt original del usuario: ${String(preview?.prePrompt || preview?.campaignIdea || '').trim() || 'No informado'}.`,
     `- Publico base: ${segment.role} del sector ${segment.industry} en ${segment.country}, ciudad ${segment.city || segment.country}, zonas ${segment.zoneLabel || 'toda la ciudad'}.`,
     `- Dolor principal: ${segment.pain}.`,
     `- Consecuencia: ${segment.consequence}.`,
     `- Trigger: ${segment.trigger}.`,
+    preview?.useZoneIntelligence && intelligence?.zoneInsights
+      ? `- Zonas con mayor afinidad detectadas por ads-analyst + seo-analyzer: ${intelligence.zoneInsights.topZones.map((item) => item.zone).join(', ')}.`
+      : '- Zonas con mayor afinidad detectadas por ads-analyst + seo-analyzer: no activado.',
+    preview?.useAudienceSegmentation && intelligence?.audienceInsights
+      ? `- Segmentos sugeridos por ads-analyst + seo-analyzer: ${intelligence.audienceInsights.segments.map((item) => item.label).join(' | ')}.`
+      : '- Segmentos sugeridos por ads-analyst + seo-analyzer: no activado.',
     `- Presupuesto maximo actual: ${preview.budget}.`,
     `- Duracion actual: ${preview.startDate} -> ${preview.endDate}.`,
     `- Activos disponibles: landing ${websiteUrl}, canal de contacto ${contactConfig.channelLabel}${contactConfig.formFields.length > 0 ? ` con ${contactConfig.formFields.join(', ')}` : ''}, ${imageStatus}`,
@@ -157,7 +165,8 @@ function runLocalMarketingOrchestrator(preview) {
   const plan = buildOrchestratorPlan(preview, segment)
   const pageId = getMetaPageId()
   const selectedImage = preview?.imageAsset || null
-  const marketingAgentPrompt = buildMarketingAgentPrompt(preview, segment, selectedImage)
+  const intelligence = buildMarketingIntelligence(preview, segment)
+  const marketingAgentPrompt = buildMarketingAgentPrompt(preview, segment, selectedImage, intelligence)
   const campaignName = buildDraftCampaignName(preview, { execution: { segment } })
   const adsetName = buildDraftAdsetName(preview, { execution: { segment } })
   const leadFormName = buildDraftLeadFormName(preview, { execution: { segment } })
@@ -178,6 +187,8 @@ function runLocalMarketingOrchestrator(preview) {
     city: segment.city,
     zones: segment.zones,
     service: segment.serviceLabel,
+    zoneFocus: intelligence?.zoneInsights?.topZones?.map((item) => item.zone).join(', ') || '',
+    audienceSegments: intelligence?.audienceInsights?.segments?.map((item) => item.label) || [],
     industry: segment.industry,
     role: segment.role,
     pain: segment.pain,
@@ -213,6 +224,8 @@ function runLocalMarketingOrchestrator(preview) {
     prompt: marketingAgentPrompt,
     notes: [
       'Se aplico el prompt operativo de Facebook Ads para definir objetivo, audiencia, presupuesto, creatividad y checklist.',
+      intelligence?.zoneInsights?.summary || 'Analisis de zonas no activado.',
+      intelligence?.audienceInsights?.summary || 'Segmentacion avanzada no activada.',
       `CTA de baja friccion alineado con ${contactConfig.channelLabel}.`,
       `Narrativa centrada en ${segment.pain.toLowerCase()}`,
       contactConfig.mode === 'lead_form'
@@ -232,8 +245,16 @@ function runLocalMarketingOrchestrator(preview) {
   return {
     plan,
     adsAnalyst,
+    seoAnalyzer: intelligence?.seoAnalyzer || {
+      zoneSummary: 'Analisis SEO local no activado para esta ejecucion.',
+      searchIntent: [],
+      audienceSignals: [],
+      recommendedContentAngles: [],
+    },
     imageCreator,
     marketing,
+    zoneInsights: intelligence?.zoneInsights || null,
+    audienceInsights: intelligence?.audienceInsights || null,
     execution: {
       accountHint: `act_${getTargetAdAccountId()}`,
       accountId: getTargetAdAccountId(),
@@ -244,9 +265,12 @@ function runLocalMarketingOrchestrator(preview) {
       leadFormName,
       budgetCap: preview.budget,
       formFields: contactConfig.formFields,
+      prePrompt: String(preview?.prePrompt || '').trim(),
       segment,
       city: segment.city,
       zones: segment.zones,
+      recommendedZones: intelligence?.zoneInsights?.topZones?.map((item) => item.zone) || [],
+      audienceSegments: intelligence?.audienceInsights?.segments?.map((item) => item.label) || [],
       contactChannel: contactConfig.channelLabel,
       targetingSummary: buildTargetingSummary(segment),
       objectiveUiLabel: objectiveRule.uiLabel,

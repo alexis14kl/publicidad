@@ -7,7 +7,13 @@ import {
 } from '../../shared/api/commands'
 import type { MarketingRunUpdate } from '../../shared/api/types'
 import { CITY_ZONE_OPTIONS, CONTACT_MODE_OPTIONS } from './constants'
-import { buildMarketingPromptPreview } from './utils'
+import {
+  buildAudienceSegmentationPreview,
+  buildMarketingPromptPreview,
+  buildTrendOptions,
+  buildZoneIntelligencePreview,
+  extractMarketingDraftFromPrePrompt,
+} from './utils'
 
 export function MarketingCampaignModal({
   open,
@@ -16,10 +22,13 @@ export function MarketingCampaignModal({
   open: boolean
   onClose: () => void
 }) {
+  const [prePrompt, setPrePrompt] = useState('')
   const [campaignIdea, setCampaignIdea] = useState('')
   const [city, setCity] = useState('')
   const [selectedZones, setSelectedZones] = useState<string[]>([])
   const [contactMode, setContactMode] = useState<'lead_form' | 'whatsapp'>('lead_form')
+  const [useZoneIntelligence, setUseZoneIntelligence] = useState(true)
+  const [useAudienceSegmentation, setUseAudienceSegmentation] = useState(true)
   const [marketingPrompt, setMarketingPrompt] = useState('')
   const [promptEdited, setPromptEdited] = useState(false)
   const [budget, setBudget] = useState('')
@@ -34,16 +43,27 @@ export function MarketingCampaignModal({
   const [runLines, setRunLines] = useState<string[]>([])
   const [preview, setPreview] = useState<MarketingRunUpdate['preview'] | null>(null)
   const zoneOptions = city ? (CITY_ZONE_OPTIONS[city] || []) : []
+  const [trendOptions, setTrendOptions] = useState<Array<{
+    id: number
+    label: string
+    city: string
+    zones: string[]
+    summary: string
+    buyerIntent: string
+    audienceSignals: string[]
+  }>>([])
+  const [selectedTrendId, setSelectedTrendId] = useState<number | null>(null)
+  const [appliedPrePrompt, setAppliedPrePrompt] = useState('')
   const selectedContactMode = CONTACT_MODE_OPTIONS.find((option) => option.value === contactMode) || CONTACT_MODE_OPTIONS[0]
 
   const validationMessage = useMemo(() => {
-    if (!campaignIdea || !city) return 'Completa el concepto de la campana y la ciudad objetivo.'
+    if (!prePrompt || !city) return 'Escribe el pre-prompt y selecciona una tendencia con su ciudad y zonas populares.'
     if (!budget || !startDate || !endDate) return 'Completa presupuesto y fechas para continuar.'
     if (!mcpAccessToken || !mcpAdAccountId) return 'Completa las credenciales principales del MCP Meta Ads.'
     if (Number(budget) <= 0) return 'El presupuesto debe ser mayor a 0.'
     if (endDate < startDate) return 'La fecha de fin no puede ser menor que la fecha de inicio.'
     return 'Formulario listo para continuar a la vista previa de la campaña.'
-  }, [budget, campaignIdea, city, endDate, mcpAccessToken, mcpAdAccountId, startDate])
+  }, [budget, city, endDate, mcpAccessToken, mcpAdAccountId, prePrompt, startDate])
 
   const promptPreview = useMemo(
     () => buildMarketingPromptPreview({
@@ -58,26 +78,55 @@ export function MarketingCampaignModal({
     [budget, campaignIdea, city, contactMode, endDate, selectedZones, startDate]
   )
 
+  const zoneIntelligencePreview = useMemo(
+    () => buildZoneIntelligencePreview({
+      enabled: useZoneIntelligence,
+      prePrompt,
+      campaignIdea,
+      city,
+      selectedZones,
+    }),
+    [campaignIdea, city, prePrompt, selectedZones, useZoneIntelligence]
+  )
+
+  const audienceSegmentationPreview = useMemo(
+    () => buildAudienceSegmentationPreview({
+      enabled: useAudienceSegmentation,
+      prePrompt,
+      campaignIdea,
+      city,
+    }),
+    [campaignIdea, city, prePrompt, useAudienceSegmentation]
+  )
+
   const audiencePreview = useMemo(() => {
-    if (!campaignIdea || !city) return 'Completa el concepto y la ciudad para ver el publico sugerido.'
+    if (!prePrompt || !city) return 'Completa el pre-prompt y la ciudad sugerida para ver el publico sugerido.'
     const zonesLabel = selectedZones.length > 0 ? selectedZones.join(', ') : 'cobertura general de la ciudad'
-    if (/veterinari|mascota|pet/i.test(campaignIdea)) {
+    if (/veterinari|mascota|pet/i.test(prePrompt)) {
       return `Duenos de mascotas en ${city}, zonas ${zonesLabel}, 24-55 anos, interesados en bienestar animal, vacunas, grooming y atencion veterinaria.`
     }
-    return `Personas en ${city}, zonas ${zonesLabel}, con interes o necesidad relacionada con ${campaignIdea}, 24-55 anos, con intencion de contacto o compra.`
-  }, [campaignIdea, city, selectedZones])
+    return `Personas en ${city}, zonas ${zonesLabel}, con interes o necesidad relacionada con ${campaignIdea || prePrompt}, 24-55 anos, con intencion de contacto o compra.`
+  }, [campaignIdea, city, prePrompt, selectedZones])
 
   const visualPreview = useMemo(() => {
-    if (!campaignIdea || !city) return 'La direccion visual aparecera cuando completes el concepto de la campana.'
+    if (!prePrompt || !city) return 'La direccion visual aparecera cuando completes el pre-prompt y la ciudad sugerida.'
     const contactContext = contactMode === 'whatsapp'
       ? 'con enfoque cercano, conversacional y listo para escribir por WhatsApp'
       : 'con enfoque de captacion y llamada clara al formulario'
-    return `Imagen de Facebook Ads relacionada con "${campaignIdea}" en ${city}, ${contactContext}, composicion limpia, foco en el beneficio principal y contexto visual coherente con el negocio.`
-  }, [campaignIdea, city, contactMode])
+    return `Imagen de Facebook Ads relacionada con "${campaignIdea || prePrompt}" en ${city}, ${contactContext}, composicion limpia, foco en el beneficio principal y contexto visual coherente con el negocio.`
+  }, [campaignIdea, city, contactMode, prePrompt])
 
   useEffect(() => {
     setSelectedZones((current) => current.filter((zone) => zoneOptions.includes(zone)))
   }, [zoneOptions])
+
+  useEffect(() => {
+    if (String(prePrompt || '').trim() === String(appliedPrePrompt || '').trim()) return
+    setTrendOptions([])
+    setSelectedTrendId(null)
+    setCity('')
+    setSelectedZones([])
+  }, [appliedPrePrompt, prePrompt])
 
   useEffect(() => {
     if (!promptEdited) {
@@ -128,7 +177,7 @@ export function MarketingCampaignModal({
   }, [])
 
   const canRun =
-    !!campaignIdea &&
+    !!prePrompt &&
     !!city &&
     !!budget &&
     !!startDate &&
@@ -138,6 +187,33 @@ export function MarketingCampaignModal({
     Number(budget) > 0 &&
     endDate >= startDate &&
     runState !== 'running'
+
+  const handleApplyPrePrompt = () => {
+    const draft = extractMarketingDraftFromPrePrompt(prePrompt)
+    if (!draft.campaignIdea) return
+
+    const nextTrends = buildTrendOptions({
+      prePrompt,
+      selectedCity: draft.city || '',
+      selectedZones: draft.zones,
+    })
+
+    setCampaignIdea(draft.campaignIdea)
+    setAppliedPrePrompt(prePrompt)
+    setTrendOptions(nextTrends)
+    const defaultTrend = draft.city
+      ? nextTrends.find((trend) => trend.city === draft.city) || nextTrends[0]
+      : nextTrends[0]
+    setSelectedTrendId(defaultTrend?.id || null)
+    const nextCity = draft.city || defaultTrend?.city || ''
+    if (nextCity) setCity(nextCity)
+    const nextZones = draft.zones.length > 0
+      ? draft.zones
+      : defaultTrend?.zones || []
+    setSelectedZones(nextZones)
+    setPromptEdited(false)
+    setRunSummary('Pre-prompt enviado al resumen inteligente. Ahora puedes revisar las tendencias detectadas para posibles compradores.')
+  }
 
   const handleRun = async () => {
     if (!canRun) return
@@ -155,9 +231,12 @@ export function MarketingCampaignModal({
       })
       await runMarketingCampaignPreview({
         campaignIdea,
+        prePrompt,
         city,
         zones: selectedZones,
         contactMode,
+        useZoneIntelligence,
+        useAudienceSegmentation,
         marketingPrompt,
         budget,
         startDate,
@@ -190,10 +269,10 @@ export function MarketingCampaignModal({
         <div className="marketing-modal__body">
           <div className="marketing-top-grid">
             <div className="marketing-copy">
-              <p>Aqui ya puedes bajar una idea como "Campana veterinaria" y convertirla en un brief listo para copy, publico, zonas y creativo.</p>
+              <p>Aqui puedes bajar una idea base y convertirla en un brief listo para copy, publico, zonas, creativo y lectura de tendencias.</p>
               <ol className="marketing-copy__list">
-                <li>Concepto o frase base de la campana.</li>
-                <li>Ciudad y zonas donde quieres pautar.</li>
+                <li>Pre-prompt base con el enfoque comercial de la campana.</li>
+                <li>Tendencias detectadas con ciudad, zonas populares y comprador probable.</li>
                 <li>Si quieres contacto web o contacto por WhatsApp.</li>
                 <li>Editar el prompt final que se enviara a los agentes.</li>
                 <li>Presupuesto maximo a gastar.</li>
@@ -245,27 +324,113 @@ export function MarketingCampaignModal({
               <span className="card-title">Formulario de Campana</span>
             </div>
             <form className="marketing-form">
-              <label className="marketing-field">
-                <span>Concepto de campana</span>
-                <input
-                  type="text"
-                  placeholder="Ej. Campana veterinaria"
-                  value={campaignIdea}
-                  onChange={(event) => setCampaignIdea(event.target.value)}
+              <label className="marketing-field marketing-field--full">
+                <span>Pre-prompt base de la campaña</span>
+                <textarea
+                  className="marketing-prompt-textarea"
+                  placeholder="Ej. Campaña de carros de color azul en Bogota, foco en Norte y Usaquen, para captar clientes interesados en financiamiento."
+                  value={prePrompt}
+                  onChange={(event) => setPrePrompt(event.target.value)}
                 />
               </label>
 
-              <label className="marketing-field">
-                <span>Ciudad objetivo</span>
-                <select value={city} onChange={(event) => setCity(event.target.value)}>
-                  <option value="">Selecciona una ciudad</option>
-                  {Object.keys(CITY_ZONE_OPTIONS).map((cityOption) => (
-                    <option key={cityOption} value={cityOption}>
-                      {cityOption}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="marketing-field marketing-field--full">
+                <span>Checks del orquestador</span>
+                <div className="job-grid">
+                  <label className="job-item" style={{ cursor: 'pointer' }}>
+                    <span className="job-label">Analisis de zonas calientes</span>
+                    <input
+                      type="checkbox"
+                      checked={useZoneIntelligence}
+                      onChange={(event) => setUseZoneIntelligence(event.target.checked)}
+                    />
+                    <span className="job-value">Usar ads-analyst + seo-analyzer para priorizar zonas con mayor afinidad e interaccion.</span>
+                  </label>
+                  <label className="job-item" style={{ cursor: 'pointer' }}>
+                    <span className="job-label">Segmentacion de publico</span>
+                    <input
+                      type="checkbox"
+                      checked={useAudienceSegmentation}
+                      onChange={(event) => setUseAudienceSegmentation(event.target.checked)}
+                    />
+                    <span className="job-value">Usar ads-analyst + seo-analyzer para detectar posibles clientes y audiencias con mejor fit.</span>
+                  </label>
+                </div>
+                <div className="marketing-prompt-actions">
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--small"
+                    onClick={handleApplyPrePrompt}
+                    disabled={!prePrompt.trim()}
+                  >
+                    Pasar al resumen inteligente
+                  </button>
+                  <span className="helper-text">
+                    Este boton interpreta tu pre-prompt, genera tendencias numeradas y usa esa base para que el orquestador adapte la campana.
+                  </span>
+                </div>
+              </div>
+
+              <div className="marketing-field marketing-field--full">
+                <span>Tendencias comerciales para posibles compradores</span>
+                {trendOptions.length === 0 ? (
+                  <span className="marketing-zone-empty">Pulsa "Pasar al resumen inteligente" para ver tendencias y seleccionar la que quieres revisar.</span>
+                ) : (
+                  <>
+                    <div className="marketing-trend-tabs">
+                      {trendOptions.map((trend) => {
+                        const active = trend.id === selectedTrendId
+                        return (
+                          <button
+                            key={trend.id}
+                            type="button"
+                            className={`marketing-trend-tab ${active ? 'marketing-trend-tab--active' : ''}`}
+                            onClick={() => {
+                              setSelectedTrendId(trend.id)
+                              setCity(trend.city)
+                              setSelectedZones(trend.zones)
+                            }}
+                          >
+                            <span className="marketing-trend-tab__number">{String(trend.id).padStart(2, '0')}</span>
+                            <span className="marketing-trend-tab__label">{trend.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {trendOptions
+                      .filter((trend) => trend.id === selectedTrendId)
+                      .map((trend) => (
+                        <div key={trend.id} className="marketing-trend-panel">
+                          <div className="marketing-trend-panel__header">
+                            <span className="marketing-trend-panel__title">{trend.label}</span>
+                            <span className="marketing-trend-panel__city">{trend.city}</span>
+                          </div>
+                          <div className="job-grid">
+                            <div className="job-item">
+                              <span className="job-label">Resumen</span>
+                              <span className="job-value">{trend.summary}</span>
+                            </div>
+                            <div className="job-item">
+                              <span className="job-label">Zonas populares</span>
+                              <span className="job-value">{trend.zones.join(', ')}</span>
+                            </div>
+                            <div className="job-item">
+                              <span className="job-label">Comprador probable</span>
+                              <span className="job-value">{trend.buyerIntent}</span>
+                            </div>
+                            <div className="job-item">
+                              <span className="job-label">Senales de interes</span>
+                              <span className="job-value">{trend.audienceSignals.join(' | ')}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </>
+                )}
+                <span className="helper-text">
+                  Cada tab representa una tendencia detectada para la campaña. Al seleccionarla, se cargan su ciudad y sus zonas populares en el formulario.
+                </span>
+              </div>
 
               <label className="marketing-field">
                 <span>Tipo de contacto</span>
@@ -391,8 +556,12 @@ export function MarketingCampaignModal({
               </div>
               <div className="job-grid">
                 <div className="job-item">
+                  <span className="job-label">Pre-prompt aplicado</span>
+                  <span className="job-value">{prePrompt || 'Escribe un pre-prompt y pasalo al resumen inteligente.'}</span>
+                </div>
+                <div className="job-item">
                   <span className="job-label">Prompt base</span>
-                  <span className="job-value">{promptPreview || 'Completa el concepto, ciudad y tipo de contacto.'}</span>
+                  <span className="job-value">{promptPreview || 'Completa el pre-prompt, ciudad y tipo de contacto.'}</span>
                 </div>
                 <div className="job-item">
                   <span className="job-label">Publico sugerido</span>
@@ -401,6 +570,14 @@ export function MarketingCampaignModal({
                 <div className="job-item">
                   <span className="job-label">Direccion visual</span>
                   <span className="job-value">{visualPreview}</span>
+                </div>
+                <div className="job-item">
+                  <span className="job-label">Check zonas calientes</span>
+                  <span className="job-value">{zoneIntelligencePreview}</span>
+                </div>
+                <div className="job-item">
+                  <span className="job-label">Check segmentacion publico</span>
+                  <span className="job-value">{audienceSegmentationPreview}</span>
                 </div>
               </div>
             </div>
@@ -448,8 +625,8 @@ export function MarketingCampaignModal({
               </div>
               <div className="marketing-execution__content">
                 <div className="status-item">
-                  <span className="status-item-label">Concepto</span>
-                  <span className="status-item-value">{campaignIdea || 'Pendiente'}</span>
+                  <span className="status-item-label">Pre-prompt</span>
+                  <span className="status-item-value">{prePrompt || 'Pendiente'}</span>
                 </div>
                 <div className="status-item">
                   <span className="status-item-label">Objetivo</span>
@@ -470,6 +647,15 @@ export function MarketingCampaignModal({
                 <div className="status-item">
                   <span className="status-item-label">Resumen</span>
                   <span className="status-item-value marketing-status-summary">{runSummary}</span>
+                </div>
+                <div className="status-item">
+                  <span className="status-item-label">Checks</span>
+                  <span className="status-item-value">
+                    {[
+                      useZoneIntelligence ? 'zonas calientes' : null,
+                      useAudienceSegmentation ? 'segmentacion publico' : null,
+                    ].filter(Boolean).join(' | ') || 'sin checks'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -502,6 +688,10 @@ export function MarketingCampaignModal({
                   <span className="card-title">Vista Previa de Campana</span>
                 </div>
                 <div className="job-grid">
+                  <div className="job-item">
+                    <span className="job-label">Pre-prompt</span>
+                    <span className="job-value">{preview.prePrompt || 'Sin pre-prompt'}</span>
+                  </div>
                   <div className="job-item">
                     <span className="job-label">Concepto</span>
                     <span className="job-value">{preview.campaignIdea || 'Sin concepto'}</span>
@@ -561,7 +751,65 @@ export function MarketingCampaignModal({
                       {preview.mcpAvailable ? 'Disponible' : 'No disponible'}
                     </span>
                   </div>
+                  <div className="job-item">
+                    <span className="job-label">Checks activos</span>
+                    <span className="job-value">
+                      {[
+                        preview.zoneIntelligenceEnabled ? 'zonas calientes' : null,
+                        preview.audienceSegmentationEnabled ? 'segmentacion de publico' : null,
+                      ].filter(Boolean).join(' | ') || 'sin checks'}
+                    </span>
+                  </div>
                 </div>
+
+                {preview.zoneInsights && (
+                  <>
+                    <div className="card-header" style={{ marginTop: 16 }}>
+                      <span className="card-icon">&#128205;</span>
+                      <span className="card-title">Zonas con Mayor Afinidad</span>
+                    </div>
+                    <div className="job-grid">
+                      <div className="job-item">
+                        <span className="job-label">Resumen</span>
+                        <span className="job-value">{preview.zoneInsights.summary}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Search signals</span>
+                        <span className="job-value">{preview.zoneInsights.searchSignals.join(' | ') || 'Sin señales'}</span>
+                      </div>
+                      {preview.zoneInsights.topZones.map((zone) => (
+                        <div key={zone.zone} className="job-item">
+                          <span className="job-label">{zone.zone}</span>
+                          <span className="job-value">{zone.scoreLabel}</span>
+                          <span className="job-value">{zone.reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {preview.audienceInsights && (
+                  <>
+                    <div className="card-header" style={{ marginTop: 16 }}>
+                      <span className="card-icon">&#128101;</span>
+                      <span className="card-title">Segmentacion de Publico</span>
+                    </div>
+                    <div className="job-grid">
+                      <div className="job-item">
+                        <span className="job-label">Resumen</span>
+                        <span className="job-value">{preview.audienceInsights.summary}</span>
+                      </div>
+                      {preview.audienceInsights.segments.map((item) => (
+                        <div key={item.label} className="job-item">
+                          <span className="job-label">{item.label}</span>
+                          <span className="job-value">{item.reason}</span>
+                          <span className="job-value">Intereses: {item.interests.join(', ')}</span>
+                          <span className="job-value">Senales: {item.intentSignals.join(', ')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
 
                 {preview.orchestrator && (
                   <>
@@ -594,6 +842,10 @@ export function MarketingCampaignModal({
                         <span className="job-value">{preview.orchestrator.execution.contactChannel || 'Sin definir'}</span>
                       </div>
                       <div className="job-item">
+                        <span className="job-label">Pre-prompt</span>
+                        <span className="job-value">{preview.orchestrator.execution.prePrompt || 'Sin pre-prompt aplicado'}</span>
+                      </div>
+                      <div className="job-item">
                         <span className="job-label">ads-analyst</span>
                         <span className="job-value">
                           {preview.orchestrator.adsAnalyst.hook} {'|'} CTA: {preview.orchestrator.adsAnalyst.cta}
@@ -602,6 +854,26 @@ export function MarketingCampaignModal({
                       <div className="job-item">
                         <span className="job-label">Publico base</span>
                         <span className="job-value">{preview.orchestrator.adsAnalyst.audience}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Zonas foco ads-analyst</span>
+                        <span className="job-value">{preview.orchestrator.adsAnalyst.zoneFocus || 'Sin foco adicional'}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Segmentos ads-analyst</span>
+                        <span className="job-value">{preview.orchestrator.adsAnalyst.audienceSegments?.join(' | ') || 'Sin segmentos sugeridos'}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">seo-analyzer</span>
+                        <span className="job-value">{preview.orchestrator.seoAnalyzer?.zoneSummary || 'Sin analisis SEO local'}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Search intent</span>
+                        <span className="job-value">{preview.orchestrator.seoAnalyzer?.searchIntent?.join(' | ') || 'Sin search intent'}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Content angles</span>
+                        <span className="job-value">{preview.orchestrator.seoAnalyzer?.recommendedContentAngles?.join(' | ') || 'Sin angulos sugeridos'}</span>
                       </div>
                       <div className="job-item">
                         <span className="job-label">image-creator</span>
@@ -618,6 +890,14 @@ export function MarketingCampaignModal({
                         <span className="job-value">
                           {preview.orchestrator.marketing.verdict}. {preview.orchestrator.marketing.notes.join(' ')}
                         </span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Zonas recomendadas</span>
+                        <span className="job-value">{preview.orchestrator.execution.recommendedZones?.join(' | ') || 'Sin zonas recomendadas'}</span>
+                      </div>
+                      <div className="job-item">
+                        <span className="job-label">Publicos recomendados</span>
+                        <span className="job-value">{preview.orchestrator.execution.audienceSegments?.join(' | ') || 'Sin publicos recomendados'}</span>
                       </div>
                     </div>
                   </>
