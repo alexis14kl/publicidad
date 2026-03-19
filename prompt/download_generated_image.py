@@ -13,7 +13,7 @@ from playwright.sync_api import sync_playwright
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 IMG_PUBLICITARIAS_DIR = PROJECT_ROOT / "img_publicitarias"
 DEFAULT_CDP_PORT = 9225
-DEFAULT_WAIT_TIMEOUT_SEC = 180
+DEFAULT_WAIT_TIMEOUT_SEC = 300
 DEFAULT_POLL_INTERVAL_SEC = 2
 
 
@@ -142,7 +142,7 @@ def main() -> int:
             if not image_url:
                 raise RuntimeError("No se encontro la URL de la imagen generada")
 
-            response = context.request.get(image_url, timeout=60000)
+            response = context.request.get(image_url, timeout=300000)
             if not response.ok:
                 raise RuntimeError(f"No se pudo descargar la imagen generada: HTTP {response.status}")
 
