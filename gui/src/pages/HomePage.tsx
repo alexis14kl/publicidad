@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { ControlPanel } from '../components/ControlPanel'
 import { DualLogViewer } from '../components/DualLogViewer'
 import { LastJobCard } from '../components/LastJobCard'
 import { PreflightBanner } from '../components/PreflightBanner'
+import { ReelModal } from '../components/ReelModal'
 import { StatusCard } from '../components/StatusCard'
 import { useHomeDashboard } from '../features/home/useHomeDashboard'
 import type { BotStatus } from '../shared/api/types'
@@ -14,6 +16,7 @@ export function HomePage({
   onOpenMarketing: () => void
 }) {
   const dashboard = useHomeDashboard(botStatus)
+  const [reelOpen, setReelOpen] = useState(false)
 
   return (
     <>
@@ -22,7 +25,16 @@ export function HomePage({
         <button className="btn btn--marketing" onClick={onOpenMarketing}>
           Abrir Agente Marketing
         </button>
+        <button className="btn btn--reel" onClick={() => setReelOpen(true)}>
+          Publicar Reel
+        </button>
       </div>
+      <ReelModal
+        open={reelOpen}
+        onClose={() => setReelOpen(false)}
+        companies={dashboard.companies}
+        selectedCompany={dashboard.selectedCompany}
+      />
       <main className="main-grid">
         <StatusCard status={dashboard.botStatus} />
         <ControlPanel
