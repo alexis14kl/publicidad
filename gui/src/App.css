@@ -725,6 +725,13 @@ body::after {
 .reel-modal__file-size { font-size: 12px; color: var(--text-dim); }
 .reel-modal__caption { width: 100%; min-height: 72px; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 10px 12px; background: rgba(7,10,24,0.9); color: var(--text-primary); font: inherit; resize: vertical; outline: none; }
 .reel-modal__caption:focus { border-color: rgba(124,77,255,0.6); }
+.reel-modal__specs { padding: 12px 14px; border-radius: 10px; background: rgba(124,77,255,0.06); border: 1px solid rgba(124,77,255,0.15); }
+.reel-modal__specs-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(124,77,255,0.8); display: block; margin-bottom: 8px; }
+.reel-modal__specs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 12px; font-size: 12px; color: var(--text-secondary); }
+.reel-modal__specs-grid strong { color: var(--text-primary); }
+.reel-modal__file-details { display: flex; flex-direction: column; gap: 2px; }
+.reel-modal__file-meta { font-size: 11px; color: var(--text-dim); }
+.reel-modal__dropzone--error { border-color: rgba(255,60,60,0.4); background: rgba(255,60,60,0.05); }
 .reel-modal__message { padding: 10px 14px; border-radius: 8px; font-size: 13px; }
 .reel-modal__message--uploading { background: rgba(0,229,255,0.08); border: 1px solid rgba(0,229,255,0.2); color: #00e5ff; }
 .reel-modal__message--success { background: rgba(40,167,69,0.08); border: 1px solid rgba(40,167,69,0.3); color: #28a745; }

@@ -10,30 +10,95 @@ interface ReelModalProps {
 
 const WEBHOOK_URL = 'https://n8n-dev.noyecode.com/webhook/publicar-reel-fb'
 
+const REEL_REQUIREMENTS = {
+  minWidth: 540,
+  minHeight: 960,
+  maxSizeMB: 1024,
+  maxDurationSec: 90,
+  minDurationSec: 3,
+  formats: ['video/mp4', 'video/quicktime', 'video/x-m4v'],
+  orientation: '9:16 (vertical)',
+  recommended: '1080x1920',
+}
+
 export function ReelModal({ open, onClose, companies, selectedCompany }: ReelModalProps) {
   const [title, setTitle] = useState('')
   const [caption, setCaption] = useState('')
   const [videoFile, setVideoFile] = useState<File | null>(null)
+  const [videoMeta, setVideoMeta] = useState<{ width: number; height: number; duration: number } | null>(null)
   const [status, setStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
+  const [warnings, setWarnings] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const company = companies.find((c) => c.nombre === selectedCompany)
   const pageId = company?.platforms.find((p) => p.platform === 'facebook')?.accounts?.[0]?.page_id || ''
   const token = company?.platforms.find((p) => p.platform === 'facebook')?.accounts?.[0]?.token || ''
 
-  const canPublish = !!videoFile && !!token && !!pageId && status !== 'uploading'
+  const canPublish = !!videoFile && !!token && !!pageId && status !== 'uploading' && warnings.length === 0
+
+  const validateVideo = (file: File, meta: { width: number; height: number; duration: number }) => {
+    const issues: string[] = []
+    const sizeMB = file.size / (1024 * 1024)
+
+    if (sizeMB > REEL_REQUIREMENTS.maxSizeMB) {
+      issues.push(`Tamaño excede ${REEL_REQUIREMENTS.maxSizeMB}MB (actual: ${sizeMB.toFixed(1)}MB)`)
+    }
+    if (meta.duration > REEL_REQUIREMENTS.maxDurationSec) {
+      issues.push(`Duracion excede ${REEL_REQUIREMENTS.maxDurationSec}s (actual: ${Math.round(meta.duration)}s)`)
+    }
+    if (meta.duration < REEL_REQUIREMENTS.minDurationSec) {
+      issues.push(`Duracion minima ${REEL_REQUIREMENTS.minDurationSec}s (actual: ${Math.round(meta.duration)}s)`)
+    }
+    if (meta.width > meta.height) {
+      issues.push(`Video horizontal detectado (${meta.width}x${meta.height}). Los Reels deben ser verticales 9:16`)
+    }
+    if (meta.height < REEL_REQUIREMENTS.minHeight) {
+      issues.push(`Altura minima ${REEL_REQUIREMENTS.minHeight}px (actual: ${meta.height}px)`)
+    }
+    if (meta.width < REEL_REQUIREMENTS.minWidth) {
+      issues.push(`Ancho minimo ${REEL_REQUIREMENTS.minWidth}px (actual: ${meta.width}px)`)
+    }
+    if (!REEL_REQUIREMENTS.formats.includes(file.type) && !file.name.toLowerCase().endsWith('.mp4')) {
+      issues.push(`Formato no soportado: ${file.type || file.name.split('.').pop()}. Usa MP4 o MOV`)
+    }
+    return issues
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      if (!file.type.startsWith('video/')) {
-        setMessage('Solo se permiten archivos de video (MP4, MOV, etc.)')
-        return
-      }
-      setVideoFile(file)
-      setMessage(`Video seleccionado: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`)
+    if (!file) return
+
+    if (!file.type.startsWith('video/') && !file.name.toLowerCase().endsWith('.mp4')) {
+      setMessage('Solo se permiten archivos de video (MP4, MOV)')
+      return
     }
+
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.onloadedmetadata = () => {
+      const meta = {
+        width: video.videoWidth,
+        height: video.videoHeight,
+        duration: video.duration,
+      }
+      setVideoMeta(meta)
+      const issues = validateVideo(file, meta)
+      setWarnings(issues)
+      setVideoFile(file)
+      setMessage(
+        `${file.name} | ${meta.width}x${meta.height} | ${Math.round(meta.duration)}s | ${(file.size / 1024 / 1024).toFixed(1)}MB`
+      )
+      URL.revokeObjectURL(video.src)
+    }
+    video.onerror = () => {
+      setVideoFile(file)
+      setVideoMeta(null)
+      setWarnings([])
+      setMessage(`${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB) — No se pudo leer metadata`)
+      URL.revokeObjectURL(video.src)
+    }
+    video.src = URL.createObjectURL(file)
   }
 
   const handlePublish = async () => {
@@ -64,14 +129,14 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
       const data = await response.json()
       if (data.status === 'success') {
         setStatus('success')
-        setMessage(`Reel publicado exitosamente. Post ID: ${data.post_id || 'pendiente'}`)
+        setMessage(`Reel publicado. Post ID: ${data.post_id || 'procesando'}`)
       } else {
         setStatus('error')
         setMessage(`Error: ${data.message || 'No se pudo publicar el reel'}`)
       }
     } catch (err) {
       setStatus('error')
-      setMessage(`Error de conexion: ${err instanceof Error ? err.message : 'desconocido'}`)
+      setMessage(`Error: ${err instanceof Error ? err.message : 'desconocido'}`)
     }
   }
 
@@ -80,8 +145,10 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
     setTitle('')
     setCaption('')
     setVideoFile(null)
+    setVideoMeta(null)
     setStatus('idle')
     setMessage('')
+    setWarnings([])
     onClose()
   }
 
@@ -89,10 +156,7 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
 
   return (
     <div className="marketing-modal-backdrop" onClick={handleClose}>
-      <section
-        className="reel-modal glass-card"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <section className="reel-modal glass-card" onClick={(e) => e.stopPropagation()}>
         <div className="reel-modal__header">
           <div>
             <p className="marketing-modal__eyebrow">Video</p>
@@ -113,6 +177,18 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
             </span>
           </div>
 
+          <div className="reel-modal__specs">
+            <span className="reel-modal__specs-title">Requisitos del Reel</span>
+            <div className="reel-modal__specs-grid">
+              <span>Formato: <strong>MP4 (H.264)</strong></span>
+              <span>Orientacion: <strong>Vertical 9:16</strong></span>
+              <span>Resolucion: <strong>1080x1920 recomendado</strong></span>
+              <span>Minimo: <strong>540x960</strong></span>
+              <span>Duracion: <strong>3s - 90s</strong></span>
+              <span>Tamano max: <strong>1GB</strong></span>
+            </div>
+          </div>
+
           {!token && (
             <div className="reel-modal__warning">
               La empresa seleccionada no tiene token de Facebook configurado.
@@ -120,30 +196,45 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
           )}
 
           <div
-            className={`reel-modal__dropzone ${videoFile ? 'reel-modal__dropzone--has-file' : ''}`}
+            className={`reel-modal__dropzone ${videoFile ? (warnings.length > 0 ? 'reel-modal__dropzone--error' : 'reel-modal__dropzone--has-file') : ''}`}
             onClick={() => fileInputRef.current?.click()}
           >
             <input
               ref={fileInputRef}
               type="file"
-              accept="video/*"
+              accept="video/mp4,video/quicktime,.mp4,.mov"
               onChange={handleFileChange}
               style={{ display: 'none' }}
             />
             {videoFile ? (
               <div className="reel-modal__file-info">
                 <span className="reel-modal__file-icon">&#127916;</span>
-                <span className="reel-modal__file-name">{videoFile.name}</span>
-                <span className="reel-modal__file-size">{(videoFile.size / 1024 / 1024).toFixed(1)} MB</span>
+                <div className="reel-modal__file-details">
+                  <span className="reel-modal__file-name">{videoFile.name}</span>
+                  {videoMeta && (
+                    <span className="reel-modal__file-meta">
+                      {videoMeta.width}x{videoMeta.height} | {Math.round(videoMeta.duration)}s | {(videoFile.size / 1024 / 1024).toFixed(1)}MB
+                      {videoMeta.height > videoMeta.width ? ' | Vertical' : ' | Horizontal'}
+                    </span>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="reel-modal__drop-text">
                 <span className="reel-modal__drop-icon">&#128249;</span>
                 <span>Click para seleccionar video</span>
-                <small>MP4, MOV - Max 1GB - 9:16 vertical recomendado</small>
+                <small>MP4 vertical 9:16 | 1080x1920 | 3-90 segundos</small>
               </div>
             )}
           </div>
+
+          {warnings.length > 0 && (
+            <div className="reel-modal__warning">
+              {warnings.map((w, i) => (
+                <div key={i}>{w}</div>
+              ))}
+            </div>
+          )}
 
           <label className="marketing-field">
             <span>Titulo del Reel</span>
