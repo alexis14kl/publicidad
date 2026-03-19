@@ -253,9 +253,11 @@ export interface MarketingCampaignPayload {
   city: string
   zones: string[]
   contactMode: 'lead_form' | 'whatsapp'
+  companyName?: string
   prePrompt?: string
   useZoneIntelligence?: boolean
   useAudienceSegmentation?: boolean
+  generateImageFromMarketingPrompt?: boolean
   marketingPrompt?: string
   budget: string
   startDate: string
@@ -271,6 +273,7 @@ export interface MarketingRunUpdate {
     objective: string
     url: string
     country: string
+    companyName?: string
     city?: string
     zones?: string[]
     campaignIdea?: string
@@ -278,7 +281,11 @@ export interface MarketingRunUpdate {
     contactMode?: 'lead_form' | 'whatsapp'
     zoneIntelligenceEnabled?: boolean
     audienceSegmentationEnabled?: boolean
+    generateImageFromMarketingPrompt?: boolean
     marketingPrompt?: string
+    generatedImagePrompt?: string
+    generatedImageStatus?: string
+    generatedImageError?: string
     formFields: string[]
     budget: string
     startDate: string

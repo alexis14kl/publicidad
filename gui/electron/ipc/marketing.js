@@ -1,16 +1,27 @@
 const { getProjectEnv } = require('../utils/env')
 const { ensureAbsoluteUrl, sleep } = require('../utils/helpers')
 const state = require('../state')
+const { lookupCompanyData } = require('../company/lookup')
 const { getMarketingContactModeConfig, buildMarketingSegmentFromPreview } = require('../marketing/segment')
 const { runLocalMarketingOrchestrator } = require('../marketing/orchestrator')
 const { getMarketingImagesDir, prepareLatestMarketingImageAsset } = require('../marketing/image-asset')
+const { generateMarketingImageAsset } = require('../marketing/image-generation')
 const { IMAGE_FORMATS } = require('../config/image-formats')
 const { openMarketingBrowserMonitor } = require('../marketing/monitor')
 const { ensureFacebookVisualBrowser } = require('../facebook/visual-browser')
 const { getMetaPageId, getTargetAdAccountId, getFacebookAdsCdpInfo } = require('../facebook/api')
 const { listFacebookPagePhotos } = require('../facebook/api')
-const { tryFacebookUiCreateCampaign, tryFacebookUiConfigureCampaignEditor } = require('../facebook/ui-campaign')
-const { tryFacebookUiConfigureAdsetSchedule } = require('../facebook/ui-adset')
+const {
+  setState: setCampaignUiState,
+  setEmitMarketingUpdate: setCampaignEmitMarketingUpdate,
+  tryFacebookUiCreateCampaign,
+  tryFacebookUiConfigureCampaignEditor,
+  tryFacebookUiOpenCampaignFromList,
+} = require('../facebook/ui-campaign')
+const {
+  setState: setAdsetUiState,
+  tryFacebookUiConfigureAdsetSchedule,
+} = require('../facebook/ui-adset')
 const { tryFacebookUiReachAdEditor } = require('../facebook/ui-ad-editor')
 const {
   emitMarketingUpdate,
@@ -20,6 +31,138 @@ const {
   runLeadCampaignBundleViaN8n,
 } = require('../marketing/campaign-process')
 const { applyMcpBundleResultToPreview } = require('../marketing/campaign-bundle')
+
+function syncFacebookUiAutomationState() {
+  const sharedState = { facebookVisualPage: state.facebookVisualPage }
+  setCampaignUiState(sharedState)
+  setAdsetUiState(sharedState)
+  setCampaignEmitMarketingUpdate(emitMarketingUpdate)
+}
+
+async function reopenCampaignAndVerifyAdUi(preview, creationState) {
+  const browserOpen = await openMetaAdsManager(creationState)
+  syncFacebookUiAutomationState()
+  emitMarketingUpdate({
+    type: 'log',
+    line: browserOpen.ok
+      ? `[OPEN] Navegador abierto en ${browserOpen.url} para visualizar Meta Ads Manager.`
+      : `[OPEN] No se pudo abrir el navegador automaticamente: ${browserOpen.reason}`,
+  })
+  await sleep(650)
+
+  let campaignEditorState = { nameFilled: false, budgetConfigured: false, nextClicked: false }
+  let adsetUiState = {
+    anySuccess: false,
+    conversionConfigured: false,
+    performanceConfigured: false,
+    scheduleConfigured: false,
+    nextClicked: false,
+    visibleSections: [],
+    canAdvance: false,
+  }
+  let adUiState = {
+    reachedEditor: false,
+    nameFilled: false,
+    imageConfigured: false,
+    primaryTextConfigured: false,
+    headlineConfigured: false,
+    descriptionConfigured: false,
+    ctaConfigured: false,
+    leadFormConfigured: false,
+    visibleSections: [],
+    canFinalize: false,
+  }
+
+  if (!browserOpen.ok) {
+    return { browserOpen, campaignEditorState, adsetUiState, adUiState, uiIncomplete: false }
+  }
+
+  emitMarketingUpdate({
+    type: 'log',
+    status: 'running',
+    line: creationState?.campaignId
+      ? `[FACEBOOK-UI] La campaña ya fue creada (${creationState.campaignId}). Reabrire el editor del anuncio para verificar textos, multimedia y reemplazar la imagen antes de finalizar.`
+      : '[FACEBOOK-UI] Intentare abrir el listado de campañas y reabrir la campaña por nombre para verificar el anuncio antes de finalizar.',
+  })
+  await sleep(450)
+
+  if (creationState?.campaignId) {
+    emitMarketingUpdate({
+      type: 'log',
+      status: 'running',
+      line: '[FACEBOOK-UI] La campaña ya existe; omitire cambios de nombre, presupuesto y conjunto. Ire directo al anuncio para reemplazar la imagen en Contenido multimedia.',
+    })
+    await sleep(450)
+  } else {
+    const openedFromList = await tryFacebookUiOpenCampaignFromList(preview)
+    if (!openedFromList) {
+      const createdFromUi = await tryFacebookUiCreateCampaign(preview)
+      if (!createdFromUi) {
+        emitMarketingUpdate({
+          type: 'log',
+          status: 'warning',
+          line: '[FACEBOOK-UI] No pude abrir la campaña creada desde el listado. Intentare completar lo visible del editor actual.',
+        })
+        await sleep(450)
+      }
+    } else {
+      emitMarketingUpdate({
+        type: 'log',
+        status: 'running',
+        line: '[FACEBOOK-UI] La campaña creada por n8n fue localizada en el listado y reabierta para ajustar el anuncio.',
+      })
+      await sleep(450)
+    }
+    campaignEditorState = await tryFacebookUiConfigureCampaignEditor(preview)
+  }
+
+  if (campaignEditorState.nextClicked) {
+    adsetUiState = await tryFacebookUiConfigureAdsetSchedule(preview)
+    if (adsetUiState.nextClicked) {
+      adUiState = await tryFacebookUiReachAdEditor(preview)
+    } else {
+      emitMarketingUpdate({
+        type: 'log',
+        status: 'warning',
+        line: '[FACEBOOK-UI] No pasare al apartado de anuncio porque el conjunto de anuncios todavia no quedo completo o no se pudo pulsar Siguiente.',
+      })
+      await sleep(450)
+    }
+  } else if (creationState?.campaignId) {
+    emitMarketingUpdate({
+      type: 'log',
+      status: 'running',
+      line: '[FACEBOOK-UI] La campaña ya existe, asi que ire por el arbol lateral izquierdo para abrir directamente el anuncio sin depender de Siguiente.',
+    })
+    await sleep(450)
+    adUiState = await tryFacebookUiReachAdEditor(preview, { onlyReplaceImage: true })
+  } else {
+    emitMarketingUpdate({
+      type: 'log',
+      status: 'warning',
+      line: '[FACEBOOK-UI] No pasare al conjunto de anuncios porque la campaña actual no termino de configurarse o no se pudo pulsar Siguiente.',
+    })
+    await sleep(450)
+  }
+
+  const reopenedExistingCampaign = Boolean(creationState?.campaignId)
+  const uiIncomplete = reopenedExistingCampaign
+    ? (!adUiState.reachedEditor || !adUiState.canFinalize)
+    : (
+      !campaignEditorState.nextClicked ||
+      !adsetUiState.nextClicked ||
+      !adUiState.reachedEditor ||
+      !adUiState.canFinalize
+    )
+
+  return {
+    browserOpen,
+    campaignEditorState,
+    adsetUiState,
+    adUiState,
+    uiIncomplete,
+  }
+}
 
 function registerMarketingHandlers(ipcMain) {
   ipcMain.handle('list-facebook-page-photos', async (_event, payload = {}) => {
@@ -36,6 +179,7 @@ function registerMarketingHandlers(ipcMain) {
     }
 
     const campaignIdea = String(payload.campaignIdea || '').trim()
+    const companyName = String(payload.companyName || getProjectEnv().PUBLICIDAD_COMPANY_NAME || '').trim()
     const prePrompt = String(payload.prePrompt || '').trim()
     const city = String(payload.city || '').trim()
     const zones = Array.isArray(payload.zones)
@@ -44,6 +188,7 @@ function registerMarketingHandlers(ipcMain) {
     const contactMode = String(payload.contactMode || '').trim() === 'whatsapp' ? 'whatsapp' : 'lead_form'
     const useZoneIntelligence = Boolean(payload.useZoneIntelligence)
     const useAudienceSegmentation = Boolean(payload.useAudienceSegmentation)
+    const generateImageFromMarketingPrompt = Boolean(payload.generateImageFromMarketingPrompt)
     const marketingPrompt = String(payload.marketingPrompt || '').trim()
     const budget = String(payload.budget || '').trim()
     const startDate = String(payload.startDate || '').trim()
@@ -58,6 +203,8 @@ function registerMarketingHandlers(ipcMain) {
 
     const contactConfig = getMarketingContactModeConfig(contactMode)
     const resolvedCampaignIdea = campaignIdea || prePrompt
+    const company = companyName ? lookupCompanyData(companyName) : null
+    const resolvedWebsite = ensureAbsoluteUrl(company?.sitio_web || getProjectEnv().BUSINESS_WEBSITE || 'https://noyecode.com')
     const segmentPreview = buildMarketingSegmentFromPreview({
       campaignIdea: resolvedCampaignIdea,
       prePrompt,
@@ -71,7 +218,8 @@ function registerMarketingHandlers(ipcMain) {
 
     const preview = {
       objective: contactConfig.objectiveLabel,
-      url: ensureAbsoluteUrl(getProjectEnv().BUSINESS_WEBSITE || 'https://noyecode.com'),
+      url: resolvedWebsite,
+      companyName,
       country: segmentPreview.country,
       city,
       zones,
@@ -80,6 +228,7 @@ function registerMarketingHandlers(ipcMain) {
       contactMode,
       zoneIntelligenceEnabled: useZoneIntelligence,
       audienceSegmentationEnabled: useAudienceSegmentation,
+      generateImageFromMarketingPrompt,
       marketingPrompt,
       formFields: contactConfig.formFields,
       budget,
@@ -103,6 +252,9 @@ function registerMarketingHandlers(ipcMain) {
       audienceInsights: null,
       process: [],
       orchestrator: null,
+      generatedImagePrompt: '',
+      generatedImageStatus: generateImageFromMarketingPrompt ? 'pending' : 'disabled',
+      generatedImageError: '',
     }
 
     try {
@@ -113,9 +265,10 @@ function registerMarketingHandlers(ipcMain) {
       const targetActId = getTargetAdAccountId()
       if (contactMode === 'lead_form') {
         await ensureFacebookVisualBrowser(targetActId)
+        syncFacebookUiAutomationState()
       }
 
-      const orchestrator = runLocalMarketingOrchestrator({
+      let orchestrator = runLocalMarketingOrchestrator({
         ...preview,
         useZoneIntelligence,
         useAudienceSegmentation,
@@ -123,6 +276,55 @@ function registerMarketingHandlers(ipcMain) {
       preview.orchestrator = orchestrator
       preview.zoneInsights = orchestrator.zoneInsights || null
       preview.audienceInsights = orchestrator.audienceInsights || null
+
+      if (generateImageFromMarketingPrompt) {
+        emitMarketingUpdate({
+          type: 'log',
+          status: 'running',
+          line: '[IMAGE-AUTO] Generando imagen automatica desde el prompt final del agente marketing...',
+          summary: 'Generando imagen automatica para el anuncio.',
+        })
+        await sleep(450)
+
+        const generation = await generateMarketingImageAsset({
+          preview,
+          orchestrator,
+          imageFormat: imageFormat || 'fb-horizontal',
+          onLog: (line) => emitMarketingUpdate({ type: 'log', status: 'running', line }),
+        })
+
+        preview.generatedImagePrompt = generation.prompt || ''
+        preview.generatedImageStatus = generation.status || 'failed'
+        preview.generatedImageError = generation.error || ''
+
+        if (generation.success && generation.asset) {
+          preview.imageAsset = generation.asset
+          orchestrator = runLocalMarketingOrchestrator({
+            ...preview,
+            useZoneIntelligence,
+            useAudienceSegmentation,
+          })
+          preview.orchestrator = orchestrator
+          preview.zoneInsights = preview.orchestrator.zoneInsights || null
+          preview.audienceInsights = preview.orchestrator.audienceInsights || null
+
+          emitMarketingUpdate({
+            type: 'log',
+            status: 'running',
+            line: `[IMAGE-AUTO] Imagen generada y preparada: ${generation.asset.fileName}. ${generation.asset.adjustmentReason}`,
+            summary: 'Imagen automatica lista para el contenido del anuncio.',
+          })
+          await sleep(450)
+        } else {
+          emitMarketingUpdate({
+            type: 'log',
+            status: 'warning',
+            line: `[IMAGE-AUTO] No pude generar la imagen automatica. Se continuara con el asset actual. ${generation.error || ''}`.trim(),
+            summary: 'La generacion automatica de imagen fallo; continuo con el flujo actual.',
+          })
+          await sleep(450)
+        }
+      }
 
       emitMarketingUpdate({
         type: 'log',
@@ -448,27 +650,28 @@ function registerMarketingHandlers(ipcMain) {
             await sleep(650)
           }
 
-          const browserOpen = await openMetaAdsManager(creationState)
-          emitMarketingUpdate({
-            type: 'log',
-            line: browserOpen.ok
-              ? `[OPEN] Navegador abierto en ${browserOpen.url} para visualizar Meta Ads Manager.`
-              : `[OPEN] No se pudo abrir el navegador automaticamente: ${browserOpen.reason}`,
-          })
-          await sleep(650)
+          const {
+            browserOpen,
+            adUiState,
+            uiIncomplete,
+          } = await reopenCampaignAndVerifyAdUi(preview, creationState)
 
           emitMarketingUpdate({
             type: 'done',
-            status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) ? 'warning' : 'success',
+            status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) || uiIncomplete ? 'warning' : 'success',
             summary: bundleError
               ? `Error al crear campana via n8n: ${bundleError.message || bundleError}`
-              : creationState?.adsetDeferredToUi
-                ? 'Campana creada via n8n. El conjunto de anuncios quedo delegado a Ads Manager para seleccionar el objeto promocionado.'
-                : creationState?.adsetError
-                  ? `Campana creada via n8n, pero no se pudo crear el ad set: ${creationState.adsetError}`
-                  : browserOpen.ok
-                    ? 'Campana creada exitosamente via n8n. Se abrio Ads Manager para verificar.'
-                    : 'Campana creada exitosamente via n8n, pero no se pudo abrir el navegador automaticamente.',
+              : uiIncomplete
+                ? preview.generateImageFromMarketingPrompt && !adUiState.imageConfigured
+                  ? 'La campaña fue creada por n8n, pero la automatizacion todavia no logro reabrir el anuncio y verificar el reemplazo de la imagen en Contenido multimedia.'
+                  : 'La campaña fue creada por n8n, pero el flujo visual aun no completa todos los campos visibles del anuncio.'
+                : creationState?.adsetDeferredToUi
+                  ? 'Campana creada via n8n. El conjunto de anuncios quedo delegado a Ads Manager para seleccionar el objeto promocionado.'
+                  : creationState?.adsetError
+                    ? `Campana creada via n8n, pero no se pudo crear el ad set: ${creationState.adsetError}`
+                    : browserOpen.ok
+                      ? 'Campana creada via n8n, la UI reabrio el anuncio y verifico el contenido multimedia antes de finalizar.'
+                      : 'Campana creada exitosamente via n8n, pero no se pudo abrir el navegador automaticamente.',
             preview,
           })
         }

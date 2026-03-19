@@ -13,15 +13,99 @@ function escapeRegex(value: string) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+function countPatternMatches(text: string, patterns: RegExp[]) {
+  return patterns.reduce((total, pattern) => total + (pattern.test(text) ? 1 : 0), 0)
+}
+
 function inferPrePromptCategory(text: string) {
   const normalized = normalizeText(text)
+  const categoryMatchers: Record<string, RegExp[]> = {
+    automotive: [
+      /\bcarro\b/,
+      /\bcarros\b/,
+      /\bauto\b/,
+      /\bautos\b/,
+      /\bvehiculo\b/,
+      /\bvehiculos\b/,
+      /\bconcesionario\b/,
+      /\bconcesionarios\b/,
+    ],
+    pets: [
+      /\bveterinaria\b/,
+      /\bveterinario\b/,
+      /\bmascota\b/,
+      /\bmascotas\b/,
+      /\bpet\b/,
+      /\bpets\b/,
+      /\bperro\b/,
+      /\bperros\b/,
+      /\bgato\b/,
+      /\bgatos\b/,
+    ],
+    dental: [
+      /\bodontologia\b/,
+      /\bodontologico\b/,
+      /\bdental\b/,
+      /\bsonrisa\b/,
+      /\bortodoncia\b/,
+      /\bimplantes dentales\b/,
+    ],
+    realestate: [
+      /\binmobiliaria\b/,
+      /\binmobiliario\b/,
+      /\bapartamento\b/,
+      /\bapartamentos\b/,
+      /\bcasa\b/,
+      /\bcasas\b/,
+      /\bpropiedad\b/,
+      /\bpropiedades\b/,
+      /\barriendo\b/,
+      /\bventa de inmueble\b/,
+      /\bbienes raices\b/,
+    ],
+    beauty: [
+      /\bbelleza\b/,
+      /\bspa\b/,
+      /\bestetica\b/,
+      /\bpeluqueria\b/,
+      /\bbarberia\b/,
+      /\bmanicura\b/,
+      /\bmanicure\b/,
+      /\bbarber\b/,
+    ],
+    tech: [
+      /\bsoftware\b/,
+      /\bdesarrollo\b/,
+      /\bdesarrollo a la medida\b/,
+      /\bautomatizacion\b/,
+      /\bautomatizaciones\b/,
+      /\berp\b/,
+      /\bcrm\b/,
+      /\brpa\b/,
+      /\bsaas\b/,
+      /\btecnologia\b/,
+      /\btecnologias\b/,
+      /\bapp\b/,
+      /\baplicacion\b/,
+      /\baplicaciones\b/,
+      /\bweb\b/,
+      /\bdesarrollo web\b/,
+      /\bdesarrollo movil\b/,
+    ],
+  }
 
-  if (/carro|carros|auto|autos|vehiculo|vehiculos|concesionario/.test(normalized)) return 'automotive'
-  if (/veterin|mascota|pet|perro|gato/.test(normalized)) return 'pets'
-  if (/odont|dental|sonrisa|ortodon/.test(normalized)) return 'dental'
-  if (/inmobili|apartamento|casa|propiedad|arriendo|venta inmueble/.test(normalized)) return 'realestate'
-  if (/belleza|spa|estetica|peluquer|barber|manicur/.test(normalized)) return 'beauty'
-  if (/software|desarrollo|automatiz|erp|crm|rpa|saas|tecnolog/.test(normalized)) return 'tech'
+  let selectedCategory: 'automotive' | 'pets' | 'dental' | 'realestate' | 'beauty' | 'tech' | 'general' = 'general'
+  let bestScore = 0
+
+  for (const [category, patterns] of Object.entries(categoryMatchers)) {
+    const score = countPatternMatches(normalized, patterns)
+    if (score > bestScore) {
+      bestScore = score
+      selectedCategory = category as typeof selectedCategory
+    }
+  }
+
+  if (bestScore > 0) return selectedCategory
   return 'general'
 }
 
@@ -31,58 +115,58 @@ function getSuggestedZones(city: string, text: string, selectedZones: string[]) 
   const category = inferPrePromptCategory(text)
   const rankingByCity: Record<string, Record<string, string[]>> = {
     Bogota: {
-      automotive: ['Norte', 'Usaquen', 'Chapinero', 'Occidente', 'Suba'],
-      pets: ['Suba', 'Usaquen', 'Norte', 'Chapinero'],
-      dental: ['Chapinero', 'Norte', 'Usaquen', 'Occidente'],
-      realestate: ['Norte', 'Usaquen', 'Chapinero', 'Suba'],
-      beauty: ['Chapinero', 'Norte', 'Usaquen', 'Centro'],
-      tech: ['Chapinero', 'Norte', 'Usaquen', 'Centro'],
-      general: ['Norte', 'Chapinero', 'Usaquen', 'Suba'],
+      automotive: ['Usaquen', 'Chapinero', 'Suba', 'Fontibon', 'Kennedy', 'Engativa'],
+      pets: ['Suba', 'Usaquen', 'Chapinero', 'Teusaquillo', 'Barrios Unidos', 'Engativa'],
+      dental: ['Chapinero', 'Usaquen', 'Teusaquillo', 'Barrios Unidos', 'Fontibon', 'Kennedy'],
+      realestate: ['Usaquen', 'Chapinero', 'Suba', 'Teusaquillo', 'Barrios Unidos', 'Santa Fe'],
+      beauty: ['Chapinero', 'Usaquen', 'Teusaquillo', 'Suba', 'Barrios Unidos', 'Fontibon'],
+      tech: ['Chapinero', 'Usaquen', 'Teusaquillo', 'Barrios Unidos', 'Suba', 'Engativa'],
+      general: ['Usaquen', 'Chapinero', 'Suba', 'Teusaquillo', 'Fontibon', 'Kennedy'],
     },
     Medellin: {
-      automotive: ['El Poblado', 'Laureles', 'Envigado', 'Sabaneta'],
-      pets: ['Laureles', 'El Poblado', 'Envigado', 'Sabaneta'],
-      dental: ['El Poblado', 'Laureles', 'Envigado', 'Centro'],
-      realestate: ['El Poblado', 'Envigado', 'Laureles', 'Sabaneta'],
-      beauty: ['El Poblado', 'Laureles', 'Envigado', 'Centro'],
-      tech: ['El Poblado', 'Laureles', 'Centro', 'Envigado'],
-      general: ['El Poblado', 'Laureles', 'Envigado', 'Centro'],
+      automotive: ['El Poblado', 'Laureles', 'Envigado', 'Sabaneta', 'Guayabal'],
+      pets: ['Laureles', 'El Poblado', 'Envigado', 'Belen', 'Sabaneta'],
+      dental: ['El Poblado', 'Laureles', 'Envigado', 'Centro', 'Belen'],
+      realestate: ['El Poblado', 'Envigado', 'Laureles', 'Sabaneta', 'Belen'],
+      beauty: ['El Poblado', 'Laureles', 'Envigado', 'Centro', 'Sabaneta'],
+      tech: ['El Poblado', 'Laureles', 'Centro', 'Envigado', 'Guayabal'],
+      general: ['El Poblado', 'Laureles', 'Envigado', 'Centro', 'Belen'],
     },
     Cali: {
-      automotive: ['Norte', 'Sur', 'Oeste', 'Jamundi'],
-      pets: ['Sur', 'Norte', 'Oeste', 'Jamundi'],
-      dental: ['Sur', 'Norte', 'Centro', 'Oeste'],
-      realestate: ['Sur', 'Jamundi', 'Norte', 'Oeste'],
-      beauty: ['Sur', 'Norte', 'Oeste', 'Centro'],
-      tech: ['Norte', 'Sur', 'Centro', 'Oeste'],
-      general: ['Norte', 'Sur', 'Oeste', 'Centro'],
+      automotive: ['Norte', 'Sur', 'Jamundi', 'Valle del Lili', 'Ciudad Jardin'],
+      pets: ['Sur', 'Norte', 'Oeste', 'Ciudad Jardin', 'Valle del Lili'],
+      dental: ['Sur', 'Norte', 'Centro', 'Oeste', 'San Fernando'],
+      realestate: ['Sur', 'Jamundi', 'Ciudad Jardin', 'Valle del Lili', 'Norte'],
+      beauty: ['Sur', 'Norte', 'Oeste', 'San Fernando', 'Granada'],
+      tech: ['Norte', 'Sur', 'Centro', 'Ciudad Jardin', 'Granada'],
+      general: ['Norte', 'Sur', 'Oeste', 'Centro', 'Ciudad Jardin'],
     },
     Barranquilla: {
-      automotive: ['Riomar', 'Norte', 'Soledad', 'Centro'],
-      pets: ['Riomar', 'Norte', 'Centro', 'Soledad'],
-      dental: ['Norte', 'Riomar', 'Centro', 'Soledad'],
-      realestate: ['Riomar', 'Norte', 'Centro', 'Soledad'],
-      beauty: ['Norte', 'Riomar', 'Centro', 'Soledad'],
-      tech: ['Norte', 'Riomar', 'Centro', 'Soledad'],
-      general: ['Norte', 'Riomar', 'Centro', 'Soledad'],
+      automotive: ['Riomar', 'Norte', 'Buenavista', 'Soledad', 'Villa Carolina'],
+      pets: ['Riomar', 'Norte', 'Buenavista', 'Centro', 'Villa Carolina'],
+      dental: ['Norte', 'Riomar', 'Alto Prado', 'Centro', 'Buenavista'],
+      realestate: ['Riomar', 'Norte', 'Alto Prado', 'Buenavista', 'Villa Carolina'],
+      beauty: ['Norte', 'Riomar', 'Alto Prado', 'Centro', 'Ciudad Jardin'],
+      tech: ['Norte', 'Riomar', 'Buenavista', 'Centro', 'Alto Prado'],
+      general: ['Norte', 'Riomar', 'Buenavista', 'Centro', 'Soledad'],
     },
     Cartagena: {
-      automotive: ['Zona Norte', 'Bocagrande', 'Manga', 'Centro'],
-      pets: ['Bocagrande', 'Zona Norte', 'Centro', 'Manga'],
-      dental: ['Bocagrande', 'Centro', 'Zona Norte', 'Manga'],
-      realestate: ['Zona Norte', 'Bocagrande', 'Manga', 'Centro'],
-      beauty: ['Bocagrande', 'Centro', 'Zona Norte', 'Manga'],
-      tech: ['Bocagrande', 'Centro', 'Zona Norte', 'Manga'],
-      general: ['Bocagrande', 'Centro', 'Zona Norte', 'Manga'],
+      automotive: ['Zona Norte', 'Bocagrande', 'Manga', 'Crespo', 'Marbella'],
+      pets: ['Bocagrande', 'Zona Norte', 'Centro', 'Manga', 'Crespo'],
+      dental: ['Bocagrande', 'Centro', 'Zona Norte', 'Castillogrande', 'Manga'],
+      realestate: ['Zona Norte', 'Bocagrande', 'Castillogrande', 'Marbella', 'Manga'],
+      beauty: ['Bocagrande', 'Centro', 'Zona Norte', 'El Laguito', 'Castillogrande'],
+      tech: ['Bocagrande', 'Centro', 'Zona Norte', 'Manga', 'Pie de la Popa'],
+      general: ['Bocagrande', 'Centro', 'Zona Norte', 'Manga', 'Crespo'],
     },
     Bucaramanga: {
-      automotive: ['Cabecera', 'Cacique', 'Floridablanca', 'Centro'],
-      pets: ['Cabecera', 'Floridablanca', 'Cacique', 'Centro'],
-      dental: ['Cabecera', 'Cacique', 'Centro', 'Floridablanca'],
-      realestate: ['Cabecera', 'Floridablanca', 'Cacique', 'Centro'],
-      beauty: ['Cabecera', 'Cacique', 'Floridablanca', 'Centro'],
-      tech: ['Cabecera', 'Centro', 'Floridablanca', 'Cacique'],
-      general: ['Cabecera', 'Centro', 'Floridablanca', 'Cacique'],
+      automotive: ['Cabecera', 'Cacique', 'Floridablanca', 'Canaveral', 'Centro'],
+      pets: ['Cabecera', 'Floridablanca', 'Canaveral', 'Cacique', 'Centro'],
+      dental: ['Cabecera', 'Cacique', 'Centro', 'Floridablanca', 'Sotomayor'],
+      realestate: ['Cabecera', 'Floridablanca', 'Canaveral', 'Cacique', 'Centro'],
+      beauty: ['Cabecera', 'Cacique', 'Floridablanca', 'Sotomayor', 'Centro'],
+      tech: ['Cabecera', 'Centro', 'Floridablanca', 'Canaveral', 'San Alonso'],
+      general: ['Cabecera', 'Centro', 'Floridablanca', 'Cacique', 'Canaveral'],
     },
   }
   const cityRanking = rankingByCity[city] || {}
@@ -245,16 +329,22 @@ export function extractMarketingDraftFromPrePrompt(prePrompt: string) {
     return { campaignIdea: '', city: '', zones: [] as string[] }
   }
 
+  const normalizedRaw = normalizeText(raw)
+
   let detectedCity = ''
   for (const cityOption of Object.keys(CITY_ZONE_OPTIONS)) {
-    if (new RegExp(`\\b${escapeRegex(cityOption)}\\b`, 'i').test(raw)) {
+    const normalizedCity = normalizeText(cityOption)
+    if (new RegExp(`\\b${escapeRegex(normalizedCity)}\\b`, 'i').test(normalizedRaw)) {
       detectedCity = cityOption
       break
     }
   }
 
   const detectedZones = detectedCity
-    ? CITY_ZONE_OPTIONS[detectedCity].filter((zone) => new RegExp(`\\b${escapeRegex(zone)}\\b`, 'i').test(raw))
+    ? CITY_ZONE_OPTIONS[detectedCity].filter((zone) => {
+      const normalizedZone = normalizeText(zone)
+      return new RegExp(`\\b${escapeRegex(normalizedZone)}\\b`, 'i').test(normalizedRaw)
+    })
     : []
 
   let campaignIdea = raw

@@ -29,6 +29,7 @@ export function MarketingCampaignModal({
   const [contactMode, setContactMode] = useState<'lead_form' | 'whatsapp'>('lead_form')
   const [useZoneIntelligence, setUseZoneIntelligence] = useState(true)
   const [useAudienceSegmentation, setUseAudienceSegmentation] = useState(true)
+  const [generateImageFromMarketingPrompt, setGenerateImageFromMarketingPrompt] = useState(false)
   const [marketingPrompt, setMarketingPrompt] = useState('')
   const [promptEdited, setPromptEdited] = useState(false)
   const [budget, setBudget] = useState('')
@@ -54,6 +55,7 @@ export function MarketingCampaignModal({
   }>>([])
   const [selectedTrendId, setSelectedTrendId] = useState<number | null>(null)
   const [appliedPrePrompt, setAppliedPrePrompt] = useState('')
+  const [selectedCompany, setSelectedCompany] = useState('')
   const selectedContactMode = CONTACT_MODE_OPTIONS.find((option) => option.value === contactMode) || CONTACT_MODE_OPTIONS[0]
 
   const validationMessage = useMemo(() => {
@@ -133,6 +135,15 @@ export function MarketingCampaignModal({
       setMarketingPrompt(promptPreview)
     }
   }, [promptEdited, promptPreview])
+
+  useEffect(() => {
+    if (!open) return
+    try {
+      setSelectedCompany(window.localStorage.getItem('selectedCompany') || '')
+    } catch {
+      setSelectedCompany('')
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -231,12 +242,14 @@ export function MarketingCampaignModal({
       })
       await runMarketingCampaignPreview({
         campaignIdea,
+        companyName: selectedCompany,
         prePrompt,
         city,
         zones: selectedZones,
         contactMode,
         useZoneIntelligence,
         useAudienceSegmentation,
+        generateImageFromMarketingPrompt,
         marketingPrompt,
         budget,
         startDate,
@@ -354,6 +367,15 @@ export function MarketingCampaignModal({
                       onChange={(event) => setUseAudienceSegmentation(event.target.checked)}
                     />
                     <span className="job-value">Usar ads-analyst + seo-analyzer para detectar posibles clientes y audiencias con mejor fit.</span>
+                  </label>
+                  <label className="job-item" style={{ cursor: 'pointer' }}>
+                    <span className="job-label">Generar imagen automatica</span>
+                    <input
+                      type="checkbox"
+                      checked={generateImageFromMarketingPrompt}
+                      onChange={(event) => setGenerateImageFromMarketingPrompt(event.target.checked)}
+                    />
+                    <span className="job-value">Toma el prompt final del agente marketing, genera la imagen y la usa en Contenido del anuncio si la automatizacion sale bien.</span>
                   </label>
                 </div>
                 <div className="marketing-prompt-actions">
@@ -757,7 +779,22 @@ export function MarketingCampaignModal({
                       {[
                         preview.zoneIntelligenceEnabled ? 'zonas calientes' : null,
                         preview.audienceSegmentationEnabled ? 'segmentacion de publico' : null,
+                        preview.generateImageFromMarketingPrompt ? 'imagen automatica' : null,
                       ].filter(Boolean).join(' | ') || 'sin checks'}
+                    </span>
+                  </div>
+                  <div className="job-item">
+                    <span className="job-label">Estado imagen automatica</span>
+                    <span className="job-value">
+                      {preview.generatedImageStatus === 'generated'
+                        ? 'Generada y aplicada'
+                        : preview.generatedImageStatus === 'failed'
+                          ? `Fallida${preview.generatedImageError ? `: ${preview.generatedImageError}` : ''}`
+                          : preview.generatedImageStatus === 'busy'
+                            ? `Ocupada${preview.generatedImageError ? `: ${preview.generatedImageError}` : ''}`
+                            : preview.generatedImageStatus === 'pending'
+                              ? 'Pendiente de generar'
+                              : 'Desactivada'}
                     </span>
                   </div>
                 </div>
@@ -885,6 +922,12 @@ export function MarketingCampaignModal({
                         <span className="job-label">Prompt visual</span>
                         <span className="job-value">{preview.orchestrator.imageCreator.prompt}</span>
                       </div>
+                      {preview.generatedImagePrompt && (
+                        <div className="job-item">
+                          <span className="job-label">Prompt usado para generar la imagen</span>
+                          <span className="job-value">{preview.generatedImagePrompt}</span>
+                        </div>
+                      )}
                       <div className="job-item">
                         <span className="job-label">marketing</span>
                         <span className="job-value">
@@ -979,46 +1022,6 @@ export function MarketingCampaignModal({
                           <span className="job-value">{preview.metaAd.adId}</span>
                         </div>
                       )}
-                    </div>
-                  </>
-                )}
-
-                {!!preview.process?.length && (
-                  <>
-                    <div className="card-header" style={{ marginTop: 16 }}>
-                      <span className="card-icon">&#128260;</span>
-                      <span className="card-title">Proceso Completo de Creacion</span>
-                    </div>
-                    <div className="job-grid">
-                      {preview.process.map((step, index) => (
-                        <div key={step.id} className="job-item">
-                          <span className="job-label">
-                            Paso {index + 1}: {step.title}
-                          </span>
-                          <span className="job-value">{step.detail}</span>
-                          <span
-                            className={`job-badge ${
-                              step.status === 'success'
-                                ? 'badge--success'
-                                : step.status === 'warning'
-                                  ? 'badge--warn'
-                                  : step.status === 'error'
-                                    ? 'badge--error'
-                                    : ''
-                            }`}
-                          >
-                            {step.status === 'success'
-                              ? 'Validado'
-                              : step.status === 'warning'
-                                ? 'Pendiente por requisitos'
-                                : step.status === 'error'
-                                  ? 'Error'
-                                  : step.status === 'running'
-                                    ? 'En curso'
-                                    : 'Siguiente'}
-                          </span>
-                        </div>
-                      ))}
                     </div>
                   </>
                 )}
