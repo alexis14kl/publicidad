@@ -36,11 +36,14 @@ function registerMarketingHandlers(ipcMain) {
     }
 
     const campaignIdea = String(payload.campaignIdea || '').trim()
+    const prePrompt = String(payload.prePrompt || '').trim()
     const city = String(payload.city || '').trim()
     const zones = Array.isArray(payload.zones)
       ? payload.zones.map((value) => String(value || '').trim()).filter(Boolean)
       : []
     const contactMode = String(payload.contactMode || '').trim() === 'whatsapp' ? 'whatsapp' : 'lead_form'
+    const useZoneIntelligence = Boolean(payload.useZoneIntelligence)
+    const useAudienceSegmentation = Boolean(payload.useAudienceSegmentation)
     const marketingPrompt = String(payload.marketingPrompt || '').trim()
     const budget = String(payload.budget || '').trim()
     const startDate = String(payload.startDate || '').trim()
@@ -49,12 +52,19 @@ function registerMarketingHandlers(ipcMain) {
     const facebookPhotoId = String(payload.facebookPhotoId || '').trim()
     const imageFormat = String(payload.imageFormat || '').trim()
 
-    if (!campaignIdea || !city || !budget || !startDate || !endDate) {
+    if ((!campaignIdea && !prePrompt) || !city || !budget || !startDate || !endDate) {
       return { success: false, error: 'Faltan concepto de campana, ciudad, presupuesto o fechas para ejecutar el agente' }
     }
 
     const contactConfig = getMarketingContactModeConfig(contactMode)
-    const segmentPreview = buildMarketingSegmentFromPreview({ campaignIdea, city, zones, contactMode })
+    const resolvedCampaignIdea = campaignIdea || prePrompt
+    const segmentPreview = buildMarketingSegmentFromPreview({
+      campaignIdea: resolvedCampaignIdea,
+      prePrompt,
+      city,
+      zones,
+      contactMode,
+    })
 
     state.marketingRunInProgress = true
     emitMarketingUpdate({ type: 'status', status: 'running', summary: 'Ejecutando agente de marketing...' })
@@ -65,8 +75,11 @@ function registerMarketingHandlers(ipcMain) {
       country: segmentPreview.country,
       city,
       zones,
-      campaignIdea,
+      campaignIdea: resolvedCampaignIdea,
+      prePrompt,
       contactMode,
+      zoneIntelligenceEnabled: useZoneIntelligence,
+      audienceSegmentationEnabled: useAudienceSegmentation,
       marketingPrompt,
       formFields: contactConfig.formFields,
       budget,
@@ -86,6 +99,8 @@ function registerMarketingHandlers(ipcMain) {
       metaCreative: null,
       metaAd: null,
       browserMonitorUrl: '',
+      zoneInsights: null,
+      audienceInsights: null,
       process: [],
       orchestrator: null,
     }
@@ -100,8 +115,14 @@ function registerMarketingHandlers(ipcMain) {
         await ensureFacebookVisualBrowser(targetActId)
       }
 
-      const orchestrator = runLocalMarketingOrchestrator(preview)
+      const orchestrator = runLocalMarketingOrchestrator({
+        ...preview,
+        useZoneIntelligence,
+        useAudienceSegmentation,
+      })
       preview.orchestrator = orchestrator
+      preview.zoneInsights = orchestrator.zoneInsights || null
+      preview.audienceInsights = orchestrator.audienceInsights || null
 
       emitMarketingUpdate({
         type: 'log',
@@ -132,14 +153,15 @@ function registerMarketingHandlers(ipcMain) {
       await sleep(450)
 
       const preflightSteps = [
-        '[1/7] Iniciando agente orquestador...',
+        '[1/8] Iniciando agente orquestador...',
         `PLAN: ${orchestrator.plan.task}`,
-        `[2/7] Orquestador -> ads-analyst: generando brief para ${orchestrator.execution.campaignType} con cuenta ${orchestrator.execution.accountHint}...`,
-        `[3/7] ads-analyst listo: ${orchestrator.adsAnalyst.hook}`,
-        `[4/7] Orquestador -> image-creator: preparando direccion visual ${orchestrator.imageCreator.dimensions}...`,
-        '[5/7] image-creator listo: prompt creativo preparado para la pieza principal...',
-        `[6/7] Orquestador -> marketing: validando copy, CTA y compliance para ${preview.country}...`,
-        `[7/7] marketing ${orchestrator.marketing.verdict}.`,
+        `[2/8] Orquestador -> ads-analyst: generando brief para ${orchestrator.execution.campaignType} con cuenta ${orchestrator.execution.accountHint}...`,
+        `[3/8] ads-analyst listo: ${orchestrator.adsAnalyst.hook}`,
+        `[4/8] seo-analyzer listo: ${orchestrator.seoAnalyzer?.zoneSummary || 'sin analisis adicional'}`,
+        `[5/8] Orquestador -> image-creator: preparando direccion visual ${orchestrator.imageCreator.dimensions}...`,
+        '[6/8] image-creator listo: prompt creativo preparado para la pieza principal...',
+        `[7/8] Orquestador -> marketing: validando copy, CTA y compliance para ${preview.country}...`,
+        `[8/8] marketing ${orchestrator.marketing.verdict}.`,
       ]
 
       for (const line of preflightSteps) {

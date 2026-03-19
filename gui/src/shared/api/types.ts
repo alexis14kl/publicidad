@@ -253,6 +253,9 @@ export interface MarketingCampaignPayload {
   city: string
   zones: string[]
   contactMode: 'lead_form' | 'whatsapp'
+  prePrompt?: string
+  useZoneIntelligence?: boolean
+  useAudienceSegmentation?: boolean
   marketingPrompt?: string
   budget: string
   startDate: string
@@ -271,7 +274,10 @@ export interface MarketingRunUpdate {
     city?: string
     zones?: string[]
     campaignIdea?: string
+    prePrompt?: string
     contactMode?: 'lead_form' | 'whatsapp'
+    zoneIntelligenceEnabled?: boolean
+    audienceSegmentationEnabled?: boolean
     marketingPrompt?: string
     formFields: string[]
     budget: string
@@ -360,6 +366,25 @@ export interface MarketingRunUpdate {
       adName: string
     } | null
     browserMonitorUrl?: string
+    zoneInsights?: {
+      summary: string
+      topZones: {
+        zone: string
+        scoreLabel: string
+        reason: string
+        source: string
+      }[]
+      searchSignals: string[]
+    } | null
+    audienceInsights?: {
+      summary: string
+      segments: {
+        label: string
+        reason: string
+        interests: string[]
+        intentSignals: string[]
+      }[]
+    } | null
     orchestrator?: {
       plan: {
         task: string
@@ -380,7 +405,15 @@ export interface MarketingRunUpdate {
         city?: string
         zones?: string[]
         service?: string
+        zoneFocus?: string
+        audienceSegments?: string[]
         assumptions: string[]
+      }
+      seoAnalyzer?: {
+        zoneSummary: string
+        searchIntent: string[]
+        audienceSignals: string[]
+        recommendedContentAngles: string[]
       }
       imageCreator: {
         dimensions: string
@@ -400,8 +433,11 @@ export interface MarketingRunUpdate {
         campaignType: string
         budgetCap: string
         formFields: string[]
+        prePrompt?: string
         city?: string
         zones?: string[]
+        recommendedZones?: string[]
+        audienceSegments?: string[]
         contactChannel?: string
       }
     } | null
