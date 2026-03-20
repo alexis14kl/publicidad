@@ -28,6 +28,7 @@ export interface CompanyPlatformAccount {
   account_label: string
   token: string
   page_id?: string
+  account_id?: string
   activo: number
   is_primary?: number
 }
@@ -76,6 +77,7 @@ export interface SaveCompanyPlatformPayload {
     account_label?: string
     token?: string
     page_id?: string
+    account_id?: string
   }[]
 }
 
