@@ -361,6 +361,7 @@ body::after {
   align-items: center;
   gap: 10px;
   cursor: pointer;
+  min-width: 210px;
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
@@ -390,10 +391,23 @@ body::after {
   letter-spacing: 0.08em;
 }
 
+.marketing-trend-tab__content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+}
+
 .marketing-trend-tab__label {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.03em;
+}
+
+.marketing-trend-tab__hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
 }
 
 .marketing-trend-panel {

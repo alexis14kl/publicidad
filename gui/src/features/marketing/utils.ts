@@ -284,7 +284,14 @@ export function buildSuggestedCityZoneOptions(params: {
   const baseText = String(params.prePrompt || '').trim()
   if (!baseText) return []
 
-  return getSuggestedCities(baseText).map((city) => {
+  const suggestedCities = getSuggestedCities(baseText)
+  const detectedCity = String(params.selectedCity || '').trim()
+  const citiesToRender =
+    detectedCity && suggestedCities.includes(detectedCity)
+      ? [detectedCity]
+      : suggestedCities
+
+  return citiesToRender.map((city) => {
     const zones = getSuggestedZones(
       city,
       baseText,
@@ -308,15 +315,19 @@ export function buildTrendOptions(params: {
 }) {
   const cityOptions = buildSuggestedCityZoneOptions(params)
   const baseText = String(params.prePrompt || '').trim()
+  const hasDetectedCity = Boolean(String(params.selectedCity || '').trim())
 
   return cityOptions.map((option, index) => {
     const audienceSegments = getSuggestedAudienceSegments(baseText, option.city)
     return {
       id: index + 1,
-      label: `Tendencia ${String(index + 1).padStart(2, '0')}`,
+      label: option.city,
+      shortLabel: hasDetectedCity ? 'Ciudad detectada en tu pre-prompt' : `Opcion sugerida ${String(index + 1).padStart(2, '0')}`,
       city: option.city,
       zones: option.zones,
-      summary: `Mayor afinidad comercial detectada en ${option.city} para posibles compradores de esta campaña.`,
+      summary: hasDetectedCity
+        ? `Tomare ${option.city} como ciudad principal porque aparece de forma clara en tu pre-prompt.`
+        : `Detecte que ${option.city} puede tener buena afinidad comercial para posibles compradores de esta campaña.`,
       buyerIntent: audienceSegments[0] || `Posibles compradores con interes en ${baseText || 'la oferta anunciada'}.`,
       audienceSignals: audienceSegments.slice(1, 3),
     }

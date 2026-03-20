@@ -47,6 +47,7 @@ export function MarketingCampaignModal({
   const [trendOptions, setTrendOptions] = useState<Array<{
     id: number
     label: string
+    shortLabel: string
     city: string
     zones: string[]
     summary: string
@@ -388,15 +389,15 @@ export function MarketingCampaignModal({
                     Pasar al resumen inteligente
                   </button>
                   <span className="helper-text">
-                    Este boton interpreta tu pre-prompt, genera tendencias numeradas y usa esa base para que el orquestador adapte la campana.
+                    Este boton interpreta tu pre-prompt. Si escribes una ciudad concreta, solo veras esa ciudad; si no la escribes claramente, apareceran varias opciones sugeridas.
                   </span>
                 </div>
               </div>
 
               <div className="marketing-field marketing-field--full">
-                <span>Tendencias comerciales para posibles compradores</span>
+                <span>Ciudades y tendencias detectadas</span>
                 {trendOptions.length === 0 ? (
-                  <span className="marketing-zone-empty">Pulsa "Pasar al resumen inteligente" para ver tendencias y seleccionar la que quieres revisar.</span>
+                  <span className="marketing-zone-empty">Pulsa "Pasar al resumen inteligente" para ver la ciudad detectada o las ciudades sugeridas para esta campaña.</span>
                 ) : (
                   <>
                     <div className="marketing-trend-tabs">
@@ -414,7 +415,10 @@ export function MarketingCampaignModal({
                             }}
                           >
                             <span className="marketing-trend-tab__number">{String(trend.id).padStart(2, '0')}</span>
-                            <span className="marketing-trend-tab__label">{trend.label}</span>
+                            <span className="marketing-trend-tab__content">
+                              <span className="marketing-trend-tab__label">{trend.label}</span>
+                              <span className="marketing-trend-tab__hint">{trend.shortLabel}</span>
+                            </span>
                           </button>
                         )
                       })}
@@ -424,8 +428,8 @@ export function MarketingCampaignModal({
                       .map((trend) => (
                         <div key={trend.id} className="marketing-trend-panel">
                           <div className="marketing-trend-panel__header">
-                            <span className="marketing-trend-panel__title">{trend.label}</span>
-                            <span className="marketing-trend-panel__city">{trend.city}</span>
+                            <span className="marketing-trend-panel__title">Lectura para {trend.city}</span>
+                            <span className="marketing-trend-panel__city">{trend.shortLabel}</span>
                           </div>
                           <div className="job-grid">
                             <div className="job-item">
@@ -450,7 +454,7 @@ export function MarketingCampaignModal({
                   </>
                 )}
                 <span className="helper-text">
-                  Cada tab representa una tendencia detectada para la campaña. Al seleccionarla, se cargan su ciudad y sus zonas populares en el formulario.
+                  Al seleccionar una opcion, el formulario carga automaticamente esa ciudad y sus zonas recomendadas.
                 </span>
               </div>
 
