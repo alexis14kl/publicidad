@@ -11,7 +11,24 @@ function registerConfigHandlers(ipcMain) {
     return parseEnvFile(path.join(PROJECT_ROOT, '.env'))
   })
 
+  // Cache preflight result in temp file — only run once per session
+  const preflightCachePath = path.join(require('os').tmpdir(), 'noyecode_preflight_cache.json')
+  const PREFLIGHT_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+
   ipcMain.handle('run-preflight', async (_event, force = false) => {
+    // Check cache first (skip if force=true)
+    if (!force) {
+      try {
+        if (fs.existsSync(preflightCachePath)) {
+          const cached = JSON.parse(fs.readFileSync(preflightCachePath, 'utf-8'))
+          const age = Date.now() - (cached._timestamp || 0)
+          if (age < PREFLIGHT_TTL_MS && cached.ok === true) {
+            return cached
+          }
+        }
+      } catch { /* cache corrupted, re-run */ }
+    }
+
     const pythonBin = findPython()
     if (!pythonBin) {
       return {
@@ -33,6 +50,11 @@ function registerConfigHandlers(ipcMain) {
       child.on('close', (code) => {
         try {
           const result = JSON.parse(stdout)
+          // Save to cache if OK
+          try {
+            result._timestamp = Date.now()
+            fs.writeFileSync(preflightCachePath, JSON.stringify(result), 'utf-8')
+          } catch { /* ignore cache write errors */ }
           resolve(result)
         } catch {
           resolve({
