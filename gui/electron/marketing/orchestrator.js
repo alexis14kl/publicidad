@@ -106,6 +106,9 @@ function buildMarketingAgentPrompt(preview, segment = getDefaultMarketingSegment
     '5. Para leads B2B con formulario instantaneo, recomienda formularios de mayor intencion.',
     '6. Genera 2-3 variantes de copy y propone formato visual segun objetivo.',
     '7. Incluye checklist de revision pre-publicacion y pautas de optimizacion dia 3-5 y dia 7+.',
+    '8. Escribe como un estratega de marketing senior en espanol: claro, persuasivo y orientado a conversion.',
+    '9. Evita repetir palabras clave o el nombre del servicio de forma mecanica.',
+    '10. Cada copy debe dejar claro que se vende, para quien es, por que importa ahora y cual es la siguiente accion.',
     '',
     '## Objetivos Disponibles en Meta Ads Manager',
     '- Reconocimiento: para awareness de marca.',
@@ -144,9 +147,9 @@ function buildMarketingAgentPrompt(preview, segment = getDefaultMarketingSegment
     `- CTA sugerido: ${contactConfig.copyCta}.`,
     '',
     '## Copy Framework',
-    '- Texto principal: hook + valor + prueba social si existe + CTA.',
-    '- Titulo: beneficio directo en maximo 40 caracteres.',
-    '- Descripcion: complemento breve en maximo 30 caracteres.',
+    '- Texto principal: problema real + promesa concreta + diferenciador + CTA.',
+    '- Titulo: beneficio directo y entendible en maximo 40 caracteres.',
+    '- Descripcion: refuerzo breve, especifico y sin relleno en maximo 30 caracteres.',
     '- Generar 2-3 variantes para testing.',
     '',
     '## Contexto Noyecode',
@@ -157,6 +160,73 @@ function buildMarketingAgentPrompt(preview, segment = getDefaultMarketingSegment
     '- Mercado: Colombia B2B, empresas 20-120 empleados.',
     '- Pagina Facebook: Noyecode (ID 115406607722279).',
   ].join('\n')
+}
+
+function buildExpertStrategicAngle(segment = getDefaultMarketingSegment()) {
+  if (/software|automatizacion/i.test(segment.industry || '')) {
+    return 'Menos reproceso, mas control y una operacion lista para crecer.'
+  }
+  if (/automotriz/i.test(segment.industry || '')) {
+    return 'Opciones claras, atencion agil y una cotizacion mas simple.'
+  }
+  if (/belleza/i.test(segment.industry || '')) {
+    return 'Resultados visibles, confianza y una reserva sin friccion.'
+  }
+  return segment.strategicAngle
+}
+
+function buildExpertHook(segment = getDefaultMarketingSegment(), contactConfig = getMarketingContactModeConfig()) {
+  if (/software|automatizacion/i.test(segment.industry || '')) {
+    return 'Automatiza tu empresa con mas control'
+  }
+  if (/automotriz/i.test(segment.industry || '')) {
+    return 'Encuentra tu proximo carro hoy'
+  }
+  if (/belleza/i.test(segment.industry || '')) {
+    return 'Reserva tu cambio de imagen hoy'
+  }
+  return `${segment.hook}${contactConfig.mode === 'whatsapp' ? ' Con una accion simple para iniciar conversacion.' : ' Con una accion simple para captar interesados.'}`
+}
+
+function buildExpertPrimaryCopy(segment = getDefaultMarketingSegment(), contactConfig = getMarketingContactModeConfig()) {
+  const service = String(segment.serviceLabel || segment.shortLabel || 'tu servicio').trim().toLowerCase()
+  const cityLabel = segment.city ? `en ${segment.city}` : 'en tu ciudad'
+  const zoneSentence = segment.zoneLabel && segment.zoneLabel !== 'toda la ciudad'
+    ? ` Priorizamos ${segment.zoneLabel} para concentrar la campana en zonas con mayor afinidad comercial.`
+    : ''
+  const closeSentence = contactConfig.mode === 'whatsapp'
+    ? ` Escribenos por WhatsApp y te orientamos con una opcion clara y rapida.`
+    : ' Dejanos tus datos y te compartimos una propuesta clara para avanzar.'
+
+  if (/automotriz/i.test(segment.industry || '')) {
+    return [
+      `Si estas comparando ${service} ${cityLabel}, esta campana pone la oferta frente a compradores con intencion real.`,
+      'La comunicacion se centra en confianza, claridad comercial y una siguiente accion simple para cotizar sin perder tiempo entre opciones poco claras.',
+      `${zoneSentence}${closeSentence}`,
+    ].join(' ').replace(/\s{2,}/g, ' ').trim()
+  }
+
+  if (/software|automatizacion/i.test(segment.industry || '')) {
+    return [
+      `Si tu empresa esta evaluando ${service} ${cityLabel}, esta campana conecta la necesidad con una solucion concreta y facil de entender.`,
+      'La propuesta habla de orden, eficiencia y crecimiento, no de promesas vacias ni tecnicismos innecesarios.',
+      `${zoneSentence}${closeSentence}`,
+    ].join(' ').replace(/\s{2,}/g, ' ').trim()
+  }
+
+  if (/belleza/i.test(segment.industry || '')) {
+    return [
+      `Si estas buscando ${service} ${cityLabel}, esta campana muestra una propuesta atractiva, clara y facil de reservar.`,
+      'La comunicacion se apoya en confianza, resultado visible y una experiencia que invita a agendar sin seguir comparando.',
+      `${zoneSentence}${closeSentence}`,
+    ].join(' ').replace(/\s{2,}/g, ' ').trim()
+  }
+
+  return [
+    `Si estas buscando ${service} ${cityLabel}, esta campana aparece con una propuesta clara y orientada a conversion.`,
+    `${segment.strategicAngle} La comunicacion evita rodeos y pone el beneficio principal al frente.`,
+    `${zoneSentence}${closeSentence}`,
+  ].join(' ').replace(/\s{2,}/g, ' ').trim()
 }
 
 function runLocalMarketingOrchestrator(preview) {
@@ -177,11 +247,8 @@ function runLocalMarketingOrchestrator(preview) {
     format: contactConfig.mode === 'whatsapp' ? 'Imagen unica para mensajes de WhatsApp' : 'Imagen unica para Lead Ads',
     objective: contactConfig.objectiveLabel,
     audience: buildAudienceSummary(segment),
-    hook: segment.hook,
-    copy:
-      contactConfig.mode === 'whatsapp'
-        ? `Si estas buscando ${segment.serviceLabel.toLowerCase()} en ${segment.city}, esta campana prioriza ${segment.zoneLabel}. ${segment.strategicAngle} ${segment.primaryCta}`
-        : `Si necesitas ${segment.serviceLabel.toLowerCase()} en ${segment.city}, esta campana prioriza ${segment.zoneLabel}. ${segment.strategicAngle} ${segment.primaryCta}`,
+    hook: buildExpertHook(segment, contactConfig),
+    copy: buildExpertPrimaryCopy(segment, contactConfig),
     cta: contactConfig.copyCta,
     visualReference: segment.visualReference,
     city: segment.city,
@@ -194,7 +261,7 @@ function runLocalMarketingOrchestrator(preview) {
     pain: segment.pain,
     consequence: segment.consequence,
     trigger: segment.trigger,
-    strategicAngle: segment.strategicAngle,
+    strategicAngle: buildExpertStrategicAngle(segment),
     assumptions: [
       `Se tomo como base el concepto "${segment.serviceLabel}" con foco geografico en ${segment.city} y zonas ${segment.zoneLabel}.`,
       `El canal de contacto solicitado fue ${contactConfig.channelLabel}.`,

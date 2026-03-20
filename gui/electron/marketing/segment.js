@@ -64,8 +64,61 @@ function slugifyMarketingValue(value) {
   return normalizeUiText(value).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'segment'
 }
 
+function cleanMarketingServiceLabel(value = '', city = '', zones = []) {
+  let cleaned = String(value || '').trim()
+  const locationTokens = [city, ...(Array.isArray(zones) ? zones : [])]
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+
+  for (const token of locationTokens) {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    cleaned = cleaned.replace(new RegExp(`(?:,|\\b)\\s*${escaped}\\b`, 'ig'), ' ')
+  }
+
+  return cleaned
+    .replace(/\s+,/g, ',')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[,\s]+|[,\s]+$/g, '')
+}
+
 function inferCampaignProfile(campaignIdea = '') {
   const normalized = normalizeUiText(campaignIdea)
+
+  if (/software|desarrollo|automatiz|erp|crm|rpa|saas|app|aplicacion|web|ia|inteligencia artificial/.test(normalized)) {
+    return {
+      industry: 'Software y automatizacion',
+      role: 'duenos de empresa, gerentes y lideres de operaciones o ventas',
+      companySize: 'pymes y empresas en crecimiento',
+      pain: 'Tienen procesos manuales, desorden operativo o fuga de oportunidades por falta de sistemas claros.',
+      consequence: 'Cada semana pierden tiempo, seguimiento comercial y capacidad de escalar con orden.',
+      trigger: 'Crecimiento del negocio, mas volumen operativo, necesidad de automatizar o centralizar procesos.',
+      affectedKpi: 'Leads atendidos, tiempo operativo, conversion comercial y control de procesos.',
+      categoryStatement: 'Servicio de software y automatizacion enfocado en convertir desorden operativo en crecimiento controlado.',
+      strategicAngle: 'Automatizar bien no es solo ahorrar tiempo; es vender mejor, responder mas rapido y operar con mas control.',
+      hook: 'Haz que tu empresa avance con menos reproceso.',
+      visualReference: 'Empresario o lider de operaciones en oficina moderna con dashboards, automatizaciones y entorno tecnologico premium.',
+      ageMin: 25,
+      ageMax: 55,
+    }
+  }
+
+  if (/carro|carros|auto|autos|vehicul|vehiculos|concesion|camioneta|camionetas|moto|motos/.test(normalized)) {
+    return {
+      industry: 'Automotriz',
+      role: 'personas interesadas en comprar vehiculo, renovar carro o comparar opciones de financiamiento',
+      companySize: 'consumidores locales',
+      pain: 'Quieren una opcion confiable para comprar vehiculo sin perder tiempo entre ofertas poco claras.',
+      consequence: 'Sin una oferta visible y bien presentada, el comprador pospone la decision o se va con otra opcion.',
+      trigger: 'Cambio de vehiculo, necesidad familiar, trabajo, financiamiento o comparacion activa.',
+      affectedKpi: 'Leads calificados, visitas al concesionario y solicitudes de cotizacion.',
+      categoryStatement: 'Campana automotriz orientada a captar compradores con interes real y decision cercana.',
+      strategicAngle: 'Cuando el comprador ya esta comparando, gana quien transmite confianza, claridad y una siguiente accion simple.',
+      hook: 'Haz visible tu oferta cuando ya estan comparando.',
+      visualReference: 'Escena automotriz premium, vehiculo atractivo, sensacion de confianza y decision de compra cercana.',
+      ageMin: 24,
+      ageMax: 58,
+    }
+  }
 
   if (/veterin|mascota|pet|perro|gato/.test(normalized)) {
     return {
@@ -121,6 +174,24 @@ function inferCampaignProfile(campaignIdea = '') {
     }
   }
 
+  if (/belleza|spa|estetica|peluquer|barber|manicure|manicura/.test(normalized)) {
+    return {
+      industry: 'Belleza y cuidado personal',
+      role: 'personas interesadas en verse mejor, reservar cita o probar un servicio de imagen personal',
+      companySize: 'consumidores locales',
+      pain: 'Buscan un lugar confiable que ofrezca resultado visible, buen trato y facilidad para reservar.',
+      consequence: 'Si la propuesta no transmite confianza o estilo, el cliente sigue comparando y no agenda.',
+      trigger: 'Cambio de look, evento cercano, mantenimiento personal o promocion atractiva.',
+      affectedKpi: 'Reservas, mensajes y reactivacion de clientes.',
+      categoryStatement: 'Campana de belleza enfocada en convertir interes visual en citas o conversaciones.',
+      strategicAngle: 'En belleza no basta con aparecer; hay que transmitir resultado, confianza y deseo de reservar ya.',
+      hook: 'Haz que te elijan antes de seguir comparando.',
+      visualReference: 'Entorno estetico premium, persona segura y bien presentada, sensacion de resultado y confianza.',
+      ageMin: 22,
+      ageMax: 50,
+    }
+  }
+
   return {
     industry: 'Servicios locales',
     role: `personas con interes o necesidad relacionada con ${campaignIdea || 'la oferta anunciada'}`,
@@ -139,11 +210,12 @@ function inferCampaignProfile(campaignIdea = '') {
 }
 
 function buildMarketingSegmentFromPreview(preview = {}) {
-  const campaignIdea = String(preview?.campaignIdea || preview?.prePrompt || '').trim() || 'Campana local'
+  const rawCampaignIdea = String(preview?.campaignIdea || preview?.prePrompt || '').trim() || 'Campana local'
   const city = String(preview?.city || '').trim() || 'Bogota'
   const zones = Array.isArray(preview?.zones)
     ? preview.zones.map((value) => String(value || '').trim()).filter(Boolean)
     : []
+  const campaignIdea = cleanMarketingServiceLabel(rawCampaignIdea, city, zones) || rawCampaignIdea
   const zoneLabel = buildMarketingZoneLabel(zones)
   const contactConfig = getMarketingContactModeConfig(preview?.contactMode)
   const profile = inferCampaignProfile(campaignIdea)
@@ -194,6 +266,7 @@ module.exports = {
   getMarketingContactModeConfig,
   buildMarketingZoneLabel,
   slugifyMarketingValue,
+  cleanMarketingServiceLabel,
   inferCampaignProfile,
   buildMarketingSegmentFromPreview,
   buildAudienceSummary,
