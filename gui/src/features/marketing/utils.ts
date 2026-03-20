@@ -258,20 +258,27 @@ export function buildMarketingPromptPreview(params: {
   if (!campaignIdea || !city) return ''
 
   return [
-    `Quiero una campana de Facebook Ads para "${campaignIdea}".`,
-    `Ciudad objetivo: ${city}.`,
+    `Actua como un estratega senior de performance marketing especializado en Facebook Ads para captacion de clientes.`,
+    `Crea un brief comercial experto para una campana de "${campaignIdea}" en ${city}.`,
     `Zonas prioritarias: ${zonesLabel}.`,
     `Objetivo principal: ${objectiveLabel}.`,
     `Canal de contacto: ${contactLabel}.`,
     `Presupuesto estimado: ${budgetLabel}.`,
     `Fechas de campana: ${dateLabel}.`,
-    'Genera un brief completo usando el ads-analyst, image-creator y marketing con esta estructura:',
-    '1. copy sugerido del anuncio',
-    '2. publico recomendado',
-    '3. hook principal',
-    '4. CTA recomendado',
-    '5. direccion visual de la imagen',
-    '6. recomendacion de segmentacion local',
+    'Reglas de copy:',
+    '- escribe en espanol claro y persuasivo',
+    '- evita repetir palabras o el nombre del servicio innecesariamente',
+    '- deja claro que se vende, para quien es y por que deberian actuar ahora',
+    '- evita frases genericas y vacias',
+    'Entrega:',
+    '1. texto principal del anuncio con enfoque de conversion',
+    '2. hook principal mas fuerte y entendible',
+    '3. titulo corto y vendedor',
+    '4. descripcion breve que complemente sin repetir',
+    '5. CTA recomendado',
+    '6. publico recomendado',
+    '7. direccion visual de la imagen',
+    '8. recomendacion de segmentacion local',
     `La imagen debe estar directamente relacionada con "${campaignIdea}" y sentirse coherente con ${city}.`,
   ].join('\n')
 }
@@ -362,6 +369,10 @@ export function extractMarketingDraftFromPrePrompt(prePrompt: string) {
   if (detectedCity) {
     campaignIdea = campaignIdea.replace(
       new RegExp(`\\b(?:en\\s+la\\s+ciudad\\s+de|ciudad\\s+de|en)\\s+${escapeRegex(detectedCity)}\\b`, 'ig'),
+      ' '
+    )
+    campaignIdea = campaignIdea.replace(
+      new RegExp(`(?:,|\\b)\\s*${escapeRegex(detectedCity)}\\b`, 'ig'),
       ' '
     )
   }
