@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { CompanyRecord } from '../shared/api/types'
+import { startBot } from '../shared/api/commands'
 
 interface ReelModalProps {
   open: boolean
@@ -24,25 +25,28 @@ const REEL_REQUIREMENTS = {
 export function ReelModal({ open, onClose, companies, selectedCompany }: ReelModalProps) {
   const [title, setTitle] = useState('')
   const [caption, setCaption] = useState('')
+  const [videoPrompt, setVideoPrompt] = useState('')
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [videoMeta, setVideoMeta] = useState<{ width: number; height: number; duration: number } | null>(null)
-  const [status, setStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'generating' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
   const [warnings, setWarnings] = useState<string[]>([])
+  const [mode, setMode] = useState<'bot' | 'manual'>('bot')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const company = companies.find((c) => c.nombre === selectedCompany)
   const pageId = company?.platforms.find((p) => p.platform === 'facebook')?.accounts?.[0]?.page_id || ''
   const token = company?.platforms.find((p) => p.platform === 'facebook')?.accounts?.[0]?.token || ''
 
-  const canPublish = !!videoFile && !!videoMeta && !!token && !!pageId && status !== 'uploading' && warnings.length === 0
+  const canPublishManual = !!videoFile && !!videoMeta && !!token && !!pageId && status !== 'uploading' && warnings.length === 0
+  const canStartBot = !!videoPrompt.trim() && status !== 'generating' && status !== 'uploading'
 
   const validateVideo = (file: File, meta: { width: number; height: number; duration: number }) => {
     const issues: string[] = []
     const sizeMB = file.size / (1024 * 1024)
 
     if (sizeMB > REEL_REQUIREMENTS.maxSizeMB) {
-      issues.push(`Tamaño excede ${REEL_REQUIREMENTS.maxSizeMB}MB (actual: ${sizeMB.toFixed(1)}MB)`)
+      issues.push(`Tamano excede ${REEL_REQUIREMENTS.maxSizeMB}MB (actual: ${sizeMB.toFixed(1)}MB)`)
     }
     if (meta.duration > REEL_REQUIREMENTS.maxDurationSec) {
       issues.push(`Duracion excede ${REEL_REQUIREMENTS.maxDurationSec}s (actual: ${Math.round(meta.duration)}s)`)
@@ -101,8 +105,36 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
     video.src = URL.createObjectURL(file)
   }
 
-  const handlePublish = async () => {
-    if (!canPublish || !videoFile) return
+  const handleStartBot = async () => {
+    if (!canStartBot) return
+    setStatus('generating')
+    setMessage('Iniciando bot de video con DiCloak + Gemini...')
+
+    try {
+      const result = await startBot({
+        profileName: '#3 Flow Veo 3',
+        imagePrompt: videoPrompt.trim(),
+        companyName: selectedCompany,
+        contentType: 'reel',
+        reelTitle: title.trim() || 'Reel publicitario',
+        reelCaption: caption.trim(),
+      } as any)
+
+      if (result.success) {
+        setStatus('success')
+        setMessage(`Bot de video iniciado (PID: ${result.pid}). Generando reel con IA...`)
+      } else {
+        setStatus('error')
+        setMessage(`Error: ${result.error || 'No se pudo iniciar el bot'}`)
+      }
+    } catch (err) {
+      setStatus('error')
+      setMessage(`Error: ${err instanceof Error ? err.message : 'desconocido'}`)
+    }
+  }
+
+  const handlePublishManual = async () => {
+    if (!canPublishManual || !videoFile) return
     setStatus('uploading')
     setMessage('Subiendo video a Facebook...')
 
@@ -134,9 +166,10 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
   }
 
   const handleClose = () => {
-    if (status === 'uploading') return
+    if (status === 'uploading' || status === 'generating') return
     setTitle('')
     setCaption('')
+    setVideoPrompt('')
     setVideoFile(null)
     setVideoMeta(null)
     setStatus('idle')
@@ -155,7 +188,7 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
             <p className="marketing-modal__eyebrow">Video</p>
             <h2 className="marketing-modal__title">Publicar Reel en Facebook</h2>
           </div>
-          <button className="btn btn--small btn--ghost" onClick={handleClose} disabled={status === 'uploading'}>
+          <button className="btn btn--small btn--ghost" onClick={handleClose} disabled={status === 'uploading' || status === 'generating'}>
             Cerrar
           </button>
         </div>
@@ -170,87 +203,147 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
             </span>
           </div>
 
-          <div className="reel-modal__specs">
-            <span className="reel-modal__specs-title">Requisitos del Reel</span>
-            <div className="reel-modal__specs-grid">
-              <span>Formato: <strong>MP4 (H.264)</strong></span>
-              <span>Orientacion: <strong>Vertical 9:16</strong></span>
-              <span>Resolucion: <strong>1080x1920 recomendado</strong></span>
-              <span>Minimo: <strong>540x960</strong></span>
-              <span>Duracion: <strong>3s - 90s</strong></span>
-              <span>Tamano max: <strong>1GB</strong></span>
-            </div>
+          <div className="reel-modal__mode-tabs">
+            <button
+              className={`reel-modal__tab ${mode === 'bot' ? 'reel-modal__tab--active' : ''}`}
+              onClick={() => setMode('bot')}
+              disabled={status === 'uploading' || status === 'generating'}
+            >
+              Generar con IA
+            </button>
+            <button
+              className={`reel-modal__tab ${mode === 'manual' ? 'reel-modal__tab--active' : ''}`}
+              onClick={() => setMode('manual')}
+              disabled={status === 'uploading' || status === 'generating'}
+            >
+              Subir video manual
+            </button>
           </div>
 
-          {!token && (
-            <div className="reel-modal__warning">
-              La empresa seleccionada no tiene token de Facebook configurado.
-            </div>
+          {mode === 'bot' && (
+            <>
+              <label className="marketing-field">
+                <span>Describe el video que quieres generar</span>
+                <textarea
+                  className="reel-modal__caption"
+                  placeholder="Ej: Un video promocional de 15 segundos mostrando los servicios de automatizacion empresarial, con transiciones dinamicas y texto animado..."
+                  value={videoPrompt}
+                  onChange={(e) => setVideoPrompt(e.target.value)}
+                  rows={4}
+                  disabled={status === 'generating'}
+                />
+              </label>
+
+              <label className="marketing-field">
+                <span>Titulo del Reel</span>
+                <input
+                  type="text"
+                  placeholder="Ej: Automatiza tu negocio con NoyeCode"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  disabled={status === 'generating'}
+                />
+              </label>
+
+              <label className="marketing-field">
+                <span>Caption / Descripcion</span>
+                <textarea
+                  className="reel-modal__caption"
+                  placeholder="Escribe el texto que acompanara tu reel..."
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  rows={3}
+                  disabled={status === 'generating'}
+                />
+              </label>
+            </>
           )}
 
-          <div
-            className={`reel-modal__dropzone ${videoFile ? (warnings.length > 0 ? 'reel-modal__dropzone--error' : 'reel-modal__dropzone--has-file') : ''}`}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/mp4,video/quicktime,.mp4,.mov"
-              onChange={handleFileChange}
-              style={{ display: 'none' }}
-            />
-            {videoFile ? (
-              <div className="reel-modal__file-info">
-                <span className="reel-modal__file-icon">&#127916;</span>
-                <div className="reel-modal__file-details">
-                  <span className="reel-modal__file-name">{videoFile.name}</span>
-                  {videoMeta && (
-                    <span className="reel-modal__file-meta">
-                      {videoMeta.width}x{videoMeta.height} | {Math.round(videoMeta.duration)}s | {(videoFile.size / 1024 / 1024).toFixed(1)}MB
-                      {videoMeta.height > videoMeta.width ? ' | Vertical' : ' | Horizontal'}
-                    </span>
-                  )}
+          {mode === 'manual' && (
+            <>
+              <div className="reel-modal__specs">
+                <span className="reel-modal__specs-title">Requisitos del Reel</span>
+                <div className="reel-modal__specs-grid">
+                  <span>Formato: <strong>MP4 (H.264)</strong></span>
+                  <span>Orientacion: <strong>Vertical 9:16</strong></span>
+                  <span>Resolucion: <strong>1080x1920 recomendado</strong></span>
+                  <span>Minimo: <strong>540x960</strong></span>
+                  <span>Duracion: <strong>3s - 90s</strong></span>
+                  <span>Tamano max: <strong>1GB</strong></span>
                 </div>
               </div>
-            ) : (
-              <div className="reel-modal__drop-text">
-                <span className="reel-modal__drop-icon">&#128249;</span>
-                <span>Click para seleccionar video</span>
-                <small>MP4 vertical 9:16 | 1080x1920 | 3-90 segundos</small>
+
+              {!token && (
+                <div className="reel-modal__warning">
+                  La empresa seleccionada no tiene token de Facebook configurado.
+                </div>
+              )}
+
+              <div
+                className={`reel-modal__dropzone ${videoFile ? (warnings.length > 0 ? 'reel-modal__dropzone--error' : 'reel-modal__dropzone--has-file') : ''}`}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/mp4,video/quicktime,.mp4,.mov"
+                  onChange={handleFileChange}
+                  style={{ display: 'none' }}
+                />
+                {videoFile ? (
+                  <div className="reel-modal__file-info">
+                    <span className="reel-modal__file-icon">&#127916;</span>
+                    <div className="reel-modal__file-details">
+                      <span className="reel-modal__file-name">{videoFile.name}</span>
+                      {videoMeta && (
+                        <span className="reel-modal__file-meta">
+                          {videoMeta.width}x{videoMeta.height} | {Math.round(videoMeta.duration)}s | {(videoFile.size / 1024 / 1024).toFixed(1)}MB
+                          {videoMeta.height > videoMeta.width ? ' | Vertical' : ' | Horizontal'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="reel-modal__drop-text">
+                    <span className="reel-modal__drop-icon">&#128249;</span>
+                    <span>Click para seleccionar video</span>
+                    <small>MP4 vertical 9:16 | 1080x1920 | 3-90 segundos</small>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {warnings.length > 0 && (
-            <div className="reel-modal__warning">
-              {warnings.map((w, i) => (
-                <div key={i}>{w}</div>
-              ))}
-            </div>
+              {warnings.length > 0 && (
+                <div className="reel-modal__warning">
+                  {warnings.map((w, i) => (
+                    <div key={i}>{w}</div>
+                  ))}
+                </div>
+              )}
+
+              <label className="marketing-field">
+                <span>Titulo del Reel</span>
+                <input
+                  type="text"
+                  placeholder="Ej: Automatiza tu negocio con NoyeCode"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  disabled={status === 'uploading'}
+                />
+              </label>
+
+              <label className="marketing-field">
+                <span>Caption / Descripcion</span>
+                <textarea
+                  className="reel-modal__caption"
+                  placeholder="Escribe el texto que acompanara tu reel..."
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  rows={3}
+                  disabled={status === 'uploading'}
+                />
+              </label>
+            </>
           )}
-
-          <label className="marketing-field">
-            <span>Titulo del Reel</span>
-            <input
-              type="text"
-              placeholder="Ej: Automatiza tu negocio con NoyeCode"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              disabled={status === 'uploading'}
-            />
-          </label>
-
-          <label className="marketing-field">
-            <span>Caption / Descripcion</span>
-            <textarea
-              className="reel-modal__caption"
-              placeholder="Escribe el texto que acompanara tu reel..."
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              rows={3}
-              disabled={status === 'uploading'}
-            />
-          </label>
 
           {message && (
             <div className={`reel-modal__message reel-modal__message--${status}`}>
@@ -260,13 +353,24 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
         </div>
 
         <div className="reel-modal__footer">
-          <button
-            className="btn btn--reel-publish"
-            disabled={!canPublish}
-            onClick={handlePublish}
-          >
-            {status === 'uploading' ? 'Publicando...' : 'Publicar Reel'}
-          </button>
+          {mode === 'bot' && (
+            <button
+              className="btn btn--reel-publish"
+              disabled={!canStartBot}
+              onClick={handleStartBot}
+            >
+              {status === 'generating' ? 'Generando...' : 'Iniciar Bot Reel'}
+            </button>
+          )}
+          {mode === 'manual' && (
+            <button
+              className="btn btn--reel-publish"
+              disabled={!canPublishManual}
+              onClick={handlePublishManual}
+            >
+              {status === 'uploading' ? 'Publicando...' : 'Publicar Reel'}
+            </button>
+          )}
         </div>
       </section>
     </div>

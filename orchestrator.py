@@ -262,10 +262,19 @@ def run_orchestrator(
         return _fast_path(cdp_port=fast_port)
     log_info("CDP del perfil no activo. Ejecutando flujo completo...")
 
-    # Resolve profile
-    initial = env_data.get("INITIAL_PROFILE", "#1 Chat Gpt PRO")
-    default_target = env_data.get("DEFAULT_TARGET_PROFILE", "#4 Chat Gpt Plus")
-    fallback_raw = env_data.get("FALLBACK_PROFILES", "#4 Chat Gpt Plus,#2 Chat Gpt PRO")
+    # Resolve profile based on content type
+    content_type = os.getenv("BOT_CONTENT_TYPE", "image").strip().lower()
+    log_info(f"Tipo de contenido: {content_type}")
+
+    if content_type == "reel":
+        # Perfiles de video (Veo 3 / Gemini)
+        initial = env_data.get("VIDEO_INITIAL_PROFILE", "#3 Flow Veo 3")
+        fallback_raw = env_data.get("VIDEO_FALLBACK_PROFILES", "#4 Flow Veo 3,#6 Flow Veo 3")
+    else:
+        # Perfiles de imagen (ChatGPT)
+        initial = env_data.get("INITIAL_PROFILE", "#1 Chat Gpt PRO")
+        fallback_raw = env_data.get("FALLBACK_PROFILES", "#4 Chat Gpt Plus,#2 Chat Gpt PRO")
+
     fallback_list = [p.strip() for p in fallback_raw.split(",") if p.strip()]
     all_profiles = [initial] + fallback_list
 

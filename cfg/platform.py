@@ -50,6 +50,14 @@ VERIFY_TOKEN_FB_PY = PROJECT_ROOT / "n8n" / "verify_token_fb.py"
 OVERLAY_LOGO_PY = UTILS_DIR / "overlay_logo.py"
 RUN_WITH_PROGRESS_PY = UTILS_DIR / "run_with_progress.py"
 
+# Video/Reel pipeline
+VIDEO_RPA_DIR = PROJECT_ROOT / "video_rpa"
+VIDEO_SETUP_PY = VIDEO_RPA_DIR / "video_setup.py"
+DOWNLOAD_VIDEO_PY = VIDEO_RPA_DIR / "download_generated_video.py"
+DIRECT_VIDEO_UPLOAD_PY = VIDEO_RPA_DIR / "direct_video_upload.py"
+PUBLIC_VIDEO_PY = VIDEO_RPA_DIR / "public_video.py"
+VIDEO_DIR = PROJECT_ROOT / "videos_publicitarias"
+
 # Data files
 PROMPT_FILE = UTILS_DIR / "prontm.txt"
 PROMPT_SEED_FILE = UTILS_DIR / "prompt_seed.txt"

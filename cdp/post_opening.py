@@ -148,6 +148,46 @@ def _cleanup_and_exit(dev_mode: bool, cdp_port: int) -> int:
     return 0
 
 
+def _log_cdp_debug_info(cdp_port: int) -> None:
+    """Log CDP debug info: IP local, port, /json URL for browser inspection."""
+    try:
+        import socket
+        local_ip = "127.0.0.1"
+        # Try to get the real local IP
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+        except Exception:
+            pass
+
+        log_info("=" * 60)
+        log_info("  CDP DEBUG INFO - Perfil de depuracion")
+        log_info("=" * 60)
+        log_info(f"  IP Local:       {local_ip}")
+        log_info(f"  Puerto CDP:     {cdp_port}")
+        log_info(f"  DevTools JSON:  http://127.0.0.1:{cdp_port}/json")
+        log_info(f"  Version:        http://127.0.0.1:{cdp_port}/json/version")
+        log_info(f"  Lista paginas:  http://127.0.0.1:{cdp_port}/json/list")
+        log_info(f"  Inspect (red):  http://{local_ip}:{cdp_port}/json")
+        log_info("=" * 60)
+
+        # Also fetch and log version info
+        try:
+            url = f"http://127.0.0.1:{cdp_port}/json/version"
+            with urllib.request.urlopen(url, timeout=3) as resp:
+                ver = json.loads(resp.read())
+                browser = ver.get("Browser", "?")
+                ws_url = ver.get("webSocketDebuggerUrl", "?")
+                log_info(f"  Browser:        {browser}")
+                log_info(f"  WebSocket:      {ws_url}")
+        except Exception:
+            pass
+    except Exception as e:
+        log_warn(f"No se pudo obtener info CDP: {e}")
+
+
 def post_opening_automation(cdp_port: int = 9225, skip_force_cdp: bool = False) -> int:
     """
     Run the full post-opening pipeline.
@@ -217,6 +257,103 @@ def post_opening_automation(cdp_port: int = 9225, skip_force_cdp: bool = False) 
     else:
         log_ok(f"CDP listo en puerto {cdp_port}.")
 
+    # Log debug info for the profile
+    _log_cdp_debug_info(cdp_port)
+
+    # Detect content type
+    content_type = str(get_env("BOT_CONTENT_TYPE", "image") or "image").strip().lower()
+
+    if content_type == "reel":
+        return _video_pipeline(cdp_port, dev_mode)
+    else:
+        return _image_pipeline(cdp_port, dev_mode)
+
+
+def _video_pipeline(cdp_port: int, dev_mode: bool) -> int:
+    """Pipeline de video/reel: Gemini/Veo → descargar video → subir a FB directo."""
+    from cfg.platform import VIDEO_SETUP_PY, DOWNLOAD_VIDEO_PY, DIRECT_VIDEO_UPLOAD_PY, VIDEO_DIR
+
+    # Step V1: Pegar prompt en Gemini/Veo
+    if not VIDEO_SETUP_PY.exists():
+        log_warn(f"No existe script de video setup: {VIDEO_SETUP_PY}")
+        return 1
+
+    log_info("Ejecutando pegado de prompt en Gemini/Veo por CDP...")
+    rc = _run_python(
+        VIDEO_SETUP_PY,
+        str(cdp_port),
+        timeout=300,
+        env_extra={"CDP_PROFILE_PORT": str(cdp_port)},
+    )
+    if rc != 0:
+        log_warn("No se pudo pegar el prompt en Gemini/Veo.")
+        return 1
+    log_ok("Prompt pegado en Gemini/Veo con exito")
+
+    # Step V2: Descargar video generado
+    if not DOWNLOAD_VIDEO_PY.exists():
+        log_warn(f"No existe script de descarga de video: {DOWNLOAD_VIDEO_PY}")
+        return 1
+
+    VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+    rc = _run_python(DOWNLOAD_VIDEO_PY, str(cdp_port), timeout=600)
+    if rc != 0:
+        log_warn("No se pudo descargar el video generado.")
+        return 1
+    log_ok("Video descargado con exito")
+
+    # Step V3: Verificar/renovar token de Facebook
+    if "facebook" in str(get_env("PUBLISH_PLATFORMS", "facebook") or "").lower():
+        try:
+            from n8n.verify_token_fb import run_token_verification
+            log_info("Verificando token de Facebook...")
+            renewed = run_token_verification()
+            if renewed:
+                log_ok("Token de Facebook renovado exitosamente.")
+        except Exception as exc:
+            log_warn(f"No se pudo verificar token FB (se usara el actual): {exc}")
+
+    # Step V4: Upload directo a Facebook Graph API (sin n8n)
+    # Buscar el video mas reciente en videos_publicitarias/
+    videos = sorted(VIDEO_DIR.glob("*.mp4"), key=lambda f: f.stat().st_mtime, reverse=True)
+    if not videos:
+        log_warn("No se encontro ningun video en videos_publicitarias/")
+        return 1
+
+    video_path = videos[0]
+    access_token = get_env("FB_ACCESS_TOKEN", "") or get_env("FACEBOOK_ACCESS_TOKEN", "")
+    page_id = get_env("FB_PAGE_ID", "") or get_env("FACEBOOK_PAGE_ID", "")
+    reel_title = get_env("BOT_REEL_TITLE", "Reel publicitario")
+    reel_caption = get_env("BOT_REEL_CAPTION", "")
+
+    if not access_token or not page_id:
+        log_warn("No se encontro FB_ACCESS_TOKEN o FB_PAGE_ID.")
+        return 1
+
+    if not DIRECT_VIDEO_UPLOAD_PY.exists():
+        log_warn(f"No existe script de upload directo: {DIRECT_VIDEO_UPLOAD_PY}")
+        return 1
+
+    log_info(f"Subiendo video a Facebook: {video_path.name} ({video_path.stat().st_size / 1024 / 1024:.1f}MB)")
+    rc = _run_python(
+        DIRECT_VIDEO_UPLOAD_PY,
+        "--video-path", str(video_path),
+        "--page-id", page_id,
+        "--access-token", access_token,
+        "--title", reel_title,
+        "--description", reel_caption,
+        timeout=300,
+    )
+    if rc != 0:
+        log_warn("No se pudo subir el video a Facebook.")
+        return 1
+    log_ok("Video publicado en Facebook con exito")
+
+    return _cleanup_and_exit(dev_mode, 0)
+
+
+def _image_pipeline(cdp_port: int, dev_mode: bool) -> int:
+    """Pipeline de imagen: ChatGPT → descargar imagen → overlay logo → publicar via n8n."""
     # Step 4: Paste prompt
     if not PROMPT_AUTOMATION_PY.exists():
         log_warn(f"No existe script de automatizacion: {PROMPT_AUTOMATION_PY}")
