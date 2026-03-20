@@ -35,7 +35,7 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
   const pageId = company?.platforms.find((p) => p.platform === 'facebook')?.accounts?.[0]?.page_id || ''
   const token = company?.platforms.find((p) => p.platform === 'facebook')?.accounts?.[0]?.token || ''
 
-  const canPublish = !!videoFile && !!token && !!pageId && status !== 'uploading' && warnings.length === 0
+  const canPublish = !!videoFile && !!videoMeta && !!token && !!pageId && status !== 'uploading' && warnings.length === 0
 
   const validateVideo = (file: File, meta: { width: number; height: number; duration: number }) => {
     const issues: string[] = []
@@ -92,10 +92,10 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
       URL.revokeObjectURL(video.src)
     }
     video.onerror = () => {
-      setVideoFile(file)
+      setVideoFile(null)
       setVideoMeta(null)
-      setWarnings([])
-      setMessage(`${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB) — No se pudo leer metadata`)
+      setWarnings(['No se pudo leer el video. Verifica que sea MP4 (H.264) vertical 9:16'])
+      setMessage(`${file.name} — Formato no compatible o archivo corrupto`)
       URL.revokeObjectURL(video.src)
     }
     video.src = URL.createObjectURL(file)
@@ -107,23 +107,16 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
     setMessage('Subiendo video a Facebook...')
 
     try {
-      const reader = new FileReader()
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve((reader.result as string).split(',')[1])
-        reader.onerror = reject
-        reader.readAsDataURL(videoFile)
-      })
+      const formData = new FormData()
+      formData.append('video', videoFile, videoFile.name)
+      formData.append('access_token', token)
+      formData.append('page_id', pageId)
+      formData.append('title', title.trim() || 'Reel publicitario')
+      formData.append('description', caption.trim())
 
       const response = await fetch(WEBHOOK_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          access_token: token,
-          page_id: pageId,
-          videoBase64: base64,
-          title: title.trim() || 'Reel publicitario',
-          description: caption.trim(),
-        }),
+        body: formData,
       })
 
       const data = await response.json()

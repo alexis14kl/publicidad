@@ -18,7 +18,7 @@
     {
       "parameters": {
         "language": "javaScript",
-        "jsCode": "const raw = $input.first().json ?? {};\nconst body = raw.body ?? raw;\nconst normalize = (v) => String(v ?? '').trim();\n\nconst accessToken = normalize(body.access_token);\nconst pageId = normalize(body.page_id);\nconst videoUrl = normalize(body.video_url);\nconst videoBase64 = normalize(body.videoBase64);\nconst title = normalize(body.title || 'Reel publicitario');\nconst description = normalize(body.description || body.post_text || body.caption || '');\n\nif (!accessToken) throw new Error('Se requiere access_token');\nif (!pageId) throw new Error('Se requiere page_id');\nif (!videoUrl && !videoBase64) throw new Error('Se requiere video_url o videoBase64');\n\nreturn [{ json: { accessToken, pageId, videoUrl, videoBase64, title, description, hasVideoUrl: !!videoUrl, hasVideoBase64: !!videoBase64 } }];"
+        "jsCode": "const item = $input.first();\nconst json = item.json ?? {};\nconst body = json.body ?? json;\nconst normalize = (v) => String(v ?? '').trim();\n\nconst accessToken = normalize(body.access_token);\nconst pageId = normalize(body.page_id);\nconst title = normalize(body.title || 'Reel publicitario');\nconst description = normalize(body.description || body.post_text || body.caption || '');\n\nconst binaryKeys = Object.keys(item.binary || {});\nconst hasBinary = binaryKeys.length > 0;\nconst binaryKey = binaryKeys[0] || '';\nconst fileSize = hasBinary && binaryKey ? (item.binary[binaryKey].fileSize || 0) : 0;\n\nif (!accessToken) throw new Error('Se requiere access_token');\nif (!pageId) throw new Error('Se requiere page_id');\nif (!hasBinary) throw new Error('Se requiere un archivo de video');\n\nconst result = { json: { accessToken, pageId, title, description, hasBinary, binaryKey, fileSize } };\nif (hasBinary && binaryKey) {\n  result.binary = {};\n  result.binary.video = item.binary[binaryKey];\n}\nreturn [result];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -49,13 +49,13 @@
     {
       "parameters": {
         "language": "javaScript",
-        "jsCode": "const response = $input.first().json;\nconst parsedData = $('Parsear Request').first().json;\nconst videoId = String(response.video_id || '').trim();\nconst uploadUrl = String(response.upload_url || '').trim();\nif (!videoId || !uploadUrl) throw new Error('Facebook no devolvio video_id o upload_url: ' + JSON.stringify(response));\n\nlet videoBuffer;\nif (parsedData.hasVideoBase64 && parsedData.videoBase64) {\n  const clean = parsedData.videoBase64.replace(/^data:video\\/\\w+;base64,/, '');\n  videoBuffer = Buffer.from(clean, 'base64');\n} else if (parsedData.hasVideoUrl && parsedData.videoUrl) {\n  const resp = await this.helpers.request({\n    method: 'GET',\n    uri: parsedData.videoUrl,\n    encoding: null,\n    resolveWithFullResponse: true,\n  });\n  videoBuffer = Buffer.isBuffer(resp.body || resp) ? (resp.body || resp) : Buffer.from(resp.body || resp);\n} else {\n  throw new Error('No hay video para subir');\n}\n\nreturn {\n  json: {\n    videoId,\n    uploadUrl,\n    accessToken: parsedData.accessToken,\n    pageId: parsedData.pageId,\n    title: parsedData.title,\n    description: parsedData.description,\n    fileSize: videoBuffer.length,\n  },\n  binary: {\n    video: {\n      data: videoBuffer,\n      mimeType: 'video/mp4',\n      fileName: 'reel.mp4',\n    }\n  }\n};"
+        "jsCode": "const response = $input.first().json;\nconst parsedData = $('Parsear Request').first().json;\nconst videoId = String(response.video_id || '').trim();\nconst uploadUrl = String(response.upload_url || '').trim();\nif (!videoId || !uploadUrl) throw new Error('Facebook no devolvio video_id o upload_url: ' + JSON.stringify(response));\n\nconst parsedBinary = $('Parsear Request').first().binary;\nlet fileSize = Number(parsedData.fileSize || 0);\nif (!fileSize && parsedBinary && parsedBinary.video) {\n  const b = parsedBinary.video;\n  if (b.fileSize) { fileSize = Number(b.fileSize); }\n  else if (typeof b.data === 'string') { fileSize = Math.floor(b.data.length * 3 / 4); }\n}\n\nconst result = {\n  json: {\n    videoId,\n    uploadUrl,\n    accessToken: parsedData.accessToken,\n    pageId: parsedData.pageId,\n    title: parsedData.title,\n    description: parsedData.description,\n    fileSize: fileSize,\n  }\n};\nif (parsedBinary && parsedBinary.video) {\n  result.binary = { video: parsedBinary.video };\n}\nreturn [result];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [300, 0],
-      "id": "reel-prepare-001",
-      "name": "Preparar Video Binario"
+      "id": "reel-extract-001",
+      "name": "Extraer Upload URL"
     },
     {
       "parameters": {
@@ -66,13 +66,17 @@
           "parameters": [
             { "name": "Authorization", "value": "=OAuth {{ $json.accessToken }}" },
             { "name": "offset", "value": "0" },
-            { "name": "file_size", "value": "={{ $json.fileSize }}" }
+            { "name": "Content-Type", "value": "application/octet-stream" }
           ]
         },
         "sendBody": true,
         "contentType": "binaryData",
         "inputDataFieldName": "video",
-        "options": { "timeout": 120000 }
+        "options": {
+          "timeout": 180000,
+          "redirect": { "redirect": { "followRedirects": false } },
+          "response": { "response": { "neverError": true } }
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -82,17 +86,28 @@
     },
     {
       "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Esperar 10 segundos para que Facebook procese el video\nawait new Promise(resolve => setTimeout(resolve, 10000));\n\n// Pasar datos del nodo anterior\nconst extractData = $('Extraer Upload URL').first().json;\nreturn [{ json: extractData }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 0],
+      "id": "reel-wait-001",
+      "name": "Esperar Procesamiento"
+    },
+    {
+      "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v21.0/{{ $('Preparar Video Binario').item.json.pageId }}/video_reels",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.pageId }}/video_reels",
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {
           "parameters": [
             { "name": "upload_phase", "value": "finish" },
-            { "name": "video_id", "value": "={{ $('Preparar Video Binario').item.json.videoId }}" },
-            { "name": "title", "value": "={{ $('Preparar Video Binario').item.json.title }}" },
-            { "name": "description", "value": "={{ $('Preparar Video Binario').item.json.description }}" },
-            { "name": "access_token", "value": "={{ $('Preparar Video Binario').item.json.accessToken }}" }
+            { "name": "video_id", "value": "={{ $json.videoId }}" },
+            { "name": "title", "value": "={{ $json.title }}" },
+            { "name": "description", "value": "={{ $json.description }}" },
+            { "name": "access_token", "value": "={{ $json.accessToken }}" }
           ]
         },
         "options": { "timeout": 60000 }
@@ -106,7 +121,7 @@
     {
       "parameters": {
         "language": "javaScript",
-        "jsCode": "const response = $input.first().json;\nconst videoData = $('Preparar Video Binario').first().json;\nreturn [{ json: {\n  status: response.success ? 'success' : 'error',\n  post_id: response.post_id || null,\n  video_id: videoData.videoId,\n  page_id: videoData.pageId,\n  title: videoData.title,\n  description: videoData.description,\n  file_size_bytes: videoData.fileSize,\n  published_at: new Date().toISOString(),\n  facebook_response: response,\n} }];"
+        "jsCode": "const response = $input.first().json;\nconst videoData = $('Esperar Procesamiento').first().json;\nreturn [{ json: {\n  status: response.success ? 'success' : 'error',\n  post_id: response.post_id || null,\n  video_id: videoData.videoId,\n  page_id: videoData.pageId,\n  title: videoData.title,\n  description: videoData.description,\n  file_size_bytes: videoData.fileSize,\n  published_at: new Date().toISOString(),\n  facebook_response: response,\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -141,12 +156,15 @@
       "main": [[{ "node": "Fase 1 - Iniciar Upload", "type": "main", "index": 0 }]]
     },
     "Fase 1 - Iniciar Upload": {
-      "main": [[{ "node": "Preparar Video Binario", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Extraer Upload URL", "type": "main", "index": 0 }]]
     },
-    "Preparar Video Binario": {
+    "Extraer Upload URL": {
       "main": [[{ "node": "Fase 2 - Subir Video", "type": "main", "index": 0 }]]
     },
     "Fase 2 - Subir Video": {
+      "main": [[{ "node": "Esperar Procesamiento", "type": "main", "index": 0 }]]
+    },
+    "Esperar Procesamiento": {
       "main": [[{ "node": "Fase 3 - Publicar Reel", "type": "main", "index": 0 }]]
     },
     "Fase 3 - Publicar Reel": {
