@@ -36,7 +36,6 @@ function createWindow() {
   state.mainWindow.maximize()
 
   if (process.env.VITE_DEV_SERVER_URL) {
-    state.mainWindow.webContents.session.clearCache()
     state.mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
     if (String(process.env.OPEN_DEVTOOLS || '').trim() === '1') {
       state.mainWindow.webContents.openDevTools()
@@ -69,6 +68,17 @@ app.whenReady().then(() => {
   createWindow()
   startLogWatcher()
   startBotLogWatcher()
+
+  // Pre-warm SQLite schemas in background (non-blocking)
+  // So when React mounts and calls list-company-records, it's instant
+  setImmediate(() => {
+    try {
+      const { ensureCompanyDb } = require('./company/db')
+      for (const platform of ['facebook', 'instagram', 'linkedin', 'tiktok', 'googleads']) {
+        try { ensureCompanyDb(platform) } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

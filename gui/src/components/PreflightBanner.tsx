@@ -7,11 +7,15 @@ export function PreflightBanner() {
   const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
-    window.electronAPI
-      .runPreflight()
-      .then(setResult)
-      .catch(() => setResult(null))
-      .finally(() => setLoading(false))
+    // Defer preflight check — lowest priority, let UI render first
+    const timer = setTimeout(() => {
+      window.electronAPI
+        .runPreflight()
+        .then(setResult)
+        .catch(() => setResult(null))
+        .finally(() => setLoading(false))
+    }, 500)
+    return () => clearTimeout(timer)
   }, [])
 
   if (loading) {

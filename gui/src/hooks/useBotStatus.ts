@@ -23,9 +23,12 @@ export function useBotStatus(intervalMs = 2000) {
       }
     }
 
-    poll()
+    // Defer first poll to let UI render first
+    const startTimer = setTimeout(() => {
+      poll()
+    }, 300)
     const id = setInterval(poll, intervalMs)
-    return () => { mounted = false; clearInterval(id) }
+    return () => { mounted = false; clearTimeout(startTimer); clearInterval(id) }
   }, [intervalMs])
 
   return status

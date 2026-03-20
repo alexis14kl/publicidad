@@ -31,7 +31,9 @@ export function useBranding() {
   }
 
   useEffect(() => {
-    void refreshBrand()
+    // Defer to let UI render first
+    const timer = setTimeout(() => void refreshBrand(), 200)
+    return () => clearTimeout(timer)
   }, [])
 
   return {

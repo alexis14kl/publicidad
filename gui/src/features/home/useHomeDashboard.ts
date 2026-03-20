@@ -64,23 +64,22 @@ export function useHomeDashboard(botStatus: BotStatus) {
 
   useEffect(() => {
     let cancelled = false
-    generateDefaultPrompt()
-      .then((result) => {
-        if (!cancelled && result.success && result.prompt) {
-          setImagePrompt((current) => current.trim() ? current : result.prompt)
-        }
-      })
-      .catch(() => { /* ignore */ })
-    listCompanyRecords()
-      .then((records) => {
-        if (!cancelled) {
-          setCompanies(records)
-        }
-      })
-      .catch(() => { /* ignore */ })
-    return () => {
-      cancelled = true
-    }
+    // Defer heavy IPC calls to let the UI render first
+    const timer = setTimeout(() => {
+      listCompanyRecords()
+        .then((records) => {
+          if (!cancelled) setCompanies(records)
+        })
+        .catch(() => { /* ignore */ })
+      generateDefaultPrompt()
+        .then((result) => {
+          if (!cancelled && result.success && result.prompt) {
+            setImagePrompt((current) => current.trim() ? current : result.prompt)
+          }
+        })
+        .catch(() => { /* ignore */ })
+    }, 100)
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [])
 
   useEffect(() => {
