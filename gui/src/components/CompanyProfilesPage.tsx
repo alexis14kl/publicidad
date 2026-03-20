@@ -26,6 +26,7 @@ function createEmptyAccounts() {
     account_label: `Cuenta ${index + 1}`,
     token: '',
     page_id: '',
+    account_id: '',
   }))
 }
 
@@ -209,7 +210,7 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
   const handlePlatformAccountChange = (
     platform: CompanyPlatform,
     index: number,
-    key: 'account_label' | 'token' | 'page_id',
+    key: 'account_label' | 'token' | 'page_id' | 'account_id',
     value: string
   ) => {
     setForm((prev) => ({
@@ -274,6 +275,7 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
           account_label: account.account_label || `Cuenta ${index + 1}`,
           token: account.token || '',
           page_id: account.page_id || '',
+          account_id: account.account_id || '',
         }
       })
 
@@ -668,6 +670,18 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
                               />
                             </label>
                           )}
+                          {option.key === 'instagram' && (
+                            <label className="company-field company-account-row__full">
+                              <span>Account ID cuenta {index + 1}</span>
+                              <input
+                                value={account.account_id || ''}
+                                onChange={(event) =>
+                                  handlePlatformAccountChange(option.key, index, 'account_id', event.target.value)
+                                }
+                                placeholder={`Account ID Instagram cuenta ${index + 1}`}
+                              />
+                            </label>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -821,6 +835,9 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
                                 <strong>{maskToken(account.token)}</strong>
                                 {platform.platform === 'facebook' && account.page_id ? (
                                   <small className="company-record__account-pageid">Page ID: {account.page_id}</small>
+                                ) : null}
+                                {platform.platform === 'instagram' && account.account_id ? (
+                                  <small className="company-record__account-pageid">Account ID: {account.account_id}</small>
                                 ) : null}
                               </div>
                               <div className="company-record__account-actions">

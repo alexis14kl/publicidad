@@ -53,6 +53,7 @@ function registerCompanyHandlers(ipcMain) {
                 account_label: String(account?.account_label || '').trim(),
                 token: String(account?.token || '').trim(),
                 page_id: platform === 'facebook' ? String(account?.page_id || '').trim() : '',
+                account_id: platform === 'instagram' ? String(account?.account_id || '').trim() : '',
               }))
               .filter((account) => account.token)
           : []
@@ -192,6 +193,7 @@ function registerCompanyHandlers(ipcMain) {
           account_label,
           token,
           ${platform === 'facebook' ? 'page_id,' : ''}
+          ${platform === 'instagram' ? 'account_id,' : ''}
           activo,
           is_primary,
           updated_at
@@ -201,6 +203,7 @@ function registerCompanyHandlers(ipcMain) {
           ${sqlLiteral(account.account_label || `Cuenta ${account.account_index}`)},
           ${sqlLiteral(account.token)},
           ${platform === 'facebook' ? `${sqlLiteral(account.page_id || null)},` : ''}
+          ${platform === 'instagram' ? `${sqlLiteral(account.account_id || null)},` : ''}
           1,
           ${index === 0 ? 1 : 0},
           CURRENT_TIMESTAMP

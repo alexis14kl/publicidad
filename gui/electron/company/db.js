@@ -61,6 +61,9 @@ function ensureCompanyPlatformSchema(dbPath, platformConfig) {
   if (platformConfig.table === 'facebook_form' && !platformTableHasColumn(dbPath, platformConfig, 'page_id')) {
     statements.push(`ALTER TABLE ${platformConfig.table} ADD COLUMN page_id TEXT;`)
   }
+  if (platformConfig.table === 'instagram_form' && !platformTableHasColumn(dbPath, platformConfig, 'account_id')) {
+    statements.push(`ALTER TABLE ${platformConfig.table} ADD COLUMN account_id TEXT;`)
+  }
 
   statements.push(`UPDATE ${platformConfig.table} SET account_index = COALESCE(account_index, 1);`)
   statements.push(`UPDATE ${platformConfig.table} SET account_label = COALESCE(NULLIF(TRIM(account_label), ''), 'Cuenta ' || account_index);`)
@@ -185,6 +188,7 @@ function aggregateCompanyRows(rowsByPlatform = {}) {
         account_label: String(row.account_label || `Cuenta ${row.account_index || 1}`),
         token: String(row.token || ''),
         page_id: String(row.page_id || ''),
+        account_id: String(row.account_id || ''),
         activo: Number(row.plataforma_activa ?? row.activo ?? 1),
         is_primary: Number(row.is_primary ?? 0),
       }
@@ -265,6 +269,7 @@ function fetchCompanyRowsForPlatform(platform) {
       p.account_label AS account_label,
       p.token AS token,
       ${platform === 'facebook' ? 'p.page_id AS page_id,' : "'' AS page_id,"}
+      ${platform === 'instagram' ? 'p.account_id AS account_id,' : "'' AS account_id,"}
       p.activo AS plataforma_activa,
       p.is_primary AS is_primary
     FROM ${platformConfig.table} p
