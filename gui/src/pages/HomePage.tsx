@@ -42,6 +42,9 @@ export function HomePage({
     if (activeTab === 'video') {
       const prompt = videoPrompt.trim()
       if (!prompt) return
+      const activePlatforms = Object.entries(dashboard.publishPlatforms)
+        .filter(([, checked]) => checked)
+        .map(([name]) => name)
       await startBot({
         profileName: 'Flow Veo 3',
         imagePrompt: prompt,
@@ -49,6 +52,7 @@ export function HomePage({
         contentType: 'reel',
         reelTitle: videoTitle.trim() || 'Reel publicitario',
         reelCaption: videoCaption.trim(),
+        publishPlatforms: activePlatforms,
       } as any)
     } else {
       await dashboard.handleStartBot()

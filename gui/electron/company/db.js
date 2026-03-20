@@ -94,7 +94,7 @@ function migrateLegacyCompanyPlatformData(dbPath, platformConfig) {
       dbPath,
       `
       PRAGMA foreign_keys=ON;
-      INSERT INTO ${platformConfig.table} (
+      INSERT OR IGNORE INTO ${platformConfig.table} (
         empresa_id,
         account_index,
         account_label,
@@ -141,8 +141,21 @@ function ensureCompanyDb(platform) {
   const schemaSql = fs.readFileSync(schemaPath, 'utf-8')
   const platformSchemaPath = path.join(PROJECT_ROOT, 'Backend', platformConfig.schemaFile)
   const platformSchemaSql = fs.readFileSync(platformSchemaPath, 'utf-8')
+
+  // Drop legacy UNIQUE index on empresa_id BEFORE running schema
+  // (the old schema creates it, but multi-account needs empresa_id+account_index)
+  try {
+    runSqlite(dbPath, `DROP INDEX IF EXISTS idx_${platformConfig.table}_empresa_unica;`)
+  } catch { /* DB might not exist yet */ }
+
+  // Remove the legacy UNIQUE index from the schema SQL to prevent re-creation
+  const cleanedPlatformSql = platformSchemaSql.replace(
+    /CREATE\s+UNIQUE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+idx_\w+_empresa_unica\s+ON\s+\w+\(empresa_id\);/gi,
+    '-- (legacy unique index removed for multi-account support)'
+  )
+
   execFileSync(SQLITE3_BIN, [dbPath], {
-    input: `${schemaSql}\n${platformSchemaSql}`,
+    input: `${schemaSql}\n${cleanedPlatformSql}`,
     encoding: 'utf-8',
   })
   ensureCompanyPlatformSchema(dbPath, platformConfig)

@@ -189,7 +189,10 @@ export function useHomeDashboard(botStatus: BotStatus) {
     setBotLoading(true)
     try {
       startWithContext()
-      await startBot({ imagePrompt: prompt, imageFormat, imageService, companyName: selectedCompany })
+      const activePlatforms = Object.entries(publishPlatforms)
+        .filter(([, checked]) => checked)
+        .map(([name]) => name)
+      await startBot({ imagePrompt: prompt, imageFormat, imageService, companyName: selectedCompany, publishPlatforms: activePlatforms })
     } finally {
       setBotLoading(false)
     }

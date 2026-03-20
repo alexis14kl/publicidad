@@ -1,0 +1,58 @@
+{
+  "name": "TOKEN_MANAGER_IG",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "token-manager-ig",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-520, 0],
+      "id": "tm-ig-webhook-001",
+      "name": "Webhook Token IG",
+      "webhookId": "token-manager-ig"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const raw = $input.first().json ?? {};\nconst body = raw.body ?? raw;\nconst normalize = (value) => String(value ?? '').trim();\nconst generatedAt = new Date().toISOString();\n\nconst shortToken = normalize(body.short_token || body.token);\nconst accountId = normalize(body.account_id || '17841440667412938');\nconst appSecret = normalize(body.app_secret || '749e29f8214e8da77b9afc1a284c2276');\nconst action = normalize(body.action || 'exchange').toLowerCase();\n\nconst buildError = (message, extra = {}) => [{\n  json: {\n    status: 'error',\n    action,\n    message,\n    generated_at: generatedAt,\n    ...extra,\n  },\n}];\n\nif (!shortToken) {\n  return buildError('Se requiere short_token o token en el body.');\n}\n\nif (!appSecret) {\n  return buildError('Se requiere app_secret.');\n}\n\nconst request = this.helpers.request;\nconst requestDefaults = {\n  json: true,\n  simple: false,\n  resolveWithFullResponse: true,\n  headers: {\n    Accept: 'application/json',\n    'User-Agent': 'n8n-token-manager-ig/1.0',\n  },\n};\n\n// Step 1: Validate current token\nif (action === 'validate') {\n  try {\n    const validateResp = await request({\n      ...requestDefaults,\n      method: 'GET',\n      uri: `https://graph.instagram.com/v21.0/me`,\n      qs: { fields: 'id,username', access_token: shortToken },\n    });\n    const vBody = validateResp?.body ?? {};\n    const valid = validateResp?.statusCode === 200 && !!vBody.id;\n    return [{ json: {\n      status: valid ? 'success' : 'error',\n      action: 'validate',\n      valid,\n      account_id: vBody.id || null,\n      username: vBody.username || null,\n      generated_at: generatedAt,\n    }}];\n  } catch (e) {\n    return buildError('Error validando token: ' + e.message);\n  }\n}\n\n// Step 2: Exchange short-lived for long-lived (60 days)\nconst exchangeResp = await request({\n  ...requestDefaults,\n  method: 'GET',\n  uri: 'https://graph.instagram.com/access_token',\n  qs: {\n    grant_type: 'ig_exchange_token',\n    client_secret: appSecret,\n    access_token: shortToken,\n  },\n});\n\nconst exchangeBody = exchangeResp?.body ?? {};\nif (Number(exchangeResp?.statusCode || 500) >= 400 || !exchangeBody.access_token) {\n  // Try refresh instead (for tokens that are already long-lived)\n  const refreshResp = await request({\n    ...requestDefaults,\n    method: 'GET',\n    uri: 'https://graph.instagram.com/refresh_access_token',\n    qs: {\n      grant_type: 'ig_refresh_token',\n      access_token: shortToken,\n    },\n  });\n  const refreshBody = refreshResp?.body ?? {};\n  if (Number(refreshResp?.statusCode || 500) >= 400 || !refreshBody.access_token) {\n    return buildError('No se pudo intercambiar ni refrescar el token.', {\n      exchange_error: exchangeBody?.error ?? exchangeBody,\n      refresh_error: refreshBody?.error ?? refreshBody,\n    });\n  }\n  // Refresh succeeded\n  const newToken = normalize(refreshBody.access_token);\n  const expiresIn = Number(refreshBody.expires_in || 0);\n  return [{ json: {\n    status: 'success',\n    action: 'refresh',\n    access_token: newToken,\n    token_type: refreshBody.token_type || 'bearer',\n    expires_in_seconds: expiresIn,\n    expires_in_days: expiresIn > 0 ? Math.round(expiresIn / 86400) : null,\n    expires_at: expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,\n    account_id: accountId,\n    generated_at: generatedAt,\n    method: 'ig_refresh_token',\n  }}];\n}\n\n// Exchange succeeded\nconst longToken = normalize(exchangeBody.access_token);\nconst expiresIn = Number(exchangeBody.expires_in || 0);\n\nreturn [{ json: {\n  status: 'success',\n  action: 'exchange',\n  access_token: longToken,\n  token_type: exchangeBody.token_type || 'bearer',\n  expires_in_seconds: expiresIn,\n  expires_in_days: expiresIn > 0 ? Math.round(expiresIn / 86400) : null,\n  expires_at: expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,\n  account_id: accountId,\n  generated_at: generatedAt,\n  method: 'ig_exchange_token',\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-120, 0],
+      "id": "tm-ig-process-001",
+      "name": "Procesar Token IG"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              { "name": "Content-Type", "value": "application/json" },
+              { "name": "Cache-Control", "value": "no-store" },
+              { "name": "X-Workflow", "value": "TOKEN_MANAGER_IG" }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [240, 0],
+      "id": "tm-ig-respond-001",
+      "name": "Responder Webhook IG"
+    }
+  ],
+  "connections": {
+    "Webhook Token IG": {
+      "main": [[{ "node": "Procesar Token IG", "type": "main", "index": 0 }]]
+    },
+    "Procesar Token IG": {
+      "main": [[{ "node": "Responder Webhook IG", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1", "availableInMCP": false }
+}

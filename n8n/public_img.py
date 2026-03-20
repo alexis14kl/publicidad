@@ -148,6 +148,7 @@ def get_platform_page_id(platform: str) -> str:
     platform_key = str(platform or "").strip().lower()
     env_keys = {
         "facebook": ("FB_PAGE_ID", "FACEBOOK_PAGE_ID", "META_PAGE_ID"),
+        "instagram": ("INSTAGRAM_ACCOUNT_ID", "IG_ACCOUNT_ID", "FB_PAGE_ID"),
     }
     for env_key in env_keys.get(platform_key, ()):
         value = str(get_env(env_key, "") or "").strip()
@@ -313,6 +314,7 @@ def main() -> int:
     )
     platform = str(args.platform or "facebook").strip().lower()
     metadata["platform"] = platform
+    metadata["canal"] = platform
     if company_name:
         metadata["company_name"] = company_name
 
@@ -349,20 +351,15 @@ def main() -> int:
 
     webhook_url = (args.webhook_url or "").strip()
     if not webhook_url:
-        platform_defaults = {
-            "facebook": get_env("N8N_WEBHOOK_PUBLICAR_IMG_LOCAL_FB", DEFAULT_WEBHOOK_URL),
-            "instagram": get_env("N8N_WEBHOOK_PUBLICAR_IMG_LOCAL_IG", ""),
-            "tiktok": get_env("N8N_WEBHOOK_PUBLICAR_IMG_LOCAL_TIKTOK", ""),
-            "linkedin": get_env("N8N_WEBHOOK_PUBLICAR_IMG_LOCAL_LINKEDIN", ""),
-        }
-        webhook_url = str(platform_defaults.get(platform) or platform_defaults["facebook"] or "").strip()
+        # Todas las plataformas usan el mismo webhook — n8n rutea internamente por el campo "platform"
+        webhook_url = get_env("N8N_WEBHOOK_PUBLICAR_IMG_LOCAL_FB", DEFAULT_WEBHOOK_URL)
     if not webhook_url:
         raise PublicImageError(
             "Debes indicar --webhook-url (o definir el webhook en .env) para enviar la imagen a n8n"
         )
-    if platform == "facebook" and not access_token:
+    if platform in ("facebook", "instagram") and not access_token:
         raise PublicImageError(
-            "No hay token activo para Facebook. Selecciona una cuenta en Empresas o define FB_ACCESS_TOKEN."
+            f"No hay token activo para {platform}. Selecciona una cuenta en Empresas o define el token correspondiente."
         )
     if platform == "facebook" and not page_id:
         raise PublicImageError(

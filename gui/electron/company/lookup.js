@@ -45,6 +45,9 @@ function buildCompanyCredentialEnv(companyName) {
     if (platformRecord.platform === 'facebook') {
       envUpdates.FB_PAGE_ID = String(primaryAccount.page_id || '').trim()
     }
+    if (platformRecord.platform === 'instagram') {
+      envUpdates.INSTAGRAM_ACCOUNT_ID = String(primaryAccount.account_id || primaryAccount.page_id || '').trim()
+    }
   }
 
   return envUpdates

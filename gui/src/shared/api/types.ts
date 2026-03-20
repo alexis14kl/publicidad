@@ -241,6 +241,7 @@ export interface StartBotPayload {
   imageFormat?: string
   imageService?: string
   companyName?: string
+  publishPlatforms?: string[]
 }
 
 export interface StartPollerPayload {

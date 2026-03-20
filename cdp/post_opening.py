@@ -392,8 +392,10 @@ def _image_pipeline(cdp_port: int, dev_mode: bool) -> int:
         else:
             log_ok("Logo superpuesto con exito")
 
-    # Step 6.5: Verificar/renovar token de Facebook antes de publicar
-    if "facebook" in str(get_env("PUBLISH_PLATFORMS", "facebook") or "").lower():
+    # Step 6.5: Verificar/renovar tokens antes de publicar
+    platforms_to_check = str(get_env("PUBLISH_PLATFORMS", "facebook") or "").lower()
+
+    if "facebook" in platforms_to_check:
         try:
             from n8n.verify_token_fb import run_token_verification
             log_info("Verificando token de Facebook...")
@@ -402,6 +404,16 @@ def _image_pipeline(cdp_port: int, dev_mode: bool) -> int:
                 log_ok("Token de Facebook renovado exitosamente.")
         except Exception as exc:
             log_warn(f"No se pudo verificar token FB (se usara el actual): {exc}")
+
+    if "instagram" in platforms_to_check:
+        try:
+            from n8n.verify_token_ig import run_token_verification as run_ig_verification
+            log_info("Verificando token de Instagram...")
+            renewed = run_ig_verification()
+            if renewed:
+                log_ok("Token de Instagram renovado exitosamente.")
+        except Exception as exc:
+            log_warn(f"No se pudo verificar token IG (se usara el actual): {exc}")
 
     # Step 7: Send to n8n
     if not PUBLIC_IMG_PY.exists():
