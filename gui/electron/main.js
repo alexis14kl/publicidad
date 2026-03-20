@@ -3,16 +3,13 @@ const path = require('path')
 
 const state = require('./state')
 const { PROJECT_ROOT } = require('./config/project-paths')
-const { killProcessTree } = require('./utils/process')
-const { startLogWatcher, startBotLogWatcher } = require('./log-watcher')
 
-// IPC handler modules
-const { registerBotHandlers } = require('./ipc/bot')
-const { registerPollerHandlers } = require('./ipc/poller')
-const { registerConfigHandlers } = require('./ipc/config')
-const { registerCompanyHandlers } = require('./ipc/company')
-const { registerMarketingHandlers } = require('./ipc/marketing')
-const { registerLogoHandlers } = require('./ipc/logo')
+// Lazy load heavy modules — only when needed, not at startup
+let _killProcessTree = null
+function getKillProcessTree() {
+  if (!_killProcessTree) _killProcessTree = require('./utils/process').killProcessTree
+  return _killProcessTree
+}
 
 // ─── Window ───────────────────────────────────────────────────────────────────
 
@@ -53,24 +50,33 @@ function createWindow() {
   })
 }
 
-// ─── Register IPC Handlers ────────────────────────────────────────────────────
-
-registerBotHandlers(ipcMain)
-registerPollerHandlers(ipcMain)
-registerConfigHandlers(ipcMain)
-registerCompanyHandlers(ipcMain)
-registerMarketingHandlers(ipcMain)
-registerLogoHandlers(ipcMain)
-
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
+  // 1. Create window FIRST — show UI as fast as possible
   createWindow()
+
+  // 2. Register IPC handlers AFTER window created (lazy-loaded modules)
+  const { registerBotHandlers } = require('./ipc/bot')
+  const { registerPollerHandlers } = require('./ipc/poller')
+  const { registerConfigHandlers } = require('./ipc/config')
+  const { registerCompanyHandlers } = require('./ipc/company')
+  const { registerMarketingHandlers } = require('./ipc/marketing')
+  const { registerLogoHandlers } = require('./ipc/logo')
+
+  registerBotHandlers(ipcMain)
+  registerPollerHandlers(ipcMain)
+  registerConfigHandlers(ipcMain)
+  registerCompanyHandlers(ipcMain)
+  registerMarketingHandlers(ipcMain)
+  registerLogoHandlers(ipcMain)
+
+  // 3. Start log watchers (lightweight)
+  const { startLogWatcher, startBotLogWatcher } = require('./log-watcher')
   startLogWatcher()
   startBotLogWatcher()
 
-  // Pre-warm SQLite schemas in background (non-blocking)
-  // So when React mounts and calls list-company-records, it's instant
+  // 4. Pre-warm SQLite schemas in background (non-blocking)
   setImmediate(() => {
     try {
       const { ensureCompanyDb } = require('./company/db')
@@ -91,9 +97,9 @@ app.on('window-all-closed', () => {
 
   if (state.pollerProcess && state.pollerProcess.exitCode === null) {
     if (process.platform === 'darwin') {
-      try { process.kill(state.pollerProcess.pid, 'SIGINT') } catch { killProcessTree(state.pollerProcess.pid) }
+      try { process.kill(state.pollerProcess.pid, 'SIGINT') } catch { getKillProcessTree()(state.pollerProcess.pid) }
     } else {
-      killProcessTree(state.pollerProcess.pid)
+      getKillProcessTree()(state.pollerProcess.pid)
     }
   }
 

@@ -25,8 +25,21 @@ function parseEnvFile(filePath) {
   return env
 }
 
+// Cache parsed .env — only re-read if file changed
+let _envCache = null
+let _envMtime = 0
+
 function getProjectEnv() {
-  const env = { ...process.env, ...parseEnvFile(path.join(PROJECT_ROOT, '.env')) }
+  const envPath = path.join(PROJECT_ROOT, '.env')
+  let currentMtime = 0
+  try { currentMtime = fs.statSync(envPath).mtimeMs } catch { /* no .env */ }
+
+  if (!_envCache || currentMtime !== _envMtime) {
+    _envCache = parseEnvFile(envPath)
+    _envMtime = currentMtime
+  }
+
+  const env = { ...process.env, ..._envCache }
   if (process.platform === 'darwin') {
     const rawPath = String(env.PATH || '')
     const parts = rawPath.split(':').filter(Boolean)

@@ -1,7 +1,12 @@
 const { exec, execSync } = require('child_process')
 const { sleep } = require('./helpers')
 
+// Cache Python binary — only search once per session
+let _cachedPythonBin = undefined
+
 function findPython() {
+  if (_cachedPythonBin !== undefined) return _cachedPythonBin
+
   const candidates = process.platform === 'win32'
     ? ['python', 'python3', 'py']
     : ['python3', 'python']
@@ -10,11 +15,15 @@ function findPython() {
     try {
       const result = execSync(
         process.platform === 'win32' ? `where ${name}` : `which ${name}`,
-        { timeout: 5000, encoding: 'utf-8' }
+        { timeout: 3000, encoding: 'utf-8' }
       )
-      if (result.trim()) return name
+      if (result.trim()) {
+        _cachedPythonBin = name
+        return name
+      }
     } catch { /* not found */ }
   }
+  _cachedPythonBin = null
   return null
 }
 
