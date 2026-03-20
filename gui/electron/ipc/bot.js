@@ -75,6 +75,15 @@ function registerBotHandlers(ipcMain) {
     const publishPlatforms = Array.isArray(payload?.publishPlatforms)
       ? payload.publishPlatforms.filter(Boolean).join(',')
       : 'facebook'
+    const contentType = typeof payload === 'object' && payload !== null
+      ? String(payload.contentType || 'image').trim()
+      : 'image'
+    const reelTitle = typeof payload === 'object' && payload !== null
+      ? String(payload.reelTitle || '').trim()
+      : ''
+    const reelCaption = typeof payload === 'object' && payload !== null
+      ? String(payload.reelCaption || '').trim()
+      : ''
 
     if (companyName && !isCompanyActive(companyName)) {
       return { success: false, error: `La empresa ${companyName} esta inactiva y no puede generar publicaciones.` }
@@ -97,6 +106,9 @@ function registerBotHandlers(ipcMain) {
       env.BOT_IMAGE_HEIGHT = String(botFmt.h)
     }
     env.PUBLISH_PLATFORMS = publishPlatforms
+    env.BOT_CONTENT_TYPE = contentType
+    if (reelTitle) env.BOT_REEL_TITLE = reelTitle
+    if (reelCaption) env.BOT_REEL_CAPTION = reelCaption
 
     const imagePrompt = buildFullPrompt(rawPrompt, companyName, imageService, imageFormat)
 

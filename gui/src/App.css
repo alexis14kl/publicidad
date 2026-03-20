@@ -737,6 +737,16 @@ body::after {
 .reel-modal__message--success { background: rgba(40,167,69,0.08); border: 1px solid rgba(40,167,69,0.3); color: #28a745; }
 .reel-modal__message--error { background: rgba(255,60,60,0.08); border: 1px solid rgba(255,60,60,0.3); color: #ff6b6b; }
 .reel-modal__footer { margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: flex-end; }
+
+/* Reel modal mode tabs */
+.reel-modal__mode-tabs { display: flex; gap: 0; margin-bottom: 16px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
+.reel-modal__tab { flex: 1; padding: 10px 16px; background: rgba(255,255,255,0.04); border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s ease; }
+.reel-modal__tab:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+.reel-modal__tab--active { background: linear-gradient(135deg, rgba(0,229,255,0.15), rgba(179,136,255,0.15)); color: var(--accent-cyan); border-bottom: 2px solid var(--accent-cyan); }
+.reel-modal__tab:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Reel generating status */
+.reel-modal__message--generating { background: rgba(0,229,255,0.08); border: 1px solid rgba(0,229,255,0.2); color: var(--accent-cyan); }
 .btn--reel-publish { background: linear-gradient(135deg, #e040fb, #7c4dff); color: #fff; border: none; border-radius: var(--radius-sm); padding: 10px 24px; font-weight: 700; font-size: 14px; cursor: pointer; transition: opacity 0.2s, transform 0.2s; }
 .btn--reel-publish:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
 .btn--reel-publish:disabled { opacity: 0.4; cursor: not-allowed; }

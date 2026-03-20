@@ -54,3 +54,5 @@ gui/release/
 # Packaged desktop binaries
 ejecutable/mac/*.app/
 ejecutable/mac/*.dmg
+
+videos_publicitarias/*.mp4
