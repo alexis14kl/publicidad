@@ -27,8 +27,9 @@ export function ControlPanel({
   onStopBot,
 }: ControlPanelProps) {
   const isExecuting = botStatus.status === 'executing'
-  const canStartBot = !isExecuting && !botLoading && hasCompany
-  const canStartPoller = !pollerRunning && !pollerLoading && hasCompany
+  const hasPrompt = !!imagePrompt.trim()
+  const canStartBot = !isExecuting && !botLoading && hasCompany && hasPrompt
+  const canStartPoller = !pollerRunning && !pollerLoading && hasCompany && hasPrompt
 
   return (
     <GlassCard className="control-panel">
@@ -58,7 +59,9 @@ export function ControlPanel({
           <span className="control-prompt__hint">
             {!hasCompany
               ? 'Debes registrar al menos una empresa antes de iniciar el bot.'
-              : 'Para iniciar el bot o el poller, primero ingresa el prompt de imagen en la pestana inferior de terminales.'}
+              : !hasPrompt
+              ? 'Escribe un prompt en el tab activo para habilitar el bot.'
+              : ''}
           </span>
         </div>
         <div className="control-section">
