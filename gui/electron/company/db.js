@@ -124,9 +124,16 @@ function migrateLegacyCompanyPlatformData(dbPath, platformConfig) {
   }
 }
 
+// Cache: only run schema migrations once per platform per session
+const _ensuredPlatforms = new Set()
+
 function ensureCompanyDb(platform) {
   const platformConfig = getCompanyPlatformConfig(platform)
   const dbPath = getCompanyDbPath(platform)
+
+  // Skip migrations if already ensured this session
+  if (_ensuredPlatforms.has(platform)) return dbPath
+
   const schemaPath = path.join(PROJECT_ROOT, 'Backend', 'schema_empresas_redes.sql')
   const schemaSql = fs.readFileSync(schemaPath, 'utf-8')
   const platformSchemaPath = path.join(PROJECT_ROOT, 'Backend', platformConfig.schemaFile)
@@ -138,6 +145,8 @@ function ensureCompanyDb(platform) {
   ensureCompanyPlatformSchema(dbPath, platformConfig)
   ensureCompanyColorColumns(dbPath)
   migrateLegacyCompanyPlatformData(dbPath, platformConfig)
+
+  _ensuredPlatforms.add(platform)
   return dbPath
 }
 
