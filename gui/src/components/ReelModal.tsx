@@ -112,7 +112,7 @@ export function ReelModal({ open, onClose, companies, selectedCompany }: ReelMod
 
     try {
       const result = await startBot({
-        profileName: '#3 Flow Veo 3',
+        profileName: 'Flow Veo 3',
         imagePrompt: videoPrompt.trim(),
         companyName: selectedCompany,
         contentType: 'reel',

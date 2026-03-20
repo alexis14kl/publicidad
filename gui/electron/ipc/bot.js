@@ -14,8 +14,8 @@ function registerBotHandlers(ipcMain) {
   ipcMain.handle('get-bot-status', async () => {
     const lockPath = path.join(PROJECT_ROOT, '.bot_runner.lock')
     const lockData = readJsonFile(lockPath)
-    const poller = await isPollerAlive()
 
+    // Check bot process (lock file or GUI-spawned process)
     if (lockData && lockData.pid) {
       return {
         status: 'executing',
@@ -26,8 +26,21 @@ function registerBotHandlers(ipcMain) {
       }
     }
 
+    if (state.botProcess && state.botProcess.exitCode === null) {
+      return {
+        status: 'executing',
+        action: 'run_full_cycle',
+        started_at: null,
+        host: null,
+        pid: state.botProcess.pid,
+      }
+    }
+
+    // Check poller ONLY by GUI-spawned process (no PowerShell scan)
+    const pollerRunning = state.pollerProcess && state.pollerProcess.exitCode === null
+
     return {
-      status: poller.running ? 'online' : 'offline',
+      status: pollerRunning ? 'online' : 'offline',
       action: null,
       started_at: null,
       host: null,

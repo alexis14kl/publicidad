@@ -115,8 +115,8 @@ function registerPollerHandlers(ipcMain) {
   })
 
   ipcMain.handle('is-poller-running', async () => {
-    const poller = await isPollerAlive()
-    return poller.running
+    // Check only GUI-spawned poller (no PowerShell scan)
+    return !!(state.pollerProcess && state.pollerProcess.exitCode === null)
   })
 
   ipcMain.handle('read-log-lines', async (_event, count = 200) => {

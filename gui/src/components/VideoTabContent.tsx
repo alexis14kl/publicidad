@@ -99,7 +99,7 @@ export function VideoTabContent({
     setMessage('Iniciando bot de video con DiCloak + Flow (Veo 3)...')
     try {
       const result = await startBot({
-        profileName: '#3 Flow Veo 3',
+        profileName: 'Flow Veo 3',
         imagePrompt: videoPrompt.trim(),
         companyName: selectedCompany,
         contentType: 'reel',

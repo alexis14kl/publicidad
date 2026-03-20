@@ -33,6 +33,8 @@ function createWindow() {
     show: false,
   })
 
+  state.mainWindow.maximize()
+
   if (process.env.VITE_DEV_SERVER_URL) {
     state.mainWindow.webContents.session.clearCache()
     state.mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)

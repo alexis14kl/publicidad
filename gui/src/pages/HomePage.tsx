@@ -43,7 +43,7 @@ export function HomePage({
       const prompt = videoPrompt.trim()
       if (!prompt) return
       await startBot({
-        profileName: '#3 Flow Veo 3',
+        profileName: 'Flow Veo 3',
         imagePrompt: prompt,
         companyName: dashboard.selectedCompany,
         contentType: 'reel',
