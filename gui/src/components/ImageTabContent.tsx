@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { PromptHistoryEntry } from '../shared/api/types'
+import type { ImageServiceSuggestion, PromptHistoryEntry } from '../shared/api/types'
 import { IMAGE_FORMAT_GROUPS, NOYECODE_SERVICES } from '../shared/api/types'
 
 interface ImageTabContentProps {
@@ -11,6 +11,7 @@ interface ImageTabContentProps {
   onChangeService: (value: string) => void
   lastUsedService: string
   promptHistory: PromptHistoryEntry[]
+  serviceSuggestions: ImageServiceSuggestion[]
   disabled: boolean
 }
 
@@ -23,10 +24,22 @@ export function ImageTabContent({
   onChangeService,
   lastUsedService,
   promptHistory,
+  serviceSuggestions,
   disabled,
 }: ImageTabContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false)
   const historyRef = useRef<HTMLDivElement>(null)
+  const hasPrompt = imagePrompt.trim().length > 0
+  const relatedServices = serviceSuggestions.map((service) => ({ value: service.value, label: service.label }))
+  const selectedServiceInfo =
+    serviceSuggestions.find((service) => service.value === imageService) ||
+    serviceSuggestions[0] ||
+    null
+  const fallbackServices = hasPrompt
+    ? []
+    : NOYECODE_SERVICES
+        .map((service) => ({ value: service.value, label: service.label, emoji: service.emoji }))
+        .filter((service) => !relatedServices.some((item) => item.value === service.value))
 
   useEffect(() => {
     if (!historyOpen) return
@@ -67,7 +80,10 @@ export function ImageTabContent({
                   <button
                     key={`${index}-${entry.text.slice(0, 20)}`}
                     className="prompt-history__item"
-                    onClick={() => { onChangePrompt(entry.text); setHistoryOpen(false) }}
+                    onClick={() => {
+                      onChangePrompt(entry.text)
+                      setHistoryOpen(false)
+                    }}
                     type="button"
                   >
                     <span className="prompt-history__date">{dateLabel}</span>
@@ -80,9 +96,24 @@ export function ImageTabContent({
         </div>
       </div>
 
+      <label className="control-prompt">
+        <span className="control-prompt__label">Pre-prompt</span>
+        <textarea
+          className="control-prompt__input"
+          placeholder="Escribe primero de que trata la campana. Ej: 'videojuegos', 'desarrollador de software para empresas', 'veterinaria con peluqueria y comida para mascotas'..."
+          value={imagePrompt}
+          onChange={(e) => onChangePrompt(e.target.value)}
+          rows={4}
+          disabled={disabled}
+        />
+        <span className="control-prompt__hint">
+          El analizador usa tu pre-prompt para cargar automaticamente los tipos de servicio relacionados.
+        </span>
+      </label>
+
       <div className="tab-content__controls">
-        <div className="format-select">
-          <label className="format-select__label" htmlFor="img-service">Servicio</label>
+        <div className="format-select format-select--stack">
+          <label className="format-select__label" htmlFor="img-service">Tipo de servicio</label>
           <select
             id="img-service"
             className="format-select__input"
@@ -90,12 +121,35 @@ export function ImageTabContent({
             onChange={(e) => onChangeService(e.target.value)}
             disabled={disabled}
           >
-            {NOYECODE_SERVICES.map((svc) => (
-              <option key={svc.value} value={svc.value}>
-                {svc.emoji} {svc.label}{svc.value === lastUsedService ? ' (ultimo usado)' : ''}
+            {hasPrompt && relatedServices.length === 0 && (
+              <option value="" disabled>
+                El analizador esta buscando servicios relacionados...
               </option>
-            ))}
+            )}
+            {relatedServices.length > 0 && (
+              <optgroup label="Servicios sugeridos por el analizador">
+                {relatedServices.map((service) => (
+                  <option key={service.value} value={service.value}>
+                    {service.label}{service.value === lastUsedService ? ' (ultimo usado)' : ''}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {fallbackServices.length > 0 && (
+              <optgroup label="Servicios generales">
+                {fallbackServices.map((service) => (
+                  <option key={service.value} value={service.value}>
+                    {service.emoji} {service.label}{service.value === lastUsedService ? ' (ultimo usado)' : ''}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
+          {hasPrompt && (
+            <span className="format-select__hint">
+              {selectedServiceInfo?.reason || 'Escribe un poco mas de contexto para que el analizador cargue servicios mas precisos.'}
+            </span>
+          )}
         </div>
 
         <div className="format-select">
@@ -119,18 +173,6 @@ export function ImageTabContent({
           </select>
         </div>
       </div>
-
-      <label className="control-prompt">
-        <span className="control-prompt__label">Prompt de imagen</span>
-        <textarea
-          className="control-prompt__input"
-          placeholder="Escribe tu idea para la imagen... Ej: 'Lanza oferta del 20%', 'Imagen con persona en oficina moderna'"
-          value={imagePrompt}
-          onChange={(e) => onChangePrompt(e.target.value)}
-          rows={4}
-          disabled={disabled}
-        />
-      </label>
     </div>
   )
 }

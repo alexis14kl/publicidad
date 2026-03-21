@@ -234,6 +234,7 @@ export function useHomeDashboard(botStatus: BotStatus) {
     promptDisabled: isExecuting || botLoading,
     publishPlatforms,
     selectedCompany,
+    serviceSuggestions,
     setImagePrompt,
     workerLines,
   }

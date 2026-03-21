@@ -110,6 +110,7 @@ export function HomePage({
               onChangeService={dashboard.handleChangeService}
               lastUsedService={dashboard.lastUsedService}
               promptHistory={dashboard.imagePromptHistory}
+              serviceSuggestions={dashboard.serviceSuggestions}
               disabled={dashboard.promptDisabled}
             />
           ),
