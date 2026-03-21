@@ -20,9 +20,11 @@ const STORAGE_KEY_VIDEO_SCENE_PROMPT_MODE = 'videoScenePromptMode'
 export function HomePage({
   botStatus,
   onOpenMarketing,
+  onOpenBrochure,
 }: {
   botStatus: BotStatus
   onOpenMarketing: () => void
+  onOpenBrochure: () => void
 }) {
   const dashboard = useHomeDashboard(botStatus)
   const [activeTab, setActiveTab] = useState<BotTabId>(() => {
@@ -167,7 +169,7 @@ export function HomePage({
         <button className="btn btn--marketing" onClick={onOpenMarketing}>
           Abrir Agente Marketing
         </button>
-        <button className="btn btn--brochure" onClick={() => { /* TODO: Canva API */ }}>
+        <button className="btn btn--brochure" onClick={onOpenBrochure}>
           Generar Brochure
         </button>
       </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './App.css'
+import { BrochurePage } from './components/BrochurePage'
 import { CompanyProfilesPage } from './components/CompanyProfilesPage'
 import { Header } from './components/Header'
 import { SettingsPage } from './components/SettingsPage'
@@ -8,7 +9,7 @@ import { MarketingCampaignModal } from './features/marketing/MarketingCampaignMo
 import { useBotStatus } from './hooks/useBotStatus'
 import { HomePage } from './pages/HomePage'
 
-type AppPage = 'home' | 'companies' | 'settings'
+type AppPage = 'home' | 'companies' | 'settings' | 'brochure'
 
 export default function App() {
   const [page, setPage] = useState<AppPage>('home')
@@ -36,9 +37,16 @@ export default function App() {
         </button>
       </nav>
 
-      {page === 'home' && <HomePage botStatus={botStatus} onOpenMarketing={() => setMarketingOpen(true)} />}
+      {page === 'home' && (
+        <HomePage
+          botStatus={botStatus}
+          onOpenMarketing={() => setMarketingOpen(true)}
+          onOpenBrochure={() => setPage('brochure')}
+        />
+      )}
       {page === 'companies' && <CompanyProfilesPage onCompaniesChanged={() => void refreshBrand()} />}
       {page === 'settings' && <SettingsPage brandName={brandName} brandLogoUrl={brandLogoUrl} />}
+      {page === 'brochure' && <BrochurePage onClose={() => setPage('home')} />}
 
       <MarketingCampaignModal open={marketingOpen} onClose={() => setMarketingOpen(false)} />
     </div>
