@@ -157,7 +157,9 @@ function registerBotHandlers(ipcMain) {
     if (reelTitle) env.BOT_REEL_TITLE = reelTitle
     if (reelCaption) env.BOT_REEL_CAPTION = reelCaption
 
-    const imagePrompt = buildFullPrompt(rawPrompt, companyName, imageService, imageFormat)
+    const imagePrompt = contentType === 'reel'
+      ? rawPrompt
+      : buildFullPrompt(rawPrompt, companyName, imageService, imageFormat)
 
     const botRunnerPath = path.join(PROJECT_ROOT, 'server', 'bot_runner.py')
     const pythonBin = findPython()

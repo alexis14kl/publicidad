@@ -39,6 +39,10 @@ def read_prompt() -> str:
     return text
 
 
+def _normalize_prompt_text(value: str) -> str:
+    return " ".join(str(value or "").replace("\u00a0", " ").split()).strip()
+
+
 def _find_flow_page(browser: Browser) -> Page | None:
     """Busca una pestaña de Flow ya abierta (lista de proyectos)."""
     for context in browser.contexts:
@@ -227,19 +231,22 @@ def _paste_prompt_in_flow(page: Page, prompt_text: str) -> bool:
     page.keyboard.press(f"{modifier}+v")
     page.wait_for_timeout(2000)
 
-    # Verificar que el texto se pego
+    # Verificar que el texto se pego de verdad y coincide con el prompt esperado.
     pasted = page.evaluate("""() => {
-        const el = document.querySelector('[contenteditable="true"]');
+        const candidates = Array.from(document.querySelectorAll('[contenteditable="true"]'));
+        const el = candidates.find((item) => item.offsetParent !== null) || candidates[0];
         if (!el) return '';
-        return (el.innerText || '').trim().slice(0, 50);
+        return (el.innerText || el.textContent || '').trim();
     }""")
+    normalized_expected = _normalize_prompt_text(prompt_text)
+    normalized_pasted = _normalize_prompt_text(pasted)
 
-    if pasted and len(pasted) > 5:
-        log_ok(f"Prompt pegado en Flow ({len(pasted)}+ chars).")
+    if normalized_pasted == normalized_expected:
+        log_ok(f"Prompt pegado en Flow ({len(normalized_pasted)} chars verificados).")
         return True
 
     # Fallback: si clipboard no funciono, usar keyboard.type (mas lento)
-    log_warn("Clipboard no funciono. Usando keyboard.type (puede tardar)...")
+    log_warn("Clipboard no pego el prompt esperado. Usando escritura asistida y verificacion exacta...")
     textarea.click()
     page.wait_for_timeout(500)
     page.keyboard.press(f"{modifier}+a")
@@ -247,13 +254,42 @@ def _paste_prompt_in_flow(page: Page, prompt_text: str) -> bool:
     page.keyboard.press("Backspace")
     page.wait_for_timeout(300)
 
-    # Escribir caracter por caracter (truncar a 500 chars max para velocidad)
-    truncated = prompt_text[:500]
-    page.keyboard.type(truncated, delay=10)
+    page.keyboard.type(prompt_text, delay=10)
     page.wait_for_timeout(1000)
 
-    log_ok(f"Prompt escrito via teclado ({len(truncated)} chars).")
-    return True
+    typed = page.evaluate("""() => {
+        const candidates = Array.from(document.querySelectorAll('[contenteditable="true"]'));
+        const el = candidates.find((item) => item.offsetParent !== null) || candidates[0];
+        if (!el) return '';
+        return (el.innerText || el.textContent || '').trim();
+    }""")
+    normalized_typed = _normalize_prompt_text(typed)
+
+    if normalized_typed == normalized_expected:
+        log_ok(f"Prompt escrito y verificado en Flow ({len(normalized_typed)} chars).")
+        return True
+
+    # Ultimo recurso: forzar contenido por DOM y disparar eventos de input.
+    log_warn("keyboard.type no dejo el prompt exacto. Forzando contenido por DOM...")
+    dom_written = page.evaluate("""(text) => {
+        const candidates = Array.from(document.querySelectorAll('[contenteditable="true"]'));
+        const el = candidates.find((item) => item.offsetParent !== null) || candidates[0];
+        if (!el) return '';
+        el.focus();
+        el.innerHTML = '';
+        el.textContent = text;
+        el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return (el.innerText || el.textContent || '').trim();
+    }""", prompt_text)
+    normalized_dom_written = _normalize_prompt_text(dom_written)
+
+    if normalized_dom_written == normalized_expected:
+        log_ok(f"Prompt forzado y verificado en Flow ({len(normalized_dom_written)} chars).")
+        return True
+
+    log_error("No pude confirmar que Flow tenga pegado exactamente el prompt de la escena 1.")
+    return False
 
 
 def _click_create(page: Page, max_retries: int = 5) -> bool:
