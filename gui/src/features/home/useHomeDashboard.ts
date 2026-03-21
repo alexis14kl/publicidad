@@ -3,8 +3,8 @@ import { useBotLogTail } from '../../hooks/useBotLogTail'
 import { useLastJob } from '../../hooks/useLastJob'
 import { useLogTail } from '../../hooks/useLogTail'
 import { usePollerProcess } from '../../hooks/usePollerProcess'
-import { generateDefaultPrompt, listCompanyRecords, startBot, stopBot } from '../../shared/api/commands'
-import { NOYECODE_SERVICES, type BotStatus, type CompanyRecord, type PromptHistoryEntry } from '../../shared/api/types'
+import { analyzeImageServices, generateDefaultPrompt, listCompanyRecords, startBot, stopBot } from '../../shared/api/commands'
+import { NOYECODE_SERVICES, type BotStatus, type CompanyRecord, type ImageServiceSuggestion, type PromptHistoryEntry } from '../../shared/api/types'
 
 const STORAGE_KEYS = {
   imageFormat: 'imageFormat',
@@ -30,6 +30,7 @@ export function useHomeDashboard(botStatus: BotStatus) {
   const [companies, setCompanies] = useState<CompanyRecord[]>([])
   const [selectedCompany, setSelectedCompany] = useState('')
   const [publishPlatforms, setPublishPlatforms] = useState<Record<string, boolean>>({})
+  const [serviceSuggestions, setServiceSuggestions] = useState<ImageServiceSuggestion[]>([])
 
   const poller = usePollerProcess()
   const { lines: workerLines, clearLines: clearWorkerLines } = useLogTail()
@@ -107,6 +108,59 @@ export function useHomeDashboard(botStatus: BotStatus) {
       // Ignore storage failures.
     }
   }, [companies, selectedCompany])
+
+  useEffect(() => {
+    const prompt = imagePrompt.trim()
+    if (!prompt) {
+      setServiceSuggestions([])
+      const fallback = window.localStorage.getItem(STORAGE_KEYS.imageService) || NOYECODE_SERVICES[0].value
+      setImageService(fallback)
+      return
+    }
+
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      analyzeImageServices({ prePrompt: prompt })
+        .then((result) => {
+          if (cancelled) return
+          const suggestions = Array.isArray(result?.suggestions) ? result.suggestions : []
+          setServiceSuggestions(suggestions)
+
+          if (suggestions.length === 0) {
+            setImageService('')
+            try {
+              window.localStorage.removeItem(STORAGE_KEYS.imageService)
+            } catch {
+              // Ignore storage failures.
+            }
+            return
+          }
+
+          const allowed = new Set(suggestions.map((item) => item.value))
+          if (imageService && allowed.has(imageService)) {
+            return
+          }
+
+          const nextValue = suggestions[0].value
+          setImageService(nextValue)
+          try {
+            window.localStorage.setItem(STORAGE_KEYS.imageService, nextValue)
+          } catch {
+            // Ignore storage failures.
+          }
+        })
+        .catch(() => {
+          if (cancelled) return
+          setServiceSuggestions([])
+          setImageService('')
+        })
+    }, 280)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [imagePrompt, imageService])
 
   const rememberPrompt = (prompt: string) => {
     const normalized = prompt.trim()

@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('electronAPI', {
   getBotStatus: () => ipcRenderer.invoke('get-bot-status'),
   getLastJob: () => ipcRenderer.invoke('get-last-job'),
+  analyzeImageServices: (payload) => ipcRenderer.invoke('analyze-image-services', payload),
   startBot: (payload) => ipcRenderer.invoke('start-bot', payload),
   stopBot: () => ipcRenderer.invoke('stop-bot'),
   startPoller: (payload) => ipcRenderer.invoke('start-poller', payload),

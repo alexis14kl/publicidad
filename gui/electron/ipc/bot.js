@@ -9,6 +9,7 @@ const { IMAGE_FORMATS } = require('../config/image-formats')
 const state = require('../state')
 const { isPollerAlive } = require('../marketing/campaign-process')
 const { lookupCompanyData, isCompanyActive, buildCompanyCredentialEnv, buildFullPrompt } = require('../company/lookup')
+const { analyzePrePromptServices } = require('../marketing/service-analyzer')
 
 function registerBotHandlers(ipcMain) {
   ipcMain.handle('get-bot-status', async () => {
@@ -50,6 +51,20 @@ function registerBotHandlers(ipcMain) {
 
   ipcMain.handle('get-last-job', async () => {
     return readJsonFile(path.join(PROJECT_ROOT, '.job_poller_state.json'))
+  })
+
+  ipcMain.handle('analyze-image-services', async (_event, payload = {}) => {
+    try {
+      const prePrompt = typeof payload === 'object' && payload !== null
+        ? String(payload.prePrompt || '').trim()
+        : ''
+      return analyzePrePromptServices(prePrompt)
+    } catch (error) {
+      return {
+        suggestions: [],
+        error: error instanceof Error ? error.message : 'No pude analizar el pre-prompt.',
+      }
+    }
   })
 
   ipcMain.handle('start-bot', async (_event, payload) => {

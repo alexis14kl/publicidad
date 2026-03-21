@@ -133,6 +133,22 @@ export interface PromptHistoryEntry {
   createdAt: string | null
 }
 
+export interface ImageServiceSuggestion {
+  value: string
+  label: string
+  reason: string
+  score: number
+}
+
+export interface AnalyzeImageServicesPayload {
+  prePrompt: string
+}
+
+export interface AnalyzeImageServicesResult {
+  suggestions: ImageServiceSuggestion[]
+  error?: string
+}
+
 export interface FacebookPagePhoto {
   id: string
   name: string
@@ -476,6 +492,7 @@ export interface PreflightResult {
 export interface ElectronAPI {
   getBotStatus: () => Promise<BotStatus>
   getLastJob: () => Promise<LastJob | null>
+  analyzeImageServices: (payload: AnalyzeImageServicesPayload) => Promise<AnalyzeImageServicesResult>
   startBot: (payload?: StartBotPayload) => Promise<CommandResult>
   stopBot: () => Promise<CommandResult>
   startPoller: (payload?: StartPollerPayload) => Promise<CommandResult>

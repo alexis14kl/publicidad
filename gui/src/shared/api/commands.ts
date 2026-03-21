@@ -1,4 +1,6 @@
 import type {
+  AnalyzeImageServicesPayload,
+  AnalyzeImageServicesResult,
   BotStatus,
   CommandResult,
   CompanyLogoSelectionResult,
@@ -23,6 +25,8 @@ const api = () => window.electronAPI
 
 export const getBotStatus = (): Promise<BotStatus> => api().getBotStatus()
 export const getLastJob = (): Promise<LastJob | null> => api().getLastJob()
+export const analyzeImageServices = (payload: AnalyzeImageServicesPayload): Promise<AnalyzeImageServicesResult> =>
+  api().analyzeImageServices(payload)
 export const startBot = (payload?: StartBotPayload): Promise<CommandResult> => api().startBot(payload)
 export const stopBot = (): Promise<CommandResult> => api().stopBot()
 export const startPoller = (payload?: StartPollerPayload): Promise<CommandResult> => api().startPoller(payload)
