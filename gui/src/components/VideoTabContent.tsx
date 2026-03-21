@@ -310,7 +310,7 @@ export function VideoTabContent({
                     <strong>Prompt:</strong> {scene.prompt}
                   </p>
                   <p className="scene-preview__card-text">
-                    <strong>Dialogo:</strong> {scene.dialogue}
+                    <strong>Diálogo del personaje:</strong> {scene.dialogue}
                   </p>
                 </article>
               ))}

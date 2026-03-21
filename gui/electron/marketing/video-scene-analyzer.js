@@ -22,14 +22,41 @@ function scoreKeywords(text, keywords = []) {
 }
 
 function extractFocus(prompt = '', fallback = 'la oferta principal') {
+  const stopWords = new Set([
+    'estilo', 'pixar', 'disney', 'netflix', 'anime', 'cartoon', 'pelicula', 'serie',
+    'presentando', 'presentado', 'inspirado', 'inspirada', 'tipo', 'como', 'para',
+  ])
   const compact = String(prompt || '')
     .replace(/[^\w\sáéíóúñ-]/gi, ' ')
     .split(/\s+/)
     .filter((word) => word.length > 2)
-    .slice(0, 7)
+    .filter((word) => !stopWords.has(String(word || '').trim().toLowerCase()))
+    .slice(0, 5)
     .join(' ')
 
   return compact ? titleCase(compact) : fallback
+}
+
+function buildMarketingDialogue(focus, index) {
+  if (index === 0) {
+    return `Ojo con esto: ${focus} puede cambiar la forma en que trabajas hoy.`
+  }
+  if (index === 1) {
+    return 'Mira bien, aqui es donde se nota el cambio de verdad.'
+  }
+  return 'Es tu momento de dar el siguiente paso.'
+}
+
+function buildCharacterDialogue(index, invitationMode = false) {
+  if (invitationMode) {
+    if (index === 0) return 'Hola, te tengo una invitacion que no te puedes perder.'
+    if (index === 1) return 'Va a estar increible, lleno de diversion y sorpresas.'
+    return 'No faltes, te espero para celebrar juntos.'
+  }
+
+  if (index === 0) return 'Ey, mira esto, que apenas va empezando.'
+  if (index === 1) return 'Ahora si se puso buena la historia.'
+  return 'Vamos, quedate conmigo hasta el final.'
 }
 
 function detectVideoMode(text) {
@@ -79,6 +106,30 @@ function detectCategory(text) {
   return categories.sort((a, b) => b.score - a.score)[0]
 }
 
+function buildMarketingStylePrompt(focus, sceneGoal, extraDetails = '') {
+  return [
+    'Commercial AI video style, vertical 9:16, premium ad look.',
+    `${focus}.`,
+    sceneGoal,
+    extraDetails,
+    'Fast readability, clean motion, Spanish on-screen text only.',
+  ].filter(Boolean).join(' ')
+}
+
+function buildCharacterStylePrompt(focus, sceneGoal, extraDetails = '', invitationMode = false) {
+  const style = invitationMode
+    ? 'Pixar-inspired 3D animation style, bright saturated colors, cel-shaded lighting.'
+    : 'Pixar-inspired 3D animation style, bright saturated colors, cel-shaded lighting.'
+
+  return [
+    style,
+    `${focus}.`,
+    sceneGoal,
+    extraDetails,
+    'Short, clear, expressive shot with strong continuity.',
+  ].filter(Boolean).join(' ')
+}
+
 function buildMarketingScenes(prompt) {
   const normalized = normalize(prompt)
   const focus = extractFocus(prompt)
@@ -90,33 +141,42 @@ function buildMarketingScenes(prompt) {
       label: 'Escena 01',
       title: 'Hook Comercial',
       timeRange: '0s - 5s',
-      prompt: `Commercial AI video style, vertical 9:16, high clarity, strong hook in the first second. Mostrar ${focus} con ${category.visual}. Abrir con un problema o deseo claro del cliente ideal, texto corto y legible, composicion enfocada en conversion.`,
-      dialogue: `Si buscas ${focus}, aqui empieza una opcion clara y facil de entender.`,
+      prompt: buildMarketingStylePrompt(
+        focus,
+        `Strong first-second hook. Show ${focus} with ${category.visual}.`,
+        'Close-up hero shot, premium setting.'
+      ),
+      dialogue: buildMarketingDialogue(focus, 0),
     },
     {
       id: 'scene-2',
       label: 'Escena 02',
       title: 'Valor y Diferencial',
       timeRange: '5s - 10s',
-      prompt: `Maintain the same visual identity and subject continuity. Mostrar como ${focus} resuelve una necesidad real, incluir prueba visual del beneficio, transicion suave, enfoque en confianza, claridad y resultado esperado.`,
-      dialogue: `Te mostramos por que esta opcion te ahorra tiempo y te ayuda a decidir mejor.`,
+      prompt: buildMarketingStylePrompt(
+        focus,
+        `Show how ${focus} solves a real need with visible value.`,
+        'Subject in action, clear benefit.'
+      ),
+      dialogue: buildMarketingDialogue(focus, 1),
     },
     {
       id: 'scene-3',
       label: 'Escena 03',
       title: 'Cierre con CTA',
       timeRange: '10s - 15s',
-      prompt: `Final conversion scene, same style and continuity. Cerrar con ${focus} en primer plano, mensaje directo, CTA visible y lectura rapida. Mantener energia comercial y dejar claro el siguiente paso.`,
-      dialogue: `Da el siguiente paso hoy y ${category.cta}.`,
+      prompt: buildMarketingStylePrompt(
+        focus,
+        'Finish with a conversion-focused closing shot and clear CTA.',
+        'Front-facing subject, clean closing frame.'
+      ),
+      dialogue: buildMarketingDialogue(focus, 2),
     },
   ]
 }
 
 function buildCharacterScenes(prompt, invitationMode = false) {
   const focus = extractFocus(prompt, invitationMode ? 'la celebracion principal' : 'la historia principal')
-  const stylePrefix = invitationMode
-    ? 'Animated 3D cartoon style, bright saturated colors, cel-shaded lighting, energetic party mood.'
-    : 'Animated 3D cartoon style inspired by an animated movie or series, bright saturated colors, cel-shaded lighting.'
 
   return [
     {
@@ -124,30 +184,39 @@ function buildCharacterScenes(prompt, invitationMode = false) {
       label: 'Escena 01',
       title: invitationMode ? 'Apertura del Evento' : 'Apertura del Personaje',
       timeRange: '0s - 5s',
-      prompt: `${stylePrefix} Introducir ${focus} con una apertura visual fuerte, personaje o protagonista al centro, texto en pantalla legible y movimiento dinamico.`,
-      dialogue: invitationMode
-        ? `Ya casi llega ${focus} y va a estar increible.`
-        : `Aqui empieza ${focus} con toda la energia del personaje principal.`,
+      prompt: buildCharacterStylePrompt(
+        focus,
+        `Strong opening shot. ${focus} centered, expressive, dynamic.`,
+        'Hero framing, recognizable animated setting.',
+        invitationMode
+      ),
+      dialogue: buildCharacterDialogue(0, invitationMode),
     },
     {
       id: 'scene-2',
       label: 'Escena 02',
       title: invitationMode ? 'Momento de Invitacion' : 'Desarrollo de la Escena',
       timeRange: '5s - 10s',
-      prompt: `${stylePrefix} Mantener continuidad visual del protagonista. Mostrar accion central, elementos iconicos del universo visual y mensaje corto que conecte con ${focus}.`,
-      dialogue: invitationMode
-        ? 'Preparate para una escena divertida, llena de color y mucha emocion.'
-        : `Todo gira alrededor de ${focus} y se siente desde esta escena.`,
+      prompt: buildCharacterStylePrompt(
+        focus,
+        'Show the main action with strong continuity and exaggerated gestures.',
+        'Clear action beat, lively motion.',
+        invitationMode
+      ),
+      dialogue: buildCharacterDialogue(1, invitationMode),
     },
     {
       id: 'scene-3',
       label: 'Escena 03',
       title: invitationMode ? 'Cierre y Confirmacion' : 'Cierre de Impacto',
       timeRange: '10s - 15s',
-      prompt: `${stylePrefix} Cierre memorable con el protagonista, mensaje final grande y legible, composicion limpia para CTA y continuidad del estilo de animacion.`,
-      dialogue: invitationMode
-        ? 'No faltes, confirma y ven a vivir esta celebracion.'
-        : 'Cierra con fuerza y deja claro que esta historia merece verse completa.',
+      prompt: buildCharacterStylePrompt(
+        focus,
+        'Create a memorable ending with strong final expression and clean closing message.',
+        'Clean final pose, conclusive shot.',
+        invitationMode
+      ),
+      dialogue: buildCharacterDialogue(2, invitationMode),
     },
   ]
 }
@@ -156,9 +225,9 @@ function compileScenesForBot(prompt, scenes) {
   return [
     'Usa el enfoque del agente video-scene-creator para producir un video coherente de 3 escenas.',
     `Prompt base del usuario: ${prompt}`,
-    'Mantener continuidad visual, texto legible, energia comercial y dialogos naturales en espanol.',
+    'Mantener continuidad visual entre escenas. Los prompts visuales deben quedar en ingles profesional para video AI. El voiceover debe quedar en español natural.',
     ...scenes.map((scene) =>
-      `${scene.label} - ${scene.title} (${scene.timeRange})\nPrompt: ${scene.prompt}\nDialogue (espanol): "${scene.dialogue}"`
+      `${scene.label} - ${scene.title} (${scene.timeRange})\nPrompt: ${scene.prompt}\nVoiceover (español): "${scene.dialogue}"`
     ),
   ].join('\n\n')
 }
@@ -186,8 +255,8 @@ function analyzeVideoScenes(prePrompt = '') {
     sourcePath: AGENT_SOURCE_PATH,
     summary:
       mode === 'marketing'
-        ? 'El agente estructuro una apertura, una escena de valor y un cierre con CTA para el video.'
-        : 'El agente estructuro tres escenas con continuidad visual y dialogos listos para video AI.',
+        ? 'El agente estructuro una apertura, una escena de valor y un cierre con CTA con prompts visuales tipo video AI y voiceover en español.'
+        : 'El agente estructuro tres escenas con prompts visuales tipo video AI y voiceover listo en español.',
     scenes,
     compiledPrompt: compileScenesForBot(prompt, scenes),
   }
