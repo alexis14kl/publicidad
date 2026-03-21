@@ -149,6 +149,28 @@ export interface AnalyzeImageServicesResult {
   error?: string
 }
 
+export interface VideoScenePlanItem {
+  id: string
+  label: string
+  title: string
+  timeRange: string
+  prompt: string
+  dialogue: string
+}
+
+export interface AnalyzeVideoScenesPayload {
+  prePrompt: string
+}
+
+export interface AnalyzeVideoScenesResult {
+  agentName: string
+  sourcePath: string
+  summary: string
+  scenes: VideoScenePlanItem[]
+  compiledPrompt: string
+  error?: string
+}
+
 export interface FacebookPagePhoto {
   id: string
   name: string
@@ -258,6 +280,9 @@ export interface StartBotPayload {
   imageService?: string
   companyName?: string
   publishPlatforms?: string[]
+  contentType?: string
+  reelTitle?: string
+  reelCaption?: string
 }
 
 export interface StartPollerPayload {
@@ -493,6 +518,7 @@ export interface ElectronAPI {
   getBotStatus: () => Promise<BotStatus>
   getLastJob: () => Promise<LastJob | null>
   analyzeImageServices: (payload: AnalyzeImageServicesPayload) => Promise<AnalyzeImageServicesResult>
+  analyzeVideoScenes: (payload: AnalyzeVideoScenesPayload) => Promise<AnalyzeVideoScenesResult>
   startBot: (payload?: StartBotPayload) => Promise<CommandResult>
   stopBot: () => Promise<CommandResult>
   startPoller: (payload?: StartPollerPayload) => Promise<CommandResult>

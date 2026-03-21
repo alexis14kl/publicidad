@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BotTabs, type BotTabId } from '../components/BotTabs'
 import { ControlPanel } from '../components/ControlPanel'
 import { DualLogViewer } from '../components/DualLogViewer'
@@ -9,10 +9,13 @@ import { SharedCompanyBar } from '../components/SharedCompanyBar'
 import { StatusCard } from '../components/StatusCard'
 import { VideoTabContent } from '../components/VideoTabContent'
 import { useHomeDashboard } from '../features/home/useHomeDashboard'
-import { startBot } from '../shared/api/commands'
-import type { BotStatus } from '../shared/api/types'
+import { buildEmptyVideoScenes, type VideoSceneHistoryEntry } from '../features/home/videoScenes'
+import { analyzeVideoScenes, startBot } from '../shared/api/commands'
+import type { AnalyzeVideoScenesResult, BotStatus } from '../shared/api/types'
 
 const STORAGE_KEY_TAB = 'botActiveTab'
+const STORAGE_KEY_VIDEO_SCENE_HISTORY = 'videoSceneHistory'
+const STORAGE_KEY_VIDEO_SCENE_PROMPT_MODE = 'videoScenePromptMode'
 
 export function HomePage({
   botStatus,
@@ -31,6 +34,94 @@ export function HomePage({
   const [videoPrompt, setVideoPrompt] = useState('')
   const [videoTitle, setVideoTitle] = useState('')
   const [videoCaption, setVideoCaption] = useState('')
+  const [videoScenes, setVideoScenes] = useState(() => buildEmptyVideoScenes())
+  const [videoSceneHistory, setVideoSceneHistory] = useState<VideoSceneHistoryEntry[]>([])
+  const [videoSceneSummary, setVideoSceneSummary] = useState('Escribe un prompt y el agente armara tres escenas antes de enviar el video al bot.')
+  const [videoCompiledPrompt, setVideoCompiledPrompt] = useState('')
+  const [videoSceneAnalysisLoading, setVideoSceneAnalysisLoading] = useState(false)
+  const [useScenesForVideoBot, setUseScenesForVideoBot] = useState(() => {
+    const saved = window.localStorage.getItem(STORAGE_KEY_VIDEO_SCENE_PROMPT_MODE)
+    return saved !== 'prompt'
+  })
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY_VIDEO_SCENE_HISTORY)
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) return
+      setVideoSceneHistory(
+        parsed.filter((item: unknown): item is VideoSceneHistoryEntry => {
+          if (!item || typeof item !== 'object') return false
+          const candidate = item as VideoSceneHistoryEntry
+          return (
+            typeof candidate.prompt === 'string' &&
+            typeof candidate.compiledPrompt === 'string' &&
+            Array.isArray(candidate.scenes)
+          )
+        }).slice(0, 10)
+      )
+    } catch {
+      // Ignore invalid local storage state.
+    }
+  }, [])
+
+  useEffect(() => {
+    const prompt = videoPrompt.trim()
+    if (!prompt) {
+      setVideoScenes(buildEmptyVideoScenes())
+      setVideoSceneSummary('Escribe un prompt y el agente armara tres escenas antes de enviar el video al bot.')
+      setVideoCompiledPrompt('')
+      setVideoSceneAnalysisLoading(false)
+      return
+    }
+
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      setVideoSceneAnalysisLoading(true)
+      analyzeVideoScenes({ prePrompt: prompt })
+        .then((result: AnalyzeVideoScenesResult) => {
+          if (cancelled) return
+          const nextScenes = Array.isArray(result.scenes) && result.scenes.length > 0
+            ? result.scenes
+            : buildEmptyVideoScenes()
+          setVideoScenes(nextScenes)
+          setVideoSceneSummary(result.summary || 'El agente preparo las escenas del video.')
+          setVideoCompiledPrompt(result.compiledPrompt || '')
+          setVideoSceneHistory((current) => {
+            const entry: VideoSceneHistoryEntry = {
+              prompt,
+              scenes: nextScenes,
+              compiledPrompt: result.compiledPrompt || '',
+              createdAt: new Date().toISOString(),
+            }
+            const next = [entry, ...current.filter((item) => item.prompt !== prompt)].slice(0, 10)
+            try {
+              window.localStorage.setItem(STORAGE_KEY_VIDEO_SCENE_HISTORY, JSON.stringify(next))
+            } catch {
+              // Ignore storage failures.
+            }
+            return next
+          })
+        })
+        .catch(() => {
+          if (cancelled) return
+          setVideoScenes(buildEmptyVideoScenes())
+          setVideoSceneSummary('No pude generar las escenas con el agente en este momento.')
+          setVideoCompiledPrompt('')
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setVideoSceneAnalysisLoading(false)
+          }
+        })
+    }, 550)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [videoPrompt])
 
   const handleChangeTab = (tab: BotTabId) => {
     setActiveTab(tab)
@@ -42,18 +133,24 @@ export function HomePage({
     if (activeTab === 'video') {
       const prompt = videoPrompt.trim()
       if (!prompt) return
+      if (useScenesForVideoBot && (videoSceneAnalysisLoading || !videoCompiledPrompt.trim())) {
+        return
+      }
+      const promptForBot = useScenesForVideoBot && videoCompiledPrompt.trim()
+        ? videoCompiledPrompt.trim()
+        : prompt
       const activePlatforms = Object.entries(dashboard.publishPlatforms)
         .filter(([, checked]) => checked)
         .map(([name]) => name)
       await startBot({
         profileName: 'Flow Veo 3',
-        imagePrompt: prompt,
+        imagePrompt: promptForBot,
         companyName: dashboard.selectedCompany,
         contentType: 'reel',
         reelTitle: videoTitle.trim() || 'Reel publicitario',
         reelCaption: videoCaption.trim(),
         publishPlatforms: activePlatforms,
-      } as any)
+      })
     } else {
       await dashboard.handleStartBot()
     }
@@ -63,7 +160,7 @@ export function HomePage({
   const activePrompt = activeTab === 'video' ? videoPrompt : dashboard.imagePrompt
 
   return (
-    <>
+    <div className="home-page">
       <PreflightBanner />
 
       <div className="top-actions">
@@ -125,6 +222,24 @@ export function HomePage({
               onChangeVideoTitle={setVideoTitle}
               videoCaption={videoCaption}
               onChangeVideoCaption={setVideoCaption}
+              videoScenes={videoScenes}
+              videoSceneSummary={videoSceneSummary}
+              videoSceneAnalysisLoading={videoSceneAnalysisLoading}
+              videoSceneHistory={videoSceneHistory}
+              useScenesForVideoBot={useScenesForVideoBot}
+              onToggleUseScenesForVideoBot={(value) => {
+                setUseScenesForVideoBot(value)
+                try {
+                  window.localStorage.setItem(STORAGE_KEY_VIDEO_SCENE_PROMPT_MODE, value ? 'scenes' : 'prompt')
+                } catch {
+                  // Ignore storage failures.
+                }
+              }}
+              onUseSceneHistory={(entry) => {
+                setVideoPrompt(entry.prompt)
+                setVideoScenes(entry.scenes)
+                setVideoCompiledPrompt(entry.compiledPrompt)
+              }}
             />
           ),
         }}
@@ -136,6 +251,6 @@ export function HomePage({
         botLines={dashboard.botLines}
         onClearBot={dashboard.clearBotLines}
       />
-    </>
+    </div>
   )
 }

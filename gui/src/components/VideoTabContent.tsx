@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { VideoSceneHistoryEntry, VideoSceneItem } from '../features/home/videoScenes'
 import type { CompanyRecord } from '../shared/api/types'
 import { startBot } from '../shared/api/commands'
 
@@ -23,6 +24,13 @@ interface VideoTabContentProps {
   onChangeVideoTitle: (value: string) => void
   videoCaption: string
   onChangeVideoCaption: (value: string) => void
+  videoScenes: VideoSceneItem[]
+  videoSceneSummary: string
+  videoSceneAnalysisLoading: boolean
+  videoSceneHistory: VideoSceneHistoryEntry[]
+  useScenesForVideoBot: boolean
+  onToggleUseScenesForVideoBot: (value: boolean) => void
+  onUseSceneHistory: (entry: VideoSceneHistoryEntry) => void
 }
 
 export function VideoTabContent({
@@ -35,6 +43,13 @@ export function VideoTabContent({
   onChangeVideoTitle,
   videoCaption,
   onChangeVideoCaption,
+  videoScenes,
+  videoSceneSummary,
+  videoSceneAnalysisLoading,
+  videoSceneHistory,
+  useScenesForVideoBot,
+  onToggleUseScenesForVideoBot,
+  onUseSceneHistory,
 }: VideoTabContentProps) {
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [videoMeta, setVideoMeta] = useState<{ width: number; height: number; duration: number } | null>(null)
@@ -42,7 +57,9 @@ export function VideoTabContent({
   const [message, setMessage] = useState('')
   const [warnings, setWarnings] = useState<string[]>([])
   const [mode, setMode] = useState<'bot' | 'manual'>('bot')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const historyRef = useRef<HTMLDivElement>(null)
 
   const company = companies.find((c) => c.nombre === selectedCompany)
   const pageId = company?.platforms.find((p) => p.platform === 'facebook')?.accounts?.[0]?.page_id || ''
@@ -52,6 +69,19 @@ export function VideoTabContent({
   const caption = videoCaption
   const canStartBot = !!videoPrompt.trim() && status !== 'generating' && status !== 'uploading'
   const canPublishManual = !!videoFile && !!videoMeta && !!token && !!pageId && status !== 'uploading' && warnings.length === 0
+
+  useEffect(() => {
+    if (!historyOpen) return
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null
+      if (!target) return
+      if (historyRef.current && !historyRef.current.contains(target)) {
+        setHistoryOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', handlePointerDown)
+    return () => window.removeEventListener('mousedown', handlePointerDown)
+  }, [historyOpen])
 
   const validateVideo = (file: File, meta: { width: number; height: number; duration: number }) => {
     const issues: string[] = []
@@ -166,6 +196,48 @@ export function VideoTabContent({
 
       {mode === 'bot' && (
         <>
+          <div className="tab-content__header">
+            <span className="tab-content__title">Generacion de video con IA</span>
+            <div ref={historyRef} className="prompt-tab__history">
+              <button
+                className="btn btn--small btn--ghost"
+                onClick={() => setHistoryOpen((value) => !value)}
+                disabled={videoSceneHistory.length === 0 || disabled}
+                title={videoSceneHistory.length === 0 ? 'Todavia no hay escenas guardadas' : 'Ver historial de escenas'}
+                type="button"
+              >
+                Historial de escenas
+              </button>
+              {historyOpen && (
+                <div className="prompt-history" role="menu" aria-label="Historial de escenas">
+                  {videoSceneHistory.map((entry, index) => {
+                    const dateLabel = new Date(entry.createdAt).toLocaleString('es-CO', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                    return (
+                      <button
+                        key={`${index}-${entry.prompt.slice(0, 24)}`}
+                        className="prompt-history__item"
+                        onClick={() => {
+                          onUseSceneHistory(entry)
+                          setHistoryOpen(false)
+                        }}
+                        type="button"
+                      >
+                        <span className="prompt-history__date">{dateLabel}</span>
+                        <span className="prompt-history__text">{entry.prompt}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="tab-content__controls">
             <div className="format-select">
               <label className="format-select__label" htmlFor="reel-title">Titulo del Reel</label>
@@ -206,6 +278,44 @@ export function VideoTabContent({
           <span className="control-prompt__hint">
             Usa el boton "Iniciar Bot" del panel de control para generar el video.
           </span>
+
+          <label className="scene-preview__toggle">
+            <input
+              type="checkbox"
+              checked={useScenesForVideoBot}
+              onChange={(e) => onToggleUseScenesForVideoBot(e.target.checked)}
+              disabled={disabled || !videoPrompt.trim()}
+            />
+            <span>
+              Enviar al bot el resultado del agente `video-scene-creator` en lugar del prompt original
+            </span>
+          </label>
+
+          <div className="scene-preview">
+            <div className="scene-preview__header">
+              <span className="scene-preview__title">Resultado de 3 escenas</span>
+              <span className="scene-preview__subtitle">
+                {videoSceneAnalysisLoading
+                  ? 'El agente esta analizando tu prompt para estructurar las escenas...'
+                  : videoSceneSummary}
+              </span>
+            </div>
+            <div className="scene-preview__grid">
+              {videoScenes.map((scene) => (
+                <article key={scene.id} className="scene-preview__card">
+                  <span className="scene-preview__badge">{scene.label}</span>
+                  <h4 className="scene-preview__card-title">{scene.title}</h4>
+                  <span className="scene-preview__meta">{scene.timeRange}</span>
+                  <p className="scene-preview__card-text">
+                    <strong>Prompt:</strong> {scene.prompt}
+                  </p>
+                  <p className="scene-preview__card-text">
+                    <strong>Dialogo:</strong> {scene.dialogue}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
         </>
       )}
 

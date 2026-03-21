@@ -10,6 +10,7 @@ const state = require('../state')
 const { isPollerAlive } = require('../marketing/campaign-process')
 const { lookupCompanyData, isCompanyActive, buildCompanyCredentialEnv, buildFullPrompt } = require('../company/lookup')
 const { analyzePrePromptServices } = require('../marketing/service-analyzer')
+const { analyzeVideoScenes } = require('../marketing/video-scene-analyzer')
 
 function registerBotHandlers(ipcMain) {
   ipcMain.handle('get-bot-status', async () => {
@@ -63,6 +64,24 @@ function registerBotHandlers(ipcMain) {
       return {
         suggestions: [],
         error: error instanceof Error ? error.message : 'No pude analizar el pre-prompt.',
+      }
+    }
+  })
+
+  ipcMain.handle('analyze-video-scenes', async (_event, payload = {}) => {
+    try {
+      const prePrompt = typeof payload === 'object' && payload !== null
+        ? String(payload.prePrompt || '').trim()
+        : ''
+      return analyzeVideoScenes(prePrompt)
+    } catch (error) {
+      return {
+        agentName: 'video-scene-creator',
+        sourcePath: '',
+        summary: 'No pude analizar el prompt del video.',
+        scenes: [],
+        compiledPrompt: '',
+        error: error instanceof Error ? error.message : 'No pude analizar el prompt del video.',
       }
     }
   })
