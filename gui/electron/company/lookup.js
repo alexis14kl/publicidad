@@ -165,6 +165,46 @@ function buildFullPrompt(userIdea, companyName, imageService, imageFormat) {
   )
 }
 
+function buildBrochurePrompt(userIdea, companyName, customColors) {
+  const company = lookupCompanyData(companyName)
+  const name = company?.nombre || 'Empresa'
+  const phone = company?.telefono || ''
+  const email = company?.correo || ''
+  const website = company?.sitio_web || ''
+  const address = company?.direccion || ''
+  const description = company?.descripcion || ''
+
+  const colors = {
+    primario: customColors?.color_primario || company?.color_primario || '#3469ED',
+    cta: customColors?.color_cta || company?.color_cta || '#fd9102',
+    acento: customColors?.color_acento || company?.color_acento || '#00bcd4',
+    checks: customColors?.color_checks || company?.color_checks || '#28a745',
+    fondo: customColors?.color_fondo || company?.color_fondo || '#f0f0f5',
+  }
+
+  return (
+    `Write the COMPLETE HTML code for a professional brochure as PLAIN TEXT. ` +
+    `Do NOT use code blocks, do NOT use backticks, do NOT add explanations. ` +
+    `Start your response directly with <!DOCTYPE html> and end with </html>. ` +
+    `Nothing before <!DOCTYPE html>, nothing after </html>.\n\n` +
+    `IDEA: ${userIdea}\n` +
+    `COMPANY: "${name}"` +
+    (description ? ` — ${description}` : '') + `\n` +
+    (phone ? `PHONE: ${phone}\n` : '') +
+    (email ? `EMAIL: ${email}\n` : '') +
+    (website ? `WEB: ${website}\n` : '') +
+    (address ? `ADDRESS: ${address}\n` : '') +
+    `COLORS: primary=${colors.primario}, cta=${colors.cta}, accent=${colors.acento}, bg=${colors.fondo}\n` +
+    `LOGO: <img src="logo" alt="Logo"> (will be replaced programmatically)\n\n` +
+    `RULES:\n` +
+    `- Letter size (8.5x11in), two pages, page-break-before:always on page 2\n` +
+    `- All CSS in <style> tag, @page{size:letter;margin:0}, print-color-adjust:exact\n` +
+    `- ALL visible text in SPANISH\n` +
+    `- Self-contained, no external resources, compact code\n` +
+    `- REMEMBER: plain text output, start with <!DOCTYPE html>, end with </html>`
+  )
+}
+
 module.exports = {
   lookupCompanyData,
   isCompanyActive,
@@ -174,4 +214,5 @@ module.exports = {
   buildServiceRule,
   buildFormatRule,
   buildFullPrompt,
+  buildBrochurePrompt,
 }

@@ -56,3 +56,7 @@ ejecutable/mac/*.app/
 ejecutable/mac/*.dmg
 
 videos_publicitarias/*.mp4
+
+# Brochures generados
+brochures_generados/*.pdf
+brochures_generados/*.txt

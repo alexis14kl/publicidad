@@ -8,7 +8,7 @@ const { findPython, killProcessTree } = require('../utils/process')
 const { IMAGE_FORMATS } = require('../config/image-formats')
 const state = require('../state')
 const { isPollerAlive } = require('../marketing/campaign-process')
-const { lookupCompanyData, isCompanyActive, buildCompanyCredentialEnv, buildFullPrompt } = require('../company/lookup')
+const { lookupCompanyData, isCompanyActive, buildCompanyCredentialEnv, buildFullPrompt, buildBrochurePrompt } = require('../company/lookup')
 const { analyzePrePromptServices } = require('../marketing/service-analyzer')
 const { analyzeVideoScenes } = require('../marketing/video-scene-analyzer')
 
@@ -157,9 +157,23 @@ function registerBotHandlers(ipcMain) {
     if (reelTitle) env.BOT_REEL_TITLE = reelTitle
     if (reelCaption) env.BOT_REEL_CAPTION = reelCaption
 
-    const imagePrompt = contentType === 'reel'
-      ? rawPrompt
-      : buildFullPrompt(rawPrompt, companyName, imageService, imageFormat)
+    // Extraer colores custom para brochure (si los hay)
+    const brochureCustomColors = typeof payload === 'object' && payload !== null
+      ? payload.brochureCustomColors || null
+      : null
+    const brochureLogoPath = typeof payload === 'object' && payload !== null
+      ? String(payload.brochureLogoPath || '').trim()
+      : ''
+
+    let imagePrompt
+    if (contentType === 'brochure') {
+      imagePrompt = buildBrochurePrompt(rawPrompt, companyName, brochureCustomColors)
+      if (brochureLogoPath) env.BROCHURE_LOGO_PATH = brochureLogoPath
+    } else if (contentType === 'reel') {
+      imagePrompt = rawPrompt
+    } else {
+      imagePrompt = buildFullPrompt(rawPrompt, companyName, imageService, imageFormat)
+    }
 
     const botRunnerPath = path.join(PROJECT_ROOT, 'server', 'bot_runner.py')
     const pythonBin = findPython()

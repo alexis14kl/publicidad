@@ -5,7 +5,8 @@ const { sleep } = require('./helpers')
 let _cachedPythonBin = undefined
 
 function findPython() {
-  if (_cachedPythonBin !== undefined) return _cachedPythonBin
+  // Only cache positive results — retry on failure
+  if (_cachedPythonBin) return _cachedPythonBin
 
   const candidates = process.platform === 'win32'
     ? ['python', 'python3', 'py']
@@ -23,7 +24,6 @@ function findPython() {
       }
     } catch { /* not found */ }
   }
-  _cachedPythonBin = null
   return null
 }
 

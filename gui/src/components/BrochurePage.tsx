@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { listCompanyRecords } from '../shared/api/commands'
+import { useBotLogTail } from '../hooks/useBotLogTail'
+import { listCompanyRecords, startBot } from '../shared/api/commands'
 import { DEFAULT_BRAND_COLORS, type CompanyRecord } from '../shared/api/types'
 
 type ColorKey = keyof typeof DEFAULT_BRAND_COLORS
@@ -12,10 +13,27 @@ const COLOR_LABELS: { key: ColorKey; label: string }[] = [
   { key: 'color_fondo', label: 'Fondo' },
 ]
 
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-9;]*m/g, '')
+}
+
+function colorize(line: string): { text: string; className: string } {
+  if (line.includes('[OK]') || line.includes('[ok]')) return { text: line, className: 'log-ok' }
+  if (line.includes('[ERROR]') || line.includes('[error]') || line.includes('ERROR')) return { text: line, className: 'log-error' }
+  if (line.includes('[WARN]') || line.includes('[warn]') || line.includes('WARNING')) return { text: line, className: 'log-warn' }
+  if (line.includes('[INFO]') || line.includes('[info]')) return { text: line, className: 'log-info' }
+  if (/^\[?\d+\/\d+\]/.test(line.trim())) return { text: line, className: 'log-step' }
+  return { text: line, className: '' }
+}
+
 export function BrochurePage({ onClose }: { onClose: () => void }) {
   const [prompt, setPrompt] = useState('')
   const [companies, setCompanies] = useState<CompanyRecord[]>([])
   const [selectedCompany, setSelectedCompany] = useState('')
+
+  const [generating, setGenerating] = useState(false)
+  const { lines: botLines, clearLines: clearBotLines } = useBotLogTail()
+  const logRef = useRef<HTMLDivElement>(null)
 
   // Overrides locales para este brochure (no afectan la empresa)
   const [customLogo, setCustomLogo] = useState<{ url: string; name: string } | null>(null)
@@ -33,6 +51,23 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
       })
       .catch(() => { /* ignore */ })
   }, [])
+
+  // Auto-scroll logs + detectar fin del bot
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight
+    }
+    // Detectar si el bot termino
+    const lastLine = botLines[botLines.length - 1] || ''
+    if (generating && lastLine.includes('Bot finalizo con codigo')) {
+      setGenerating(false)
+      if (lastLine.includes('codigo: 0')) {
+        setStatusMsg('Brochure generado con exito. Revisa brochures_generados/')
+      } else {
+        setStatusMsg('El bot termino con errores. Revisa la consola.')
+      }
+    }
+  }, [botLines, generating])
 
   const company = companies.find((c) => c.nombre === selectedCompany) || null
 
@@ -57,6 +92,33 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
     if (!file) return
     const url = URL.createObjectURL(file)
     setCustomLogo({ url, name: file.name })
+  }
+
+  const [statusMsg, setStatusMsg] = useState('')
+
+  const handleGenerate = async () => {
+    if (!prompt.trim() || !company || generating) return
+    setGenerating(true)
+    setStatusMsg('Iniciando generacion de brochure...')
+    clearBotLines()
+    try {
+      const brochureCustomColors = Object.keys(customColors).length > 0 ? customColors : undefined
+      const result = await startBot({
+        imagePrompt: prompt.trim(),
+        companyName: company.nombre,
+        contentType: 'brochure',
+        brochureCustomColors,
+      } as any)
+      if (result.success) {
+        setStatusMsg(`Bot iniciado (PID: ${result.pid}). Revisa la consola...`)
+      } else {
+        setStatusMsg(`Error: ${result.error || 'No se pudo iniciar el bot'}`)
+        setGenerating(false)
+      }
+    } catch (err) {
+      setStatusMsg(`Error: ${err instanceof Error ? err.message : String(err)}`)
+      setGenerating(false)
+    }
   }
 
   const logoUrl = customLogo?.url || company?.logo_url || null
@@ -183,13 +245,43 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
           <div className="brochure-page__actions">
             <button
               className="btn btn--brochure"
-              disabled={!prompt.trim() || !company}
-              onClick={() => {
-                /* TODO: IPC generate-brochure */
-              }}
+              disabled={!prompt.trim() || !company || generating}
+              onClick={handleGenerate}
             >
-              Generar Brochure
+              {generating ? 'Generando...' : 'Generar Brochure'}
             </button>
+          </div>
+
+          {statusMsg && (
+            <div className={`brochure-page__status ${statusMsg.startsWith('Error') ? 'brochure-page__status--error' : ''}`}>
+              {statusMsg}
+            </div>
+          )}
+
+          {/* ── Consola de logs del bot ── */}
+          <div className="brochure-page__console glass-card">
+            <div className="log-header">
+              <div className="card-header">
+                <span className="card-icon">&#9654;</span>
+                <span className="card-title">Consola Brochure</span>
+                <span className="log-count">{botLines.length} lineas</span>
+              </div>
+              <button className="btn btn--small btn--ghost" onClick={clearBotLines}>
+                Limpiar
+              </button>
+            </div>
+            <div ref={logRef} className="brochure-page__console-content">
+              {botLines.length === 0 ? (
+                <p className="no-data">Los logs del bot apareceran aqui al generar un brochure</p>
+              ) : (
+                botLines.map((line, i) => {
+                  const { text, className } = colorize(stripAnsi(line))
+                  return (
+                    <div key={i} className={`log-line ${className}`}>{text}</div>
+                  )
+                })
+              )}
+            </div>
           </div>
         </div>
 

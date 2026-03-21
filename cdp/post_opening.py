@@ -265,6 +265,8 @@ def post_opening_automation(cdp_port: int = 9225, skip_force_cdp: bool = False) 
 
     if content_type == "reel":
         return _video_pipeline(cdp_port, dev_mode)
+    elif content_type == "brochure":
+        return _brochure_pipeline(cdp_port, dev_mode)
     else:
         return _image_pipeline(cdp_port, dev_mode)
 
@@ -435,6 +437,41 @@ def _image_pipeline(cdp_port: int, dev_mode: bool) -> int:
         log_ok(f"Imagen enviada a n8n con exito ({platform})")
 
     # Step 8: Cleanup
+    return _cleanup_and_exit(dev_mode, cdp_port)
+
+
+def _brochure_pipeline(cdp_port: int, dev_mode: bool) -> int:
+    """Pipeline de brochure: ChatGPT genera HTML → inyectar logo → PDF local."""
+    from cfg.platform import BROCHURE_PIPELINE_PY, BROCHURES_DIR
+
+    if not BROCHURE_PIPELINE_PY.exists():
+        log_warn(f"No existe script de brochure pipeline: {BROCHURE_PIPELINE_PY}")
+        return 1
+
+    logo_path = str(get_env("BROCHURE_LOGO_PATH", "") or "")
+
+    log_info("Ejecutando pipeline de brochure...")
+    rc = _run_python(
+        BROCHURE_PIPELINE_PY,
+        str(cdp_port),
+        *(["--logo", logo_path] if logo_path else []),
+        timeout=600,
+        env_extra={"CDP_PROFILE_PORT": str(cdp_port)},
+    )
+    if rc != 0:
+        log_warn("Fallo la generacion del brochure.")
+        return 1
+
+    # Log del PDF generado
+    BROCHURES_DIR.mkdir(parents=True, exist_ok=True)
+    pdfs = sorted(BROCHURES_DIR.glob("brochure_*.pdf"), key=lambda f: f.stat().st_mtime, reverse=True)
+    if pdfs:
+        pdf = pdfs[0]
+        log_ok(f"Brochure generado: {pdf.name} ({pdf.stat().st_size / 1024:.1f} KB)")
+        log_info(f"Ruta completa: {pdf}")
+    else:
+        log_warn("No se encontro PDF de brochure despues del pipeline.")
+
     return _cleanup_and_exit(dev_mode, cdp_port)
 
 

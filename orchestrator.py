@@ -270,6 +270,10 @@ def run_orchestrator(
         # Perfiles de video (Veo 3 / Gemini)
         initial = env_data.get("VIDEO_INITIAL_PROFILE", "Flow Veo 3")
         fallback_raw = env_data.get("VIDEO_FALLBACK_PROFILES", "Flow Veo 3")
+    elif content_type == "brochure":
+        # Perfiles de brochure (ChatGPT - mismo que imagen)
+        initial = env_data.get("INITIAL_PROFILE", "#1 Chat Gpt PRO")
+        fallback_raw = env_data.get("FALLBACK_PROFILES", "#4 Chat Gpt Plus,#2 Chat Gpt PRO")
     else:
         # Perfiles de imagen (ChatGPT)
         initial = env_data.get("INITIAL_PROFILE", "#1 Chat Gpt PRO")

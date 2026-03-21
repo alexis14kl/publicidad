@@ -58,6 +58,13 @@ DIRECT_VIDEO_UPLOAD_PY = VIDEO_RPA_DIR / "direct_video_upload.py"
 PUBLIC_VIDEO_PY = VIDEO_RPA_DIR / "public_video.py"
 VIDEO_DIR = PROJECT_ROOT / "videos_publicitarias"
 
+# Brochure pipeline
+BROCHURE_RPA_DIR = PROJECT_ROOT / "brochure_rpa"
+BROCHURE_PIPELINE_PY = BROCHURE_RPA_DIR / "brochure_pipeline.py"
+BROCHURE_SETUP_PY = BROCHURE_RPA_DIR / "brochure_setup.py"
+HTML_TO_PDF_PY = BROCHURE_RPA_DIR / "html_to_pdf.py"
+BROCHURES_DIR = PROJECT_ROOT / "brochures_generados"
+
 # Data files
 PROMPT_FILE = UTILS_DIR / "prontm.txt"
 PROMPT_SEED_FILE = UTILS_DIR / "prompt_seed.txt"
