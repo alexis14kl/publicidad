@@ -30,7 +30,10 @@ DEFAULT_CDP_PORT = 9225
 
 
 def read_prompt() -> str:
-    """Lee el prompt desde prontm.txt."""
+    """Lee el prompt activo desde env o prontm.txt."""
+    env_prompt = str(os.environ.get("BOT_VIDEO_ACTIVE_SCENE_PROMPT", "") or "").strip()
+    if env_prompt:
+        return env_prompt
     if not PROMPT_FILE.exists():
         raise FileNotFoundError(f"No existe {PROMPT_FILE}")
     text = PROMPT_FILE.read_text(encoding="utf-8").strip()
@@ -51,6 +54,25 @@ def _find_flow_page(browser: Browser) -> Page | None:
             if "labs.google/fx" in url and "accounts.google" not in url:
                 return page
     return None
+
+
+def _find_project_page(browser: Browser) -> Page | None:
+    """Busca la pestaña activa del proyecto en Flow."""
+    best_page = None
+    best_buttons = 0
+    for context in browser.contexts:
+        for page in context.pages:
+            url = page.url or ""
+            if "/project/" not in url or "accounts.google" in url:
+                continue
+            try:
+                btn_count = page.evaluate("() => document.querySelectorAll('button').length")
+            except Exception:
+                continue
+            if btn_count > best_buttons:
+                best_buttons = btn_count
+                best_page = page
+    return best_page
 
 
 def _open_flow_page(browser: Browser) -> Page:
@@ -245,8 +267,8 @@ def _paste_prompt_in_flow(page: Page, prompt_text: str) -> bool:
         log_ok(f"Prompt pegado en Flow ({len(normalized_pasted)} chars verificados).")
         return True
 
-    # Fallback: si clipboard no funciono, usar keyboard.type (mas lento)
-    log_warn("Clipboard no pego el prompt esperado. Usando escritura asistida y verificacion exacta...")
+    # Fallback: si clipboard no funciono, usar insercion de texto sin generar Enter.
+    log_warn("Clipboard no pego el prompt esperado. Usando insercion asistida sin teclas de envio...")
     textarea.click()
     page.wait_for_timeout(500)
     page.keyboard.press(f"{modifier}+a")
@@ -254,7 +276,7 @@ def _paste_prompt_in_flow(page: Page, prompt_text: str) -> bool:
     page.keyboard.press("Backspace")
     page.wait_for_timeout(300)
 
-    page.keyboard.type(prompt_text, delay=10)
+    page.keyboard.insert_text(prompt_text)
     page.wait_for_timeout(1000)
 
     typed = page.evaluate("""() => {
@@ -270,7 +292,7 @@ def _paste_prompt_in_flow(page: Page, prompt_text: str) -> bool:
         return True
 
     # Ultimo recurso: forzar contenido por DOM y disparar eventos de input.
-    log_warn("keyboard.type no dejo el prompt exacto. Forzando contenido por DOM...")
+    log_warn("La insercion asistida no dejo el prompt exacto. Forzando contenido por DOM...")
     dom_written = page.evaluate("""(text) => {
         const candidates = Array.from(document.querySelectorAll('[contenteditable="true"]'));
         const el = candidates.find((item) => item.offsetParent !== null) || candidates[0];
@@ -288,7 +310,873 @@ def _paste_prompt_in_flow(page: Page, prompt_text: str) -> bool:
         log_ok(f"Prompt forzado y verificado en Flow ({len(normalized_dom_written)} chars).")
         return True
 
-    log_error("No pude confirmar que Flow tenga pegado exactamente el prompt de la escena 1.")
+    log_error("No pude confirmar que Flow tenga pegado exactamente el prompt esperado.")
+    return False
+
+
+def _focus_followup_prompt(page: Page) -> bool:
+    """Enfoca la casilla de continuacion '¿Que pasa despues?'."""
+    return bool(page.evaluate("""() => {
+        const normalize = (value) => String(value || '').toLowerCase();
+        const promptNeedle = 'que pasa despues';
+        const editableSelector = '[contenteditable="true"], textarea, [role="textbox"]';
+        const isVisible = (el) => {
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 120 && rect.height > 24;
+        };
+        const isPotentialFollowupEditable = (el) => {
+            if (!isVisible(el)) return false;
+            const rect = el.getBoundingClientRect();
+            return (
+                rect.top > window.innerHeight * 0.45 &&
+                rect.width > window.innerWidth * 0.25 &&
+                rect.left < window.innerWidth * 0.82
+            );
+        };
+        const normalizeSpanish = (value) => normalize(value).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+        const getNearbyText = (el) => {
+            const parts = [];
+            let node = el;
+            let depth = 0;
+            while (node && depth < 4) {
+                parts.push(node.innerText || node.textContent || '');
+                node = node.parentElement;
+                depth += 1;
+            }
+            return normalizeSpanish(parts.join(' '));
+        };
+        const visibleButtons = Array.from(document.querySelectorAll('button')).filter(isVisible);
+        const controls = visibleButtons.filter((btn) => {
+            const text = normalizeSpanish(btn.innerText || btn.textContent || '');
+            return (
+                text.includes('ampliar') ||
+                text.includes('insertar') ||
+                text.includes('eliminar') ||
+                text.includes('camara') ||
+                text.includes('camara')
+            );
+        });
+        const controlTop = controls.length
+            ? Math.min(...controls.map((btn) => btn.getBoundingClientRect().top))
+            : null;
+        const modelButtons = visibleButtons.filter((btn) => {
+            const text = normalizeSpanish(btn.innerText || btn.textContent || '');
+            return text.includes('veo');
+        });
+        document.querySelectorAll('[data-codex-followup="1"]').forEach((el) => el.removeAttribute('data-codex-followup'));
+        const candidates = Array.from(document.querySelectorAll(editableSelector)).filter(isPotentialFollowupEditable);
+        const scored = candidates.map((el) => {
+            const rect = el.getBoundingClientRect();
+            const nearby = getNearbyText(el);
+            const attrs = normalizeSpanish(
+                el.getAttribute('placeholder') ||
+                el.getAttribute('aria-label') ||
+                el.getAttribute('aria-placeholder') ||
+                ''
+            );
+            let score = rect.width * rect.height;
+            if (rect.top > window.innerHeight * 0.45) score += 100000;
+            if (rect.width > window.innerWidth * 0.35) score += 30000;
+            if (nearby.includes(promptNeedle)) score += 500000;
+            if (attrs.includes(promptNeedle)) score += 500000;
+            if (nearby.includes('ampliar')) score += 20000;
+            if (nearby.includes('insertar')) score += 20000;
+            if (nearby.includes('eliminar')) score += 20000;
+            if (nearby.includes('camara')) score += 20000;
+            if (nearby.includes('veo 3.1')) score += 30000;
+            if (nearby.includes('fast')) score += 15000;
+            if (controlTop !== null) {
+                const distance = controlTop - rect.bottom;
+                if (distance >= -20 && distance <= 220) score += 120000 - Math.max(0, distance) * 400;
+            }
+            const hasModelOnRight = modelButtons.some((btn) => {
+                const b = btn.getBoundingClientRect();
+                return b.left >= rect.right - 40 && Math.abs((b.top + b.height / 2) - (rect.top + rect.height / 2)) < 90;
+            });
+            if (hasModelOnRight) score += 90000;
+            return { el, score };
+        }).sort((a, b) => b.score - a.score);
+        const target = scored[0]?.el;
+        if (target) {
+            target.focus();
+            if (typeof target.click === 'function') target.click();
+            const active = document.activeElement;
+            const finalTarget = (active && (
+                active.matches?.(editableSelector) && isPotentialFollowupEditable(active)
+            )) ? active : target;
+            finalTarget.setAttribute('data-codex-followup', '1');
+            return true;
+        }
+
+        const shellNodes = Array.from(document.querySelectorAll('div, section, form, label, span, p')).filter((el) => {
+            if (!isVisible(el)) return false;
+            const rect = el.getBoundingClientRect();
+            if (rect.top <= window.innerHeight * 0.45) return false;
+            const ownText = normalizeSpanish(el.innerText || el.textContent || '');
+            const attrs = normalizeSpanish(
+                el.getAttribute('placeholder') ||
+                el.getAttribute('aria-label') ||
+                el.getAttribute('aria-placeholder') ||
+                ''
+            );
+            return ownText.includes(promptNeedle) || attrs.includes(promptNeedle);
+        });
+        const shell = shellNodes.sort((a, b) => {
+            const ra = a.getBoundingClientRect();
+            const rb = b.getBoundingClientRect();
+            return (ra.width * ra.height) - (rb.width * rb.height);
+        })[0];
+        if (!shell) return false;
+        const shellRect = shell.getBoundingClientRect();
+        const clickX = shellRect.left + Math.min(shellRect.width * 0.6, 140);
+        const clickY = shellRect.top + shellRect.height / 2;
+        const hit = document.elementFromPoint(clickX, clickY) || shell;
+        if (typeof hit.click === 'function') hit.click();
+        hit.focus?.();
+        const active = document.activeElement;
+        if (active && active.matches?.(editableSelector) && isPotentialFollowupEditable(active)) {
+            active.setAttribute('data-codex-followup', '1');
+            return true;
+        }
+        const nested = hit.querySelector?.(editableSelector)
+            || shell.parentElement?.querySelector?.(editableSelector);
+        if (nested && isPotentialFollowupEditable(nested)) {
+            nested.focus?.();
+            nested.setAttribute('data-codex-followup', '1');
+            return true;
+        }
+        return false;
+    }"""))
+
+
+def _read_followup_prompt_text(page: Page) -> str:
+    return page.evaluate("""() => {
+        const target = document.querySelector('[data-codex-followup="1"]');
+        if (!target) return '';
+        if ('value' in target) return (target.value || '').trim();
+        return (target.innerText || target.textContent || '').trim();
+    }""")
+
+
+def _activate_followup_prompt_shell(page: Page, scene_index: int) -> bool:
+    """Hace click en la superficie inferior de '¿Que pasa despues?' para forzar que aparezca el campo editable."""
+    box = page.evaluate("""() => {
+        const normalize = (value) => String(value || '').toLowerCase();
+        const normalizeSpanish = (value) => normalize(value).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+        const promptNeedle = 'que pasa despues';
+        const isVisible = (el) => {
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 160 && rect.height > 36;
+        };
+        const getNearbyText = (el) => {
+            const parts = [];
+            let node = el;
+            let depth = 0;
+            while (node && depth < 4) {
+                parts.push(node.innerText || node.textContent || '');
+                node = node.parentElement;
+                depth += 1;
+            }
+            return normalizeSpanish(parts.join(' '));
+        };
+        const visibleButtons = Array.from(document.querySelectorAll('button')).filter(isVisible);
+        const controls = visibleButtons.filter((btn) => {
+            const text = normalizeSpanish(btn.innerText || btn.textContent || '');
+            return (
+                text.includes('ampliar') ||
+                text.includes('insertar') ||
+                text.includes('eliminar') ||
+                text.includes('camara') ||
+                text.includes('camara')
+            );
+        });
+        const controlTop = controls.length
+            ? Math.min(...controls.map((btn) => btn.getBoundingClientRect().top))
+            : null;
+        const modelButtons = visibleButtons.filter((btn) => {
+            const text = normalizeSpanish(btn.innerText || btn.textContent || '');
+            return text.includes('veo');
+        });
+        const placeholderCandidates = Array.from(document.querySelectorAll('div, section, form, label, span, p')).filter((el) => {
+            if (!isVisible(el)) return false;
+            const rect = el.getBoundingClientRect();
+            if (rect.top <= window.innerHeight * 0.45) return false;
+            const ownText = normalizeSpanish(el.innerText || el.textContent || '');
+            const attrs = normalizeSpanish(
+                el.getAttribute('placeholder') ||
+                el.getAttribute('aria-label') ||
+                el.getAttribute('aria-placeholder') ||
+                ''
+            );
+            return ownText.includes(promptNeedle) || attrs.includes(promptNeedle);
+        });
+        const anchor = placeholderCandidates.sort((a, b) => {
+            const ra = a.getBoundingClientRect();
+            const rb = b.getBoundingClientRect();
+            return (ra.width * ra.height) - (rb.width * rb.height);
+        })[0];
+        const candidates = Array.from(document.querySelectorAll('div, section, form, label')).filter(isVisible);
+        const best = candidates.map((el) => {
+            const rect = el.getBoundingClientRect();
+            const nearby = getNearbyText(el);
+            const anchorRect = anchor ? anchor.getBoundingClientRect() : null;
+            let score = rect.width * rect.height;
+            if (rect.top > window.innerHeight * 0.45) score += 80000;
+            if (rect.width > window.innerWidth * 0.35) score += 60000;
+            if (nearby.includes(promptNeedle)) score += 500000;
+            if (nearby.includes('ampliar')) score += 15000;
+            if (nearby.includes('insertar')) score += 15000;
+            if (nearby.includes('eliminar')) score += 15000;
+            if (nearby.includes('camara')) score += 15000;
+            if (nearby.includes('veo')) score += 20000;
+            if (anchorRect) {
+                const containsAnchor = (
+                    rect.left <= anchorRect.left + 8 &&
+                    rect.right >= anchorRect.right - 8 &&
+                    rect.top <= anchorRect.top + 8 &&
+                    rect.bottom >= anchorRect.bottom - 8
+                );
+                if (containsAnchor) score += 350000;
+                score -= Math.abs(rect.left - anchorRect.left) * 5;
+                score -= Math.abs(rect.top - anchorRect.top) * 5;
+            }
+            if (controlTop !== null) {
+                const distance = controlTop - rect.bottom;
+                if (distance >= -10 && distance <= 220) score += 100000 - Math.max(0, distance) * 350;
+            }
+            const hasModelOnRight = modelButtons.some((btn) => {
+                const b = btn.getBoundingClientRect();
+                return b.left >= rect.right - 60 && Math.abs((b.top + b.height / 2) - (rect.top + rect.height / 2)) < 110;
+            });
+            if (hasModelOnRight) score += 90000;
+            return {
+                x: rect.x,
+                y: rect.y,
+                w: rect.width,
+                h: rect.height,
+                clickX: anchor ? (anchor.getBoundingClientRect().left + Math.min(anchor.getBoundingClientRect().width * 0.65, 140)) : (rect.x + Math.min(rect.width * 0.22, 140)),
+                clickY: rect.y + rect.height / 2,
+                score,
+            };
+        }).sort((a, b) => b.score - a.score)[0];
+        if (!best || best.score < 120000) return null;
+        return best;
+    }""")
+    if not box:
+        return False
+    cx = box.get("clickX") or (box["x"] + box["w"] / 2)
+    cy = box.get("clickY") or (box["y"] + box["h"] / 2)
+    log_info(f"Activando la superficie de continuacion en ({cx:.0f}, {cy:.0f}) para la escena {scene_index}...")
+    page.mouse.click(cx, cy)
+    page.wait_for_timeout(800)
+    tagged = page.evaluate("""({ clickX, clickY }) => {
+        const selector = '[contenteditable="true"], textarea, [role="textbox"]';
+        const isPotentialFollowupEditable = (el) => {
+            if (!el || !el.offsetParent) return false;
+            const rect = el.getBoundingClientRect();
+            return (
+                rect.width > window.innerWidth * 0.25 &&
+                rect.height > 24 &&
+                rect.top > window.innerHeight * 0.45 &&
+                rect.left < window.innerWidth * 0.82
+            );
+        };
+        document.querySelectorAll('[data-codex-followup="1"]').forEach((el) => el.removeAttribute('data-codex-followup'));
+        const active = document.activeElement;
+        if (active && active.matches?.(selector) && isPotentialFollowupEditable(active)) {
+            active.setAttribute('data-codex-followup', '1');
+            return true;
+        }
+        const hit = document.elementFromPoint(clickX, clickY);
+        const seen = new Set();
+        const queue = [];
+        if (hit) {
+            queue.push(hit);
+            let parent = hit.parentElement;
+            let depth = 0;
+            while (parent && depth < 5) {
+                queue.push(parent);
+                parent = parent.parentElement;
+                depth += 1;
+            }
+        }
+        while (queue.length) {
+            const node = queue.shift();
+            if (!node || seen.has(node)) continue;
+            seen.add(node);
+            if (node.matches?.(selector) && isPotentialFollowupEditable(node)) {
+                node.focus?.();
+                node.setAttribute('data-codex-followup', '1');
+                return true;
+            }
+            const nested = node.querySelector?.(selector);
+            if (nested && isPotentialFollowupEditable(nested)) {
+                nested.focus?.();
+                nested.setAttribute('data-codex-followup', '1');
+                return true;
+            }
+        }
+        return false;
+    }""", {"clickX": cx, "clickY": cy})
+    page.wait_for_timeout(700)
+    return bool(tagged)
+
+
+def _paste_followup_prompt_in_flow(page: Page, prompt_text: str, scene_index: int) -> bool:
+    """Pega el prompt de continuacion en la casilla '¿Que pasa despues?'."""
+    focused = False
+    for attempt in range(3):
+        if _focus_followup_prompt(page):
+            focused = True
+            break
+        if not _activate_followup_prompt_shell(page, scene_index):
+            page.wait_for_timeout(1000)
+            continue
+    if not focused:
+        log_error(f"No se encontro la casilla 'Que pasa despues?' para la escena {scene_index}.")
+        return False
+
+    log_info(f"Casilla de continuacion encontrada para la escena {scene_index}. Pegando prompt...")
+    modifier = "Meta" if sys.platform == "darwin" else "Control"
+    page.wait_for_timeout(500)
+    page.keyboard.press(f"{modifier}+a")
+    page.wait_for_timeout(300)
+    page.keyboard.press("Backspace")
+    page.wait_for_timeout(500)
+
+    page.evaluate("(text) => navigator.clipboard.writeText(text)", prompt_text)
+    page.wait_for_timeout(300)
+    page.keyboard.press(f"{modifier}+v")
+    page.wait_for_timeout(2000)
+
+    normalized_expected = _normalize_prompt_text(prompt_text)
+    normalized_pasted = _normalize_prompt_text(_read_followup_prompt_text(page))
+    if normalized_pasted == normalized_expected:
+        log_ok(f"Prompt de continuacion de la escena {scene_index} pegado y verificado ({len(normalized_pasted)} chars).")
+        return True
+
+    log_warn("Clipboard no dejo el prompt esperado en la casilla de continuacion. Usando insercion asistida...")
+    if not _focus_followup_prompt(page):
+        return False
+    page.wait_for_timeout(400)
+    page.keyboard.press(f"{modifier}+a")
+    page.wait_for_timeout(200)
+    page.keyboard.press("Backspace")
+    page.wait_for_timeout(300)
+    page.keyboard.insert_text(prompt_text)
+    page.wait_for_timeout(1000)
+
+    normalized_inserted = _normalize_prompt_text(_read_followup_prompt_text(page))
+    if normalized_inserted == normalized_expected:
+        log_ok(f"Prompt de continuacion de la escena {scene_index} insertado y verificado ({len(normalized_inserted)} chars).")
+        return True
+
+    log_warn("La insercion asistida no dejo el prompt exacto en la continuacion. Forzando contenido por DOM...")
+    dom_written = page.evaluate("""(text) => {
+        const target = document.querySelector('[data-codex-followup="1"]');
+        if (!target) return '';
+        target.focus();
+        if ('value' in target) {
+            target.value = text;
+        } else {
+            target.innerHTML = '';
+            target.textContent = text;
+        }
+        target.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+        if ('value' in target) return (target.value || '').trim();
+        return (target.innerText || target.textContent || '').trim();
+    }""", prompt_text)
+    normalized_dom_written = _normalize_prompt_text(dom_written)
+    if normalized_dom_written == normalized_expected:
+        log_ok(f"Prompt de continuacion de la escena {scene_index} forzado y verificado ({len(normalized_dom_written)} chars).")
+        return True
+
+    log_error(f"No pude confirmar que Flow tenga pegado el prompt de continuacion de la escena {scene_index}.")
+    return False
+
+
+def _ensure_project_editor_ready(page: Page, scene_index: int) -> bool:
+    return _poll_page_ready(page, {
+        "contenteditable": "[contenteditable='true']",
+        "botones": "button",
+    }, timeout_sec=30, label=f"editor de la escena {scene_index}")
+
+
+def _ensure_followup_ready(page: Page, scene_index: int, timeout_sec: int = 45, log_wait: bool = True) -> bool:
+    deadline = time.time() + timeout_sec
+    if log_wait:
+        log_info(f"Esperando la casilla 'Que pasa despues?' para la escena {scene_index}...")
+    while time.time() < deadline:
+        ready = page.evaluate("""() => {
+            const normalize = (value) => String(value || '').toLowerCase();
+            const isVisible = (el) => {
+                if (!el) return false;
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                const rect = el.getBoundingClientRect();
+                return rect.width > 120 && rect.height > 24;
+            };
+            const getNearbyText = (el) => {
+                const parts = [];
+                let node = el;
+                let depth = 0;
+                while (node && depth < 4) {
+                    parts.push(node.innerText || node.textContent || '');
+                    node = node.parentElement;
+                    depth += 1;
+                }
+                return normalize(parts.join(' '));
+            };
+            const visibleButtons = Array.from(document.querySelectorAll('button')).filter(isVisible);
+            const controls = visibleButtons.filter((btn) => {
+                const text = normalize(btn.innerText || btn.textContent || '');
+                return (
+                    text.includes('ampliar') ||
+                    text.includes('insertar') ||
+                    text.includes('eliminar') ||
+                    text.includes('camara') ||
+                    text.includes('cámara')
+                );
+            });
+            const controlTop = controls.length
+                ? Math.min(...controls.map((btn) => btn.getBoundingClientRect().top))
+                : null;
+            const modelButtons = visibleButtons.filter((btn) => {
+                const text = normalize(btn.innerText || btn.textContent || '');
+                return text.includes('veo');
+            });
+            const candidates = Array.from(document.querySelectorAll(
+                '[contenteditable="true"], textarea, [role="textbox"]'
+            )).filter((el) => {
+                if (!isVisible(el)) return false;
+                const rect = el.getBoundingClientRect();
+                return (
+                    rect.top > window.innerHeight * 0.45 &&
+                    rect.width > window.innerWidth * 0.25 &&
+                    rect.left < window.innerWidth * 0.82
+                );
+            });
+            const best = candidates.map((el) => {
+                const rect = el.getBoundingClientRect();
+                const nearby = getNearbyText(el);
+                const attrs = normalize(
+                    el.getAttribute('placeholder') ||
+                    el.getAttribute('aria-label') ||
+                    el.getAttribute('aria-placeholder') ||
+                    ''
+                );
+                let score = rect.width * rect.height;
+                if (rect.top > window.innerHeight * 0.45) score += 100000;
+                if (rect.width > window.innerWidth * 0.35) score += 30000;
+                if (nearby.includes('que pasa despues') || nearby.includes('qué pasa después')) score += 500000;
+                if (attrs.includes('que pasa despues') || attrs.includes('qué pasa después')) score += 500000;
+                if (nearby.includes('ampliar')) score += 20000;
+                if (nearby.includes('insertar')) score += 20000;
+                if (nearby.includes('eliminar')) score += 20000;
+                if (nearby.includes('camara') || nearby.includes('cámara')) score += 20000;
+                if (nearby.includes('veo 3.1')) score += 30000;
+                if (nearby.includes('fast')) score += 15000;
+                if (controlTop !== null) {
+                    const distance = controlTop - rect.bottom;
+                    if (distance >= -20 && distance <= 220) score += 120000 - Math.max(0, distance) * 400;
+                }
+                const hasModelOnRight = modelButtons.some((btn) => {
+                    const b = btn.getBoundingClientRect();
+                    return b.left >= rect.right - 40 && Math.abs((b.top + b.height / 2) - (rect.top + rect.height / 2)) < 90;
+                });
+                if (hasModelOnRight) score += 90000;
+                return { el, score };
+            }).sort((a, b) => b.score - a.score)[0];
+            if (best && best.score >= 140000) {
+                best.el.setAttribute('data-codex-followup', '1');
+                return true;
+            }
+            return controls.length > 0 && modelButtons.length > 0;
+        }""")
+        if ready:
+            if log_wait:
+                log_ok(f"Casilla de continuacion lista para la escena {scene_index}.")
+            return True
+        page.wait_for_timeout(1000)
+    if log_wait:
+        log_error(f"No aparecio la casilla 'Que pasa despues?' para la escena {scene_index}.")
+    return False
+
+
+def _poll_video_view_ready(page: Page, scene_index: int, timeout_sec: int = 12) -> bool:
+    """
+    Hace un polling corto del DOM despues de abrir el resultado generado.
+
+    Replica la idea de "Nuevo proyecto": primero estabilizar el DOM visible
+    del viewer y luego pasar al analisis fino de la casilla de continuacion.
+    """
+    log_info(f"Polling DOM de la vista del video para la escena {scene_index} (timeout {timeout_sec}s)...")
+    deadline = time.time() + timeout_sec
+    attempt = 0
+    shell_activated = False
+
+    while time.time() < deadline:
+        attempt += 1
+        status = page.evaluate("""() => {
+            const normalize = (value) => String(value || '').toLowerCase();
+            const isVisible = (el) => {
+                if (!el) return false;
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                const rect = el.getBoundingClientRect();
+                return rect.width > 20 && rect.height > 20;
+            };
+
+            const buttons = Array.from(document.querySelectorAll('button')).filter(isVisible);
+            const textboxes = Array.from(document.querySelectorAll(
+                '[contenteditable="true"], textarea, [role="textbox"]'
+            )).filter((el) => {
+                if (!isVisible(el)) return false;
+                const rect = el.getBoundingClientRect();
+                return (
+                    rect.top > window.innerHeight * 0.45 &&
+                    rect.width > window.innerWidth * 0.25 &&
+                    rect.left < window.innerWidth * 0.82
+                );
+            });
+            const media = Array.from(document.querySelectorAll('video, canvas, img, [role="img"]')).filter((el) => {
+                if (!isVisible(el)) return false;
+                const rect = el.getBoundingClientRect();
+                return rect.width > 120 && rect.height > 90;
+            });
+
+            const controls = buttons.filter((btn) => {
+                const text = normalize(btn.innerText || btn.textContent || '');
+                return (
+                    text.includes('ampliar') ||
+                    text.includes('insertar') ||
+                    text.includes('eliminar') ||
+                    text.includes('camara') ||
+                    text.includes('cámara')
+                );
+            });
+
+            const modelButtons = buttons.filter((btn) => {
+                const text = normalize(btn.innerText || btn.textContent || '');
+                return text.includes('veo');
+            });
+
+            return {
+                totalElements: document.querySelectorAll('*').length,
+                buttons: buttons.length,
+                media: media.length,
+                controls: controls.length,
+                textboxes: textboxes.length,
+                modelButtons: modelButtons.length,
+                ready: media.length > 0 && controls.length > 0 && modelButtons.length > 0 && textboxes.length > 0,
+            };
+        }""")
+
+        checks = {
+            "media": status["media"] > 0,
+            "botones": status["buttons"] > 0,
+            "controles": status["controls"] > 0,
+            "modelo_veo": status["modelButtons"] > 0,
+            "textbox": status["textboxes"] > 0,
+        }
+        passed = [key for key, value in checks.items() if value]
+        pending = [key for key, value in checks.items() if not value]
+
+        if attempt % 2 == 1:
+            log_info(
+                f"  [{attempt}] DOM: {status['totalElements']} elements, {status['buttons']} buttons | "
+                f"OK: {passed} | Pendiente: {pending}"
+            )
+
+        if status.get("ready"):
+            log_ok(f"Vista del video lista para analizar campos en la escena {scene_index}.")
+            return True
+
+        if (
+            not shell_activated and
+            status["media"] > 0 and
+            status["controls"] > 0 and
+            status["modelButtons"] > 0 and
+            status["textboxes"] == 0
+        ):
+            shell_activated = _activate_followup_prompt_shell(page, scene_index)
+
+        page.wait_for_timeout(1000)
+
+    log_warn(f"La vista del video de la escena {scene_index} no termino de estabilizarse del todo, sigo con analisis fino...")
+    return False
+
+
+def _click_generated_video_for_followup(page: Page, scene_index: int, timeout_sec: int = 30) -> bool:
+    """Hace click en el video generado para abrir el panel '¿Que pasa despues?'."""
+    log_info(f"Buscando el video generado para abrir la continuacion de la escena {scene_index}...")
+
+    candidate_info = page.evaluate("""() => {
+        const normalize = (value) => String(value || '').toLowerCase();
+        const isVisible = (el) => {
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 120 && rect.height > 90;
+        };
+        const nearbyText = (el) => {
+            const parts = [];
+            let node = el;
+            let depth = 0;
+            while (node && depth < 3) {
+                parts.push(node.innerText || node.textContent || '');
+                node = node.parentElement;
+                depth += 1;
+            }
+            return normalize(parts.join(' '));
+        };
+
+        const result = { media: null, controls: null, viewport: null };
+
+        const mediaCandidates = Array.from(document.querySelectorAll(
+            'video, canvas, img, [role="img"], [aria-label*="preview"], [aria-label*="video"]'
+        )).filter(isVisible);
+
+        const scoredMedia = mediaCandidates.map((el) => {
+            const rect = el.getBoundingClientRect();
+            const text = nearbyText(el);
+            let score = rect.width * rect.height;
+            if (el.tagName === 'VIDEO') score += 300000;
+            if (el.tagName === 'CANVAS') score += 180000;
+            if (el.tagName === 'IMG') score += 120000;
+            if (rect.top > 100) score += 20000;
+            if (rect.bottom < window.innerHeight - 120) score += 10000;
+            if (rect.left < window.innerWidth * 0.12) score -= 15000;
+            if (rect.right > window.innerWidth * 0.82) score -= 250000;
+            if (rect.left > window.innerWidth * 0.68) score -= 180000;
+            if (rect.width > window.innerWidth * 0.35) score += 90000;
+            const centerX = rect.x + rect.width / 2;
+            const distanceFromCenter = Math.abs(centerX - window.innerWidth * 0.5);
+            score -= distanceFromCenter * 80;
+            if (text.includes('ampliar') || text.includes('insertar') || text.includes('eliminar')) score += 8000;
+            const src = (
+                el.currentSrc || el.src || el.getAttribute?.('src') || el.getAttribute?.('aria-label') || ''
+            );
+            if (String(src).trim()) score += 50000;
+            return { score, x: rect.x, y: rect.y, w: rect.width, h: rect.height, via: el.tagName.toLowerCase() };
+        }).sort((a, b) => b.score - a.score);
+
+        if (scoredMedia.length) {
+            result.media = { strategy: 'media', ...scoredMedia[0] };
+        }
+
+        const buttons = Array.from(document.querySelectorAll('button')).filter((btn) => btn.offsetParent !== null);
+        const controlButtons = buttons.filter((btn) => {
+            const normalize = (value) => String(value || '').toLowerCase();
+            const text = normalize(btn.innerText || btn.textContent || '');
+            return (
+                text.includes('ampliar') ||
+                text.includes('insertar') ||
+                text.includes('eliminar') ||
+                text.includes('camara') ||
+                text.includes('cámara')
+            );
+        });
+
+        if (controlButtons.length) {
+            const rects = controlButtons.map((btn) => btn.getBoundingClientRect());
+            const minX = Math.min(...rects.map((r) => r.left));
+            const maxX = Math.max(...rects.map((r) => r.right));
+            const minTop = Math.min(...rects.map((r) => r.top));
+            const clickX = (minX + maxX) / 2;
+            const clickY = Math.max(120, minTop - 140);
+            result.controls = {
+                strategy: 'controls-fallback',
+                x: clickX - 5,
+                y: clickY - 5,
+                w: 10,
+                h: 10,
+                via: 'controls',
+            };
+        }
+
+        result.viewport = {
+            strategy: 'viewport-fallback',
+            x: window.innerWidth * 0.5 - 5,
+            y: window.innerHeight * 0.45 - 5,
+            w: 10,
+            h: 10,
+            via: 'viewport',
+        };
+
+        return result;
+    }""")
+
+    strategies = [
+        candidate_info.get("media"),
+        candidate_info.get("controls"),
+        candidate_info.get("viewport"),
+    ]
+
+    for strategy in [item for item in strategies if item]:
+        cx = strategy["x"] + strategy["w"] / 2
+        cy = strategy["y"] + strategy["h"] / 2
+        log_info(
+            f"Resultado generado encontrado en ({cx:.0f}, {cy:.0f}) "
+            f"via {strategy.get('via', strategy.get('strategy', 'desconocido'))} "
+            f"para la escena {scene_index}. Haciendo click..."
+        )
+        page.mouse.click(cx, cy)
+        page.wait_for_timeout(2500)
+        _poll_video_view_ready(page, scene_index, timeout_sec=min(10, timeout_sec))
+
+        if _ensure_followup_ready(page, scene_index, timeout_sec=min(8, timeout_sec), log_wait=False):
+            log_ok(f"Click en el resultado generado realizado para la escena {scene_index}.")
+            return True
+
+        log_warn(
+            f"El click via {strategy.get('via', strategy.get('strategy', 'desconocido'))} "
+            f"no abrio la continuacion para la escena {scene_index}. Probando otra estrategia..."
+        )
+
+    log_error(f"No pude abrir la continuacion desde el resultado generado de la escena {scene_index}.")
+    return False
+
+
+def _wait_for_prompt_settle(
+    page: Page,
+    prompt_text: str,
+    timeout_sec: int = 45,
+    stable_rounds: int = 10,
+    editor_selector: str = '[contenteditable="true"]',
+    action_mode: str = "create",
+) -> bool:
+    """
+    Espera a que el prompt quede completo y estable antes de lanzar "Crear".
+
+    stable_rounds=10 con polling de 1s equivale a ~10s de estabilidad real.
+    """
+    normalized_expected = _normalize_prompt_text(prompt_text)
+    expected_len = len(normalized_expected)
+
+    def _poll_until_stable(
+        phase_label: str,
+        phase_timeout_sec: int,
+        phase_stable_rounds: int,
+        log_every: int = 5,
+    ) -> bool:
+        stable_hits = 0
+        attempts = 0
+        deadline = time.time() + phase_timeout_sec
+        log_info(
+            f"{phase_label}: esperando a que Flow termine de absorber el prompt "
+            f"(timeout {phase_timeout_sec}s, estabilidad {phase_stable_rounds}s)..."
+        )
+
+        while time.time() < deadline:
+            attempts += 1
+            remaining = max(0, int(deadline - time.time()))
+            current_text = page.evaluate("""(selector) => {
+                const tagged = document.querySelector(selector);
+                const candidates = Array.from(document.querySelectorAll(
+                    '[contenteditable="true"], textarea, [role="textbox"], input[type="text"], input:not([type])'
+                ));
+                const el = tagged || candidates.find((item) => item.offsetParent !== null) || candidates[0];
+                if (!el) return '';
+                if ('value' in el) return (el.value || '').trim();
+                return (el.innerText || el.textContent || '').trim();
+            }""", editor_selector)
+            normalized_current = _normalize_prompt_text(current_text)
+
+            action_ready = page.evaluate("""({ selector, actionMode }) => {
+                const isVisible = (el) => !!el && el.offsetParent !== null;
+                const buttons = Array.from(document.querySelectorAll('button')).filter(isVisible);
+                const scoreRelativeButton = (target, button, isFollowup) => {
+                    const rect = button.getBoundingClientRect();
+                    const targetRect = target.getBoundingClientRect();
+                    const centerX = rect.x + rect.width / 2;
+                    const centerY = rect.y + rect.height / 2;
+                    const targetCenterY = targetRect.y + targetRect.height / 2;
+                    let score = 0;
+                    if (centerX > targetRect.right - 10) score += 5000;
+                    score -= Math.abs(centerY - targetCenterY) * 10;
+                    score -= Math.abs(centerX - (targetRect.right + (isFollowup ? 24 : 36)));
+                    if (rect.width >= (isFollowup ? 28 : 32) && rect.height >= (isFollowup ? 28 : 32)) score += 500;
+                    const text = (button.innerText || button.textContent || '').toLowerCase();
+                    if (text.includes('arrow_forward') || text.includes('send')) score += 800;
+                    if (text.includes('crear') || text.includes('create')) score += 1500;
+                    return score;
+                };
+
+                if (actionMode === 'followup') {
+                    const target = document.querySelector(selector) || document.querySelector('[data-codex-followup="1"]');
+                    if (!target) return false;
+                    const targetRect = target.getBoundingClientRect();
+                    const scored = buttons.map((btn) => {
+                        return { btn, score: scoreRelativeButton(target, btn, true) };
+                    }).sort((a, b) => b.score - a.score);
+                    const best = scored[0]?.btn;
+                    if (!best) return false;
+                    return !best.disabled && best.getAttribute('aria-disabled') !== 'true';
+                }
+
+                const target = document.querySelector(selector) || document.querySelector('[contenteditable="true"]');
+                if (target) {
+                    const scored = buttons.map((btn) => {
+                        return { btn, score: scoreRelativeButton(target, btn, false) };
+                    }).sort((a, b) => b.score - a.score);
+                    const best = scored[0];
+                    if (best && best.score >= 4200) {
+                        return !best.btn.disabled && best.btn.getAttribute('aria-disabled') !== 'true';
+                    }
+                }
+
+                const btn = buttons.find((b) => {
+                    const text = (b.innerText || b.textContent || '').toLowerCase();
+                    return text.includes('crear') || text.includes('create');
+                });
+                if (!btn) return false;
+                return !btn.disabled && btn.getAttribute('aria-disabled') !== 'true';
+            }""", {"selector": editor_selector, "actionMode": action_mode})
+
+            if normalized_current == normalized_expected and action_ready:
+                stable_hits += 1
+                if stable_hits >= phase_stable_rounds:
+                    log_ok(
+                        f"Prompt estable y completo en Flow ({len(normalized_current)} chars). "
+                        "Ya se puede pulsar el boton de envio."
+                    )
+                    return True
+            else:
+                if stable_hits > 0:
+                    log_info("El prompt aun sigue cambiando. Reiniciando ventana de estabilidad...")
+                stable_hits = 0
+
+            if attempts % log_every == 1:
+                log_info(
+                    f"{phase_label}: polling del prompt "
+                    f"({len(normalized_current)}/{expected_len} chars, action_ready={action_ready}, quedan {remaining}s)..."
+                )
+
+            page.wait_for_timeout(1000)
+
+        return False
+
+    if _poll_until_stable("Fase principal", timeout_sec, stable_rounds):
+        return True
+
+    log_warn(
+        "Flow no termino de estabilizar el prompt en la fase principal. "
+        "Activo un polling de recuperacion antes de abortar..."
+    )
+
+    if _poll_until_stable("Fase de recuperacion", phase_timeout_sec=90, phase_stable_rounds=6, log_every=3):
+        return True
+
+    log_error("Flow no termino de estabilizar el prompt a tiempo ni en recuperacion. No voy a pulsar Crear para evitar lanzar un prompt incompleto.")
     return False
 
 
@@ -326,6 +1214,51 @@ def _click_create(page: Page, max_retries: int = 5) -> bool:
             page.wait_for_timeout(3000)
 
     log_error("No se encontro el boton 'Crear' despues de todos los reintentos.")
+    return False
+
+
+def _click_followup_send(page: Page, scene_index: int, max_retries: int = 8) -> bool:
+    """Hace click en el boton circular de envio junto a '¿Que pasa despues?'."""
+    log_info(f"Buscando boton de envio de continuacion para la escena {scene_index}...")
+    for attempt in range(max_retries):
+        btn_info = page.evaluate("""() => {
+            const target = document.querySelector('[data-codex-followup="1"]');
+            if (!target) return { found: false };
+            const targetRect = target.getBoundingClientRect();
+            const buttons = Array.from(document.querySelectorAll('button')).filter((btn) => btn.offsetParent !== null);
+            const scored = buttons.map((btn) => {
+                const rect = btn.getBoundingClientRect();
+                const centerX = rect.x + rect.width / 2;
+                const centerY = rect.y + rect.height / 2;
+                const targetCenterY = targetRect.y + targetRect.height / 2;
+                let score = 0;
+                if (centerX > targetRect.right - 10) score += 5000;
+                score -= Math.abs(centerY - targetCenterY) * 10;
+                score -= Math.abs(centerX - (targetRect.right + 24));
+                if (rect.width >= 36 && rect.height >= 36) score += 1000;
+                return { rect, score };
+            }).sort((a, b) => b.score - a.score);
+            const best = scored[0];
+            if (!best) return { found: false };
+            return {
+                found: true,
+                x: best.rect.x,
+                y: best.rect.y,
+                w: best.rect.width,
+                h: best.rect.height,
+            };
+        }""")
+        if btn_info.get("found"):
+            cx = btn_info["x"] + btn_info["w"] / 2
+            cy = btn_info["y"] + btn_info["h"] / 2
+            log_info(f"Boton de continuacion encontrado en ({cx:.0f}, {cy:.0f}). Haciendo click...")
+            page.mouse.click(cx, cy)
+            page.wait_for_timeout(2000)
+            log_ok(f"Click en el boton de continuacion realizado para la escena {scene_index}.")
+            return True
+        if attempt < max_retries - 1:
+            page.wait_for_timeout(1500)
+    log_error(f"No se encontro el boton de envio de continuacion para la escena {scene_index}.")
     return False
 
 
@@ -375,7 +1308,11 @@ def run_video_setup(cdp_port: int = DEFAULT_CDP_PORT) -> int:
     Returns 0 on success, 1 on failure.
     """
     prompt_text = read_prompt()
-    log_info(f"Prompt leido ({len(prompt_text)} chars). Conectando a CDP en puerto {cdp_port}...")
+    scene_index = max(1, int(os.environ.get("BOT_VIDEO_ACTIVE_SCENE_INDEX", "1") or "1"))
+    log_info(
+        f"Prompt de la escena {scene_index} leido ({len(prompt_text)} chars). "
+        f"Conectando a CDP en puerto {cdp_port}..."
+    )
 
     with sync_playwright() as p:
         try:
@@ -401,44 +1338,70 @@ def run_video_setup(cdp_port: int = DEFAULT_CDP_PORT) -> int:
             if not _wait_for_session_ready(page):
                 return 1
 
-            # Si estamos dentro de un proyecto viejo, volver a la lista
-            if not _go_to_flow_list(page):
+            project_page = None
+
+            if scene_index <= 1:
+                # Si estamos dentro de un proyecto viejo, volver a la lista
+                if not _go_to_flow_list(page):
+                    return 1
+
+                # Click en "Nuevo proyecto" + polling hasta que cargue
+                if not _click_new_project(page):
+                    return 1
+
+                project_page = _find_project_page(browser) or page
+                project_page.bring_to_front()
+                page.wait_for_timeout(1000)
+                log_ok(f"Proyecto nuevo listo: {project_page.url}")
+            else:
+                project_page = _find_project_page(browser)
+                if not project_page:
+                    log_warn(
+                        f"No encontre un proyecto abierto para la escena {scene_index}. "
+                        "Intentando crear uno nuevo como respaldo..."
+                    )
+                    if not _go_to_flow_list(page):
+                        return 1
+                    if not _click_new_project(page):
+                        return 1
+                    project_page = _find_project_page(browser) or page
+                project_page.bring_to_front()
+                if not _click_generated_video_for_followup(project_page, scene_index):
+                    return 1
+                if not _ensure_followup_ready(project_page, scene_index):
+                    return 1
+                log_ok(f"Proyecto listo para continuar con la escena {scene_index}: {project_page.url}")
+
+            if scene_index <= 1:
+                # Pegar prompt inicial
+                if not _paste_prompt_in_flow(project_page, prompt_text):
+                    return 1
+            else:
+                if not _paste_followup_prompt_in_flow(project_page, prompt_text, scene_index):
+                    return 1
+
+            # Esperar a que Flow termine de fijar el prompt completo antes de crear.
+            settle_selector = '[contenteditable="true"]' if scene_index <= 1 else '[data-codex-followup="1"]'
+            if not _wait_for_prompt_settle(
+                project_page,
+                prompt_text,
+                timeout_sec=45,
+                stable_rounds=10,
+                editor_selector=settle_selector,
+                action_mode="create" if scene_index <= 1 else "followup",
+            ):
                 return 1
 
-            # Click en "Nuevo proyecto" + polling hasta que cargue
-            if not _click_new_project(page):
-                return 1
+            if scene_index <= 1:
+                # Click en "Crear" para generar el video inicial
+                if not _click_create(project_page):
+                    return 1
+            else:
+                if not _click_followup_send(project_page, scene_index):
+                    return 1
 
-            # Refrescar referencia: buscar la pestaña que tiene /project/ en la URL
-            # (puede ser la misma page si navigó, o una nueva)
-            project_page = page
-            for ctx in browser.contexts:
-                for pg in ctx.pages:
-                    url = pg.url or ""
-                    if "/project/" in url and "/edit/" not in url:
-                        # Verificar que tiene botones (no crasheada)
-                        btn_count = pg.evaluate("() => document.querySelectorAll('button').length")
-                        if btn_count > 5:
-                            project_page = pg
-                            break
-
-            project_page.bring_to_front()
-            page.wait_for_timeout(1000)
-            log_ok(f"Proyecto nuevo listo: {project_page.url}")
-
-            # Pegar prompt
-            if not _paste_prompt_in_flow(project_page, prompt_text):
-                return 1
-
-            # Esperar a que Flow procese el prompt y active el boton Crear
-            project_page.wait_for_timeout(3000)
-
-            # Click en "Crear" para generar el video
-            if not _click_create(project_page):
-                return 1
-
-            print("PROMPT_SENT=OK")
-            log_ok("Video en proceso de generacion en Flow (Veo 3).")
+            print(f"PROMPT_SENT=scene-{scene_index}")
+            log_ok(f"Escena {scene_index} en proceso de generacion en Flow (Veo 3).")
             return 0
 
         except Exception as e:
