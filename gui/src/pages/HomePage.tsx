@@ -128,16 +128,22 @@ export function HomePage({
     try { window.localStorage.setItem(STORAGE_KEY_TAB, tab) } catch { /* ignore */ }
   }
 
+  const getSceneOnePromptForBot = () => {
+    const sceneOne = videoScenes.find((scene) => scene.id === 'scene-1') || videoScenes[0]
+    return String(sceneOne?.prompt || '').trim()
+  }
+
   // Contextual start bot: image or video depending on active tab
   const handleStartBot = async () => {
     if (activeTab === 'video') {
       const prompt = videoPrompt.trim()
       if (!prompt) return
-      if (useScenesForVideoBot && (videoSceneAnalysisLoading || !videoCompiledPrompt.trim())) {
+      const sceneOnePrompt = getSceneOnePromptForBot()
+      if (useScenesForVideoBot && (videoSceneAnalysisLoading || !sceneOnePrompt)) {
         return
       }
-      const promptForBot = useScenesForVideoBot && videoCompiledPrompt.trim()
-        ? videoCompiledPrompt.trim()
+      const promptForBot = useScenesForVideoBot && sceneOnePrompt
+        ? sceneOnePrompt
         : prompt
       const activePlatforms = Object.entries(dashboard.publishPlatforms)
         .filter(([, checked]) => checked)
