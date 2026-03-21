@@ -13,6 +13,13 @@ const COLOR_LABELS: { key: ColorKey; label: string }[] = [
   { key: 'color_fondo', label: 'Fondo' },
 ]
 
+interface BrochureHistoryItem {
+  name: string
+  path: string
+  sizeLabel: string
+  date: string
+}
+
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*m/g, '')
 }
@@ -26,20 +33,30 @@ function colorize(line: string): { text: string; className: string } {
   return { text: line, className: '' }
 }
 
+const api = () => (window as any).electronAPI
+
 export function BrochurePage({ onClose }: { onClose: () => void }) {
   const [prompt, setPrompt] = useState('')
   const [companies, setCompanies] = useState<CompanyRecord[]>([])
   const [selectedCompany, setSelectedCompany] = useState('')
-
   const [generating, setGenerating] = useState(false)
+  const [statusMsg, setStatusMsg] = useState('')
+
+  // Preview
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null)
+
+  // Historial
+  const [history, setHistory] = useState<BrochureHistoryItem[]>([])
+
   const { lines: botLines, clearLines: clearBotLines } = useBotLogTail()
   const logRef = useRef<HTMLDivElement>(null)
 
-  // Overrides locales para este brochure (no afectan la empresa)
+  // Overrides locales
   const [customLogo, setCustomLogo] = useState<{ url: string; name: string } | null>(null)
   const [customColors, setCustomColors] = useState<Record<string, string>>({})
   const logoInputRef = useRef<HTMLInputElement>(null)
 
+  // Cargar empresas e historial al montar
   useEffect(() => {
     listCompanyRecords()
       .then((records) => {
@@ -49,29 +66,52 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
           setSelectedCompany(active[0].nombre)
         }
       })
-      .catch(() => { /* ignore */ })
+      .catch(() => {})
+    loadHistory()
   }, [])
+
+  const loadHistory = () => {
+    api().listBrochures().then((items: BrochureHistoryItem[]) => {
+      setHistory(items || [])
+    }).catch(() => {})
+  }
+
+  const loadPreview = () => {
+    api().getBrochureHtml().then((result: any) => {
+      if (result?.success && result.html) {
+        setPreviewHtml(result.html)
+        setStatusMsg('Preview cargado.')
+      }
+    }).catch(() => {})
+  }
 
   // Auto-scroll logs + detectar fin del bot
   useEffect(() => {
     if (logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight
     }
-    // Detectar si el bot termino
-    const lastLine = botLines[botLines.length - 1] || ''
-    if (generating && lastLine.includes('Bot finalizo con codigo')) {
-      setGenerating(false)
-      if (lastLine.includes('codigo: 0')) {
-        setStatusMsg('Brochure generado con exito. Revisa brochures_generados/')
-      } else {
-        setStatusMsg('El bot termino con errores. Revisa la consola.')
+    if (!generating) return
+    // Buscar en TODAS las lineas, no solo la ultima
+    for (const line of botLines) {
+      if (line.includes('Bot finalizo con codigo') || line.includes('Proceso completado')) {
+        setGenerating(false)
+        if (line.includes('codigo: 0') || line.includes('Proceso completado')) {
+          setStatusMsg('Brochure generado. Cargando preview...')
+          // Delay para que el archivo se escriba completamente
+          setTimeout(() => {
+            loadPreview()
+            loadHistory()
+          }, 500)
+        } else {
+          setStatusMsg('El bot termino con errores. Revisa la consola.')
+        }
+        return
       }
     }
   }, [botLines, generating])
 
   const company = companies.find((c) => c.nombre === selectedCompany) || null
 
-  // Reset overrides cuando cambia la empresa
   useEffect(() => {
     setCustomLogo(null)
     setCustomColors({})
@@ -94,12 +134,11 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
     setCustomLogo({ url, name: file.name })
   }
 
-  const [statusMsg, setStatusMsg] = useState('')
-
   const handleGenerate = async () => {
     if (!prompt.trim() || !company || generating) return
     setGenerating(true)
     setStatusMsg('Iniciando generacion de brochure...')
+    setPreviewHtml(null)
     clearBotLines()
     try {
       const brochureCustomColors = Object.keys(customColors).length > 0 ? customColors : undefined
@@ -110,7 +149,7 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
         brochureCustomColors,
       } as any)
       if (result.success) {
-        setStatusMsg(`Bot iniciado (PID: ${result.pid}). Revisa la consola...`)
+        setStatusMsg(`Bot iniciado (PID: ${result.pid}). Generando...`)
       } else {
         setStatusMsg(`Error: ${result.error || 'No se pudo iniciar el bot'}`)
         setGenerating(false)
@@ -119,6 +158,10 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
       setStatusMsg(`Error: ${err instanceof Error ? err.message : String(err)}`)
       setGenerating(false)
     }
+  }
+
+  const handleOpenPdf = (filePath?: string) => {
+    api().openBrochurePdf(filePath || '').catch(() => {})
   }
 
   const logoUrl = customLogo?.url || company?.logo_url || null
@@ -134,7 +177,7 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
         <button className="btn btn--ghost" onClick={onClose}>Volver al Panel</button>
       </div>
 
-      {/* ── Barra de empresa: logo + colores + datos ── */}
+      {/* ── Barra de empresa ── */}
       <div className="brochure-company-bar glass-card">
         {companies.length > 1 && (
           <div className="brochure-company-bar__selector">
@@ -153,7 +196,6 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
 
         {company && (
           <>
-            {/* Logo editable */}
             <div className="brochure-company-bar__logo">
               <button
                 className="brochure-company-bar__logo-btn"
@@ -184,19 +226,13 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
-            {/* Colores editables */}
             <div className="brochure-company-bar__colors">
               {COLOR_LABELS.map(({ key, label }) => {
                 const color = getColor(key)
                 const isCustom = !!customColors[key]
                 return (
-                  <label key={key} className={`brochure-color-swatch ${isCustom ? 'brochure-color-swatch--custom' : ''}`} title={`${label}: ${color} (click para cambiar)`}>
-                    <input
-                      type="color"
-                      className="brochure-color-swatch__picker"
-                      value={color}
-                      onChange={(e) => handleColorChange(key, e.target.value)}
-                    />
+                  <label key={key} className={`brochure-color-swatch ${isCustom ? 'brochure-color-swatch--custom' : ''}`} title={`${label}: ${color}`}>
+                    <input type="color" className="brochure-color-swatch__picker" value={color} onChange={(e) => handleColorChange(key, e.target.value)} />
                     <span className="brochure-color-swatch__circle" style={{ background: color }} />
                     <span className="brochure-color-swatch__label">{label}</span>
                   </label>
@@ -204,7 +240,6 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
               })}
             </div>
 
-            {/* Datos de contacto */}
             <div className="brochure-company-bar__contact">
               {company.telefono && <span>{company.telefono}</span>}
               {company.correo && <span>{company.correo}</span>}
@@ -243,13 +278,17 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="brochure-page__actions">
-            <button
-              className="btn btn--brochure"
-              disabled={!prompt.trim() || !company || generating}
-              onClick={handleGenerate}
-            >
+            <button className="btn btn--brochure" disabled={!prompt.trim() || !company || generating} onClick={handleGenerate}>
               {generating ? 'Generando...' : 'Generar Brochure'}
             </button>
+            <button className="btn btn--ghost" onClick={() => { loadPreview(); loadHistory() }}>
+              Ver Preview
+            </button>
+            {previewHtml && (
+              <button className="btn btn--ghost" onClick={() => handleOpenPdf()}>
+                Abrir PDF
+              </button>
+            )}
           </div>
 
           {statusMsg && (
@@ -258,38 +297,70 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
             </div>
           )}
 
-          {/* ── Consola de logs del bot ── */}
+          {/* ── Consola ── */}
           <div className="brochure-page__console glass-card">
             <div className="log-header">
               <div className="card-header">
                 <span className="card-icon">&#9654;</span>
-                <span className="card-title">Consola Brochure</span>
-                <span className="log-count">{botLines.length} lineas</span>
+                <span className="card-title">Consola</span>
+                <span className="log-count">{botLines.length}</span>
               </div>
-              <button className="btn btn--small btn--ghost" onClick={clearBotLines}>
-                Limpiar
-              </button>
+              <button className="btn btn--small btn--ghost" onClick={clearBotLines}>Limpiar</button>
             </div>
             <div ref={logRef} className="brochure-page__console-content">
               {botLines.length === 0 ? (
-                <p className="no-data">Los logs del bot apareceran aqui al generar un brochure</p>
+                <p className="no-data">Los logs apareceran aqui al generar</p>
               ) : (
                 botLines.map((line, i) => {
                   const { text, className } = colorize(stripAnsi(line))
-                  return (
-                    <div key={i} className={`log-line ${className}`}>{text}</div>
-                  )
+                  return <div key={i} className={`log-line ${className}`}>{text}</div>
                 })
               )}
             </div>
           </div>
+
+          {/* ── Historial ── */}
+          {history.length > 0 && (
+            <div className="brochure-page__history glass-card">
+              <div className="log-header">
+                <div className="card-header">
+                  <span className="card-icon">&#128196;</span>
+                  <span className="card-title">Historial</span>
+                  <span className="log-count">{history.length}</span>
+                </div>
+              </div>
+              <div className="brochure-page__history-list">
+                {history.map((item) => (
+                  <button
+                    key={item.name}
+                    className="brochure-page__history-item"
+                    onClick={() => handleOpenPdf(item.path)}
+                    title={`Abrir ${item.name}`}
+                  >
+                    <span className="brochure-page__history-name">{item.name}</span>
+                    <span className="brochure-page__history-meta">{item.sizeLabel} &middot; {item.date}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
+        {/* ── Preview HTML ── */}
         <div className="brochure-page__preview">
-          <div className="brochure-page__preview-placeholder">
-            <span className="brochure-page__preview-icon">PDF</span>
-            <p>El preview del brochure aparecera aqui</p>
-          </div>
+          {previewHtml ? (
+            <iframe
+              srcDoc={previewHtml}
+              title="Preview Brochure"
+              className="brochure-page__preview-iframe"
+              sandbox="allow-same-origin"
+            />
+          ) : (
+            <div className="brochure-page__preview-placeholder">
+              <span className="brochure-page__preview-icon">PDF</span>
+              <p>El preview del brochure aparecera aqui</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -63,6 +63,7 @@ app.whenReady().then(() => {
   const { registerCompanyHandlers } = require('./ipc/company')
   const { registerMarketingHandlers } = require('./ipc/marketing')
   const { registerLogoHandlers } = require('./ipc/logo')
+  const { registerBrochureHandlers } = require('./ipc/brochure')
 
   registerBotHandlers(ipcMain)
   registerPollerHandlers(ipcMain)
@@ -70,6 +71,7 @@ app.whenReady().then(() => {
   registerCompanyHandlers(ipcMain)
   registerMarketingHandlers(ipcMain)
   registerLogoHandlers(ipcMain)
+  registerBrochureHandlers(ipcMain)
 
   // 3. Start log watchers (lightweight)
   const { startLogWatcher, startBotLogWatcher } = require('./log-watcher')

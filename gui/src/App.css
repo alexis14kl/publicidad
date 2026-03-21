@@ -269,11 +269,14 @@ body::after {
   overflow: hidden;
 }
 
-.brochure-page__preview iframe {
+.brochure-page__preview iframe,
+.brochure-page__preview-iframe {
   width: 100%;
   height: 100%;
   border: none;
   min-height: 500px;
+  border-radius: var(--radius);
+  background: #fff;
 }
 
 .brochure-page__status {
@@ -305,13 +308,66 @@ body::after {
 }
 
 .brochure-page__console-content {
-  height: 200px;
+  height: 160px;
   overflow-y: auto;
   padding: 8px 14px;
   font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
   font-size: 11px;
   line-height: 1.5;
   background: rgba(0, 0, 0, 0.3);
+}
+
+/* ── Historial ── */
+
+.brochure-page__history {
+  padding: 0 !important;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.brochure-page__history .log-header {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.brochure-page__history-list {
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.brochure-page__history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.brochure-page__history-item:hover {
+  background: rgba(0, 229, 255, 0.06);
+}
+
+.brochure-page__history-item:last-child {
+  border-bottom: none;
+}
+
+.brochure-page__history-name {
+  font-weight: 500;
+  color: var(--accent-cyan);
+}
+
+.brochure-page__history-meta {
+  font-size: 11px;
+  color: var(--text-dim);
 }
 
 .brochure-page__preview-placeholder {

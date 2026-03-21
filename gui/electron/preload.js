@@ -28,6 +28,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLogoPath: () => ipcRenderer.invoke('get-logo-path'),
   listLogos: () => ipcRenderer.invoke('list-logos'),
   setActiveLogo: (filename) => ipcRenderer.invoke('set-active-logo', filename),
+  getBrochureHtml: () => ipcRenderer.invoke('get-brochure-html'),
+  getLatestBrochure: () => ipcRenderer.invoke('get-latest-brochure'),
+  listBrochures: () => ipcRenderer.invoke('list-brochures'),
+  openBrochurePdf: (filePath) => ipcRenderer.invoke('open-brochure-pdf', filePath),
   onLogNewLines: (callback) => {
     const handler = (_event, lines) => callback(lines)
     ipcRenderer.on('log-new-lines', handler)
