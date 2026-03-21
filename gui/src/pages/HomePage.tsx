@@ -167,6 +167,9 @@ export function HomePage({
         <button className="btn btn--marketing" onClick={onOpenMarketing}>
           Abrir Agente Marketing
         </button>
+        <button className="btn btn--brochure" onClick={() => { /* TODO: Canva API */ }}>
+          Generar Brochure
+        </button>
       </div>
 
       <main className="main-grid">

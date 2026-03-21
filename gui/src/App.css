@@ -741,6 +741,12 @@ body::after {
   box-shadow: 0 12px 30px rgba(255, 145, 0, 0.24);
 }
 
+.btn--brochure {
+  background: linear-gradient(135deg, #00bcd4, #26c6da);
+  color: #0a1a1e;
+  box-shadow: 0 12px 30px rgba(0, 188, 212, 0.24);
+}
+
 .btn--reel {
   background: linear-gradient(135deg, #e040fb, #7c4dff);
   color: #fff;
@@ -2299,7 +2305,8 @@ body::after {
     overflow-x: auto;
     padding-bottom: 2px;
   }
-  .btn--marketing {
+  .btn--marketing,
+  .btn--brochure {
     width: 100%;
   }
   .company-platform-tabs,
