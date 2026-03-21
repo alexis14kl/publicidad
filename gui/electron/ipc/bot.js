@@ -131,6 +131,11 @@ function registerBotHandlers(ipcMain) {
     const reelCaption = typeof payload === 'object' && payload !== null
       ? String(payload.reelCaption || '').trim()
       : ''
+    const videoScenePrompts = Array.isArray(payload?.videoScenePrompts)
+      ? payload.videoScenePrompts
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+      : []
 
     if (companyName && !isCompanyActive(companyName)) {
       return { success: false, error: `La empresa ${companyName} esta inactiva y no puede generar publicaciones.` }
@@ -156,6 +161,9 @@ function registerBotHandlers(ipcMain) {
     env.BOT_CONTENT_TYPE = contentType
     if (reelTitle) env.BOT_REEL_TITLE = reelTitle
     if (reelCaption) env.BOT_REEL_CAPTION = reelCaption
+    if (contentType === 'reel' && videoScenePrompts.length > 0) {
+      env.BOT_VIDEO_SCENE_PROMPTS_JSON = JSON.stringify(videoScenePrompts)
+    }
 
     const imagePrompt = contentType === 'reel'
       ? rawPrompt
