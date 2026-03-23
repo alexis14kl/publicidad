@@ -191,8 +191,9 @@ li .icon {{ position: absolute; left: 0; color: {c4}; font-weight: 900; }}
 
 /* ── Stat boxes ── */
 .stat-box, .quote-stats .stat-box {{ background: #fff; border: 1px solid #e8ecf2; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }}
-.stat-box strong {{ color: {c1}; font-size: 20px; font-weight: 900; margin-right: 8px; }}
-.stat-box span {{ font-size: 12px; color: #475569; }}
+.stat-box strong {{ color: {c1}; font-size: 22px; font-weight: 900; margin-right: 10px; display: inline-block; }}
+.stat-box span {{ font-size: 12px; color: #1e293b; font-weight: 500; }}
+.quote-stats .stat-box {{ border-left: 4px solid {c1}; }}
 
 /* ── Contact footer (pagina 2) ── */
 .contact-footer {{ background: #0f172a; border-radius: 16px; padding: 22px 26px; color: #fff; margin-top: 14px; page-break-inside: avoid; }}
