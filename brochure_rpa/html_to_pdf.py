@@ -209,6 +209,16 @@ li .icon {{ position: absolute; left: 0; color: {c4}; font-weight: 900; }}
 /* ── Generic strong/b in cards ── */
 strong {{ font-weight: 700; }}
 b {{ color: {c1}; }}
+
+/* ── Anti-corte entre paginas ── */
+.service, .benefit, .stat-box, .floating,
+div[class*="card"], .quote-card, .mini-brand,
+.footer-band, .contact-footer, .benefits-panel {{
+  page-break-inside: avoid;
+  break-inside: avoid;
+}}
+h1, h2, h3, h4 {{ page-break-after: avoid; break-after: avoid; }}
+p {{ orphans: 3; widows: 3; }}
 </style>"""
 
     # Insertar antes de </head>
