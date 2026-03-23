@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>{{COMPANY_NAME}} - Brochure</title>
+<style>
+@page { size: letter; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+html, body { font-family: 'Segoe UI', 'Inter', Arial, sans-serif; color: #1e293b; font-size: 14px; line-height: 1.6; }
+
+/* ══════ PAGE 1 — FRONT ══════ */
+.front {
+  width: 8.5in; height: 11in;
+  background:
+    linear-gradient(135deg, {{COLOR_PRIMARY}}08 0%, transparent 40%),
+    linear-gradient(225deg, {{COLOR_ACCENT}}08 0%, transparent 40%),
+    linear-gradient(180deg, #ffffff 0%, {{COLOR_BG}} 100%);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+/* ── Top bar ── */
+.front-topbar {
+  height: 8px;
+  background: linear-gradient(90deg, {{COLOR_PRIMARY}}, {{COLOR_ACCENT}}, {{COLOR_CTA}});
+}
+
+/* ── Front content ── */
+.front-body {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 24px;
+  padding: 36px 44px 28px;
+}
+
+/* ── Logo row ── */
+.logo-row {
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 24px;
+  grid-column: 1 / -1;
+}
+.logo-row img {
+  width: 64px; height: 64px; object-fit: contain;
+  background: #fff; padding: 8px; border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  border: 1px solid {{COLOR_PRIMARY}}15;
+}
+.logo-text h1 { font-size: 24px; font-weight: 800; color: {{COLOR_PRIMARY}}; line-height: 1.1; }
+.logo-text small { font-size: 12px; color: #64748b; }
+
+/* ── Left column ── */
+.front-left { display: flex; flex-direction: column; gap: 16px; }
+
+.badge {
+  display: inline-block; padding: 5px 14px; border-radius: 999px;
+  background: {{COLOR_ACCENT}}14; color: {{COLOR_ACCENT}};
+  font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+  align-self: flex-start;
+}
+
+.hero-title {
+  font-size: 32px; font-weight: 900; line-height: 1.06; color: #0f172a;
+}
+.hero-title em { font-style: normal; color: {{COLOR_PRIMARY}}; }
+
+.hero-desc {
+  font-size: 13.5px; line-height: 1.72; color: #475569; max-width: 95%;
+}
+
+.cta-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.cta {
+  padding: 10px 22px; border-radius: 999px; font-weight: 700;
+  font-size: 12px; color: #fff; display: inline-block;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.10);
+}
+.cta-1 { background: {{COLOR_CTA}}; }
+.cta-2 { background: {{COLOR_PRIMARY}}; }
+
+/* ── Why us card ── */
+.card-why {
+  background: #fff; border-radius: 18px; padding: 18px 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+}
+.card-why h3 { font-size: 15px; font-weight: 700; color: {{COLOR_PRIMARY}}; margin-bottom: 10px; }
+.check-list { list-style: none; }
+.check-list li {
+  position: relative; padding-left: 22px; margin-bottom: 7px;
+  font-size: 12.5px; line-height: 1.55; color: #334155;
+}
+.check-list li::before {
+  content: "\2713"; position: absolute; left: 0; top: 0;
+  color: {{COLOR_CHECKS}}; font-weight: 900; font-size: 13px;
+}
+
+/* ── Contact card ── */
+.card-contact {
+  background: #fff; border-radius: 18px; padding: 16px 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+}
+.card-contact h3 { font-size: 14px; font-weight: 700; color: {{COLOR_PRIMARY}}; margin-bottom: 10px; }
+.contact-row { display: flex; gap: 8px; margin-bottom: 5px; font-size: 12px; }
+.contact-row b { color: {{COLOR_PRIMARY}}; min-width: 70px; }
+.contact-row span { color: #475569; }
+
+/* ── Right column — visual panel ── */
+.front-right { display: flex; flex-direction: column; gap: 14px; }
+
+.visual-card {
+  flex: 1; border-radius: 22px; padding: 24px;
+  background: linear-gradient(155deg, {{COLOR_PRIMARY}} 0%, {{COLOR_PRIMARY}}cc 60%, {{COLOR_ACCENT}}99 100%);
+  color: #fff;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.visual-card .badge { background: rgba(255,255,255,0.18); color: #fff; }
+.visual-card h2 { font-size: 22px; font-weight: 800; line-height: 1.12; margin: 12px 0 8px; }
+.visual-card p { font-size: 12.5px; line-height: 1.65; color: rgba(255,255,255,0.88); }
+
+.stat-grid { display: grid; gap: 8px; margin-top: 14px; }
+.stat {
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 12px; padding: 10px 14px;
+}
+.stat strong { display: block; font-size: 13px; margin-bottom: 2px; }
+.stat span { font-size: 11px; color: rgba(255,255,255,0.78); line-height: 1.4; }
+
+.tags-card {
+  background: #fff; border-radius: 16px; padding: 14px 18px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+}
+.tags-card h3 { font-size: 13px; font-weight: 700; color: {{COLOR_PRIMARY}}; margin-bottom: 8px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag {
+  padding: 5px 12px; border-radius: 999px;
+  background: {{COLOR_PRIMARY}}0d; color: {{COLOR_PRIMARY}};
+  font-size: 10px; font-weight: 700;
+}
+
+/* ── Front footer stripe ── */
+.front-footer {
+  height: 6px;
+  background: linear-gradient(90deg, {{COLOR_CTA}}, {{COLOR_PRIMARY}}, {{COLOR_ACCENT}});
+}
+
+/* ══════ PAGE 2 — BACK ══════ */
+.back {
+  width: 8.5in; height: 11in;
+  page-break-before: always;
+  background:
+    linear-gradient(315deg, {{COLOR_PRIMARY}}06 0%, transparent 35%),
+    linear-gradient(135deg, {{COLOR_ACCENT}}06 0%, transparent 35%),
+    linear-gradient(180deg, #ffffff 0%, {{COLOR_BG}} 100%);
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.back-topbar {
+  height: 8px;
+  background: linear-gradient(90deg, {{COLOR_ACCENT}}, {{COLOR_PRIMARY}}, {{COLOR_CTA}});
+}
+
+.back-body {
+  padding: 32px 44px 28px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+/* ── Page 2 header ── */
+.back-header h2 {
+  font-size: 28px; font-weight: 900; color: #0f172a; line-height: 1.08; margin-bottom: 6px;
+}
+.back-header p { font-size: 13px; color: #64748b; line-height: 1.6; max-width: 80%; }
+
+/* ── Services grid ── */
+.svc-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+}
+.svc {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
+  padding: 16px; box-shadow: 0 3px 12px rgba(0,0,0,0.03);
+}
+.svc-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: {{COLOR_PRIMARY}}12; color: {{COLOR_PRIMARY}};
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 900; margin-bottom: 8px;
+}
+.svc h4 { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+.svc p { font-size: 11.5px; line-height: 1.55; color: #64748b; }
+
+/* ── Benefits row ── */
+.benefits-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+}
+.ben {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+  padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+.ben strong { display: block; color: {{COLOR_PRIMARY}}; font-size: 12px; margin-bottom: 3px; }
+.ben span { font-size: 11px; color: #64748b; line-height: 1.45; }
+
+/* ── Testimonial ── */
+.testimonial {
+  background: linear-gradient(135deg, {{COLOR_PRIMARY}}, {{COLOR_ACCENT}});
+  border-radius: 18px; padding: 20px 24px; color: #fff;
+}
+.testimonial h3 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.testimonial p { font-size: 13px; line-height: 1.7; font-style: italic; }
+
+/* ── Footer ── */
+.back-footer {
+  background: #0f172a; border-radius: 18px;
+  padding: 22px 26px; color: #fff;
+  display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; align-items: center;
+  margin-top: auto;
+}
+.back-footer h3 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+.back-footer > div:first-child p { font-size: 12px; color: rgba(255,255,255,0.75); line-height: 1.6; }
+.footer-cta {
+  display: inline-block; margin-top: 10px;
+  padding: 10px 20px; border-radius: 999px; background: {{COLOR_CTA}};
+  color: #fff; font-weight: 800; font-size: 12px;
+  box-shadow: 0 6px 18px rgba(253,145,2,0.30);
+}
+.footer-contact { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.footer-contact div { display: flex; gap: 8px; }
+.footer-contact b { color: {{COLOR_ACCENT}}; min-width: 70px; }
+.footer-contact span { color: rgba(255,255,255,0.80); }
+
+/* ── Footer stripe ── */
+.back-bottom {
+  height: 6px;
+  background: linear-gradient(90deg, {{COLOR_CTA}}, {{COLOR_PRIMARY}}, {{COLOR_ACCENT}});
+  margin-top: auto;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════ FRONT ══════ -->
+<section class="front">
+  <div class="front-topbar"></div>
+  <div class="front-body">
+    <div class="logo-row">
+      <img src="logo" alt="Logo">
+      <div class="logo-text">
+        <h1>{{COMPANY_NAME}}</h1>
+        <small>{{COMPANY_DESCRIPTION}}</small>
+      </div>
+    </div>
+    <div class="front-left">
+      <span class="badge">{{KICKER}}</span>
+      <div class="hero-title">{{HERO_TITLE}}</div>
+      <p class="hero-desc">{{HERO_SUBTITLE}}</p>
+      <div class="cta-row">
+        <span class="cta cta-1">{{CTA_1}}</span>
+        <span class="cta cta-2">{{CTA_2}}</span>
+      </div>
+      <div class="card-why">
+        <h3>{{WHY_US_TITLE}}</h3>
+        <ul class="check-list">{{WHY_US_ITEMS}}</ul>
+      </div>
+      <div class="card-contact">
+        <h3>Contacto</h3>
+        {{CONTACT_ROWS}}
+      </div>
+    </div>
+    <div class="front-right">
+      <div class="visual-card">
+        <div>
+          <span class="badge">{{VISUAL_KICKER}}</span>
+          <h2>{{VISUAL_TITLE}}</h2>
+          <p>{{VISUAL_DESC}}</p>
+        </div>
+        <div class="stat-grid">{{STATS}}</div>
+      </div>
+      <div class="tags-card">
+        <h3>{{TAGS_TITLE}}</h3>
+        <div class="tags">{{TAGS}}</div>
+      </div>
+    </div>
+  </div>
+  <div class="front-footer"></div>
+</section>
+
+<!-- ══════ BACK ══════ -->
+<section class="back">
+  <div class="back-topbar"></div>
+  <div class="back-body">
+    <div class="back-header">
+      <span class="badge">{{PAGE2_KICKER}}</span>
+      <h2>{{PAGE2_TITLE}}</h2>
+      <p>{{PAGE2_SUBTITLE}}</p>
+    </div>
+    <div class="svc-grid">{{SERVICES}}</div>
+    <div class="benefits-row">{{BENEFITS}}</div>
+    <div class="testimonial">
+      <h3>Testimonio</h3>
+      <p>"{{TESTIMONIAL}}"</p>
+    </div>
+    <div class="back-footer">
+      <div>
+        <h3>{{FOOTER_TITLE}}</h3>
+        <p>{{FOOTER_SUBTITLE}}</p>
+        <span class="footer-cta">{{FOOTER_CTA}}</span>
+      </div>
+      <div class="footer-contact">{{FOOTER_CONTACT}}</div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

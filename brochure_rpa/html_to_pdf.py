@@ -54,6 +54,144 @@ def _read_logo_as_base64(logo_path: str) -> str | None:
         return None
 
 
+def _replace_css_for_print(html: str) -> str:
+    """Quita el CSS de ChatGPT y pone CSS propio que funciona en PDF."""
+    # Quitar TODO el CSS de ChatGPT
+    html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.IGNORECASE | re.DOTALL)
+
+    # CSS profesional para PDF que funciona con Edge/Chromium print
+    print_css = """<style>
+@page { size: letter; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+html, body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; font-size: 13px; line-height: 1.55; background: #f4f6fa; }
+body { padding: 0; }
+
+/* Pagina */
+section { padding: 44px 48px; page-break-inside: avoid; }
+section + section { page-break-before: always; }
+
+/* Topbar decorativo */
+section::before {
+  content: ''; display: block; height: 6px; margin: -44px -48px 28px;
+  background: linear-gradient(90deg, var(--c1, #3469ED), var(--c2, #00bcd4), var(--c3, #fd9102));
+}
+
+/* Variables de color */
+:root {
+  --c1: #3469ED; --c2: #00bcd4; --c3: #fd9102; --c4: #28a745; --bg: #f4f6fa;
+}
+
+/* Logo + empresa */
+img[alt="Logo"] { max-width: 100px; max-height: 56px; object-fit: contain; border-radius: 12px; background: #fff; padding: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); display: block; margin-bottom: 14px; }
+
+/* Titulos */
+h1 { font-size: 28px; font-weight: 800; color: var(--c1); margin-bottom: 6px; line-height: 1.1; }
+h2 { font-size: 22px; font-weight: 800; color: #0f172a; margin: 18px 0 10px; line-height: 1.15; }
+h3 { font-size: 16px; font-weight: 700; color: var(--c1); margin: 14px 0 8px; }
+h4 { font-size: 14px; font-weight: 700; color: #0f172a; margin: 8px 0 4px; }
+p { margin-bottom: 10px; color: #475569; }
+small { font-size: 12px; color: #64748b; }
+
+/* Badges/kickers */
+span[class] { display: inline-block; }
+
+/* Cards */
+div[class*="card"], div[class*="visual"], div[class*="service"],
+div[class*="benefit"], div[class*="quote"], div[class*="testimonial"],
+div[class*="stat"], div[class*="mini"], div[class*="note"] {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+  padding: 16px 18px; margin-bottom: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+  page-break-inside: avoid;
+}
+
+/* Visual panel (gradiente) */
+div[class*="visual"] {
+  background: linear-gradient(145deg, var(--c1), #1a3a8a);
+  color: #fff; border: none;
+}
+div[class*="visual"] h2, div[class*="visual"] h3 { color: #fff; }
+div[class*="visual"] p, div[class*="visual"] span { color: rgba(255,255,255,0.88); }
+div[class*="visual"] div[class*="stat"] { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.18); }
+div[class*="visual"] div[class*="stat"] strong { color: #fff; }
+div[class*="visual"] div[class*="stat"] span { color: rgba(255,255,255,0.8); }
+
+/* Testimonial */
+div[class*="testimonial"], div[class*="quote"] {
+  background: linear-gradient(135deg, var(--c1), var(--c2));
+  color: #fff; border: none; font-style: italic;
+}
+div[class*="testimonial"] h3, div[class*="quote"] h3 { color: #fff; font-style: normal; }
+div[class*="testimonial"] p, div[class*="quote"] p { color: #fff; }
+
+/* Footer oscuro */
+div[class*="footer"] {
+  background: #0f172a; color: #fff; border: none; border-radius: 16px;
+  padding: 22px 24px; margin-top: 16px;
+}
+div[class*="footer"] h2, div[class*="footer"] h3 { color: #fff; }
+div[class*="footer"] p, div[class*="footer"] span { color: rgba(255,255,255,0.80); }
+div[class*="footer"] b { color: var(--c2); }
+
+/* Botones CTA */
+span[class*="cta"], span[class*="btn"], a[class*="cta"], a[class*="btn"] {
+  display: inline-block; padding: 10px 22px; border-radius: 999px;
+  color: #fff; font-weight: 700; font-size: 12px; margin: 4px 4px 4px 0;
+  text-decoration: none;
+}
+span[class*="cta"]:first-of-type, a[class*="btn"]:first-of-type,
+span[class*="btn-primary"], span[class*="cta-1"] { background: var(--c3); box-shadow: 0 4px 12px rgba(253,145,2,0.25); }
+span[class*="cta"]:nth-of-type(2), span[class*="btn-secondary"],
+span[class*="cta-2"], span[class*="btn2"] { background: var(--c1); box-shadow: 0 4px 12px rgba(52,105,237,0.2); }
+div[class*="footer"] span[class*="cta"] { background: var(--c3); }
+
+/* Tags */
+span[class*="tag"] {
+  display: inline-block; padding: 5px 12px; border-radius: 999px;
+  background: rgba(52,105,237,0.08); color: var(--c1);
+  font-size: 10px; font-weight: 700; margin: 2px;
+}
+
+/* Badges/kickers */
+span[class*="kicker"], span[class*="badge"] {
+  display: inline-block; padding: 4px 14px; border-radius: 999px;
+  background: rgba(0,188,212,0.10); color: var(--c2);
+  font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+/* Listas check */
+ul { list-style: none; padding: 0; }
+li { position: relative; padding-left: 22px; margin-bottom: 7px; font-size: 13px; color: #334155; }
+li::before { content: "\\2713"; position: absolute; left: 0; color: var(--c4); font-weight: 900; }
+
+/* Contact grid */
+div[class*="contact"] div, div[class*="info-grid"] div { margin-bottom: 4px; font-size: 12px; }
+b { color: var(--c1); }
+
+/* Icons */
+div[class*="icon"] {
+  width: 36px; height: 36px; border-radius: 10px; margin-bottom: 8px;
+  background: rgba(52,105,237,0.10); color: var(--c1);
+  display: inline-block; text-align: center; line-height: 36px;
+  font-size: 16px; font-weight: 900;
+}
+
+/* Utility: esconder decoraciones absolutas que no se ven en print */
+div[class*="shape"], div[class*="deco"], div[class*="diag"],
+div[class*="pattern"], div[class*="overlay"] { display: none; }
+</style>"""
+
+    # Insertar antes de </head>
+    if "</head>" in html.lower():
+        idx = html.lower().index("</head>")
+        html = html[:idx] + print_css + html[idx:]
+    else:
+        html = print_css + html
+
+    return html
+
+
 def _inject_premium_css(html: str) -> str:
     """Inyecta CSS profesional para pulir el brochure antes del render PDF."""
     premium_css = """
@@ -64,15 +202,18 @@ def _inject_premium_css(html: str) -> str:
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
   }
-  /* ── Print color safety ── */
+  /* ── Print: forzar colores y quitar clipping ── */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
   @page { size: letter; margin: 0; }
-  /* ── Page overflow control ── */
-  .page, section { overflow: hidden; }
-  /* ── Break control for clean pages ── */
+  /* ── CRITICO: no ocultar contenido ── */
+  .page, section, [class*="page"] {
+    overflow: visible !important;
+    min-height: 11in;
+  }
+  /* ── Break control ── */
   h1, h2, h3, h4 { break-after: avoid; }
   .card, .service, .benefit, .footer-card { break-inside: avoid; }
   /* ── Logo polish ── */
@@ -82,11 +223,8 @@ def _inject_premium_css(html: str) -> str:
     object-fit: contain;
     border-radius: 12px;
   }
-  /* ── Image quality ── */
   img { image-rendering: auto; }
-  /* ── Typography refinements ── */
   p { orphans: 3; widows: 3; }
-  /* ── Smooth gradients on decorative shapes ── */
   [class*="shape"], [class*="diag"] { will-change: transform; }
 </style>
 """
@@ -103,43 +241,41 @@ def _inject_premium_css(html: str) -> str:
 
 
 def _inject_logo_in_html(html: str, logo_data_uri: str) -> str:
-    """Inyecta el logo como <img> en el HTML del brochure."""
-    logo_img = (
-        f'<img src="{logo_data_uri}" '
-        f'alt="Logo" '
-        f'style="max-width:160px;max-height:80px;object-fit:contain;border-radius:12px;" />'
-    )
+    """Reemplaza el placeholder <img src="logo"> con el logo real en base64."""
+    # Reemplazar SOLO el src del img, manteniendo todos los estilos y atributos originales
+    # Esto preserva el layout del brochure tal como ChatGPT lo diseño
+    count = 0
 
-    # Estrategia 1: Buscar placeholder del logo
-    if "{{LOGO}}" in html:
-        return html.replace("{{LOGO}}", logo_img)
+    def _replace_src(match: re.Match) -> str:
+        nonlocal count
+        count += 1
+        tag = match.group(0)
+        # Reemplazar solo el src, mantener el resto del tag intacto
+        return re.sub(
+            r'src=["\'](?:logo|placeholder|#|about:blank)["\']',
+            f'src="{logo_data_uri}"',
+            tag,
+            flags=re.IGNORECASE,
+        )
 
-    # Estrategia 2: Buscar <img> con src vacio o placeholder
+    # Buscar todos los <img> con src="logo" y reemplazar solo el src
     html = re.sub(
         r'<img[^>]*src=["\'](?:logo|placeholder|#|about:blank)["\'][^>]*/?>',
-        logo_img,
+        _replace_src,
         html,
         flags=re.IGNORECASE,
     )
 
-    # Estrategia 3: Insertar despues de <body> si no se encontro placeholder
-    if logo_data_uri not in html:
-        logo_block = (
-            f'<div style="text-align:center;padding:16px 0;">'
-            f'{logo_img}'
-            f'</div>'
-        )
-        if "<body" in html.lower():
-            html = re.sub(
-                r'(<body[^>]*>)',
-                rf'\1\n{logo_block}',
-                html,
-                count=1,
-                flags=re.IGNORECASE,
-            )
-        else:
-            html = logo_block + "\n" + html
+    if count > 0:
+        log_info(f"Logo reemplazado en {count} ubicacion(es).")
+        return html
 
+    # Fallback: buscar {{LOGO}} placeholder
+    if "{{LOGO}}" in html:
+        logo_img = f'<img src="{logo_data_uri}" alt="Logo" style="max-width:160px;max-height:80px;object-fit:contain;" />'
+        return html.replace("{{LOGO}}", logo_img)
+
+    log_warn("No se encontro placeholder de logo en el HTML. El brochure se genera sin logo.")
     return html
 
 
@@ -181,9 +317,9 @@ def run_html_to_pdf(
     # Asegurar HTML completo
     html = _ensure_full_html(html)
 
-    # Inyectar CSS premium para pulir el render
-    html = _inject_premium_css(html)
-    log_info("CSS premium inyectado.")
+    # Reemplazar CSS de ChatGPT con CSS propio que funciona en PDF
+    html = _replace_css_for_print(html)
+    log_info("CSS reemplazado para compatibilidad PDF.")
 
     # Inyectar logo si se proporciono
     if logo_path:
@@ -202,42 +338,76 @@ def run_html_to_pdf(
     pdf_name = f"brochure_{timestamp}.pdf"
     pdf_path = out_dir / pdf_name
 
-    # Generar PDF con Playwright Chromium (headless)
-    # Mismo motor que DiCloak, soporta CSS moderno, cross-platform
+    # Generar PDF usando Microsoft Edge headless (Chromium del sistema)
+    # Soporta CSS moderno completo, viene con Windows, sin dependencias extra
+    import subprocess
+    import shutil
+
+    # Guardar HTML en archivo temporal
+    tmp_html = out_dir / f"_tmp_{timestamp}.html"
+    tmp_html.write_text(html, encoding="utf-8")
+    html_url = f"file:///{str(tmp_html).replace(os.sep, '/')}"
+
+    # Buscar Edge o Chrome
+    browser_exe = None
+    candidates = [
+        shutil.which("msedge"),
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        shutil.which("chrome"),
+        shutil.which("google-chrome"),
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ]
+    for c in candidates:
+        if c and Path(c).exists():
+            browser_exe = str(c)
+            break
+
+    if not browser_exe:
+        log_error("No se encontro Microsoft Edge ni Chrome en el sistema.")
+        tmp_html.unlink(missing_ok=True)
+        return 1
+
+    log_info(f"Usando: {Path(browser_exe).name}")
+    log_info(f"Generando PDF desde: {tmp_html.name}")
+
     try:
-        from playwright.sync_api import sync_playwright
-        log_info("Generando PDF con Playwright Chromium...")
+        cmd = [
+            browser_exe,
+            "--headless=new",
+            "--disable-gpu",
+            "--no-sandbox",
+            "--run-all-compositor-stages-before-draw",
+            "--disable-features=PaintHolding",
+            f"--print-to-pdf={pdf_path}",
+            "--no-pdf-header-footer",
+            "--print-to-pdf-no-header",
+            html_url,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
-        with sync_playwright() as pw:
-            browser = pw.chromium.launch(headless=True)
-            # Viewport a tamaño Letter (8.5x11in @ 96dpi) para render consistente
-            page = browser.new_page(viewport={"width": 816, "height": 1056})
-            page.set_content(html, wait_until="networkidle")
-            # Esperar a que todos los paints de CSS se completen
-            page.wait_for_timeout(1500)
-            page.pdf(
-                path=str(pdf_path),
-                format="Letter",
-                print_background=True,
-                prefer_css_page_size=True,
-                scale=1,
-                margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
-            )
-            browser.close()
+        if result.returncode != 0 and result.stderr:
+            log_warn(f"Browser stderr: {result.stderr[:200]}")
 
-        if pdf_path.exists() and pdf_path.stat().st_size > 0:
-            log_ok(f"PDF generado: {pdf_path} ({pdf_path.stat().st_size / 1024:.1f} KB)")
-            return 0
-        else:
-            log_error("Playwright no genero un PDF valido.")
-            return 1
-
-    except ImportError:
-        log_error("Playwright no esta instalado. Ejecuta: pip install playwright && playwright install chromium")
+    except subprocess.TimeoutExpired:
+        log_error("Timeout generando PDF.")
+        tmp_html.unlink(missing_ok=True)
         return 1
     except Exception as exc:
-        log_error(f"Error generando PDF: {exc}")
+        log_error(f"Error ejecutando browser: {exc}")
+        tmp_html.unlink(missing_ok=True)
         return 1
+
+    # Limpiar HTML temporal
+    tmp_html.unlink(missing_ok=True)
+
+    if pdf_path.exists() and pdf_path.stat().st_size > 0:
+        log_ok(f"PDF generado: {pdf_path} ({pdf_path.stat().st_size / 1024:.1f} KB)")
+        return 0
+
+    log_error("El browser no genero el PDF.")
+    return 1
 
 
 def main() -> int:

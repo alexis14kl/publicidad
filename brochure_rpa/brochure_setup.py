@@ -191,58 +191,79 @@ def _wait_for_response_complete(page: Page, timeout_sec: int = 180) -> bool:
 
 
 def _extract_html_from_response(page: Page) -> str:
-    """Extrae el HTML de la respuesta de ChatGPT.
+    """Extrae el HTML completo de la respuesta de ChatGPT.
 
-    Estrategia principal: tomar el texto completo del ultimo mensaje
-    del asistente (texto plano, no code blocks) y buscar el HTML dentro.
+    Busca el documento HTML completo (<!DOCTYPE...></html>) en multiples
+    fuentes: code blocks, texto del asistente, texto de la pagina.
+    Prioriza bloques que contengan el documento completo.
     """
     html_content = page.evaluate("""() => {
-        // ── Estrategia 1: Texto completo del ultimo mensaje del asistente ──
+        // Helper: busca <!DOCTYPE html>...</html> en un texto
+        function extractFullHtml(text) {
+            if (!text) return '';
+            const start = text.indexOf('<!DOCTYPE');
+            if (start === -1) {
+                const altStart = text.indexOf('<html');
+                if (altStart === -1) return '';
+                const end = text.lastIndexOf('</html>');
+                if (end === -1) return '';
+                return text.substring(altStart, end + 7);
+            }
+            const end = text.lastIndexOf('</html>');
+            if (end === -1) return text.substring(start); // incompleto pero algo es algo
+            return text.substring(start, end + 7);
+        }
+
+        // ── Estrategia 1: Code blocks (pre > code, pre) — mas confiable ──
+        const allBlocks = document.querySelectorAll('pre code, pre');
+        for (const block of allBlocks) {
+            const text = block.innerText || block.textContent || '';
+            const full = extractFullHtml(text);
+            if (full && full.length > 500) return full;
+        }
+
+        // ── Estrategia 2: Ultimo mensaje del asistente (texto completo) ──
         const assistantMsgs = document.querySelectorAll('[data-message-author-role="assistant"]');
         if (assistantMsgs.length) {
             const lastMsg = assistantMsgs[assistantMsgs.length - 1];
-            const fullText = lastMsg.innerText || lastMsg.textContent || '';
-            if (fullText.includes('<!DOCTYPE') || fullText.includes('<html')) {
-                return fullText;
-            }
-            // Buscar en code blocks dentro del mensaje
-            const codeBlocks = lastMsg.querySelectorAll('pre code, pre');
-            let best = '';
-            for (const block of codeBlocks) {
+            // Primero buscar code blocks dentro del mensaje
+            const msgBlocks = lastMsg.querySelectorAll('pre code, pre');
+            for (const block of msgBlocks) {
                 const text = block.innerText || block.textContent || '';
-                if (text.includes('<') && text.length > best.length) best = text;
+                const full = extractFullHtml(text);
+                if (full && full.length > 500) return full;
             }
-            if (best) return best;
+            // Luego texto plano del mensaje
+            const fullText = lastMsg.innerText || lastMsg.textContent || '';
+            const full = extractFullHtml(fullText);
+            if (full && full.length > 500) return full;
         }
 
-        // ── Estrategia 2: Articles con data-testid ──
+        // ── Estrategia 3: Articles con data-testid ──
         const articles = document.querySelectorAll('article[data-testid^="conversation-turn"]');
         if (articles.length) {
             const lastArticle = articles[articles.length - 1];
-            const fullText = lastArticle.innerText || lastArticle.textContent || '';
-            if (fullText.includes('<!DOCTYPE') || fullText.includes('<html')) {
-                return fullText;
-            }
-            const codeBlocks = lastArticle.querySelectorAll('pre code, pre');
-            let best = '';
-            for (const block of codeBlocks) {
+            const artBlocks = lastArticle.querySelectorAll('pre code, pre');
+            for (const block of artBlocks) {
                 const text = block.innerText || block.textContent || '';
-                if (text.includes('<') && text.length > best.length) best = text;
+                const full = extractFullHtml(text);
+                if (full && full.length > 500) return full;
             }
-            if (best) return best;
+            const fullText = lastArticle.innerText || lastArticle.textContent || '';
+            const full = extractFullHtml(fullText);
+            if (full && full.length > 500) return full;
         }
 
-        // ── Estrategia 3: Todos los pre/code de la pagina ──
-        const allBlocks = document.querySelectorAll('pre code, pre');
-        let best = '';
-        for (const block of allBlocks) {
-            const text = block.innerText || block.textContent || '';
-            if (text.includes('<') && text.length > best.length) best = text;
+        // ── Estrategia 4: TODOS los mensajes del asistente (no solo el ultimo) ──
+        for (let i = assistantMsgs.length - 1; i >= 0; i--) {
+            const msg = assistantMsgs[i];
+            const text = msg.innerText || msg.textContent || '';
+            const full = extractFullHtml(text);
+            if (full && full.length > 500) return full;
         }
-        if (best) return best;
 
-        // ── Estrategia 4: Texto completo del body ──
-        return document.body?.innerText || '';
+        // NO buscar en el body completo — puede capturar el prompt del usuario
+        return '';
     }""")
 
     raw = str(html_content or "").strip()

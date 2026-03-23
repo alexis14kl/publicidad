@@ -198,24 +198,24 @@ function buildBrochurePrompt(userIdea, companyName, customColors) {
     `  accent=${colors.acento} → decorative elements, secondary highlights, tech details\n` +
     `  checks=${colors.checks} → checkmarks, success indicators, list bullets\n` +
     `  bg=${colors.fondo} → page background\n\n` +
-    `DESIGN REQUIREMENTS (premium, agency-level quality):\n` +
-    `- TWO pages, Letter size (8.5x11in). Page 2: page-break-before:always\n` +
-    `- PAGE 1 (FRONT): Hero section with large bold headline, company tagline, decorative geometric shapes (circles, diagonal lines, gradient overlays), logo prominently placed, striking visual composition with layered elements\n` +
-    `- PAGE 2 (BACK): Services/benefits grid with icons (use Unicode ✓ ★ ⚡ ⭐ ➤ •), testimonial quote section, contact info footer with clean layout\n` +
-    `- Use CSS gradients, box-shadows (0 12px 32px rgba(0,0,0,0.08)), border-radius (20px+ on cards), transforms for depth\n` +
-    `- Add decorative elements: diagonal color bars, rounded accent shapes, semi-transparent overlays, subtle dot patterns via radial-gradient\n` +
-    `- Typography: font-family 'Segoe UI',Arial,sans-serif; titles 2.2em+ font-weight:900; subtitles 1.3em weight:700; body 0.95em weight:400; generous line-height (1.6+)\n` +
-    `- Layout: CSS Grid with named areas, generous whitespace, clear visual hierarchy\n` +
-    `- Cards: background rgba(255,255,255,0.92), backdrop-filter:blur(4px), subtle border, rounded corners\n` +
-    `- Dark footer section with inverted text (#fff), contact grid, CTA pill button\n` +
-    `- Each .page section must have overflow:hidden and position:relative\n\n` +
-    `PRINT-SAFE CSS (mandatory):\n` +
-    `  @page{size:letter;margin:0}\n` +
-    `  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}\n` +
-    `  h1,h2,h3,h4{break-after:avoid} .card,.service,.benefit{break-inside:avoid}\n` +
-    `  All CSS in <style> tag, self-contained, NO external resources, NO <table> layouts\n` +
-    `  ALL visible text MUST be in SPANISH\n\n` +
-    `IMPORTANT: Output COMPLETE HTML. Start with <!DOCTYPE html>, end with </html>. Do NOT truncate.`
+    `DESIGN REQUIREMENTS (premium brochure for PDF print):\n` +
+    `- TWO pages, Letter size (8.5x11in)\n` +
+    `- PAGE 1: Logo+company top, hero headline, subtitle, 2 CTA buttons, "why choose us" with checkmarks, contact info\n` +
+    `- PAGE 2: Services with icons (✓ ★ ⚡ ➤), benefits, testimonial quote, dark footer with contact+CTA\n` +
+    `- Professional look: gradients, box-shadows, border-radius, color accents\n\n` +
+    `MANDATORY CSS RULES (wkhtmltopdf compatibility — MUST follow):\n` +
+    `- @page{size:letter;margin:0} *{print-color-adjust:exact;-webkit-print-color-adjust:exact;box-sizing:border-box}\n` +
+    `- FORBIDDEN: display:grid, display:flex, position:absolute, overflow:hidden, backdrop-filter, clip-path, mask-image\n` +
+    `- For 2 columns: use float:left with width:48% and margin-right:4% on left column, clear:both after\n` +
+    `- For card rows: use display:inline-block with width:30% or float:left with width:31% + margin\n` +
+    `- For centering: use text-align:center or margin:0 auto with fixed width\n` +
+    `- For vertical spacing: use margin and padding only\n` +
+    `- Page 2: page-break-before:always on second section\n` +
+    `- Always add <div style="clear:both"></div> after floated sections\n` +
+    `- Use background-color and linear-gradient for decorative backgrounds (these work)\n` +
+    `- All CSS in <style> tag, self-contained, NO external resources\n` +
+    `- ALL visible text MUST be in SPANISH\n\n` +
+    `IMPORTANT: Output COMPLETE HTML from <!DOCTYPE html> to </html>. Do NOT truncate.`
   )
 }
 

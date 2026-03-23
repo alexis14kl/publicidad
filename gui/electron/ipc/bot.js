@@ -167,8 +167,22 @@ function registerBotHandlers(ipcMain) {
 
     let imagePrompt
     if (contentType === 'brochure') {
-      imagePrompt = buildBrochurePrompt(rawPrompt, companyName, brochureCustomColors)
+      imagePrompt = rawPrompt // Para brochure, el prompt es solo texto descriptivo
       if (brochureLogoPath) env.BROCHURE_LOGO_PATH = brochureLogoPath
+      // Pasar TODOS los datos de empresa al pipeline de brochure
+      const company = lookupCompanyData(companyName)
+      if (company) {
+        env.BROCHURE_PHONE = company.telefono || ''
+        env.BROCHURE_EMAIL = company.correo || ''
+        env.BROCHURE_WEBSITE = company.sitio_web || ''
+        env.BROCHURE_ADDRESS = company.direccion || ''
+        env.BROCHURE_DESCRIPTION = company.descripcion || ''
+        env.BROCHURE_COLOR_PRIMARIO = brochureCustomColors?.color_primario || company.color_primario || '#3469ED'
+        env.BROCHURE_COLOR_CTA = brochureCustomColors?.color_cta || company.color_cta || '#fd9102'
+        env.BROCHURE_COLOR_ACENTO = brochureCustomColors?.color_acento || company.color_acento || '#00bcd4'
+        env.BROCHURE_COLOR_CHECKS = brochureCustomColors?.color_checks || company.color_checks || '#28a745'
+        env.BROCHURE_COLOR_FONDO = brochureCustomColors?.color_fondo || company.color_fondo || '#f0f0f5'
+      }
     } else if (contentType === 'reel') {
       imagePrompt = rawPrompt
     } else {
