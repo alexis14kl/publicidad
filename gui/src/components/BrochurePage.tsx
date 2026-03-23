@@ -42,8 +42,8 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
   const [generating, setGenerating] = useState(false)
   const [statusMsg, setStatusMsg] = useState('')
 
-  // Preview
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null)
+  // Preview PDF
+  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
 
   // Historial
   const [history, setHistory] = useState<BrochureHistoryItem[]>([])
@@ -77,10 +77,10 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
   }
 
   const loadPreview = () => {
-    api().getBrochureHtml().then((result: any) => {
-      if (result?.success && result.html) {
-        setPreviewHtml(result.html)
-        setStatusMsg('Preview cargado.')
+    api().getLatestBrochure().then((result: any) => {
+      if (result?.success && result.dataUrl) {
+        setPdfDataUrl(result.dataUrl)
+        setStatusMsg('Preview PDF cargado.')
       }
     }).catch(() => {})
   }
@@ -96,12 +96,12 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
       if (line.includes('Bot finalizo con codigo') || line.includes('Proceso completado')) {
         setGenerating(false)
         if (line.includes('codigo: 0') || line.includes('Proceso completado')) {
-          setStatusMsg('Brochure generado. Cargando preview...')
+          setStatusMsg('Brochure generado. Cargando PDF...')
           // Delay para que el archivo se escriba completamente
           setTimeout(() => {
             loadPreview()
             loadHistory()
-          }, 500)
+          }, 1000)
         } else {
           setStatusMsg('El bot termino con errores. Revisa la consola.')
         }
@@ -138,7 +138,7 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
     if (!prompt.trim() || !company || generating) return
     setGenerating(true)
     setStatusMsg('Iniciando generacion de brochure...')
-    setPreviewHtml(null)
+    setPdfDataUrl(null)
     clearBotLines()
     try {
       const brochureCustomColors = Object.keys(customColors).length > 0 ? customColors : undefined
@@ -284,7 +284,7 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
             <button className="btn btn--ghost" onClick={() => { loadPreview(); loadHistory() }}>
               Ver Preview
             </button>
-            {previewHtml && (
+            {pdfDataUrl && (
               <button className="btn btn--ghost" onClick={() => handleOpenPdf()}>
                 Abrir PDF
               </button>
@@ -346,14 +346,13 @@ export function BrochurePage({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        {/* ── Preview HTML ── */}
+        {/* ── Preview PDF ── */}
         <div className="brochure-page__preview">
-          {previewHtml ? (
+          {pdfDataUrl ? (
             <iframe
-              srcDoc={previewHtml}
-              title="Preview Brochure"
+              src={pdfDataUrl}
+              title="Preview Brochure PDF"
               className="brochure-page__preview-iframe"
-              sandbox="allow-same-origin"
             />
           ) : (
             <div className="brochure-page__preview-placeholder">

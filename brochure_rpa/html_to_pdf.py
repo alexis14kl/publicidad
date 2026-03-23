@@ -54,12 +54,60 @@ def _read_logo_as_base64(logo_path: str) -> str | None:
         return None
 
 
+def _inject_premium_css(html: str) -> str:
+    """Inyecta CSS profesional para pulir el brochure antes del render PDF."""
+    premium_css = """
+<style id="brochure-polish">
+  /* ── Font & base ── */
+  html, body {
+    font-family: 'Segoe UI', 'Inter', -apple-system, Arial, sans-serif;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* ── Print color safety ── */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  @page { size: letter; margin: 0; }
+  /* ── Page overflow control ── */
+  .page, section { overflow: hidden; }
+  /* ── Break control for clean pages ── */
+  h1, h2, h3, h4 { break-after: avoid; }
+  .card, .service, .benefit, .footer-card { break-inside: avoid; }
+  /* ── Logo polish ── */
+  img[alt="Logo"], .brochure-logo {
+    max-width: 160px;
+    max-height: 80px;
+    object-fit: contain;
+    border-radius: 12px;
+  }
+  /* ── Image quality ── */
+  img { image-rendering: auto; }
+  /* ── Typography refinements ── */
+  p { orphans: 3; widows: 3; }
+  /* ── Smooth gradients on decorative shapes ── */
+  [class*="shape"], [class*="diag"] { will-change: transform; }
+</style>
+"""
+    # Insertar antes de </head> para que se aplique despues de los estilos de ChatGPT
+    if "</head>" in html.lower():
+        idx = html.lower().index("</head>")
+        html = html[:idx] + premium_css + html[idx:]
+    elif "</style>" in html.lower():
+        idx = html.lower().rindex("</style>") + len("</style>")
+        html = html[:idx] + premium_css + html[idx:]
+    else:
+        html = premium_css + html
+    return html
+
+
 def _inject_logo_in_html(html: str, logo_data_uri: str) -> str:
     """Inyecta el logo como <img> en el HTML del brochure."""
     logo_img = (
         f'<img src="{logo_data_uri}" '
         f'alt="Logo" '
-        f'style="max-width:120px;max-height:60px;object-fit:contain;" />'
+        f'style="max-width:160px;max-height:80px;object-fit:contain;border-radius:12px;" />'
     )
 
     # Estrategia 1: Buscar placeholder del logo
@@ -133,6 +181,10 @@ def run_html_to_pdf(
     # Asegurar HTML completo
     html = _ensure_full_html(html)
 
+    # Inyectar CSS premium para pulir el render
+    html = _inject_premium_css(html)
+    log_info("CSS premium inyectado.")
+
     # Inyectar logo si se proporciono
     if logo_path:
         logo_data_uri = _read_logo_as_base64(logo_path)
@@ -158,12 +210,17 @@ def run_html_to_pdf(
 
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
-            page = browser.new_page()
+            # Viewport a tamaño Letter (8.5x11in @ 96dpi) para render consistente
+            page = browser.new_page(viewport={"width": 816, "height": 1056})
             page.set_content(html, wait_until="networkidle")
+            # Esperar a que todos los paints de CSS se completen
+            page.wait_for_timeout(1500)
             page.pdf(
                 path=str(pdf_path),
                 format="Letter",
                 print_background=True,
+                prefer_css_page_size=True,
+                scale=1,
                 margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
             )
             browser.close()

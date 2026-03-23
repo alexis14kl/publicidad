@@ -48,23 +48,42 @@ def run_brochure_pipeline(cdp_port: int = 0, logo_path: str = "") -> int:
     if not logo_path:
         logo_path = os.environ.get("BROCHURE_LOGO_PATH", "")
     if not logo_path:
-        # Intentar logo activo de la empresa
+        # Buscar logo activo en las rutas del proyecto
         try:
             from cfg.platform import PROJECT_ROOT as PR
-            logos_dir = PR / "logos"
-            if logos_dir.exists():
-                active_logo = logos_dir / "logo_active.png"
-                if active_logo.exists():
-                    logo_path = str(active_logo)
-                else:
-                    # Buscar cualquier logo
-                    for ext in ("*.png", "*.svg", "*.jpg", "*.jpeg"):
+
+            # 1. Logo activo principal (utils/logoapporange.png)
+            active_logo = PR / "utils" / "logoapporange.png"
+            if active_logo.exists():
+                logo_path = str(active_logo)
+                log_info(f"Logo encontrado: {active_logo.name}")
+
+            # 2. Logo de empresa en utils/logos/companies/
+            if not logo_path:
+                company_logos = PR / "utils" / "logos" / "companies"
+                if company_logos.exists():
+                    for ext in ("*.png", "*.svg", "*.jpg", "*.jpeg", "*.webp"):
+                        found = list(company_logos.glob(ext))
+                        if found:
+                            logo_path = str(found[0])
+                            log_info(f"Logo empresa encontrado: {found[0].name}")
+                            break
+
+            # 3. Cualquier logo en utils/logos/
+            if not logo_path:
+                logos_dir = PR / "utils" / "logos"
+                if logos_dir.exists():
+                    for ext in ("*.png", "*.svg", "*.jpg", "*.jpeg", "*.webp"):
                         found = list(logos_dir.glob(ext))
                         if found:
                             logo_path = str(found[0])
+                            log_info(f"Logo fallback encontrado: {found[0].name}")
                             break
-        except Exception:
-            pass
+
+            if not logo_path:
+                log_warn("No se encontro ningun logo en el proyecto.")
+        except Exception as exc:
+            log_warn(f"Error buscando logo: {exc}")
 
     from brochure_rpa.html_to_pdf import run_html_to_pdf
 

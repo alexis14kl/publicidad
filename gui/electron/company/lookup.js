@@ -183,25 +183,39 @@ function buildBrochurePrompt(userIdea, companyName, customColors) {
   }
 
   return (
-    `Write the COMPLETE HTML code for a professional brochure as PLAIN TEXT. ` +
-    `Do NOT use code blocks, do NOT use backticks, do NOT add explanations. ` +
-    `Start your response directly with <!DOCTYPE html> and end with </html>. ` +
-    `Nothing before <!DOCTYPE html>, nothing after </html>.\n\n` +
-    `IDEA: ${userIdea}\n` +
-    `COMPANY: "${name}"` +
-    (description ? ` — ${description}` : '') + `\n` +
+    `You are an elite graphic designer at a top branding agency. Write the COMPLETE HTML/CSS for a PREMIUM brochure as PLAIN TEXT.\n` +
+    `Do NOT use code blocks, backticks, or explanations. Start directly with <!DOCTYPE html> and end with </html>. Nothing before or after.\n\n` +
+    `CONCEPT: ${userIdea}\n` +
+    `COMPANY: "${name}"` + (description ? ` — ${description}` : '') + `\n` +
     (phone ? `PHONE: ${phone}\n` : '') +
     (email ? `EMAIL: ${email}\n` : '') +
     (website ? `WEB: ${website}\n` : '') +
     (address ? `ADDRESS: ${address}\n` : '') +
-    `COLORS: primary=${colors.primario}, cta=${colors.cta}, accent=${colors.acento}, bg=${colors.fondo}\n` +
     `LOGO: <img src="logo" alt="Logo"> (will be replaced programmatically)\n\n` +
-    `RULES:\n` +
-    `- Letter size (8.5x11in), two pages, page-break-before:always on page 2\n` +
-    `- All CSS in <style> tag, @page{size:letter;margin:0}, print-color-adjust:exact\n` +
-    `- ALL visible text in SPANISH\n` +
-    `- Self-contained, no external resources, compact code\n` +
-    `- REMEMBER: plain text output, start with <!DOCTYPE html>, end with </html>`
+    `COLOR PALETTE:\n` +
+    `  primary=${colors.primario} → headings, key accents, brand elements\n` +
+    `  cta=${colors.cta} → buttons, badges, call-to-action highlights\n` +
+    `  accent=${colors.acento} → decorative elements, secondary highlights, tech details\n` +
+    `  checks=${colors.checks} → checkmarks, success indicators, list bullets\n` +
+    `  bg=${colors.fondo} → page background\n\n` +
+    `DESIGN REQUIREMENTS (premium, agency-level quality):\n` +
+    `- TWO pages, Letter size (8.5x11in). Page 2: page-break-before:always\n` +
+    `- PAGE 1 (FRONT): Hero section with large bold headline, company tagline, decorative geometric shapes (circles, diagonal lines, gradient overlays), logo prominently placed, striking visual composition with layered elements\n` +
+    `- PAGE 2 (BACK): Services/benefits grid with icons (use Unicode ✓ ★ ⚡ ⭐ ➤ •), testimonial quote section, contact info footer with clean layout\n` +
+    `- Use CSS gradients, box-shadows (0 12px 32px rgba(0,0,0,0.08)), border-radius (20px+ on cards), transforms for depth\n` +
+    `- Add decorative elements: diagonal color bars, rounded accent shapes, semi-transparent overlays, subtle dot patterns via radial-gradient\n` +
+    `- Typography: font-family 'Segoe UI',Arial,sans-serif; titles 2.2em+ font-weight:900; subtitles 1.3em weight:700; body 0.95em weight:400; generous line-height (1.6+)\n` +
+    `- Layout: CSS Grid with named areas, generous whitespace, clear visual hierarchy\n` +
+    `- Cards: background rgba(255,255,255,0.92), backdrop-filter:blur(4px), subtle border, rounded corners\n` +
+    `- Dark footer section with inverted text (#fff), contact grid, CTA pill button\n` +
+    `- Each .page section must have overflow:hidden and position:relative\n\n` +
+    `PRINT-SAFE CSS (mandatory):\n` +
+    `  @page{size:letter;margin:0}\n` +
+    `  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}\n` +
+    `  h1,h2,h3,h4{break-after:avoid} .card,.service,.benefit{break-inside:avoid}\n` +
+    `  All CSS in <style> tag, self-contained, NO external resources, NO <table> layouts\n` +
+    `  ALL visible text MUST be in SPANISH\n\n` +
+    `IMPORTANT: Output COMPLETE HTML. Start with <!DOCTYPE html>, end with </html>. Do NOT truncate.`
   )
 }
 
