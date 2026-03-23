@@ -1,0 +1,157 @@
+<!DOCTYPE html> <html lang="es"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Brochure Premium - NoyeCode</title> 
+
+<style>
+@page { size: letter; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+html, body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; font-size: 13px; line-height: 1.6; background: #f4f6fa; }
+section { padding: 40px 46px; }
+section + section { page-break-before: always; }
+section::before { content: ''; display: block; height: 7px; margin: -40px -46px 24px; background: linear-gradient(90deg, #3469ED, #00bcd4, #fd9102); }
+div[class*="shape"],div[class*="deco"],div[class*="diag"],div[class*="pattern"],div[class*="overlay"],div[class*="dot"],div[class*="bars"],div[class*="monitor-header"] span,div[class*="line"] { display: none \!important; }
+img[alt="Logo"] { max-width: 110px; max-height: 60px; object-fit: contain; border-radius: 14px; background: #fff; padding: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 12px; }
+h1 { font-size: 30px; font-weight: 900; color: #3469ED; margin-bottom: 8px; line-height: 1.08; }
+h2 { font-size: 22px; font-weight: 800; color: #0f172a; margin: 16px 0 8px; line-height: 1.12; }
+h3 { font-size: 15px; font-weight: 700; color: #3469ED; margin: 12px 0 6px; }
+h4 { font-size: 13px; font-weight: 700; color: #0f172a; margin: 6px 0 4px; }
+p { margin-bottom: 8px; color: #475569; line-height: 1.65; }
+small { font-size: 11px; color: #64748b; }
+blockquote { font-style: italic; margin: 0; }
+.accent { color: #3469ED; }
+.small-note { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #94a3b8; margin-bottom: 16px; }
+.brand { margin-bottom: 20px; }
+.brand-badge { display: inline-block; padding: 8px 18px; border-radius: 999px; background: #fd9102; color: #fff; font-size: 12px; font-weight: 700; margin-top: 8px; box-shadow: 0 4px 14px rgba(253,145,2,0.2); }
+.hero { margin-bottom: 18px; }
+.hero h1 { font-size: 32px; margin-bottom: 12px; }
+.kicker,.eyebrow,span[class*="kicker"],span[class*="badge"] { display: inline-block; padding: 5px 16px; border-radius: 999px; background: #00bcd418; color: #00bcd4; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 12px; }
+.cta,span[class*="cta"],span[class*="btn"],.cta-chip,.footer-pill { display: inline-block; padding: 11px 24px; border-radius: 999px; color: #fff; font-weight: 700; font-size: 12px; margin: 4px 6px 4px 0; background: #fd9102; box-shadow: 0 5px 16px rgba(253,145,2,0.22); }
+.cta-note { font-size: 12px; color: #64748b; margin-left: 4px; }
+div[class*="card"],div[class*="highlights"]>div { background: #fff; border: 1px solid #e8ecf2; border-radius: 16px; padding: 18px 20px; margin-bottom: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.04); page-break-inside: avoid; }
+.visual,div[class*="visual"] { background: linear-gradient(150deg, #3469ED, #3469EDbb, #00bcd488); color: #fff; border: none \!important; border-radius: 18px; padding: 22px; margin-bottom: 16px; }
+.visual h2,.visual h3,div[class*="visual"] h2 { color: #fff; }
+.visual p,.visual span,.visual strong,div[class*="visual"] p { color: rgba(255,255,255,0.9); }
+.monitor { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.15); }
+.stats-card,div[class*="stat"] { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; }
+.stats-card strong,div[class*="stat"] strong { display: block; font-size: 18px; color: #fff; margin-bottom: 2px; }
+.stats-card span,div[class*="stat"] span { font-size: 11px; color: rgba(255,255,255,0.8); }
+.floating { background: rgba(255,255,255,0.15); border-radius: 10px; padding: 8px 14px; margin: 6px 0; border: 1px solid rgba(255,255,255,0.12); }
+.floating .label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: rgba(255,255,255,0.7); }
+.floating .value { font-size: 12px; font-weight: 600; color: #fff; }
+.metric-strip { margin-top: 10px; }
+.metric { display: inline-block; padding: 6px 14px; border-radius: 999px; background: #3469ED0d; color: #3469ED; font-size: 11px; font-weight: 700; margin: 3px 4px 3px 0; }
+span[class*="tag"] { display: inline-block; padding: 5px 14px; border-radius: 999px; background: #3469ED0d; color: #3469ED; font-size: 10px; font-weight: 700; margin: 3px; }
+ul { list-style: none; padding: 0; }
+li { position: relative; padding-left: 24px; margin-bottom: 8px; font-size: 13px; color: #334155; }
+li::before { content: "\2713"; position: absolute; left: 0; color: #28a745; font-weight: 900; }
+.footer-band { background: #0f172a; border-radius: 16px; padding: 22px 26px; color: #fff; margin-top: 18px; page-break-inside: avoid; }
+.footer-title { font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+.footer-copy { font-size: 12px; color: rgba(255,255,255,0.75); line-height: 1.6; margin-bottom: 8px; }
+.footer-info div { margin-bottom: 4px; font-size: 12px; color: rgba(255,255,255,0.8); }
+.footer-info strong { color: #00bcd4; margin-right: 8px; }
+.back-header { margin-bottom: 18px; }
+.mini-brand { background: #fff; border: 1px solid #e8ecf2; border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: 0 3px 12px rgba(0,0,0,0.04); }
+.mini-brand img { max-width: 80px; margin-bottom: 8px; }
+.brand-text { font-size: 12px; color: #64748b; }
+.service { background: #fff; border: 1px solid #e8ecf2; border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 3px 10px rgba(0,0,0,0.03); }
+.service .ico { display: inline-block; width: 32px; height: 32px; border-radius: 8px; background: #3469ED12; color: #3469ED; text-align: center; line-height: 32px; font-size: 16px; margin-right: 8px; }
+.service h3 { font-size: 14px; margin: 4px 0; }
+.service p { font-size: 12px; margin-bottom: 0; }
+.benefits-panel { background: linear-gradient(145deg, #3469ED, #3469EDcc); border-radius: 16px; padding: 20px 22px; color: #fff; margin-bottom: 14px; }
+.benefits-panel h3 { color: #fff; font-size: 18px; }
+.benefits-panel .lead { color: rgba(255,255,255,0.85); font-size: 12px; }
+.benefit { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; color: #fff; }
+.benefit h4 { color: #fff; font-size: 13px; }
+.benefit p { color: rgba(255,255,255,0.82); font-size: 12px; margin: 4px 0 0; }
+.b-ico { display: inline; margin-right: 4px; }
+.quote-card { background: #fff; border: 1px solid #e8ecf2; border-radius: 16px; padding: 18px 20px; margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.04); }
+.quote-card h3 { color: #3469ED; }
+.quote-card blockquote { font-size: 13px; color: #475569; line-height: 1.7; }
+.author { font-size: 11px; color: #94a3b8; margin-top: 8px; }
+.stat-box { background: #fff; border: 1px solid #e8ecf2; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+.stat-box strong { color: #3469ED; font-size: 20px; font-weight: 900; margin-right: 8px; }
+.stat-box span { font-size: 12px; color: #475569; }
+.contact-footer { background: #0f172a; border-radius: 16px; padding: 22px 26px; color: #fff; margin-top: 14px; }
+.contact-title { font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+.contact-sub { font-size: 12px; color: rgba(255,255,255,0.72); margin-bottom: 12px; }
+.contact-item { margin-bottom: 6px; font-size: 12px; }
+.contact-item strong { color: #00bcd4; margin-right: 8px; }
+.contact-item span { color: rgba(255,255,255,0.82); }
+b { color: #3469ED; }
+strong { font-weight: 700; }
+</style></head> <body> <section class="page front"> <div class="dot-overlay"></div> <div class="shape s1"></div> <div class="shape s2"></div> <div class="shape s3"></div> <div class="shape s4"></div> <div class="shape s5"></div> <div class="small-note">Folleto Corporativo</div> <div class="brand"> <div class="logo-wrap"> <img src="logo" alt="Logo"> </div> <div class="brand-badge">Soluciones digitales premium</div> </div> <div class="hero"> <div class="kicker">Concepto test</div> <h1>Software que impulsa <span class="accent">el crecimiento real</span></h1> <p>NoyeCode es una empresa de desarrollo de software en Bogotá que crea experiencias digitales modernas, escalables y orientadas a resultados para empresas que buscan eficiencia, innovación y ventaja competitiva.</p> <div class="cta-row"> <span class="cta">Solicita tu asesoría</span> <span class="cta-note">Tecnología, estrategia y ejecución en un solo aliado</span> </div> </div> <div class="visual"> <div class="visual-card"> <div class="monitor"> <div class="monitor-header"> <span></span><span></span><span></span> </div> <div class="dashboard"> <div class="chart-card"> <div style="font-size:.82em;font-weight:800;color:#5b6a88;">Panel de rendimiento</div> <div class="bars"> <span></span><span></span><span></span><span></span><span></span><span></span> </div> <div style="margin-top:14px;height:8px;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--primary));opacity:.78;"></div> </div> <div class="stats-col"> <div class="stats-card"> <strong>+48%</strong> <span>Mejora operativa en procesos digitales</span> </div> <div class="stats-card"> <strong>24/7</strong> <span>Disponibilidad y continuidad tecnológica</span> </div> </div> </div> </div> <div class="floating f1"> <div class="label">Automatización</div> <span class="value">✓ Flujo ágil</span> <div class="line"></div> </div> <div class="floating f2"> <div class="label">Analítica</div> <span class="value">★ Datos claros</span> <div class="line"></div> </div> <div class="floating f3"> <div class="label">Escalabilidad</div> <span class="value">⚡ Crece contigo</span> </div> </div> </div> <div class="highlights"> <div class="card"> <h2>Diseño estratégico con enfoque de negocio</h2> <p>Combinamos branding tecnológico, experiencia de usuario y desarrollo a medida para construir plataformas sólidas, intuitivas y listas para crecer.</p> <div class="metric-strip"> <div class="metric">Arquitectura moderna</div> <div class="metric">Experiencia premium</div> <div class="metric">Implementación ágil</div> </div> </div>
+<div class="card">
+  <h2>Ventajas clave para tu empresa</h2>
+  <ul class="benefit-list">
+    <li><span class="icon">✓</span><span>Procesos optimizados con soluciones personalizadas para cada operación.</span></li>
+    <li><span class="icon">✓</span><span>Mayor control, visibilidad y seguimiento con herramientas digitales claras.</span></li>
+    <li><span class="icon">✓</span><span>Escalabilidad técnica para acompañar nuevas metas, equipos y mercados.</span></li>
+  </ul>
+</div>
+</div> <div class="footer-band"> <div class="footer-col"> <div class="footer-title">NoyeCode transforma ideas en productos digitales de alto impacto.</div> <div class="footer-copy">Desarrollo de software con visión estratégica, identidad de marca sólida y ejecución confiable para empresas modernas.</div> </div> <div class="footer-col footer-info"> <div><strong>Teléfono</strong><span>57 301 3859952</span></div> <div><strong>Correo</strong><span>JAVIERBR1277@GMAIL.COM</span></div> </div> <div class="footer-pill">Conversemos hoy</div> </div> </section> <section class="page back page-break"> <div class="dot-overlay"></div> <div class="shape s1" style="top:auto;bottom:58px;right:30px;"></div> <div class="shape s2" style="top:auto;bottom:150px;left:-70px;"></div> <div class="shape s4" style="top:80px;left:auto;right:-60px;"></div> <div class="small-note">Página posterior</div> <div class="back-header"> <div class="section-title"> <div class="eyebrow">Servicios y beneficios</div> <h2>Soluciones digitales pensadas para crecer contigo</h2> <p>Desde el desarrollo a medida hasta la optimización de flujos, NoyeCode crea ecosistemas tecnológicos que conectan eficiencia, diseño, rendimiento y valor comercial.</p> </div> <div class="mini-brand"> <img src="logo" alt="Logo"> <div class="brand-text">Empresa de desarrollo de software enfocada en innovación, experiencia de usuario y resultados medibles para negocios que buscan avanzar con confianza.</div> </div> </div> <div class="services"> <div class="service"> <div class="ico">✓</div> <h3>Desarrollo a medida</h3> <p>Plataformas, sistemas y aplicaciones diseñadas según las necesidades reales de tu operación y tus objetivos comerciales.</p> </div> <div class="service"> <div class="ico">★</div> <h3>Experiencia de usuario</h3> <p>Interfaces limpias, funcionales y elegantes que elevan la percepción de marca y facilitan la adopción tecnológica.</p> </div> <div class="service"> <div class="ico">⚡</div> <h3>Automatización inteligente</h3> <p>Procesos más ágiles, menos fricción interna y mayor productividad mediante flujos digitales optimizados.</p> </div> <div class="service"> <div class="ico">⭐</div> <h3>Escalabilidad segura</h3> <p>Arquitecturas sólidas y mantenibles que acompañan el crecimiento de tu empresa con visión de largo plazo.</p> </div> </div> <div class="benefits-panel"> <h3>¿Por qué elegir NoyeCode?</h3> <p class="lead">Una propuesta premium que integra estrategia, desarrollo y diseño con una visión clara de negocio.</p>
+<div class="benefit">
+  <div class="b-ico">➤</div>
+  <div>
+    <h4>Mayor eficiencia operativa</h4>
+    <p>Reducimos pasos innecesarios y mejoramos la coordinación de tus procesos internos.</p>
+  </div>
+</div>
+
+<div class="benefit">
+  <div class="b-ico">➤</div>
+  <div>
+    <h4>Imagen tecnológica más sólida</h4>
+    <p>Tu marca se proyecta con una presencia moderna, confiable y alineada con mercados competitivos.</p>
+  </div>
+</div>
+
+<div class="benefit">
+  <div class="b-ico">➤</div>
+  <div>
+    <h4>Implementación enfocada en resultados</h4>
+    <p>Cada solución se construye pensando en valor real, crecimiento y sostenibilidad digital.</p>
+  </div>
+</div>
+
+<div class="benefit">
+  <div class="b-ico">➤</div>
+  <div>
+    <h4>Acompañamiento cercano</h4>
+    <p>Trabajamos como aliado estratégico para que cada etapa del proyecto tenga dirección y claridad.</p>
+  </div>
+</div>
+</div> <div class="quote"> <div class="quote-card"> <h3>Lo que valoran nuestros clientes</h3> <blockquote>“NoyeCode nos ayudó a convertir una necesidad operativa en una solución digital elegante, funcional y preparada para crecer. Su enfoque combina orden, creatividad y visión estratégica.”</blockquote> <div class="author">Testimonio de referencia • Cliente corporativo satisfecho</div> </div>
+<div class="quote-stats">
+  <div class="stat-box">
+    <strong>01</strong>
+    <span>Aliado estratégico para proyectos digitales de alto nivel</span>
+  </div>
+  <div class="stat-box">
+    <strong>02</strong>
+    <span>Diseño premium con estructura clara y enfoque comercial</span>
+  </div>
+  <div class="stat-box">
+    <strong>03</strong>
+    <span>Soluciones escalables con visión de crecimiento sostenido</span>
+  </div>
+  <div class="stat-box">
+    <strong>04</strong>
+    <span>Comunicación cercana, técnica y orientada a decisiones</span>
+  </div>
+</div>
+</div> <div class="contact-footer"> <div class="contact-grid"> <div> <div class="contact-title">Hablemos de la próxima evolución digital de tu empresa</div> <div class="contact-sub">Creamos software con identidad, estructura y propósito para negocios que quieren avanzar con fuerza.</div> </div>
+  <div class="contact-item">
+    <strong>Teléfono</strong>
+    <span>57 301 3859952</span>
+  </div>
+
+  <div class="contact-item">
+    <strong>Correo y web</strong>
+    <span>JAVIERBR1277@GMAIL.COM<br>noyecode.com</span>
+  </div>
+
+  <div class="contact-item">
+    <strong>Ubicación</strong>
+    <span>Bogotá - Kennedy</span>
+  </div>
+</div>
+<div class="cta-chip" style="position:absolute;right:24px;bottom:22px;z-index:1;">Solicita una propuesta</div>
+</div> </section> </body> </html>
