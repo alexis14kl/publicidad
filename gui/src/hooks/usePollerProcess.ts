@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { isPollerRunning, startPoller, stopPoller } from '../lib/commands'
-import type { StartPollerPayload } from '../lib/types'
+import { isPollerRunning, startPoller, stopPoller } from '../api/commands'
+import type { StartPollerPayload } from '../api/types'
 
 export function usePollerProcess(intervalMs = 3000) {
   const [running, setRunning] = useState(false)

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import type { BotStatus } from '../lib/types'
-import { getBotStatus } from '../lib/commands'
+import type { BotStatus } from '../api/types'
+import { getBotStatus } from '../api/commands'
 
 export function useBotStatus(intervalMs = 2000) {
   const [status, setStatus] = useState<BotStatus>({

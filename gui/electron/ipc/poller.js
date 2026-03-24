@@ -8,8 +8,8 @@ const { findPython } = require('../utils/process')
 const { stopPidBestEffort } = require('../utils/process')
 const { IMAGE_FORMATS } = require('../config/image-formats')
 const state = require('../state')
-const { isPollerAlive } = require('../marketing/campaign-process')
-const { isCompanyActive, buildCompanyCredentialEnv, buildFullPrompt, lookupCompanyData } = require('../company/lookup')
+const { isPollerAlive } = require('../services/campaign-process')
+const { isCompanyActive, buildCompanyCredentialEnv, buildFullPrompt, lookupCompanyData } = require('../data/lookup')
 
 function registerPollerHandlers(ipcMain) {
   ipcMain.handle('start-poller', async (_event, payload) => {
@@ -37,6 +37,7 @@ function registerPollerHandlers(ipcMain) {
     const finalPollerPrompt = buildFullPrompt(rawPollerPrompt, pollerCompany, pollerService, pollerFormat)
 
     const env = getProjectEnv()
+    env.PYTHONPATH = PROJECT_ROOT
     // Persist poller logs so the GUI can tail them.
     env.PUBLICIDAD_LOG_FILE = path.join(PROJECT_ROOT, 'logs', 'job_poller.log')
     env.BOT_CUSTOM_IMAGE_PROMPT = finalPollerPrompt
@@ -76,7 +77,6 @@ function registerPollerHandlers(ipcMain) {
       env.BOT_IMAGE_WIDTH = String(pollerFmt.w)
       env.BOT_IMAGE_HEIGHT = String(pollerFmt.h)
     }
-    const pollerPath = path.join(PROJECT_ROOT, 'server', 'job_poller.py')
     const pythonBin = findPython()
     if (!pythonBin) {
       return { success: false, error: 'Python no encontrado en PATH' }
@@ -86,7 +86,7 @@ function registerPollerHandlers(ipcMain) {
       // The poller writes its own logs to logs/job_poller.log via Python logger.
       // We don't pipe stdout to the log file — that causes EBUSY on Windows
       // when the log watcher also reads the file.
-      state.pollerProcess = spawn(pythonBin, [pollerPath], {
+      state.pollerProcess = spawn(pythonBin, ['-m', 'core.server.job_poller'], {
         cwd: PROJECT_ROOT,
         env,
         stdio: 'ignore',

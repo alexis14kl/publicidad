@@ -1,4 +1,4 @@
-import type { VideoScenePlanItem } from '../../shared/api/types'
+import type { VideoScenePlanItem } from '../../api/types'
 
 export type VideoSceneItem = VideoScenePlanItem
 

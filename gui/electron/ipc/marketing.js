@@ -4,13 +4,13 @@ const path = require('path')
 const { getProjectEnv } = require('../utils/env')
 const { ensureAbsoluteUrl, sleep } = require('../utils/helpers')
 const state = require('../state')
-const { lookupCompanyData } = require('../company/lookup')
-const { getMarketingContactModeConfig, buildMarketingSegmentFromPreview } = require('../marketing/segment')
-const { runLocalMarketingOrchestrator } = require('../marketing/orchestrator')
-const { getMarketingImagesDir, prepareLatestMarketingImageAsset } = require('../marketing/image-asset')
-const { generateMarketingImageAsset } = require('../marketing/image-generation')
+const { lookupCompanyData } = require('../data/lookup')
+const { getMarketingContactModeConfig, buildMarketingSegmentFromPreview } = require('../services/segment')
+const { runLocalMarketingOrchestrator } = require('../services/orchestrator')
+const { getMarketingImagesDir, prepareLatestMarketingImageAsset } = require('../services/image-asset')
+const { generateMarketingImageAsset } = require('../services/image-generation')
 const { IMAGE_FORMATS } = require('../config/image-formats')
-const { openMarketingBrowserMonitor } = require('../marketing/monitor')
+const { openMarketingBrowserMonitor } = require('../services/monitor')
 const { ensureFacebookVisualBrowser } = require('../facebook/visual-browser')
 const { getMetaPageId, getTargetAdAccountId, getFacebookAdsCdpInfo } = require('../facebook/api')
 const { listFacebookPagePhotos } = require('../facebook/api')
@@ -32,8 +32,8 @@ const {
   buildCampaignProcess,
   runLeadCampaignBundleViaCdp,
   runLeadCampaignBundleViaN8n,
-} = require('../marketing/campaign-process')
-const { applyMcpBundleResultToPreview } = require('../marketing/campaign-bundle')
+} = require('../services/campaign-process')
+const { applyMcpBundleResultToPreview } = require('../services/campaign-bundle')
 
 function syncFacebookUiAutomationState() {
   const sharedState = { facebookVisualPage: state.facebookVisualPage }

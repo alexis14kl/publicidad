@@ -1,5 +1,8 @@
+const fs = require('fs')
+const path = require('path')
 const { exec, execSync } = require('child_process')
 const { sleep } = require('./helpers')
+const { PROJECT_ROOT } = require('../config/project-paths')
 
 // Cache Python binary — only search once per session
 let _cachedPythonBin = undefined
@@ -8,6 +11,18 @@ function findPython() {
   // Only cache positive results — retry on failure
   if (_cachedPythonBin) return _cachedPythonBin
 
+  // 1. Prefer the project's virtual environment Python
+  const venvBin = process.platform === 'win32' ? 'Scripts' : 'bin'
+  const venvPython = process.platform === 'win32'
+    ? path.join(PROJECT_ROOT, 'venv', venvBin, 'python.exe')
+    : path.join(PROJECT_ROOT, 'venv', venvBin, 'python3')
+
+  if (fs.existsSync(venvPython)) {
+    _cachedPythonBin = venvPython
+    return venvPython
+  }
+
+  // 2. Fallback to system Python
   const candidates = process.platform === 'win32'
     ? ['python', 'python3', 'py']
     : ['python3', 'python']

@@ -1,6 +1,10 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
 
+// Suppress harmless EGL/GPU driver log noise on macOS
+app.commandLine.appendSwitch('log-level', '3')
+app.commandLine.appendSwitch('enable-logging', 'false')
+
 const state = require('./state')
 const { PROJECT_ROOT } = require('./config/project-paths')
 
@@ -81,7 +85,7 @@ app.whenReady().then(() => {
   // 4. Pre-warm SQLite schemas in background (non-blocking)
   setImmediate(() => {
     try {
-      const { ensureCompanyDb } = require('./company/db')
+      const { ensureCompanyDb } = require('./data/db')
       for (const platform of ['facebook', 'instagram', 'linkedin', 'tiktok', 'googleads']) {
         try { ensureCompanyDb(platform) } catch { /* ignore */ }
       }

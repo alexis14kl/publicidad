@@ -1,5 +1,5 @@
 const { COMPANY_PLATFORMS } = require('../config/company-platforms')
-const { getCompanyPlatformConfig, ensureCompanyDb, companyTableHasColumn, findCompanyIdByName, fetchCompanyRowsForPlatform, aggregateCompanyRows } = require('../company/db')
+const { getCompanyPlatformConfig, ensureCompanyDb, companyTableHasColumn, findCompanyIdByName, fetchCompanyRowsForPlatform, aggregateCompanyRows } = require('../data/db')
 const { sqlLiteral, runSqlite, runSqliteJson } = require('../utils/sqlite')
 const { normalizeCompanyKey, persistEnvConfig } = require('../utils/helpers')
 

@@ -1,4 +1,4 @@
-import type { BotStatus } from '../lib/types'
+import type { BotStatus } from '../api/types'
 import logoSvg from '../assets/logo.svg'
 
 interface HeaderProps {
