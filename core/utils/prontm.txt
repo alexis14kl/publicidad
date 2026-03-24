@@ -1,0 +1,14 @@
+Generate this image now: Professional advertising image, realistic photography style for social media marketing. Young real person working with laptop in modern professional environment. Positive expression showing success. Clean layout with corporate text blocks, large headline, orange CTA badge, benefits box, and contact banner at bottom. Digital dashboards and floating tech interfaces around the person. NO cartoons, NO illustrations, NO vectors. Only realistic high-quality photography. All visible text in the image MUST be in Spanish.
+
+Crea una vaca con un computador
+
+[MANDATORY COMPANY INFO — USE THIS BUSINESS DATA IN THE IMAGE]
+Company name: "NoyeCode". Website: "noyecode.com". Phone/WhatsApp: "30000000". Email: "javierbr1277@gmail.com". Address: "cr 18 k bogota". Use this EXACT contact information in the ad image. Do NOT use "noyecode.com" or "+57 301 385 9952" or any other hardcoded data. The contact info in the image must match the company selected by the client.
+
+[MANDATORY BRAND COLORS — USE THESE EXACT COLORS IN THE IMAGE]
+Primary color (titles, headings): #3469ED. CTA color (buttons, badges, call-to-action): #fd9102. Accent color (tech details, decorative elements): #00bcd4. Check color (benefit checkmarks): #28a745. Background color: #f0f0f5. Do NOT use any other color palette. These are the client's brand colors. NEVER use dark or black backgrounds. The style must be LIGHT, clean and colorful.
+
+[MANDATORY IMAGE FORMAT — THIS OVERRIDES ANY OTHER SIZE INSTRUCTION]
+Platform: Facebook. Aspect ratio: 4:5. Resolution: exactly 1080x1350 pixels. Orientation: vertical (portrait). YOU MUST generate the image at 1080x1350 pixels with 4:5 aspect ratio. Do NOT use any other dimensions. This is a hard requirement from the client.
+
+CRITICAL: Reserve only a small clean area near the top center for the logo and a compact floating contact pill near the bottom. Do NOT create giant white header bars or full-width footer strips. Keep the composition premium, airy and balanced like a polished social ad. The contact data and logo will be finished programmatically later, so avoid placing critical text in the top 8% and bottom 14% of the image. Full-bleed design, light background edge to edge, no margins, no black bars. Deliver exactly ONE final image.
