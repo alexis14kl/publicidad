@@ -131,19 +131,38 @@ function registerBotHandlers(ipcMain) {
     const reelCaption = typeof payload === 'object' && payload !== null
       ? String(payload.reelCaption || '').trim()
       : ''
+    const videoScenePrompts = Array.isArray(payload?.videoScenePrompts)
+      ? payload.videoScenePrompts
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+      : []
 
     if (companyName && !isCompanyActive(companyName)) {
       return { success: false, error: `La empresa ${companyName} esta inactiva y no puede generar publicaciones.` }
     }
 
     if (companyName) {
+      const company = lookupCompanyData(companyName)
       const companyEnv = buildCompanyCredentialEnv(companyName)
-      if (!companyEnv) {
+      if (!companyEnv || !company) {
         return { success: false, error: `No pude resolver las credenciales activas para ${companyName}.` }
       }
       persistEnvConfig(companyEnv)
       Object.assign(env, companyEnv)
       env.PUBLICIDAD_COMPANY_NAME = companyName
+      env.BOT_COMPANY_NAME = String(company.nombre || '')
+      env.BOT_COMPANY_PHONE = String(company.telefono || '')
+      env.BOT_COMPANY_WEBSITE = String(company.sitio_web || '')
+      env.BOT_COMPANY_EMAIL = String(company.correo || '')
+      env.BOT_COMPANY_ADDRESS = String(company.direccion || '')
+      if (company.logo) {
+        const resolvedLogoPath = path.isAbsolute(company.logo)
+          ? company.logo
+          : path.join(PROJECT_ROOT, company.logo)
+        if (fs.existsSync(resolvedLogoPath)) {
+          env.BOT_COMPANY_LOGO_PATH = resolvedLogoPath
+        }
+      }
     }
 
     // Pass image dimensions to overlay_logo.py via env
@@ -156,6 +175,9 @@ function registerBotHandlers(ipcMain) {
     env.BOT_CONTENT_TYPE = contentType
     if (reelTitle) env.BOT_REEL_TITLE = reelTitle
     if (reelCaption) env.BOT_REEL_CAPTION = reelCaption
+    if (contentType === 'reel' && videoScenePrompts.length > 0) {
+      env.BOT_VIDEO_SCENE_PROMPTS_JSON = JSON.stringify(videoScenePrompts)
+    }
 
     // Extraer colores custom para brochure (si los hay)
     const brochureCustomColors = typeof payload === 'object' && payload !== null

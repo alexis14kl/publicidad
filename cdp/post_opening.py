@@ -109,6 +109,34 @@ def _run_python(
         return 1
 
 
+def _load_video_scene_prompts() -> list[str]:
+    raw = str(get_env("BOT_VIDEO_SCENE_PROMPTS_JSON", "") or "").strip()
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except Exception as exc:
+        log_warn(f"No pude leer BOT_VIDEO_SCENE_PROMPTS_JSON: {exc}")
+        return []
+    if not isinstance(data, list):
+        return []
+    prompts = [str(item or "").strip() for item in data]
+    return [prompt for prompt in prompts if prompt]
+
+
+def _read_last_download_state(video_dir: Path) -> dict[str, str]:
+    state_path = video_dir / "last_download.json"
+    if not state_path.exists():
+        return {}
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {str(k): str(v) for k, v in payload.items() if v is not None}
+
+
 def _close_chatgpt_tabs(port: int) -> None:
     """Close ChatGPT tabs via CDP to prevent session restore."""
     try:
@@ -274,35 +302,70 @@ def post_opening_automation(cdp_port: int = 9225, skip_force_cdp: bool = False) 
 def _video_pipeline(cdp_port: int, dev_mode: bool) -> int:
     """Pipeline de video/reel: Gemini/Veo → descargar video → subir a FB directo."""
     from cfg.platform import VIDEO_SETUP_PY, DOWNLOAD_VIDEO_PY, DIRECT_VIDEO_UPLOAD_PY, VIDEO_DIR
+    scene_prompts = _load_video_scene_prompts()
+    if not scene_prompts:
+        fallback_prompt = str(get_env("BOT_CUSTOM_IMAGE_PROMPT", "") or "").strip()
+        if fallback_prompt:
+            scene_prompts = [fallback_prompt]
+    if not scene_prompts:
+        log_warn("No encontre prompts de escenas para el pipeline de video.")
+        return 1
 
-    # Step V1: Pegar prompt en Gemini/Veo
     if not VIDEO_SETUP_PY.exists():
         log_warn(f"No existe script de video setup: {VIDEO_SETUP_PY}")
         return 1
-
-    log_info("Ejecutando pegado de prompt en Gemini/Veo por CDP...")
-    rc = _run_python(
-        VIDEO_SETUP_PY,
-        str(cdp_port),
-        timeout=300,
-        env_extra={"CDP_PROFILE_PORT": str(cdp_port)},
-    )
-    if rc != 0:
-        log_warn("No se pudo pegar el prompt en Gemini/Veo.")
-        return 1
-    log_ok("Prompt pegado en Gemini/Veo con exito")
-
-    # Step V2: Descargar video generado
     if not DOWNLOAD_VIDEO_PY.exists():
         log_warn(f"No existe script de descarga de video: {DOWNLOAD_VIDEO_PY}")
         return 1
 
     VIDEO_DIR.mkdir(parents=True, exist_ok=True)
-    rc = _run_python(DOWNLOAD_VIDEO_PY, str(cdp_port), timeout=600)
-    if rc != 0:
-        log_warn("No se pudo descargar el video generado.")
-        return 1
-    log_ok("Video descargado con exito")
+    previous_video_url = ""
+
+    for index, scene_prompt in enumerate(scene_prompts, start=1):
+        log_info(f"Procesando escena {index}/{len(scene_prompts)} en Gemini/Veo...")
+
+        rc = _run_python(
+            VIDEO_SETUP_PY,
+            str(cdp_port),
+            timeout=300,
+            env_extra={
+                "CDP_PROFILE_PORT": str(cdp_port),
+                "BOT_VIDEO_ACTIVE_SCENE_INDEX": str(index),
+                "BOT_VIDEO_ACTIVE_SCENE_PROMPT": scene_prompt,
+            },
+        )
+        if rc != 0:
+            log_warn(f"No se pudo pegar el prompt de la escena {index} en Gemini/Veo.")
+            return 1
+        log_ok(f"Prompt de la escena {index} enviado a Gemini/Veo con exito")
+
+        rc = _run_python(
+            DOWNLOAD_VIDEO_PY,
+            str(cdp_port),
+            timeout=600,
+            env_extra={
+                "CDP_PROFILE_PORT": str(cdp_port),
+                "BOT_VIDEO_ACTIVE_SCENE_INDEX": str(index),
+                "BOT_VIDEO_PREVIOUS_VIDEO_URL": previous_video_url,
+                "BOT_VIDEO_SKIP_DOWNLOAD": "1" if index < len(scene_prompts) else "0",
+            },
+        )
+        if rc != 0:
+            log_warn(
+                f"No se pudo {'esperar el video listo' if index < len(scene_prompts) else 'descargar el video'} "
+                f"de la escena {index}."
+            )
+            return 1
+
+        last_download = _read_last_download_state(VIDEO_DIR)
+        previous_video_url = str(last_download.get("video_url", "") or "").strip()
+        downloaded_path = str(last_download.get("output_path", "") or "").strip()
+        if index < len(scene_prompts):
+            log_ok(f"Escena {index} lista en Flow. Continuando con la escena {index + 1}...")
+        elif downloaded_path:
+            log_ok(f"Video de la escena {index} descargado: {Path(downloaded_path).name}")
+        else:
+            log_ok(f"Video de la escena {index} descargado con exito")
 
     # Step V3: Verificar/renovar token de Facebook
     if "facebook" in str(get_env("PUBLISH_PLATFORMS", "facebook") or "").lower():

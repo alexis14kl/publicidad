@@ -131,9 +131,47 @@ export function HomePage({
   }
 
   const getSceneOnePromptForBot = () => {
-    const sceneOne = videoScenes.find((scene) => scene.id === 'scene-1') || videoScenes[0]
-    return String(sceneOne?.prompt || '').trim()
+    const prompts = getScenePromptsForBot()
+    return prompts[0] || ''
   }
+
+  const isGeneratedScenePrompt = (value: string) => {
+    const normalized = value.toLowerCase()
+    return !(
+      normalized.startsWith('escribe el prompt del video') ||
+      normalized.startsWith('la segunda escena mostrara') ||
+      normalized.startsWith('la tercera escena cerrara') ||
+      normalized.startsWith('la segunda escena mostrara el conflicto') ||
+      normalized.startsWith('la tercera escena cerrara la mini-historia')
+    )
+  }
+
+  const isGeneratedSceneDialogue = (value: string) => {
+    const normalized = value.toLowerCase()
+    return !(
+      normalized.startsWith('aqui aparecera el primer dialogo sugerido') ||
+      normalized.startsWith('aqui aparecera el segundo dialogo sugerido') ||
+      normalized.startsWith('aqui aparecera el tercer dialogo sugerido') ||
+      normalized.startsWith('aqui aparecera un voiceover corto y claro') ||
+      normalized.startsWith('aqui aparecera un voiceover alineado con la accion visible') ||
+      normalized.startsWith('aqui aparecera un voiceover final mas contundente y natural')
+    )
+  }
+
+  const buildScenePromptForBot = (scene: typeof videoScenes[number]) => {
+    const prompt = String(scene?.prompt || '').trim()
+    const dialogue = String(scene?.dialogue || '').trim()
+    if (!prompt || !isGeneratedScenePrompt(prompt)) return ''
+    const sections = [`Prompt: ${prompt}`]
+    if (dialogue && isGeneratedSceneDialogue(dialogue)) {
+      sections.push(`Diálogo del personaje: ${dialogue}`)
+    }
+    return sections.join('\n\n')
+  }
+
+  const getScenePromptsForBot = () => videoScenes
+    .map((scene) => buildScenePromptForBot(scene))
+    .filter(Boolean)
 
   // Contextual start bot: image or video depending on active tab
   const handleStartBot = async () => {
@@ -141,6 +179,7 @@ export function HomePage({
       const prompt = videoPrompt.trim()
       if (!prompt) return
       const sceneOnePrompt = getSceneOnePromptForBot()
+      const scenePromptsForBot = useScenesForVideoBot ? getScenePromptsForBot() : []
       if (useScenesForVideoBot && (videoSceneAnalysisLoading || !sceneOnePrompt)) {
         return
       }
@@ -153,6 +192,7 @@ export function HomePage({
       await startBot({
         profileName: 'Flow Veo 3',
         imagePrompt: promptForBot,
+        videoScenePrompts: scenePromptsForBot,
         companyName: dashboard.selectedCompany,
         contentType: 'reel',
         reelTitle: videoTitle.trim() || 'Reel publicitario',

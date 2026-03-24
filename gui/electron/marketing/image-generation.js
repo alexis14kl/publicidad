@@ -302,12 +302,16 @@ function buildMarketingImagePrompt(preview, orchestrator, imageFormat) {
       `Sitio web oficial para la pieza: ${company.sitio_web || 'sin sitio web'}.`,
       `Correo oficial: ${company.correo || 'sin correo'}.`,
       `Direccion de referencia: ${company.direccion || 'sin direccion'}.`,
-      'La composicion debe dejar una franja superior limpia para el logo real de la empresa y una franja inferior limpia para telefono, web y datos de contacto reales, porque esos elementos se agregaran automaticamente despues.',
-      'No pongas logos, numeros de telefono, sitios web ni CTA pegados al borde superior o inferior. Mantener libres al menos el 14% superior y el 12% inferior.',
+      'El logo real de la empresa se agregara automaticamente despues usando el logo configurado en el formulario de la empresa.',
+      'La composicion debe dejar una zona superior limpia y amplia, sin texto ni elementos fuertes, para ubicar el logo sin tapar el contenido principal.',
+      'No generes barras superiores ni inferiores con nombre de marca, sitio web, telefono o frases como "contactanos hoy".',
+      'El contacto debe quedar integrado visualmente en la pieza original y nunca en una barra extra agregada por el modelo.',
+      'No pongas logos, numeros de telefono, sitios web ni CTA pegados al borde superior. Mantener libre al menos el 14% superior.',
     ].join('\n')
     : [
-      'Deja una franja superior limpia para logo y una franja inferior limpia para datos de contacto que se agregaran automaticamente despues.',
-      'No pongas texto importante pegado al borde superior o inferior. Mantener libres al menos el 14% superior y el 12% inferior.',
+      'Deja una zona superior limpia para ubicar un logo real despues, sin tapar el texto principal.',
+      'No generes barras superiores ni inferiores adicionales con branding o contacto.',
+      'No pongas texto importante pegado al borde superior. Mantener libre al menos el 14% superior.',
     ].join('\n')
   const basePrompt = [
     `Campana de Facebook Ads para ${preview?.campaignIdea || 'una oferta local'} en ${preview?.city || 'Colombia'}.`,
@@ -358,6 +362,17 @@ async function generateMarketingImageAsset({
   const resolvedLogoPath = companyLogoPath
     ? (path.isAbsolute(companyLogoPath) ? companyLogoPath : path.join(PROJECT_ROOT, companyLogoPath))
     : ''
+  const hasCompanyLogo = Boolean(resolvedLogoPath && fs.existsSync(resolvedLogoPath))
+
+  if (companyName && !hasCompanyLogo) {
+    return {
+      success: false,
+      status: 'failed',
+      error: `La empresa ${companyName} no tiene logo configurado. Agrega el logo en el formulario de la empresa antes de generar la imagen.`,
+      prompt: '',
+    }
+  }
+
   const env = {
     BOT_IMAGE_WIDTH: String(formatConfig.w),
     BOT_IMAGE_HEIGHT: String(formatConfig.h),
@@ -367,7 +382,7 @@ async function generateMarketingImageAsset({
     BOT_COMPANY_WEBSITE: String(company?.sitio_web || ''),
     BOT_COMPANY_EMAIL: String(company?.correo || ''),
     BOT_COMPANY_ADDRESS: String(company?.direccion || ''),
-    BOT_COMPANY_LOGO_PATH: resolvedLogoPath && fs.existsSync(resolvedLogoPath) ? resolvedLogoPath : '',
+    BOT_COMPANY_LOGO_PATH: hasCompanyLogo ? resolvedLogoPath : '',
     BOT_BRAND_PRIMARY: String(company?.color_primario || ''),
     BOT_BRAND_CTA: String(company?.color_cta || ''),
     BOT_BRAND_ACCENT: String(company?.color_acento || ''),
