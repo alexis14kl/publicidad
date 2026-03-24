@@ -6,14 +6,17 @@ Backend/*.sqlite3
 Backend/*.sqlite3-shm
 Backend/*.sqlite3-wal
 
-# Imagenes publicitarias generadas
-img_publicitarias/
+# Output (generated content)
+output/
 
 # Logs
 logs/
 
 # Variables de entorno
 .env
+
+# Python virtual environment
+venv/
 
 # Python cache
 __pycache__/
@@ -39,24 +42,22 @@ facebook-ads-mcp-server.dxt
 
 # Debug assets
 debug/
+_scratch/
 
 # Auto-generated prompts and text (regenerated each run)
-utils/prontm.txt
-utils/post_text.txt
+core/utils/prontm.txt
+core/utils/post_text.txt
+
+# Node modules
+node_modules/
+gui/node_modules/
 
 # GUI build artifacts
-gui/node_modules/
 gui/dist/
 gui/dist-electron/
 gui/dist-types/
 gui/release/
 
 # Packaged desktop binaries
-ejecutable/mac/*.app/
-ejecutable/mac/*.dmg
-
-videos_publicitarias/*.mp4
-
-# Brochures generados
-brochures_generados/*.pdf
-brochures_generados/*.txt
+scripts/build/mac/*.app/
+scripts/build/mac/*.dmg

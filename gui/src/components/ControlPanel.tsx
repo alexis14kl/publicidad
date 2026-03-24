@@ -1,5 +1,5 @@
 import { GlassCard } from './GlassCard'
-import type { BotStatus } from '../lib/types'
+import type { BotStatus } from '../api/types'
 
 interface ControlPanelProps {
   botStatus: BotStatus

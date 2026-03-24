@@ -6,9 +6,9 @@ const { PROJECT_ROOT } = require('../config/project-paths')
 // ---------------------------------------------------------------------------
 // Logo management
 // ---------------------------------------------------------------------------
-const LOGOS_DIR = path.join(PROJECT_ROOT, 'utils', 'logos')
+const LOGOS_DIR = path.join(PROJECT_ROOT, 'assets', 'logos')
 const COMPANY_LOGOS_DIR = path.join(LOGOS_DIR, 'companies')
-const ACTIVE_LOGO = path.join(PROJECT_ROOT, 'utils', 'logoapporange.png')
+const ACTIVE_LOGO = path.join(PROJECT_ROOT, 'assets', 'logos', 'logoapporange.png')
 
 function ensureLogosDir() {
   if (!fs.existsSync(LOGOS_DIR)) fs.mkdirSync(LOGOS_DIR, { recursive: true })
@@ -73,7 +73,7 @@ function registerLogoHandlers(ipcMain) {
 
     return {
       success: true,
-      logoPath: path.join('utils', 'logos', 'companies', historyName).replace(/\\/g, '/'),
+      logoPath: path.join('assets', 'logos', 'companies', historyName).replace(/\\/g, '/'),
       logoName: historyName,
       logoUrl: `file://${dest.replace(/\\/g, '/')}?t=${Date.now()}`,
     }

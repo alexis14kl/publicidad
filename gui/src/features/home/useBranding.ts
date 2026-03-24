@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { listCompanyRecords } from '../../shared/api/commands'
-import type { CompanyRecord } from '../../shared/api/types'
+import { listCompanyRecords } from '../../api/commands'
+import type { CompanyRecord } from '../../api/types'
 
 export function useBranding() {
   const [brandName, setBrandName] = useState('NoyeCode')

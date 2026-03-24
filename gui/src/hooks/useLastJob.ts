@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import type { LastJob } from '../lib/types'
-import { getLastJob } from '../lib/commands'
+import type { LastJob } from '../api/types'
+import { getLastJob } from '../api/commands'
 
 export function useLastJob(intervalMs = 5000) {
   const [job, setJob] = useState<LastJob | null>(null)
