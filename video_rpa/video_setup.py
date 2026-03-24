@@ -331,9 +331,9 @@ def _focus_followup_prompt(page: Page) -> bool:
             if (!isVisible(el)) return false;
             const rect = el.getBoundingClientRect();
             return (
-                rect.top > window.innerHeight * 0.45 &&
-                rect.width > window.innerWidth * 0.25 &&
-                rect.left < window.innerWidth * 0.82
+                rect.top > window.innerHeight * 0.38 &&
+                rect.width > window.innerWidth * 0.18 &&
+                rect.left < window.innerWidth * 0.92
             );
         };
         const normalizeSpanish = (value) => normalize(value).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
@@ -366,6 +366,78 @@ def _focus_followup_prompt(page: Page) -> bool:
             const text = normalizeSpanish(btn.innerText || btn.textContent || '');
             return text.includes('veo');
         });
+
+        const focusAndTag = (node) => {
+            if (!node || !isPotentialFollowupEditable(node)) return false;
+            node.focus?.();
+            if (typeof node.click === 'function') node.click();
+            node.setAttribute('data-codex-followup', '1');
+            return true;
+        };
+        const findEditableNearLabel = (labelNode) => {
+            if (!labelNode) return null;
+            const visited = new Set();
+            const containers = [];
+            let node = labelNode;
+            let depth = 0;
+            while (node && depth < 6) {
+                if (!visited.has(node)) {
+                    visited.add(node);
+                    containers.push(node);
+                }
+                node = node.parentElement;
+                depth += 1;
+            }
+            for (const container of containers) {
+                const direct = container.matches?.(editableSelector) ? container : null;
+                if (direct && isPotentialFollowupEditable(direct)) return direct;
+                const nested = Array.from(container.querySelectorAll?.(editableSelector) || []).find(isPotentialFollowupEditable);
+                if (nested) return nested;
+            }
+            const siblingEditable = Array.from(
+                labelNode.parentElement?.querySelectorAll?.(editableSelector) || []
+            ).find(isPotentialFollowupEditable);
+            return siblingEditable || null;
+        };
+        const labelCandidates = Array.from(document.querySelectorAll('div, section, form, label, span, p, h1, h2, h3, h4'))
+            .filter(isVisible)
+            .map((el) => {
+                const text = normalizeSpanish(el.innerText || el.textContent || '');
+                if (!text.includes(promptNeedle)) return null;
+                const rect = el.getBoundingClientRect();
+                const area = rect.width * rect.height;
+                return { el, area, top: rect.top };
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.area - b.area || a.top - b.top);
+
+        const existingTagged = document.querySelector('[data-codex-followup="1"]');
+        if (existingTagged) {
+            if (focusAndTag(existingTagged)) return true;
+            const existingNested = existingTagged.matches?.(editableSelector)
+                ? existingTagged
+                : existingTagged.querySelector?.(editableSelector);
+            if (focusAndTag(existingNested)) return true;
+        }
+
+        const active = document.activeElement;
+        if (active && active.matches?.(editableSelector) && focusAndTag(active)) {
+            return true;
+        }
+
+        for (const label of labelCandidates) {
+            const editable = findEditableNearLabel(label.el);
+            if (focusAndTag(editable)) return true;
+            label.el.click?.();
+            label.el.focus?.();
+            const afterClickActive = document.activeElement;
+            if (afterClickActive && afterClickActive.matches?.(editableSelector) && focusAndTag(afterClickActive)) {
+                return true;
+            }
+            const afterClickEditable = findEditableNearLabel(label.el);
+            if (focusAndTag(afterClickEditable)) return true;
+        }
+
         document.querySelectorAll('[data-codex-followup="1"]').forEach((el) => el.removeAttribute('data-codex-followup'));
         const candidates = Array.from(document.querySelectorAll(editableSelector)).filter(isPotentialFollowupEditable);
         const scored = candidates.map((el) => {
@@ -403,10 +475,10 @@ def _focus_followup_prompt(page: Page) -> bool:
         if (target) {
             target.focus();
             if (typeof target.click === 'function') target.click();
-            const active = document.activeElement;
-            const finalTarget = (active && (
-                active.matches?.(editableSelector) && isPotentialFollowupEditable(active)
-            )) ? active : target;
+            const focusedTarget = document.activeElement;
+            const finalTarget = (focusedTarget && (
+                focusedTarget.matches?.(editableSelector) && isPotentialFollowupEditable(focusedTarget)
+            )) ? focusedTarget : target;
             finalTarget.setAttribute('data-codex-followup', '1');
             return true;
         }
@@ -521,11 +593,22 @@ def _activate_followup_prompt_shell(page: Page, scene_index: int) -> bool:
             const rb = b.getBoundingClientRect();
             return (ra.width * ra.height) - (rb.width * rb.height);
         })[0];
+        if (anchor) {
+            const anchorRect = anchor.getBoundingClientRect();
+            return {
+                x: anchorRect.x,
+                y: anchorRect.y,
+                w: anchorRect.width,
+                h: anchorRect.height,
+                clickX: anchorRect.left + Math.min(anchorRect.width * 0.65, 180),
+                clickY: anchorRect.top + anchorRect.height / 2,
+                score: 999999,
+            };
+        }
         const candidates = Array.from(document.querySelectorAll('div, section, form, label')).filter(isVisible);
         const best = candidates.map((el) => {
             const rect = el.getBoundingClientRect();
             const nearby = getNearbyText(el);
-            const anchorRect = anchor ? anchor.getBoundingClientRect() : null;
             let score = rect.width * rect.height;
             if (rect.top > window.innerHeight * 0.45) score += 80000;
             if (rect.width > window.innerWidth * 0.35) score += 60000;
@@ -560,7 +643,7 @@ def _activate_followup_prompt_shell(page: Page, scene_index: int) -> bool:
                 y: rect.y,
                 w: rect.width,
                 h: rect.height,
-                clickX: anchor ? (anchor.getBoundingClientRect().left + Math.min(anchor.getBoundingClientRect().width * 0.65, 140)) : (rect.x + Math.min(rect.width * 0.22, 140)),
+                clickX: rect.x + Math.min(rect.width * 0.22, 140),
                 clickY: rect.y + rect.height / 2,
                 score,
             };
@@ -638,6 +721,9 @@ def _paste_followup_prompt_in_flow(page: Page, prompt_text: str, scene_index: in
         if not _activate_followup_prompt_shell(page, scene_index):
             page.wait_for_timeout(1000)
             continue
+        if _ensure_followup_ready(page, scene_index, timeout_sec=5, log_wait=False) and _focus_followup_prompt(page):
+            focused = True
+            break
     if not focused:
         log_error(f"No se encontro la casilla 'Que pasa despues?' para la escena {scene_index}.")
         return False

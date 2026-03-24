@@ -9,7 +9,7 @@ const { stopPidBestEffort } = require('../utils/process')
 const { IMAGE_FORMATS } = require('../config/image-formats')
 const state = require('../state')
 const { isPollerAlive } = require('../marketing/campaign-process')
-const { isCompanyActive, buildCompanyCredentialEnv, buildFullPrompt } = require('../company/lookup')
+const { isCompanyActive, buildCompanyCredentialEnv, buildFullPrompt, lookupCompanyData } = require('../company/lookup')
 
 function registerPollerHandlers(ipcMain) {
   ipcMain.handle('start-poller', async (_event, payload) => {
@@ -47,13 +47,27 @@ function registerPollerHandlers(ipcMain) {
     env.PYTHONIOENCODING = 'utf-8'
     env.PYTHONUNBUFFERED = '1'
     if (pollerCompany) {
+      const company = lookupCompanyData(pollerCompany)
       const companyEnv = buildCompanyCredentialEnv(pollerCompany)
-      if (!companyEnv) {
+      if (!companyEnv || !company) {
         return { success: false, error: `No pude resolver las credenciales activas para ${pollerCompany}.` }
       }
       persistEnvConfig(companyEnv)
       Object.assign(env, companyEnv)
       env.PUBLICIDAD_COMPANY_NAME = pollerCompany
+      env.BOT_COMPANY_NAME = String(company.nombre || '')
+      env.BOT_COMPANY_PHONE = String(company.telefono || '')
+      env.BOT_COMPANY_WEBSITE = String(company.sitio_web || '')
+      env.BOT_COMPANY_EMAIL = String(company.correo || '')
+      env.BOT_COMPANY_ADDRESS = String(company.direccion || '')
+      if (company.logo) {
+        const resolvedLogoPath = path.isAbsolute(company.logo)
+          ? company.logo
+          : path.join(PROJECT_ROOT, company.logo)
+        if (fs.existsSync(resolvedLogoPath)) {
+          env.BOT_COMPANY_LOGO_PATH = resolvedLogoPath
+        }
+      }
     }
 
     // Pass image dimensions to overlay_logo.py via env

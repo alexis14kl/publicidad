@@ -7,17 +7,20 @@ Recupera un look mas cercano al formato anterior:
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageStat
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LOGO_PNG = PROJECT_ROOT / "utils" / "logoapporange.png"
 
 TOP_SAFE_RATIO = 0.08
-BOTTOM_SAFE_RATIO = 0.15
-LOGO_WIDTH_RATIO = 0.22
+LOGO_SEARCH_RATIO = 0.22
+LOGO_WIDTH_RATIO = 0.15
 _DEFAULT_WIDTH = 1080
 _DEFAULT_HEIGHT = 1350
 
@@ -71,6 +74,37 @@ def _resolve_logo_path() -> Path:
     return Path("")
 
 
+def _render_svg_to_png(svg_path: Path) -> Path:
+    output_dir = Path(tempfile.mkdtemp(prefix="publicidad_logo_svg_"))
+    command = [
+        "/usr/bin/qlmanage",
+        "-t",
+        "-s",
+        "1200",
+        "-o",
+        str(output_dir),
+        str(svg_path),
+    ]
+    subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    rendered = output_dir / f"{svg_path.stem}.png"
+    if not rendered.exists():
+        raise FileNotFoundError(f"No se pudo rasterizar el SVG: {svg_path}")
+    return rendered
+
+
+def _load_logo_image(logo_path: Path) -> Image.Image:
+    raster_path = logo_path
+    cleanup_dir: Path | None = None
+    if logo_path.suffix.lower() == ".svg":
+        raster_path = _render_svg_to_png(logo_path)
+        cleanup_dir = raster_path.parent
+    try:
+        return Image.open(raster_path).convert("RGBA")
+    finally:
+        if cleanup_dir and cleanup_dir.exists():
+            shutil.rmtree(cleanup_dir, ignore_errors=True)
+
+
 def _load_font(size: int, bold: bool = False) -> ImageFont.ImageFont:
     candidates = []
     if sys.platform == "darwin":
@@ -117,6 +151,43 @@ def _normalize_website(value: str) -> str:
     return website
 
 
+def _find_best_logo_position(bg: Image.Image, logo_size: tuple[int, int]) -> tuple[int, int]:
+    bg_w, bg_h = bg.size
+    logo_w, logo_h = logo_size
+    search_top = max(int(bg_h * 0.015), 8)
+    search_bottom = max(search_top + logo_h + 8, int(bg_h * LOGO_SEARCH_RATIO))
+    margin_x = max(int(bg_w * 0.04), 20)
+    candidates = [
+        (margin_x, search_top),
+        ((bg_w - logo_w) // 2, search_top),
+        (max(margin_x, bg_w - logo_w - margin_x), search_top),
+        (margin_x, max(search_top, search_bottom - logo_h)),
+        ((bg_w - logo_w) // 2, max(search_top, search_bottom - logo_h)),
+        (max(margin_x, bg_w - logo_w - margin_x), max(search_top, search_bottom - logo_h)),
+    ]
+
+    rgba = bg.convert("RGBA")
+    edge_map = rgba.convert("L").filter(ImageFilter.FIND_EDGES)
+
+    best_score = None
+    best_pos = candidates[0]
+    for x, y in candidates:
+        x = max(margin_x, min(x, bg_w - logo_w - margin_x))
+        y = max(search_top, min(y, search_bottom - logo_h))
+        crop = rgba.crop((x, y, x + logo_w, y + logo_h))
+        edge_crop = edge_map.crop((x, y, x + logo_w, y + logo_h))
+        alpha_mask = crop.getchannel("A")
+        mean_edge = ImageStat.Stat(edge_crop, mask=alpha_mask).mean[0]
+        mean_luma = ImageStat.Stat(crop.convert("L"), mask=alpha_mask).mean[0]
+        distance_from_center = abs((x + logo_w / 2) - bg_w / 2) / max(bg_w, 1)
+        score = (mean_edge * 3.0) - (mean_luma * 0.18) + (distance_from_center * 22.0)
+        if best_score is None or score < best_score:
+            best_score = score
+            best_pos = (int(x), int(y))
+
+    return best_pos
+
+
 def _draw_top_logo(bg: Image.Image, logo: Image.Image) -> None:
     bg_w, bg_h = bg.size
     target_w = int(bg_w * LOGO_WIDTH_RATIO)
@@ -127,83 +198,8 @@ def _draw_top_logo(bg: Image.Image, logo: Image.Image) -> None:
     alpha = alpha.point(lambda a: 255 if a >= 96 else 0)
     logo_resized.putalpha(alpha)
 
-    x = (bg_w - target_w) // 2
-    y = max(int(bg_h * 0.015), int((bg_h * TOP_SAFE_RATIO - target_h) / 2))
+    x, y = _find_best_logo_position(bg, (target_w, target_h))
     bg.paste(logo_resized, (x, y), logo_resized)
-
-
-def _draw_contact_pill(draw: ImageDraw.ImageDraw, bg: Image.Image) -> None:
-    bg_w, bg_h = bg.size
-    pill_h = int(bg_h * 0.09)
-    pill_w = int(bg_w * 0.72)
-    pill_x = (bg_w - pill_w) // 2
-    pill_y = bg_h - int(bg_h * BOTTOM_SAFE_RATIO) + int(bg_h * 0.01)
-
-    primary = _parse_color(os.environ.get("BOT_BRAND_PRIMARY"), (23, 87, 194, 255))
-    cta = _parse_color(os.environ.get("BOT_BRAND_CTA"), (253, 145, 2, 255))
-    accent = _parse_color(os.environ.get("BOT_BRAND_ACCENT"), (0, 188, 212, 255))
-    text_light = (255, 255, 255, 255)
-    text_dark = (33, 52, 88, 255)
-
-    shadow_offset = max(4, pill_h // 12)
-    draw.rounded_rectangle(
-        (pill_x, pill_y + shadow_offset, pill_x + pill_w, pill_y + pill_h + shadow_offset),
-        radius=int(pill_h * 0.45),
-        fill=(0, 0, 0, 38),
-    )
-    draw.rounded_rectangle(
-        (pill_x, pill_y, pill_x + pill_w, pill_y + pill_h),
-        radius=int(pill_h * 0.45),
-        fill=(255, 255, 255, 236),
-    )
-
-    left_w = int(pill_w * 0.36)
-    draw.rounded_rectangle(
-        (pill_x, pill_y, pill_x + left_w, pill_y + pill_h),
-        radius=int(pill_h * 0.45),
-        fill=cta,
-    )
-    draw.rectangle(
-        (pill_x + int(pill_h * 0.45), pill_y, pill_x + left_w, pill_y + pill_h),
-        fill=cta,
-    )
-
-    phone = str(os.environ.get("BOT_COMPANY_PHONE", "")).strip()
-    email = str(os.environ.get("BOT_COMPANY_EMAIL", "")).strip()
-    website = _normalize_website(os.environ.get("BOT_COMPANY_WEBSITE", ""))
-    company_name = str(os.environ.get("BOT_COMPANY_NAME", "")).strip()
-
-    if not website:
-        website = (company_name or "noyecode").lower().replace(" ", "")
-    if not phone and not email:
-        phone = "Contactanos hoy"
-
-    left_text = website or (company_name or "noyecode")
-    right_parts = [part for part in [phone, email or website] if part]
-    right_text = "  •  ".join(right_parts)
-
-    left_font = _fit_font(draw, left_text, int(left_w * 0.78), int(pill_h * 0.33), bold=True)
-    left_bbox = draw.textbbox((0, 0), left_text, font=left_font)
-    left_x = pill_x + int(pill_w * 0.035)
-    left_y = pill_y + (pill_h - (left_bbox[3] - left_bbox[1])) // 2
-    draw.text((left_x, left_y), left_text, font=left_font, fill=text_light)
-
-    if right_text:
-        right_font = _fit_font(draw, right_text, int(pill_w * 0.54), int(pill_h * 0.28), bold=True)
-        right_bbox = draw.textbbox((0, 0), right_text, font=right_font)
-        right_w = right_bbox[2] - right_bbox[0]
-        right_h = right_bbox[3] - right_bbox[1]
-        right_x = max(pill_x + left_w + int(pill_w * 0.03), pill_x + pill_w - right_w - int(pill_w * 0.05))
-        right_y = pill_y + (pill_h - right_h) // 2
-        draw.text((right_x, right_y), right_text, font=right_font, fill=primary if primary[:3] != (23, 87, 194) else text_dark)
-
-    separator_x = pill_x + left_w + int(pill_w * 0.015)
-    separator_y = pill_y + int(pill_h * 0.2)
-    draw.rounded_rectangle(
-        (separator_x, separator_y, separator_x + max(3, pill_w // 220), pill_y + pill_h - int(pill_h * 0.2)),
-        radius=4,
-        fill=accent,
-    )
 
 
 def overlay_logo(image_path: str | Path) -> Path:
@@ -216,14 +212,11 @@ def overlay_logo(image_path: str | Path) -> Path:
         raise FileNotFoundError(f"Logo no encontrado: {logo_path}")
 
     bg = Image.open(image_path).convert("RGBA")
-    logo = Image.open(logo_path).convert("RGBA")
+    logo = _load_logo_image(logo_path)
 
     tw, th = _get_target_dimensions()
     bg = _fit_to_target(bg, tw, th)
-    draw = ImageDraw.Draw(bg)
-
     _draw_top_logo(bg, logo)
-    _draw_contact_pill(draw, bg)
 
     bg.save(str(image_path), "PNG")
     return image_path
