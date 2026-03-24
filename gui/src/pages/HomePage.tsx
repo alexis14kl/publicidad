@@ -140,7 +140,9 @@ export function HomePage({
     return !(
       normalized.startsWith('escribe el prompt del video') ||
       normalized.startsWith('la segunda escena mostrara') ||
-      normalized.startsWith('la tercera escena cerrara')
+      normalized.startsWith('la tercera escena cerrara') ||
+      normalized.startsWith('la segunda escena mostrara el conflicto') ||
+      normalized.startsWith('la tercera escena cerrara la mini-historia')
     )
   }
 
@@ -149,7 +151,10 @@ export function HomePage({
     return !(
       normalized.startsWith('aqui aparecera el primer dialogo sugerido') ||
       normalized.startsWith('aqui aparecera el segundo dialogo sugerido') ||
-      normalized.startsWith('aqui aparecera el tercer dialogo sugerido')
+      normalized.startsWith('aqui aparecera el tercer dialogo sugerido') ||
+      normalized.startsWith('aqui aparecera un voiceover corto y claro') ||
+      normalized.startsWith('aqui aparecera un voiceover alineado con la accion visible') ||
+      normalized.startsWith('aqui aparecera un voiceover final mas contundente y natural')
     )
   }
 
