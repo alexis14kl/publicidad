@@ -8,6 +8,9 @@ Backend/*.sqlite3-wal
 
 # Output (generated content)
 output/
+brochures_generados/
+img_publicitarias/
+videos_publicitarias/
 
 # Logs
 logs/
@@ -47,6 +50,9 @@ _scratch/
 # Auto-generated prompts and text (regenerated each run)
 core/utils/prontm.txt
 core/utils/post_text.txt
+utils/prontm.txt
+utils/post_text.txt
+utils/prompt_seed.txt
 
 # Node modules
 node_modules/
