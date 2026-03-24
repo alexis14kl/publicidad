@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { readLogLines, onLogNewLines } from '../lib/commands'
+import { readLogLines, onLogNewLines } from '../api/commands'
 
 const MAX_LINES = 500
 

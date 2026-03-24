@@ -4,8 +4,8 @@ import {
   onMarketingRunUpdate,
   runMarketingCampaignPreview,
   saveEnvConfig,
-} from '../../shared/api/commands'
-import type { MarketingRunUpdate } from '../../shared/api/types'
+} from '../../api/commands'
+import type { MarketingRunUpdate } from '../../api/types'
 import { CITY_ZONE_OPTIONS, CONTACT_MODE_OPTIONS } from './constants'
 import {
   buildAudienceSegmentationPreview,

@@ -47,6 +47,14 @@ function getProjectEnv() {
       if (!parts.includes(extra)) parts.unshift(extra)
     }
     env.PATH = parts.join(':')
+
+    // Fix SSL certificates for Python on macOS
+    if (!env.SSL_CERT_FILE) {
+      const certPath = path.join(PROJECT_ROOT, 'venv', 'lib', 'python3.12', 'site-packages', 'certifi', 'cacert.pem')
+      if (fs.existsSync(certPath)) {
+        env.SSL_CERT_FILE = certPath
+      }
+    }
   }
   return env
 }

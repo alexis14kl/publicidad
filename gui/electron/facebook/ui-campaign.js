@@ -1,7 +1,7 @@
 const { normalizeUiText, buildAliasPatterns, normalizeBudgetForUi, ensureAbsoluteUrl, getDefaultLeadFormFieldLabels, getDefaultLeadFormRequiredKeys } = require('../utils/helpers')
 const { getProjectEnv } = require('../utils/env')
 const { findVisibleLocator, findSectionRoot, fillNamedEditorInput, locateDynamicSection, fillVisibleInput } = require('./ui-primitives')
-const { getDefaultMarketingSegment } = require('../marketing/segment')
+const { getDefaultMarketingSegment } = require('../services/segment')
 
 let state = { facebookVisualPage: null }
 

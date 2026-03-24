@@ -3,8 +3,8 @@ import { useBotLogTail } from '../../hooks/useBotLogTail'
 import { useLastJob } from '../../hooks/useLastJob'
 import { useLogTail } from '../../hooks/useLogTail'
 import { usePollerProcess } from '../../hooks/usePollerProcess'
-import { analyzeImageServices, generateDefaultPrompt, listCompanyRecords, startBot, stopBot } from '../../shared/api/commands'
-import { NOYECODE_SERVICES, type BotStatus, type CompanyRecord, type ImageServiceSuggestion, type PromptHistoryEntry } from '../../shared/api/types'
+import { analyzeImageServices, generateDefaultPrompt, listCompanyRecords, startBot, stopBot } from '../../api/commands'
+import { NOYECODE_SERVICES, type BotStatus, type CompanyRecord, type ImageServiceSuggestion, type PromptHistoryEntry } from '../../api/types'
 
 const STORAGE_KEYS = {
   imageFormat: 'imageFormat',

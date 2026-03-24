@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { PreflightResult } from '../lib/types'
+import type { PreflightResult } from '../api/types'
 
 export function PreflightBanner() {
   const [result, setResult] = useState<PreflightResult | null>(null)

@@ -1,0 +1,28 @@
+[project]
+name = "bot-publicitario-noyecode"
+version = "1.4.0"
+description = "Bot de automatizacion publicitaria para NoyeCode"
+requires-python = ">=3.10"
+dependencies = [
+    "playwright>=1.58",
+    "typer>=0.24",
+    "rich>=14.0",
+    "colorama>=0.4.6",
+    "python-dotenv>=1.0",
+    "Pillow>=11.0",
+]
+
+[project.optional-dependencies]
+windows = ["PyGetWindow>=0.0.9"]
+
+[project.scripts]
+publicidad = "core.orchestrator:main"
+publicidad-worker = "core.server.job_poller:main"
+publicidad-runner = "core.server.bot_runner:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["core*"]

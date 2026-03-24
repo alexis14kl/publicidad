@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { onBotLogLines } from '../lib/commands'
+import { onBotLogLines } from '../api/commands'
 
 const MAX_LINES = 500
 

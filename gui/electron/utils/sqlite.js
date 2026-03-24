@@ -5,7 +5,7 @@ const { PROJECT_ROOT } = require('../config/project-paths')
 
 function findSqlite3() {
   if (process.platform === 'win32') {
-    const bundled = path.join(PROJECT_ROOT, 'bin', 'sqlite3.exe')
+    const bundled = path.join(PROJECT_ROOT, 'scripts', 'bin', 'sqlite3.exe')
     if (fs.existsSync(bundled)) return bundled
   }
   return 'sqlite3'

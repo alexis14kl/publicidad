@@ -3,8 +3,8 @@ const path = require('path')
 const { shell } = require('electron')
 const { PROJECT_ROOT } = require('../config/project-paths')
 
-const BROCHURES_DIR = path.join(PROJECT_ROOT, 'brochures_generados')
-const BROCHURE_HTML = path.join(PROJECT_ROOT, 'brochure_rpa', 'brochure_output.html')
+const BROCHURES_DIR = path.join(PROJECT_ROOT, 'output', 'brochures')
+const BROCHURE_HTML = path.join(PROJECT_ROOT, 'core', 'brochure_rpa', 'brochure_output.html')
 
 function registerBrochureHandlers(ipcMain) {
   // Obtener el HTML del brochure mas reciente (para preview en iframe)

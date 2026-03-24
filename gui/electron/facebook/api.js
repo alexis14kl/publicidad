@@ -7,7 +7,7 @@ const { findPython } = require('../utils/process')
 
 function getFacebookAdsCdpInfo() {
   const env = getProjectEnv()
-  const serverPath = path.join(PROJECT_ROOT, 'utils', 'AgenteMarketing', 'CDP', 'fb_ads_cdp_server.py')
+  const serverPath = path.join(PROJECT_ROOT, 'core', 'utils', 'AgenteMarketing', 'CDP', 'fb_ads_cdp_server.py')
   const helperPath = path.join(__dirname, 'fb_ads_cdp_run.py')
   const token =
     env.FB_ACCESS_TOKEN ||

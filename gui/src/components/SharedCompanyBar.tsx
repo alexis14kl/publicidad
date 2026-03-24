@@ -1,4 +1,4 @@
-import type { CompanyRecord } from '../shared/api/types'
+import type { CompanyRecord } from '../api/types'
 
 const PLATFORM_EMOJIS: Record<string, string> = {
   facebook: '\uD83D\uDCD8',

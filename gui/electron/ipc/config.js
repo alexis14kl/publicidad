@@ -36,12 +36,12 @@ function registerConfigHandlers(ipcMain) {
         checks: [{ name: 'Python', required: '>= 3.10', current: null, ok: false, fix: 'Instala Python 3.10+ desde https://python.org' }],
       }
     }
-    const args = ['-m', 'cfg.preflight', '--json']
+    const args = ['-m', 'core.cfg.preflight', '--json']
     if (force) args.push('--force')
     return new Promise((resolve) => {
       const child = spawn(pythonBin, args, {
         cwd: PROJECT_ROOT,
-        env: getProjectEnv(),
+        env: { ...getProjectEnv(), PYTHONPATH: PROJECT_ROOT },
       })
       let stdout = ''
       let stderr = ''

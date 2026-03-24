@@ -7,10 +7,10 @@ const { readJsonFile, persistEnvConfig } = require('../utils/helpers')
 const { findPython, killProcessTree } = require('../utils/process')
 const { IMAGE_FORMATS } = require('../config/image-formats')
 const state = require('../state')
-const { isPollerAlive } = require('../marketing/campaign-process')
-const { lookupCompanyData, isCompanyActive, buildCompanyCredentialEnv, buildFullPrompt, buildBrochurePrompt } = require('../company/lookup')
-const { analyzePrePromptServices } = require('../marketing/service-analyzer')
-const { analyzeVideoScenes } = require('../marketing/video-scene-analyzer')
+const { isPollerAlive } = require('../services/campaign-process')
+const { lookupCompanyData, isCompanyActive, buildCompanyCredentialEnv, buildFullPrompt, buildBrochurePrompt } = require('../data/lookup')
+const { analyzePrePromptServices } = require('../services/service-analyzer')
+const { analyzeVideoScenes } = require('../services/video-scene-analyzer')
 
 function registerBotHandlers(ipcMain) {
   ipcMain.handle('get-bot-status', async () => {
@@ -101,6 +101,7 @@ function registerBotHandlers(ipcMain) {
 
     const env = getProjectEnv()
     env['NO_PAUSE'] = '1'
+    env['PYTHONPATH'] = PROJECT_ROOT
     // Force UTF-8 output from Python
     env['PYTHONIOENCODING'] = 'utf-8'
 
@@ -211,7 +212,6 @@ function registerBotHandlers(ipcMain) {
       imagePrompt = buildFullPrompt(rawPrompt, companyName, imageService, imageFormat)
     }
 
-    const botRunnerPath = path.join(PROJECT_ROOT, 'server', 'bot_runner.py')
     const pythonBin = findPython()
     if (!pythonBin) {
       return { success: false, error: 'Python no encontrado en PATH' }
@@ -223,7 +223,7 @@ function registerBotHandlers(ipcMain) {
         ...(imagePrompt ? { image_prompt: imagePrompt } : {}),
       })
       : '{}'
-    const args = [botRunnerPath, 'run_full_cycle', runnerPayload]
+    const args = ['-m', 'core.server.bot_runner', 'run_full_cycle', runnerPayload]
 
     try {
       state.botProcess = spawn(pythonBin, args, {

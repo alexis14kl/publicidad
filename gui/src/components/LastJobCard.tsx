@@ -1,5 +1,5 @@
 import { GlassCard } from './GlassCard'
-import type { LastJob } from '../lib/types'
+import type { LastJob } from '../api/types'
 
 interface LastJobCardProps {
   job: LastJob | null
