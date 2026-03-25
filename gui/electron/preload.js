@@ -32,6 +32,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLatestBrochure: () => ipcRenderer.invoke('get-latest-brochure'),
   listBrochures: () => ipcRenderer.invoke('list-brochures'),
   openBrochurePdf: (filePath) => ipcRenderer.invoke('open-brochure-pdf', filePath),
+  runAutoCampaign: (payload) => ipcRenderer.invoke('run-auto-campaign', payload),
+  chatCommand: (text) => ipcRenderer.invoke('chat-command', text),
+  chatApprove: (jobId) => ipcRenderer.invoke('chat-approve', jobId),
+  chatReset: () => ipcRenderer.invoke('chat-reset'),
   onLogNewLines: (callback) => {
     const handler = (_event, lines) => callback(lines)
     ipcRenderer.on('log-new-lines', handler)

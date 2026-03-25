@@ -62,3 +62,34 @@ export const setActiveLogo = (filename: string): Promise<{ success: boolean; log
 export const onLogNewLines = (cb: (lines: string[]) => void) => api().onLogNewLines(cb)
 export const onBotLogLines = (cb: (lines: string[]) => void) => api().onBotLogLines(cb)
 export const onMarketingRunUpdate = (cb: (update: MarketingRunUpdate) => void) => api().onMarketingRunUpdate(cb)
+
+export interface AutoCampaignInput {
+  name: string
+  description: string
+  budget: string
+  goals?: string
+  start_date?: string
+  end_date?: string
+  contact_mode?: 'lead_form' | 'whatsapp'
+  access_token?: string
+  ad_account_id?: string
+  page_id?: string
+  dryRun?: boolean
+}
+
+export interface AutoCampaignResult {
+  success: boolean
+  spec?: Record<string, unknown>
+  results?: {
+    ok: boolean
+    campaign: { id: string; name: string } | null
+    adset: { id: string; name: string } | null
+    lead_form: { id: string; name: string } | null
+    ads: { id: string; name: string; creative_id: string }[]
+    errors: string[]
+  }
+  error?: string
+}
+
+export const runAutoCampaign = (payload: AutoCampaignInput): Promise<AutoCampaignResult> =>
+  api().runAutoCampaign(payload)

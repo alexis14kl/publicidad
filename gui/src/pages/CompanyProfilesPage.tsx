@@ -581,7 +581,7 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
                     />
                     <div>
                       <strong>{option.label}</strong>
-                      <span>{option.dbFile}</span>
+                      <span>Hasta {ACCOUNT_SLOTS} cuentas</span>
                     </div>
                   </label>
                 ))}

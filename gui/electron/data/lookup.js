@@ -147,21 +147,20 @@ function buildFullPrompt(userIdea, companyName, imageService, imageFormat) {
   const body = parts.join('').trim()
   if (!body) return ''
 
+  // The user's idea IS the prompt. No fixed templates.
+  // ChatGPT must generate based on what the user described, not a generic template.
   return (
-    'Generate this image now: Professional advertising image, realistic photography style ' +
-    'for social media marketing. Young real person working with laptop in modern professional ' +
-    'environment. Positive expression showing success. Clean layout with corporate text blocks, ' +
-    'large headline, orange CTA badge, benefits box, and contact banner at bottom. ' +
-    'Digital dashboards and floating tech interfaces around the person. ' +
-    'NO cartoons, NO illustrations, NO vectors. Only realistic high-quality photography. ' +
+    'Generate this image now:\n\n' +
+    'CONCEPT: ' + (userIdea || 'advertising image') + '\n\n' +
+    body + '\n\n' +
+    'STYLE: Realistic high-quality photography for social media advertising. ' +
+    'The image must visually represent the CONCEPT above — do NOT default to a generic person with a laptop. ' +
+    'Be creative and literal about what was described. ' +
     'All visible text in the image MUST be in Spanish.\n\n' +
-    body +
-    '\n\nCRITICAL: Reserve only a small clean area near the top center for the logo and a ' +
-    'compact floating contact pill near the bottom. Do NOT create giant white header bars or ' +
-    'full-width footer strips. Keep the composition premium, airy and balanced like a polished ' +
-    'social ad. The contact data and logo will be finished programmatically later, so avoid ' +
-    'placing critical text in the top 8% and bottom 14% of the image. Full-bleed design, light ' +
-    'background edge to edge, no margins, no black bars. Deliver exactly ONE final image.'
+    'LAYOUT: Full-bleed design, no margins, no black bars. ' +
+    'Reserve the top 8% clean for a logo overlay (added later). ' +
+    'Reserve the bottom 14% for a contact pill (added later). ' +
+    'Deliver exactly ONE final image.'
   )
 }
 

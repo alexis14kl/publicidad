@@ -114,6 +114,7 @@ function runPythonScript(pythonBin, scriptPath, args = [], env = {}, onLog, pref
       env: {
         ...process.env,
         ...env,
+        PYTHONPATH: PROJECT_ROOT,
         PYTHONIOENCODING: 'utf-8',
         PYTHONUNBUFFERED: '1',
       },
@@ -313,16 +314,18 @@ function buildMarketingImagePrompt(preview, orchestrator, imageFormat) {
       'No generes barras superiores ni inferiores adicionales con branding o contacto.',
       'No pongas texto importante pegado al borde superior. Mantener libre al menos el 14% superior.',
     ].join('\n')
+  const userDescription = String(preview?.prePrompt || preview?.campaignIdea || '').trim()
   const basePrompt = [
-    `Campana de Facebook Ads para ${preview?.campaignIdea || 'una oferta local'} en ${preview?.city || 'Colombia'}.`,
+    `CONCEPTO DE LA CAMPANA: "${userDescription || 'oferta de servicios profesionales'}".`,
+    `Esta es una campana de Facebook Ads en ${preview?.city || 'Colombia'}.`,
+    `IMPORTANTE: La imagen debe reflejar visualmente "${userDescription}". No generes una escena generica de oficina si el usuario describio algo diferente.`,
     `Objetivo comercial: ${adsAnalyst.objective || 'captacion de clientes potenciales'}.`,
     `Hook principal: ${adsAnalyst.hook || preview?.campaignIdea || 'beneficio principal del servicio'}.`,
-    `Copy base del anuncio: ${adsAnalyst.copy || marketing.prompt || preview?.marketingPrompt || preview?.prePrompt || ''}.`,
-    `Ciudad y zonas clave: ${execution.city || preview?.city || 'Colombia'}${Array.isArray(execution.zones) && execution.zones.length > 0 ? `, ${execution.zones.join(', ')}` : ''}.`,
-    `Direccion visual deseada: ${imageCreator.prompt || adsAnalyst.visualReference || 'escena comercial realista y premium'}.`,
-    `Usa como contexto estrategico el prompt final del agente marketing: ${marketing.prompt || preview?.marketingPrompt || 'sin prompt adicional'}.`,
+    `Copy del anuncio: ${adsAnalyst.copy || marketing.prompt || preview?.marketingPrompt || ''}.`,
+    `Ciudad: ${execution.city || preview?.city || 'Colombia'}${Array.isArray(execution.zones) && execution.zones.length > 0 ? `, zonas: ${execution.zones.join(', ')}` : ''}.`,
+    `Direccion visual: ${imageCreator.prompt || adsAnalyst.visualReference || 'escena comercial realista y premium'}.`,
     `Genera una sola imagen publicitaria para Meta Ads, mobile-first, realista, profesional, alto contraste y con texto visible en espanol.`,
-    `Evita texto pequeno ilegible y mantén foco en conversion.`,
+    `Evita texto pequeno ilegible. Foco en conversion.`,
     companyContactRules,
   ].join('\n')
 

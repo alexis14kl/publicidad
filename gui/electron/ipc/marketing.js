@@ -4,6 +4,7 @@ const path = require('path')
 const { getProjectEnv } = require('../utils/env')
 const { ensureAbsoluteUrl, sleep } = require('../utils/helpers')
 const state = require('../state')
+const { PROJECT_ROOT } = require('../config/project-paths')
 const { lookupCompanyData } = require('../data/lookup')
 const { getMarketingContactModeConfig, buildMarketingSegmentFromPreview } = require('../services/segment')
 const { runLocalMarketingOrchestrator } = require('../services/orchestrator')
@@ -11,36 +12,12 @@ const { getMarketingImagesDir, prepareLatestMarketingImageAsset } = require('../
 const { generateMarketingImageAsset } = require('../services/image-generation')
 const { IMAGE_FORMATS } = require('../config/image-formats')
 const { openMarketingBrowserMonitor } = require('../services/monitor')
-const { ensureFacebookVisualBrowser } = require('../facebook/visual-browser')
-const { getMetaPageId, getTargetAdAccountId, getFacebookAdsCdpInfo } = require('../facebook/api')
 const { listFacebookPagePhotos } = require('../facebook/api')
-const {
-  setState: setCampaignUiState,
-  setEmitMarketingUpdate: setCampaignEmitMarketingUpdate,
-  tryFacebookUiCreateCampaign,
-  tryFacebookUiConfigureCampaignEditor,
-  tryFacebookUiOpenCampaignFromList,
-} = require('../facebook/ui-campaign')
-const {
-  setState: setAdsetUiState,
-  tryFacebookUiConfigureAdsetSchedule,
-} = require('../facebook/ui-adset')
-const { tryFacebookUiReachAdEditor } = require('../facebook/ui-ad-editor')
 const {
   emitMarketingUpdate,
   openMetaAdsManager,
   buildCampaignProcess,
-  runLeadCampaignBundleViaCdp,
-  runLeadCampaignBundleViaN8n,
 } = require('../services/campaign-process')
-const { applyMcpBundleResultToPreview } = require('../services/campaign-bundle')
-
-function syncFacebookUiAutomationState() {
-  const sharedState = { facebookVisualPage: state.facebookVisualPage }
-  setCampaignUiState(sharedState)
-  setAdsetUiState(sharedState)
-  setCampaignEmitMarketingUpdate(emitMarketingUpdate)
-}
 
 function exportMarketingAssetToDownloads(preview) {
   const sourcePath = String(
@@ -64,9 +41,9 @@ function exportMarketingAssetToDownloads(preview) {
   return targetPath
 }
 
-async function reopenCampaignAndVerifyAdUi(preview, creationState) {
+// reopenCampaignAndVerifyAdUi — removed: UI automation replaced by Meta API REST
+async function _unused_reopenCampaignAndVerifyAdUi(preview, creationState) {
   const browserOpen = await openMetaAdsManager(creationState)
-  syncFacebookUiAutomationState()
   emitMarketingUpdate({
     type: 'log',
     line: browserOpen.ok
@@ -288,11 +265,6 @@ function registerMarketingHandlers(ipcMain) {
       state.marketingMonitorNextId = 1
       preview.browserMonitorUrl = await openMarketingBrowserMonitor()
       preview.imageAsset = prepareLatestMarketingImageAsset(IMAGE_FORMATS[imageFormat])
-      const targetActId = getTargetAdAccountId()
-      if (contactMode === 'lead_form') {
-        await ensureFacebookVisualBrowser(targetActId)
-        syncFacebookUiAutomationState()
-      }
 
       let orchestrator = runLocalMarketingOrchestrator({
         ...preview,
@@ -371,12 +343,14 @@ function registerMarketingHandlers(ipcMain) {
       })
       await sleep(450)
 
+      const envVars = getProjectEnv()
+      const resolvedAdAccount = String(preview.mcpAdAccountId || envVars.FB_AD_ACCOUNT_ID || 'act_438871067037500').trim()
       if (contactMode === 'lead_form') {
         emitMarketingUpdate({
           type: 'log',
           status: 'running',
-          line: `[FACEBOOK] Navegador visual abierto en Ads Manager para la cuenta act_${targetActId}. Si Facebook pide login, inicia sesion ahi y el overlay seguira mostrando el paso a paso.`,
-          summary: 'Facebook Ads Manager abierto en navegador normal.',
+          line: `[META API] Modo Lead Form. Cuenta: ${resolvedAdAccount}.`,
+          summary: 'Preparando campana de leads via Meta API.',
         })
         await sleep(450)
       }
@@ -408,221 +382,110 @@ function registerMarketingHandlers(ipcMain) {
         await sleep(650)
       }
 
-      // ── CDP campaign creation (supports lead_form + whatsapp) ──
-      const cdpInfo = getFacebookAdsCdpInfo()
-      const cdpIssues = []
-      if (!cdpInfo.serverExists) {
-        cdpIssues.push('No existe el servidor CDP fb_ads_cdp_server.py')
-      }
-      if (!cdpInfo.helperExists) {
-        cdpIssues.push('No existe el runner CDP fb_ads_cdp_run.py')
-      }
-      if (!cdpInfo.pythonBin) {
-        cdpIssues.push('Python no disponible en PATH')
-      }
-      if (!cdpInfo.token) {
-        cdpIssues.push('No hay token de Facebook en .env (se intentara extraer via CDP)')
-      }
-      const cdpReady = Boolean(cdpInfo.serverExists && cdpInfo.helperExists && cdpInfo.pythonBin && (cdpInfo.token || cdpInfo.cdpPort))
+      // ── Meta API REST directa via meta_campaign_engine.py v3 ──
+      const { findPython } = require('../utils/process')
+      const { spawn } = require('child_process')
 
-      preview.mcpAvailable = cdpReady
-      preview.process = buildCampaignProcess({ ready: cdpReady, issues: cdpReady ? [] : cdpIssues }, preview, null, orchestrator)
+      const accessToken = String(
+        preview.mcpAccessToken ||
+        envVars.FB_ACCESS_TOKEN ||
+        envVars.FACEBOOK_ACCESS_TOKEN ||
+        ''
+      ).trim()
 
-      const modeLabel = contactMode === 'whatsapp' ? 'WhatsApp' : 'Lead Form'
+      const pythonBin = findPython()
+      if (!pythonBin) {
+        emitMarketingUpdate({ type: 'done', status: 'error', summary: 'Python no encontrado en PATH', preview })
+        return { success: false, error: 'Python no encontrado' }
+      }
+
+      if (!accessToken) {
+        emitMarketingUpdate({ type: 'done', status: 'error', summary: 'No hay Meta Access Token configurado. Configúralo en .env o en el formulario.', preview })
+        return { success: false, error: 'Falta Meta Access Token' }
+      }
+
+      const engineInput = {
+        name: resolvedCampaignIdea || 'NoyeCode Campaign',
+        budget: budget,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
+        access_token: accessToken,
+        ad_account_id: resolvedAdAccount,
+        page_id: String(preview.mcpPageId || envVars.FB_PAGE_ID || '115406607722279').trim(),
+        website: preview.url || 'https://www.noyecode.com',
+      }
+
       emitMarketingUpdate({
         type: 'log',
-        line: cdpReady
-          ? `[CDP] Servidor CDP listo. Token: ${cdpInfo.token ? 'si' : 'se extraera del navegador'}. Puerto CDP: ${cdpInfo.cdpPort}. Modo: ${modeLabel}`
-          : `[CDP] El servidor CDP no esta listo: ${cdpIssues.join(', ')}`,
+        line: '[META API] Enviando campana B2B a Meta Graph API v22.0 (5 audiencias)...',
       })
-      await sleep(650)
+      await sleep(400)
 
-      emitMarketingUpdate({
-        type: 'log',
-        line: `[CDP] El brief del orquestador esta listo. Enviando payload al servidor CDP (${modeLabel})...`,
+      const dryRun = !accessToken
+      const args = ['-m', 'core.n8n.meta_campaign_engine', '--stdin']
+      if (dryRun) args.push('--dry-run')
+
+      const engineResult = await new Promise((resolve) => {
+        let stdout = ''
+        let stderr = ''
+        const childEnv = { ...envVars, PYTHONPATH: PROJECT_ROOT }
+
+        const child = spawn(pythonBin, args, { cwd: PROJECT_ROOT, env: childEnv })
+        child.stdin.write(JSON.stringify(engineInput))
+        child.stdin.end()
+
+        child.stdout.on('data', (d) => { stdout += d.toString() })
+        child.stderr.on('data', (d) => {
+          const text = d.toString()
+          stderr += text
+          for (const line of text.split('\n').filter(Boolean)) {
+            emitMarketingUpdate({ type: 'log', line: `[META API] ${line.trim()}` })
+          }
+        })
+
+        child.on('close', (code) => {
+          try {
+            const parsed = JSON.parse(stdout)
+            resolve({ ok: code === 0, ...parsed })
+          } catch {
+            resolve({ ok: false, error: stderr || stdout || `Exit code ${code}` })
+          }
+        })
       })
-      await sleep(450)
 
-      if (cdpReady) {
+      if (engineResult.ok || engineResult.results?.ok) {
+        const r = engineResult.results || {}
+        const adsetCount = (r.adsets || []).filter(a => a.id).length
+        const adCount = (r.adsets || []).reduce((sum, a) => sum + (a.ads || []).length, 0)
+
         emitMarketingUpdate({
           type: 'log',
-          line: `[CDP] Creando campana via CDP para ${orchestrator.execution.accountHint}...`,
+          line: `[META API] Campana creada: ${r.campaign?.id || 'N/A'}`,
         })
-        await sleep(650)
-
-        let creationState = null
-        let bundleError = null
-        try {
-          const bundleResult = await runLeadCampaignBundleViaCdp(preview, orchestrator)
-          creationState = applyMcpBundleResultToPreview(preview, orchestrator, bundleResult)
-          preview.process = buildCampaignProcess({ ready: true, issues: [] }, preview, creationState, orchestrator)
-
-          emitMarketingUpdate({
-            type: 'log',
-            line: preview.leadgenForms.length > 0
-              ? `[CDP] Consulto ${preview.leadgenForms.length} formulario(s) Instant Form y selecciono ${preview.selectedLeadgenFormName || 'ninguno'} ${preview.selectedLeadgenFormId ? `(${preview.selectedLeadgenFormId})` : ''}.`
-              : bundleResult?.leadgen_forms_error
-                ? `[CDP] No pudo consultar formularios Instant Form: ${bundleResult.leadgen_forms_error}`
-                : `[CDP] No encontro formularios Instant Form utilizables para la pagina ${orchestrator.execution.pageId}.`
-          })
-          await sleep(650)
-
-          if (creationState.campaignId) {
-            emitMarketingUpdate({
-              type: 'log',
-              line: `[CDP] Campaign creada. ID ${creationState.campaignId} en cuenta ${creationState.account?.name || creationState.account?.id}.`,
-            })
-            await sleep(650)
-          }
-
-          if (creationState.adsetId) {
-            emitMarketingUpdate({
-              type: 'log',
-              line: `[CDP] Ad set creado. ID ${creationState.adsetId}. Publico: ${creationState.targetingSummary}.`,
-            })
-            await sleep(650)
-          } else if (creationState.adsetDeferredToUi) {
-            emitMarketingUpdate({
-              type: 'log',
-              status: 'running',
-              line: '[CDP] El ad set se terminara por la UI de Ads Manager porque Meta requiere seleccionar manualmente un objeto promocionado valido.',
-            })
-            await sleep(650)
-          } else if (creationState.adsetError) {
-            emitMarketingUpdate({
-              type: 'log',
-              status: 'warning',
-              line: `[CDP] No pudo crear el ad set: ${creationState.adsetError}`,
-            })
-            await sleep(650)
-          }
-
-          if (preview.metaCreative?.creativeId) {
-            emitMarketingUpdate({
-              type: 'log',
-              line: `[CDP] Creative creado. ID ${preview.metaCreative.creativeId}. image_hash ${preview.metaCreative.imageHash}.`,
-            })
-            await sleep(650)
-          }
-
-          if (preview.metaAd?.adId) {
-            emitMarketingUpdate({
-              type: 'log',
-              line: `[CDP] Anuncio creado. ID ${preview.metaAd.adId} en estado PAUSED.`,
-            })
-            await sleep(650)
-          }
-        } catch (error) {
-          bundleError = error
-          emitMarketingUpdate({
-            type: 'log',
-            status: 'warning',
-            line: `[CDP] Error creando campana via CDP: ${error.message || error}`,
-          })
-          await sleep(650)
+        if (r.lead_form?.id) {
+          emitMarketingUpdate({ type: 'log', line: `[META API] Formulario: ${r.lead_form.id}` })
         }
-
-        const browserOpen = await openMetaAdsManager(creationState)
         emitMarketingUpdate({
           type: 'log',
-          line: browserOpen.ok
-            ? `[OPEN] Navegador abierto en ${browserOpen.url} para visualizar Meta Ads Manager.`
-            : `[OPEN] No se pudo abrir el navegador automaticamente: ${browserOpen.reason}`,
+          line: `[META API] ${adsetCount} conjuntos de anuncios + ${adCount} anuncios creados en PAUSED.`,
         })
-        await sleep(650)
 
         emitMarketingUpdate({
           type: 'done',
-          status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) ? 'warning' : 'success',
-          summary: bundleError
-            ? `Error al crear campana via CDP: ${bundleError.message || bundleError}`
-            : creationState?.adsetDeferredToUi
-              ? `Campana creada. El conjunto de anuncios quedo delegado a Ads Manager y la imagen para subir manualmente esta en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`
-              : creationState?.adsetError
-                ? `Campana creada, pero no se pudo crear el ad set: ${creationState.adsetError}. La imagen para subir manualmente esta en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`
-                : browserOpen.ok
-                  ? `Campana creada correctamente. Sube manualmente la imagen desde Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`
-                  : `Campana creada, pero no se pudo abrir Ads Manager automaticamente. La imagen para subir manualmente esta en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`,
-          preview,
+          status: (r.errors || []).length > 0 ? 'warning' : 'success',
+          summary: (r.errors || []).length > 0
+            ? `Campana creada con ${r.errors.length} advertencia(s): ${r.errors[0]}`
+            : `Campana B2B creada exitosamente via Meta API. ${adsetCount} audiencias, ${adCount} anuncios en PAUSED.`,
+          preview: { ...preview, engineResult },
         })
       } else {
-        const env = getProjectEnv()
-        const webhookUrl = String(
-          env.N8N_WEBHOOK_CREAR_CAMPANA_FB ||
-          env.N8N_WEBHOOK_CREATE_CAMPAIGN_FACEBOOK ||
-          '',
-        ).trim()
-
-        if (!webhookUrl) {
-          emitMarketingUpdate({
-            type: 'done',
-            status: 'warning',
-            summary: 'No se puede crear la campana: falta configurar N8N_WEBHOOK_CREAR_CAMPANA_FB en .env',
-            preview,
-          })
-        } else {
-          emitMarketingUpdate({
-            type: 'log',
-            status: 'running',
-            line: `[n8n] Webhook de campanas configurado: ${webhookUrl} (modo: ${modeLabel})`,
-          })
-          await sleep(450)
-
-          emitMarketingUpdate({
-            type: 'log',
-            status: 'running',
-            line: `[n8n] El brief del orquestador esta listo. Enviando payload al workflow de n8n (${modeLabel})...`,
-          })
-          await sleep(450)
-
-          let creationState = null
-          let bundleError = null
-
-          try {
-            emitMarketingUpdate({
-              type: 'log',
-              status: 'running',
-              line: `[n8n] Enviando campana a n8n para ${orchestrator.execution.accountHint}...`,
-            })
-            await sleep(650)
-
-            const bundleResult = await runLeadCampaignBundleViaN8n(preview, orchestrator)
-            creationState = applyMcpBundleResultToPreview(preview, orchestrator, bundleResult)
-            preview.process = buildCampaignProcess({ ready: true, issues: [] }, preview, creationState, orchestrator)
-          } catch (error) {
-            bundleError = error
-            emitMarketingUpdate({
-              type: 'log',
-              status: 'warning',
-              line: `[n8n] Error creando campana via n8n: ${error.message || error}`,
-            })
-            await sleep(650)
-          }
-
-          const browserOpen = await openMetaAdsManager(creationState)
-          emitMarketingUpdate({
-            type: 'log',
-            line: browserOpen.ok
-              ? `[OPEN] Navegador abierto en ${browserOpen.url} para visualizar Meta Ads Manager.`
-              : `[OPEN] No se pudo abrir el navegador automaticamente: ${browserOpen.reason}`,
-          })
-          await sleep(650)
-
-          emitMarketingUpdate({
-            type: 'done',
-            status: bundleError || (creationState?.adsetError && !creationState?.adsetDeferredToUi) ? 'warning' : 'success',
-            summary: bundleError
-              ? `Error al crear campana via n8n: ${bundleError.message || bundleError}`
-              : creationState?.adsetDeferredToUi
-                ? `Campana creada via n8n. El conjunto de anuncios quedo delegado a Ads Manager y la imagen para subir manualmente esta en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`
-                : creationState?.adsetError
-                  ? `Campana creada via n8n, pero no se pudo crear el ad set: ${creationState.adsetError}. La imagen para subir manualmente esta en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`
-                  : browserOpen.ok
-                    ? `Campana creada via n8n. La imagen para subir manualmente quedo en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`
-                    : `Campana creada via n8n, pero no se pudo abrir Ads Manager automaticamente. La imagen para subir manualmente quedo en Descargas: ${preview.manualUploadImagePath || 'no disponible'}.`,
-            preview,
-          })
-        }
+        const errorMsg = engineResult.error || engineResult.results?.errors?.[0] || 'Error desconocido'
+        emitMarketingUpdate({
+          type: 'done',
+          status: 'error',
+          summary: `Error creando campana via Meta API: ${errorMsg}`,
+          preview: { ...preview, engineResult },
+        })
       }
 
       return { success: true }
@@ -637,6 +500,56 @@ function registerMarketingHandlers(ipcMain) {
     } finally {
       state.marketingRunInProgress = false
     }
+  })
+
+  // ─── Auto Campaign Engine ─────────────────────────────────────────────────
+  ipcMain.handle('run-auto-campaign', async (_event, payload = {}) => {
+    const { findPython } = require('../utils/process')
+    const { spawn } = require('child_process')
+    const { PROJECT_ROOT } = require('../config/project-paths')
+
+    const pythonBin = findPython()
+    if (!pythonBin) {
+      return { success: false, error: 'Python no encontrado' }
+    }
+
+    const dryRun = !!payload.dryRun
+    const inputJson = JSON.stringify(payload)
+
+    const args = ['-m', 'core.n8n.meta_campaign_engine']
+    if (dryRun) args.push('--dry-run')
+    args.push('--stdin')
+
+    return new Promise((resolve) => {
+      let stdout = ''
+      let stderr = ''
+      const env = { ...getProjectEnv(), PYTHONPATH: PROJECT_ROOT }
+
+      const child = spawn(pythonBin, args, {
+        cwd: PROJECT_ROOT,
+        env,
+      })
+
+      child.stdin.write(inputJson)
+      child.stdin.end()
+
+      child.stdout.on('data', (d) => { stdout += d.toString() })
+      child.stderr.on('data', (d) => { stderr += d.toString() })
+
+      child.on('close', (code) => {
+        try {
+          const result = JSON.parse(stdout)
+          resolve({ success: code === 0, ...result })
+        } catch {
+          resolve({
+            success: false,
+            error: stderr || stdout || `Exit code ${code}`,
+            raw_stdout: stdout,
+            raw_stderr: stderr,
+          })
+        }
+      })
+    })
   })
 }
 

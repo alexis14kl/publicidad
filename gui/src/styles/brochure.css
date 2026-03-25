@@ -1,0 +1,435 @@
+/* ─── Brochure Page ────────────────────────────────────────────────────────── */
+
+.brochure-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 8px 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.brochure-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.brochure-page__eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--brand-primary);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.brochure-page__title {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.brochure-page__subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  max-width: 520px;
+  line-height: 1.55;
+}
+
+.brochure-page__body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  flex: 1;
+  min-height: 0;
+}
+
+.brochure-page__builder {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.brochure-page__prompt-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.brochure-page__textarea {
+  width: 100%;
+  background: var(--surface-0);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 14px 16px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 100px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+.brochure-page__textarea:focus {
+  border-color: var(--brand-primary);
+  box-shadow: var(--shadow-glow-brand);
+}
+
+.brochure-page__textarea::placeholder {
+  color: var(--text-dim);
+}
+
+.brochure-page__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.brochure-page__actions .btn {
+  flex: none;
+  padding: 10px 24px;
+}
+
+.brochure-page__preview {
+  background: var(--surface-0);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.brochure-page__preview iframe,
+.brochure-page__preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  min-height: 500px;
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.brochure-page__status {
+  font-size: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-primary-light);
+  border: 1px solid rgba(79, 70, 229, 0.15);
+  color: var(--brand-primary);
+  font-weight: 500;
+}
+
+.brochure-page__status--error {
+  background: var(--accent-red-light);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: var(--accent-red);
+}
+
+.brochure-page__console {
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.brochure-page__console .log-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.brochure-page__console-content {
+  height: 160px;
+  overflow-y: auto;
+  padding: 10px 14px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  background: var(--surface-1);
+}
+
+/* ── Historial ── */
+
+.brochure-page__history {
+  padding: 0 !important;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.brochure-page__history .log-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.brochure-page__history-list {
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.brochure-page__history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--surface-2);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.brochure-page__history-item:hover {
+  background: var(--brand-primary-light);
+}
+
+.brochure-page__history-item:last-child {
+  border-bottom: none;
+}
+
+.brochure-page__history-name {
+  font-weight: 600;
+  color: var(--brand-primary);
+}
+
+.brochure-page__history-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.brochure-page__preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.brochure-page__preview-icon {
+  font-size: 48px;
+  font-weight: 800;
+  color: var(--brand-primary);
+  opacity: 0.2;
+  letter-spacing: 2px;
+}
+
+/* ── Brochure Company Bar ── */
+
+.brochure-company-bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 22px;
+  flex-wrap: wrap;
+}
+
+.brochure-company-bar__selector {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.brochure-company-bar__logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brochure-company-bar__logo-btn {
+  position: relative;
+  background: none;
+  border: 2px dashed var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.brochure-company-bar__logo-btn:hover {
+  border-color: var(--brand-primary);
+}
+
+.brochure-company-bar__logo-edit {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  border-radius: var(--radius-sm);
+}
+
+.brochure-company-bar__logo-btn:hover .brochure-company-bar__logo-edit {
+  opacity: 1;
+}
+
+.brochure-company-bar__logo-img {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-xs);
+  object-fit: contain;
+  background: var(--surface-1);
+  padding: 4px;
+  display: block;
+}
+
+.brochure-company-bar__logo-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-xs);
+  background: var(--brand-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.brochure-company-bar__logo-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brochure-company-bar__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.brochure-company-bar__custom-badge {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--brand-primary);
+  font-weight: 700;
+}
+
+.brochure-company-bar__colors {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 0 18px;
+  border-left: 1px solid var(--glass-border);
+  border-right: 1px solid var(--glass-border);
+}
+
+.brochure-color-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  position: relative;
+}
+
+.brochure-color-swatch__picker {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.brochure-color-swatch__circle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--glass-border);
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.15s, border-color 0.2s;
+}
+
+.brochure-color-swatch:hover .brochure-color-swatch__circle {
+  transform: scale(1.15);
+  border-color: var(--text-dim);
+}
+
+.brochure-color-swatch--custom .brochure-color-swatch__circle {
+  border-color: var(--brand-primary);
+  box-shadow: var(--shadow-glow-brand);
+}
+
+.brochure-color-swatch__label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+
+.brochure-color-swatch--custom .brochure-color-swatch__label {
+  color: var(--brand-primary);
+}
+
+.brochure-page__reset-colors {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.2s;
+  align-self: flex-start;
+}
+
+.brochure-page__reset-colors:hover {
+  color: var(--brand-primary);
+}
+
+.brochure-company-bar__contact {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.brochure-company-bar__contact span {
+  white-space: nowrap;
+}
+
+.brochure-company-bar__empty {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+@media (max-width: 768px) {
+  .brochure-page__body {
+    grid-template-columns: 1fr;
+  }
+  .brochure-page__header {
+    flex-direction: column;
+  }
+  .brochure-company-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .brochure-company-bar__colors {
+    border-left: none;
+    border-right: none;
+    padding: 0;
+  }
+}

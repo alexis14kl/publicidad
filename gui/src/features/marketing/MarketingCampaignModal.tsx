@@ -8,12 +8,12 @@ import {
 import type { MarketingRunUpdate } from '../../api/types'
 import { CITY_ZONE_OPTIONS, CONTACT_MODE_OPTIONS } from './constants'
 import {
-  buildAudienceSegmentationPreview,
   buildMarketingPromptPreview,
   buildTrendOptions,
-  buildZoneIntelligencePreview,
   extractMarketingDraftFromPrePrompt,
 } from './utils'
+
+type Step = 'describe' | 'configure' | 'execute'
 
 export function MarketingCampaignModal({
   open,
@@ -22,6 +22,7 @@ export function MarketingCampaignModal({
   open: boolean
   onClose: () => void
 }) {
+  const [step, setStep] = useState<Step>('describe')
   const [prePrompt, setPrePrompt] = useState('')
   const [campaignIdea, setCampaignIdea] = useState('')
   const [city, setCity] = useState('')
@@ -33,8 +34,7 @@ export function MarketingCampaignModal({
   const [marketingPrompt, setMarketingPrompt] = useState('')
   const [promptEdited, setPromptEdited] = useState(false)
   const [budget, setBudget] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [campaignDays, setCampaignDays] = useState('30')
   const [mcpAccessToken, setMcpAccessToken] = useState('')
   const [mcpPageAccessToken, setMcpPageAccessToken] = useState('')
   const [mcpPageId, setMcpPageId] = useState('')
@@ -57,16 +57,20 @@ export function MarketingCampaignModal({
   const [selectedTrendId, setSelectedTrendId] = useState<number | null>(null)
   const [appliedPrePrompt, setAppliedPrePrompt] = useState('')
   const [selectedCompany, setSelectedCompany] = useState('')
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showPromptEditor, setShowPromptEditor] = useState(false)
+  const [showFullPreview, setShowFullPreview] = useState(false)
   const selectedContactMode = CONTACT_MODE_OPTIONS.find((option) => option.value === contactMode) || CONTACT_MODE_OPTIONS[0]
 
-  const validationMessage = useMemo(() => {
-    if (!prePrompt || !city) return 'Escribe el pre-prompt y selecciona una tendencia con su ciudad y zonas populares.'
-    if (!budget || !startDate || !endDate) return 'Completa presupuesto y fechas para continuar.'
-    if (!mcpAccessToken || !mcpAdAccountId) return 'Completa las credenciales principales del MCP Meta Ads.'
-    if (Number(budget) <= 0) return 'El presupuesto debe ser mayor a 0.'
-    if (endDate < startDate) return 'La fecha de fin no puede ser menor que la fecha de inicio.'
-    return 'Formulario listo para continuar a la vista previa de la campaña.'
-  }, [budget, city, endDate, mcpAccessToken, mcpAdAccountId, prePrompt, startDate])
+  // Auto-generate dates: start = tomorrow, end = start + campaignDays
+  const computedDates = useMemo(() => {
+    const start = new Date()
+    start.setDate(start.getDate() + 1)
+    const end = new Date(start)
+    end.setDate(end.getDate() + Math.max(1, Number(campaignDays) || 30))
+    const fmt = (d: Date) => d.toISOString().slice(0, 10)
+    return { startDate: fmt(start), endDate: fmt(end) }
+  }, [campaignDays])
 
   const promptPreview = useMemo(
     () => buildMarketingPromptPreview({
@@ -75,31 +79,10 @@ export function MarketingCampaignModal({
       zones: selectedZones,
       contactMode,
       budget,
-      startDate,
-      endDate,
+      startDate: computedDates.startDate,
+      endDate: computedDates.endDate,
     }),
-    [budget, campaignIdea, city, contactMode, endDate, selectedZones, startDate]
-  )
-
-  const zoneIntelligencePreview = useMemo(
-    () => buildZoneIntelligencePreview({
-      enabled: useZoneIntelligence,
-      prePrompt,
-      campaignIdea,
-      city,
-      selectedZones,
-    }),
-    [campaignIdea, city, prePrompt, selectedZones, useZoneIntelligence]
-  )
-
-  const audienceSegmentationPreview = useMemo(
-    () => buildAudienceSegmentationPreview({
-      enabled: useAudienceSegmentation,
-      prePrompt,
-      campaignIdea,
-      city,
-    }),
-    [campaignIdea, city, prePrompt, useAudienceSegmentation]
+    [budget, campaignIdea, city, contactMode, computedDates, selectedZones]
   )
 
   const audiencePreview = useMemo(() => {
@@ -110,14 +93,6 @@ export function MarketingCampaignModal({
     }
     return `Personas en ${city}, zonas ${zonesLabel}, con interes o necesidad relacionada con ${campaignIdea || prePrompt}, 24-55 anos, con intencion de contacto o compra.`
   }, [campaignIdea, city, prePrompt, selectedZones])
-
-  const visualPreview = useMemo(() => {
-    if (!prePrompt || !city) return 'La direccion visual aparecera cuando completes el pre-prompt y la ciudad sugerida.'
-    const contactContext = contactMode === 'whatsapp'
-      ? 'con enfoque cercano, conversacional y listo para escribir por WhatsApp'
-      : 'con enfoque de captacion y llamada clara al formulario'
-    return `Imagen de Facebook Ads relacionada con "${campaignIdea || prePrompt}" en ${city}, ${contactContext}, composicion limpia, foco en el beneficio principal y contexto visual coherente con el negocio.`
-  }, [campaignIdea, city, contactMode, prePrompt])
 
   useEffect(() => {
     setSelectedZones((current) => current.filter((zone) => zoneOptions.includes(zone)))
@@ -188,17 +163,26 @@ export function MarketingCampaignModal({
     return unsubscribe
   }, [])
 
+  const canContinueToConfigure =
+    !!prePrompt.trim() &&
+    !!city &&
+    trendOptions.length > 0
+
   const canRun =
     !!prePrompt &&
     !!city &&
     !!budget &&
-    !!startDate &&
-    !!endDate &&
     !!mcpAccessToken &&
     !!mcpAdAccountId &&
     Number(budget) > 0 &&
-    endDate >= startDate &&
     runState !== 'running'
+
+  const configValidation = useMemo(() => {
+    if (!budget) return 'Define el presupuesto de la campana.'
+    if (!mcpAccessToken || !mcpAdAccountId) return 'Agrega las credenciales de Meta Ads.'
+    if (Number(budget) <= 0) return 'El presupuesto debe ser mayor a 0.'
+    return null
+  }, [budget, mcpAccessToken, mcpAdAccountId])
 
   const handleApplyPrePrompt = () => {
     const draft = extractMarketingDraftFromPrePrompt(prePrompt)
@@ -224,7 +208,7 @@ export function MarketingCampaignModal({
       : defaultTrend?.zones || []
     setSelectedZones(nextZones)
     setPromptEdited(false)
-    setRunSummary('Pre-prompt enviado al resumen inteligente. Ahora puedes revisar las tendencias detectadas para posibles compradores.')
+    setRunSummary('Pre-prompt analizado. Revisa las tendencias detectadas.')
   }
 
   const handleRun = async () => {
@@ -232,7 +216,8 @@ export function MarketingCampaignModal({
     setRunLines([])
     setPreview(null)
     setRunState('running')
-    setRunSummary('Guardando credenciales del MCP y ejecutando agente de marketing...')
+    setRunSummary('Guardando credenciales y ejecutando agente de marketing...')
+    setStep('execute')
 
     try {
       await saveEnvConfig({
@@ -253,8 +238,8 @@ export function MarketingCampaignModal({
         generateImageFromMarketingPrompt,
         marketingPrompt,
         budget,
-        startDate,
-        endDate,
+        startDate: computedDates.startDate,
+        endDate: computedDates.endDate,
       })
     } catch (error) {
       setRunState('error')
@@ -270,779 +255,618 @@ export function MarketingCampaignModal({
         className="marketing-modal glass-card"
         onClick={(event) => event.stopPropagation()}
       >
+        {/* ── Header ── */}
         <div className="marketing-modal__header">
           <div>
             <p className="marketing-modal__eyebrow">Agente de Marketing</p>
             <h2 className="marketing-modal__title">Campana Facebook Ads</h2>
           </div>
-          <button className="btn btn--small btn--ghost" onClick={onClose}>
-            Cerrar
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className={`status-badge marketing-status-badge marketing-status-badge--${runState}`}>
+              {runState === 'running' ? 'Ejecutando' : runState === 'success' ? 'Listo' : runState === 'error' ? 'Error' : 'Preparando'}
+            </span>
+            <button className="btn btn--small btn--ghost" onClick={onClose}>Cerrar</button>
+          </div>
+        </div>
+
+        {/* ── Step indicator ── */}
+        <div className="mkt-steps">
+          <button
+            className={`mkt-step ${step === 'describe' ? 'mkt-step--active' : ''} ${trendOptions.length > 0 ? 'mkt-step--done' : ''}`}
+            onClick={() => setStep('describe')}
+          >
+            <span className="mkt-step__num">1</span>
+            <span className="mkt-step__label">Describe tu campana</span>
+          </button>
+          <div className="mkt-step__line" />
+          <button
+            className={`mkt-step ${step === 'configure' ? 'mkt-step--active' : ''} ${canRun ? 'mkt-step--done' : ''}`}
+            onClick={() => canContinueToConfigure && setStep('configure')}
+            disabled={!canContinueToConfigure}
+          >
+            <span className="mkt-step__num">2</span>
+            <span className="mkt-step__label">Configura</span>
+          </button>
+          <div className="mkt-step__line" />
+          <button
+            className={`mkt-step ${step === 'execute' ? 'mkt-step--active' : ''} ${runState === 'success' ? 'mkt-step--done' : ''}`}
+            onClick={() => canRun && setStep('execute')}
+            disabled={!canRun}
+          >
+            <span className="mkt-step__num">3</span>
+            <span className="mkt-step__label">Ejecutar</span>
           </button>
         </div>
 
         <div className="marketing-modal__body">
-          <div className="marketing-top-grid">
-            <div className="marketing-copy">
-              <p>Aqui puedes bajar una idea base y convertirla en un brief listo para copy, publico, zonas, creativo y lectura de tendencias.</p>
-              <ol className="marketing-copy__list">
-                <li>Pre-prompt base con el enfoque comercial de la campana.</li>
-                <li>Tendencias detectadas con ciudad, zonas populares y comprador probable.</li>
-                <li>Si quieres contacto web o contacto por WhatsApp.</li>
-                <li>Editar el prompt final que se enviara a los agentes.</li>
-                <li>Presupuesto maximo a gastar.</li>
-                <li>Fecha de inicio de la campana.</li>
-                <li>Fecha de fin de la campana.</li>
-                <li>Meta Access Token y cuenta publicitaria del MCP.</li>
-              </ol>
-            </div>
 
-            <div className="marketing-status-card">
-              <div className="card-header">
-                <span className="card-icon">&#9881;</span>
-                <span className="card-title">Estado del Agente</span>
-              </div>
-              <div className="status-grid">
-                <div className="status-item">
-                  <span className="status-item-label">Estado</span>
-                  <span className={`status-badge marketing-status-badge marketing-status-badge--${runState}`}>
-                    {runState === 'running'
-                      ? 'Ejecutando'
-                      : runState === 'success'
-                        ? 'Listo'
-                        : runState === 'warning'
-                          ? 'Pre-flight'
-                          : runState === 'error'
-                            ? 'Error'
-                            : 'Esperando'}
-                  </span>
-                </div>
-                <div className="status-item">
-                  <span className="status-item-label">Objetivo</span>
-                  <span className="status-item-value">{selectedContactMode.objective}</span>
-                </div>
-                <div className="status-item">
-                  <span className="status-item-label">Canal</span>
-                  <span className="status-item-value">Facebook Ads MCP + {selectedContactMode.label}</span>
-                </div>
-                <div className="status-item">
-                  <span className="status-item-label">Resumen</span>
-                  <span className="status-item-value marketing-status-summary">{runSummary}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="marketing-section">
-            <div className="card-header">
-              <span className="card-icon">&#9998;</span>
-              <span className="card-title">Formulario de Campana</span>
-            </div>
-            <form className="marketing-form">
-              <label className="marketing-field marketing-field--full">
-                <span>Pre-prompt base de la campaña</span>
-                <textarea
-                  className="marketing-prompt-textarea"
-                  placeholder="Ej. Campaña de carros de color azul en Bogota, foco en Norte y Usaquen, para captar clientes interesados en financiamiento."
-                  value={prePrompt}
-                  onChange={(event) => setPrePrompt(event.target.value)}
-                />
-              </label>
-
-              <div className="marketing-field marketing-field--full">
-                <span>Checks del orquestador</span>
-                <div className="job-grid">
-                  <label className="job-item" style={{ cursor: 'pointer' }}>
-                    <span className="job-label">Analisis de zonas calientes</span>
-                    <input
-                      type="checkbox"
-                      checked={useZoneIntelligence}
-                      onChange={(event) => setUseZoneIntelligence(event.target.checked)}
-                    />
-                    <span className="job-value">Usar ads-analyst + seo-analyzer para priorizar zonas con mayor afinidad e interaccion.</span>
-                  </label>
-                  <label className="job-item" style={{ cursor: 'pointer' }}>
-                    <span className="job-label">Segmentacion de publico</span>
-                    <input
-                      type="checkbox"
-                      checked={useAudienceSegmentation}
-                      onChange={(event) => setUseAudienceSegmentation(event.target.checked)}
-                    />
-                    <span className="job-value">Usar ads-analyst + seo-analyzer para detectar posibles clientes y audiencias con mejor fit.</span>
-                  </label>
-                  <label className="job-item" style={{ cursor: 'pointer' }}>
-                    <span className="job-label">Generar imagen automatica</span>
-                    <input
-                      type="checkbox"
-                      checked={generateImageFromMarketingPrompt}
-                      onChange={(event) => setGenerateImageFromMarketingPrompt(event.target.checked)}
-                    />
-                    <span className="job-value">Toma el prompt final del agente marketing, genera la imagen y la usa en Contenido del anuncio si la automatizacion sale bien.</span>
-                  </label>
-                </div>
-                <div className="marketing-prompt-actions">
+          {/* ═══════════ STEP 1: Describe ═══════════ */}
+          {step === 'describe' && (
+            <>
+              <div className="marketing-section">
+                <label className="marketing-field marketing-field--full">
+                  <span>Describe tu campana</span>
+                  <textarea
+                    className="marketing-prompt-textarea"
+                    placeholder="Ej. Campaña de carros de color azul en Bogota, foco en Norte y Usaquen, para captar clientes interesados en financiamiento."
+                    value={prePrompt}
+                    onChange={(event) => setPrePrompt(event.target.value)}
+                    style={{ minHeight: 120 }}
+                  />
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
                   <button
                     type="button"
-                    className="btn btn--ghost btn--small"
+                    className="btn btn--start"
                     onClick={handleApplyPrePrompt}
                     disabled={!prePrompt.trim()}
+                    style={{ flex: 'none' }}
                   >
-                    Pasar al resumen inteligente
+                    Analizar campana
                   </button>
-                  <span className="helper-text">
-                    Este boton interpreta tu pre-prompt. Si escribes una ciudad concreta, solo veras esa ciudad; si no la escribes claramente, apareceran varias opciones sugeridas.
+                  <span className="helper-text" style={{ margin: 0 }}>
+                    El sistema detectara ciudades, zonas y el tipo de comprador.
                   </span>
                 </div>
               </div>
 
-              <div className="marketing-field marketing-field--full">
-                <span>Ciudades y tendencias detectadas</span>
-                {trendOptions.length === 0 ? (
-                  <span className="marketing-zone-empty">Pulsa "Pasar al resumen inteligente" para ver la ciudad detectada o las ciudades sugeridas para esta campaña.</span>
-                ) : (
-                  <>
-                    <div className="marketing-trend-tabs">
-                      {trendOptions.map((trend) => {
-                        const active = trend.id === selectedTrendId
-                        return (
-                          <button
-                            key={trend.id}
-                            type="button"
-                            className={`marketing-trend-tab ${active ? 'marketing-trend-tab--active' : ''}`}
-                            onClick={() => {
-                              setSelectedTrendId(trend.id)
-                              setCity(trend.city)
-                              setSelectedZones(trend.zones)
-                            }}
-                          >
-                            <span className="marketing-trend-tab__number">{String(trend.id).padStart(2, '0')}</span>
-                            <span className="marketing-trend-tab__content">
-                              <span className="marketing-trend-tab__label">{trend.label}</span>
-                              <span className="marketing-trend-tab__hint">{trend.shortLabel}</span>
-                            </span>
-                          </button>
-                        )
-                      })}
+              {/* Trends */}
+              {trendOptions.length > 0 && (
+                <div className="marketing-section">
+                  <div className="card-header">
+                    <span className="card-icon">&#128205;</span>
+                    <span className="card-title">Tendencias detectadas</span>
+                  </div>
+                  <div className="marketing-trend-tabs">
+                    {trendOptions.map((trend) => {
+                      const active = trend.id === selectedTrendId
+                      return (
+                        <button
+                          key={trend.id}
+                          type="button"
+                          className={`marketing-trend-tab ${active ? 'marketing-trend-tab--active' : ''}`}
+                          onClick={() => {
+                            setSelectedTrendId(trend.id)
+                            setCity(trend.city)
+                            setSelectedZones(trend.zones)
+                          }}
+                        >
+                          <span className="marketing-trend-tab__number">{String(trend.id).padStart(2, '0')}</span>
+                          <span className="marketing-trend-tab__content">
+                            <span className="marketing-trend-tab__label">{trend.label}</span>
+                            <span className="marketing-trend-tab__hint">{trend.shortLabel}</span>
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {trendOptions
+                    .filter((trend) => trend.id === selectedTrendId)
+                    .map((trend) => (
+                      <div key={trend.id} className="marketing-trend-panel">
+                        <div className="marketing-trend-panel__header">
+                          <span className="marketing-trend-panel__title">{trend.city}</span>
+                          <span className="marketing-trend-panel__city">{trend.shortLabel}</span>
+                        </div>
+                        <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 8 }}>
+                          {trend.summary}
+                        </p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                          {trend.zones.map((z) => (
+                            <span key={z} className="marketing-zone-chip marketing-zone-chip--active" style={{ cursor: 'default' }}>{z}</span>
+                          ))}
+                        </div>
+                        <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                          Comprador: {trend.buyerIntent}
+                        </p>
+                      </div>
+                    ))}
+
+                  {/* Zone selection */}
+                  {zoneOptions.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>
+                        Seleccionar zonas
+                      </span>
+                      <div className="marketing-zone-grid" style={{ marginTop: 8 }}>
+                        {zoneOptions.map((zone) => {
+                          const active = selectedZones.includes(zone)
+                          return (
+                            <button
+                              key={zone}
+                              type="button"
+                              className={`marketing-zone-chip ${active ? 'marketing-zone-chip--active' : ''}`}
+                              onClick={() => {
+                                setSelectedZones((current) =>
+                                  current.includes(zone)
+                                    ? current.filter((item) => item !== zone)
+                                    : [...current, zone]
+                                )
+                              }}
+                            >
+                              {zone}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
-                    {trendOptions
-                      .filter((trend) => trend.id === selectedTrendId)
-                      .map((trend) => (
-                        <div key={trend.id} className="marketing-trend-panel">
-                          <div className="marketing-trend-panel__header">
-                            <span className="marketing-trend-panel__title">Lectura para {trend.city}</span>
-                            <span className="marketing-trend-panel__city">{trend.shortLabel}</span>
+                  )}
+                </div>
+              )}
+
+              {/* Footer step 1 */}
+              <div className="marketing-modal__footer">
+                <span className="marketing-validation">
+                  {!prePrompt.trim()
+                    ? 'Escribe la descripcion de tu campana para comenzar.'
+                    : !city
+                      ? 'Haz clic en "Analizar campana" para detectar tendencias.'
+                      : 'Todo listo. Continua al siguiente paso.'}
+                </span>
+                <button
+                  className="btn btn--start"
+                  disabled={!canContinueToConfigure}
+                  onClick={() => setStep('configure')}
+                >
+                  Continuar
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* ═══════════ STEP 2: Configure ═══════════ */}
+          {step === 'configure' && (
+            <>
+              {/* Summary of what was detected */}
+              <div className="mkt-summary-bar">
+                <div className="mkt-summary-item">
+                  <span className="mkt-summary-label">Campana</span>
+                  <span className="mkt-summary-value">{campaignIdea || prePrompt.slice(0, 60)}</span>
+                </div>
+                <div className="mkt-summary-item">
+                  <span className="mkt-summary-label">Ciudad</span>
+                  <span className="mkt-summary-value">{city}{selectedZones.length > 0 ? ` (${selectedZones.length} zonas)` : ''}</span>
+                </div>
+                <div className="mkt-summary-item">
+                  <span className="mkt-summary-label">Publico</span>
+                  <span className="mkt-summary-value" style={{ fontSize: 12 }}>{audiencePreview.slice(0, 80)}...</span>
+                </div>
+              </div>
+
+              <div className="marketing-section">
+                <div className="card-header">
+                  <span className="card-icon">&#9881;</span>
+                  <span className="card-title">Configuracion basica</span>
+                </div>
+                <form className="marketing-form">
+                  <label className="marketing-field">
+                    <span>Tipo de contacto</span>
+                    <select
+                      value={contactMode}
+                      onChange={(event) => setContactMode(event.target.value === 'whatsapp' ? 'whatsapp' : 'lead_form')}
+                    >
+                      {CONTACT_MODE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="marketing-field">
+                    <span>Presupuesto (COP)</span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="Ej. 500000"
+                      value={budget}
+                      onChange={(event) => setBudget(event.target.value)}
+                    />
+                  </label>
+
+                  <label className="marketing-field">
+                    <span>Duracion (dias)</span>
+                    <select
+                      value={campaignDays}
+                      onChange={(event) => setCampaignDays(event.target.value)}
+                    >
+                      <option value="7">7 dias</option>
+                      <option value="14">14 dias</option>
+                      <option value="30">30 dias (recomendado)</option>
+                      <option value="60">60 dias</option>
+                      <option value="90">90 dias</option>
+                    </select>
+                  </label>
+                </form>
+                <p className="helper-text" style={{ marginTop: 8 }}>
+                  La campana inicia manana ({computedDates.startDate}) y termina el {computedDates.endDate}. Las credenciales de Meta se cargan desde Configuraciones.
+                </p>
+              </div>
+
+              {/* Options */}
+              <div className="marketing-section">
+                <div className="card-header">
+                  <span className="card-icon">&#10024;</span>
+                  <span className="card-title">Opciones del agente</span>
+                </div>
+                <div className="mkt-options">
+                  <label className="mkt-option">
+                    <input type="checkbox" checked={useZoneIntelligence} onChange={(e) => setUseZoneIntelligence(e.target.checked)} />
+                    <div>
+                      <strong>Analisis de zonas</strong>
+                      <span>Prioriza zonas con mayor afinidad e interaccion</span>
+                    </div>
+                  </label>
+                  <label className="mkt-option">
+                    <input type="checkbox" checked={useAudienceSegmentation} onChange={(e) => setUseAudienceSegmentation(e.target.checked)} />
+                    <div>
+                      <strong>Segmentacion de publico</strong>
+                      <span>Detecta audiencias con mejor fit automaticamente</span>
+                    </div>
+                  </label>
+                  <label className="mkt-option">
+                    <input type="checkbox" checked={generateImageFromMarketingPrompt} onChange={(e) => setGenerateImageFromMarketingPrompt(e.target.checked)} />
+                    <div>
+                      <strong>Generar imagen automatica</strong>
+                      <span>Crea el creativo visual con IA</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Advanced (collapsible) */}
+              <button
+                className="mkt-collapsible"
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+              >
+                <span>Configuracion avanzada</span>
+                <span>{showAdvanced ? '−' : '+'}</span>
+              </button>
+              {showAdvanced && (
+                <div className="marketing-section">
+                  <form className="marketing-form" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                    <label className="marketing-field">
+                      <span>Meta Page Access Token</span>
+                      <input
+                        type="password"
+                        placeholder="EAAB... (token de pagina)"
+                        value={mcpPageAccessToken}
+                        onChange={(event) => setMcpPageAccessToken(event.target.value)}
+                      />
+                    </label>
+                    <label className="marketing-field">
+                      <span>Facebook Page ID</span>
+                      <input
+                        type="text"
+                        placeholder="115406607722279 (opcional)"
+                        value={mcpPageId}
+                        onChange={(event) => setMcpPageId(event.target.value)}
+                      />
+                    </label>
+                  </form>
+                  <p className="helper-text">
+                    Si dejas vacio el Page ID, el sistema lo resolvera automaticamente con el token.
+                  </p>
+                </div>
+              )}
+
+              {/* Prompt editor (collapsible) */}
+              <button
+                className="mkt-collapsible"
+                type="button"
+                onClick={() => setShowPromptEditor(!showPromptEditor)}
+              >
+                <span>Editar prompt del agente</span>
+                <span>{showPromptEditor ? '−' : '+'}</span>
+              </button>
+              {showPromptEditor && (
+                <div className="marketing-section">
+                  <label className="marketing-field marketing-field--full">
+                    <span>Prompt que recibiran los agentes</span>
+                    <textarea
+                      className="marketing-prompt-textarea"
+                      placeholder="El prompt se genera automaticamente..."
+                      value={marketingPrompt}
+                      onChange={(event) => {
+                        setMarketingPrompt(event.target.value)
+                        setPromptEdited(true)
+                      }}
+                    />
+                  </label>
+                  <div className="marketing-prompt-actions">
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--small"
+                      onClick={() => {
+                        setMarketingPrompt(promptPreview)
+                        setPromptEdited(false)
+                      }}
+                    >
+                      Regenerar prompt
+                    </button>
+                    <span className="helper-text">Puedes ajustar este texto antes de ejecutar.</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer step 2 */}
+              <div className="marketing-modal__footer">
+                <button className="btn btn--ghost" onClick={() => setStep('describe')} style={{ flex: 'none' }}>
+                  Atras
+                </button>
+                <span className="marketing-validation" style={{ flex: 1, textAlign: 'center' }}>
+                  {configValidation || `${selectedContactMode.objective} | ${city} | ${campaignDays} dias | ${computedDates.startDate} → ${computedDates.endDate}`}
+                </span>
+                <button
+                  className="btn btn--start"
+                  disabled={!canRun}
+                  onClick={handleRun}
+                  style={{ flex: 'none', minWidth: 180 }}
+                >
+                  Ejecutar campana
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* ═══════════ STEP 3: Execute ═══════════ */}
+          {step === 'execute' && (
+            <>
+              {/* Status */}
+              <div className="mkt-execution-status">
+                <div className={`mkt-status-indicator mkt-status-indicator--${runState}`}>
+                  {runState === 'running' && <span className="mkt-spinner" />}
+                  {runState === 'success' && '✓'}
+                  {runState === 'error' && '✕'}
+                  {runState === 'idle' && '●'}
+                  {runState === 'warning' && '!'}
+                </div>
+                <div>
+                  <strong style={{ fontSize: 15 }}>
+                    {runState === 'running' ? 'Ejecutando agente...'
+                      : runState === 'success' ? 'Campana creada exitosamente'
+                        : runState === 'error' ? 'Error en la ejecucion'
+                          : 'Preparando ejecucion'}
+                  </strong>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{runSummary}</p>
+                </div>
+              </div>
+
+              {/* Execution summary */}
+              <div className="marketing-grid">
+                <div className="marketing-execution">
+                  <div className="card-header">
+                    <span className="card-icon">&#9654;</span>
+                    <span className="card-title">Resumen</span>
+                  </div>
+                  <div className="marketing-execution__content">
+                    <div className="status-item">
+                      <span className="status-item-label">Campana</span>
+                      <span className="status-item-value">{campaignIdea || prePrompt.slice(0, 50)}</span>
+                    </div>
+                    <div className="status-item">
+                      <span className="status-item-label">Ciudad</span>
+                      <span className="status-item-value">{city}{selectedZones.length > 0 ? ` | ${selectedZones.join(', ')}` : ''}</span>
+                    </div>
+                    <div className="status-item">
+                      <span className="status-item-label">Objetivo</span>
+                      <span className="status-item-value">{selectedContactMode.objective}</span>
+                    </div>
+                    <div className="status-item">
+                      <span className="status-item-label">Presupuesto</span>
+                      <span className="status-item-value">${Number(budget).toLocaleString()} COP</span>
+                    </div>
+                    <div className="status-item">
+                      <span className="status-item-label">Fechas</span>
+                      <span className="status-item-value">{computedDates.startDate} → {computedDates.endDate} ({campaignDays} dias)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="marketing-log-panel">
+                  <div className="log-header">
+                    <div className="card-header">
+                      <span className="card-icon">&#128196;</span>
+                      <span className="card-title">Log del Agente</span>
+                      <span className="log-count">{runLines.length} lineas</span>
+                    </div>
+                  </div>
+                  <div className="log-content marketing-log-content">
+                    {runLines.length === 0 ? (
+                      <p className="no-data">Esperando actividad del agente...</p>
+                    ) : (
+                      runLines.map((line, index) => (
+                        <div key={`${line}-${index}`} className="log-line log-info">
+                          {line}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Full preview (collapsible, only after execution completes) */}
+              {preview && (
+                <>
+                  <button
+                    className="mkt-collapsible"
+                    type="button"
+                    onClick={() => setShowFullPreview(!showFullPreview)}
+                  >
+                    <span>Ver detalles completos de la campana</span>
+                    <span>{showFullPreview ? '−' : '+'}</span>
+                  </button>
+                  {showFullPreview && (
+                    <div className="marketing-preview">
+                      <div className="card-header">
+                        <span className="card-icon">&#128203;</span>
+                        <span className="card-title">Vista Previa Completa</span>
+                      </div>
+                      <div className="job-grid">
+                        <div className="job-item">
+                          <span className="job-label">Concepto</span>
+                          <span className="job-value">{preview.campaignIdea || 'Sin concepto'}</span>
+                        </div>
+                        <div className="job-item">
+                          <span className="job-label">Objetivo</span>
+                          <span className="job-value">{preview.objective}</span>
+                        </div>
+                        <div className="job-item">
+                          <span className="job-label">URL destino</span>
+                          <span className="job-value">{preview.url}</span>
+                        </div>
+                        <div className="job-item">
+                          <span className="job-label">Ciudad / zonas</span>
+                          <span className="job-value">
+                            {preview.city || 'Sin ciudad'}
+                            {preview.zones && preview.zones.length > 0 ? ` | ${preview.zones.join(', ')}` : ''}
+                          </span>
+                        </div>
+                        <div className="job-item">
+                          <span className="job-label">Canal</span>
+                          <span className="job-value">{preview.contactMode === 'whatsapp' ? 'WhatsApp' : 'Contacto web'}</span>
+                        </div>
+                        <div className="job-item">
+                          <span className="job-label">MCP</span>
+                          <span className={`job-badge ${preview.mcpAvailable ? 'badge--success' : 'badge--error'}`}>
+                            {preview.mcpAvailable ? 'Disponible' : 'No disponible'}
+                          </span>
+                        </div>
+                        {preview.imageAsset && (
+                          <div className="job-item">
+                            <span className="job-label">Imagen</span>
+                            <span className="job-value">{preview.imageAsset.fileName} {preview.imageAsset.width && preview.imageAsset.height ? `(${preview.imageAsset.width}x${preview.imageAsset.height})` : ''}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {preview.orchestrator && (
+                        <>
+                          <div className="card-header" style={{ marginTop: 16 }}>
+                            <span className="card-icon">&#129504;</span>
+                            <span className="card-title">Resultado del Orquestador</span>
                           </div>
                           <div className="job-grid">
                             <div className="job-item">
-                              <span className="job-label">Resumen</span>
-                              <span className="job-value">{trend.summary}</span>
+                              <span className="job-label">ads-analyst</span>
+                              <span className="job-value">{preview.orchestrator.adsAnalyst.hook} | CTA: {preview.orchestrator.adsAnalyst.cta}</span>
                             </div>
                             <div className="job-item">
-                              <span className="job-label">Zonas populares</span>
-                              <span className="job-value">{trend.zones.join(', ')}</span>
+                              <span className="job-label">Publico</span>
+                              <span className="job-value">{preview.orchestrator.adsAnalyst.audience}</span>
                             </div>
                             <div className="job-item">
-                              <span className="job-label">Comprador probable</span>
-                              <span className="job-value">{trend.buyerIntent}</span>
+                              <span className="job-label">image-creator</span>
+                              <span className="job-value">{preview.orchestrator.imageCreator.style} | {preview.orchestrator.imageCreator.dimensions}</span>
                             </div>
                             <div className="job-item">
-                              <span className="job-label">Senales de interes</span>
-                              <span className="job-value">{trend.audienceSignals.join(' | ')}</span>
+                              <span className="job-label">marketing</span>
+                              <span className="job-value">{preview.orchestrator.marketing.verdict}</span>
                             </div>
                           </div>
-                        </div>
-                      ))}
-                  </>
-                )}
-                <span className="helper-text">
-                  Al seleccionar una opcion, el formulario carga automaticamente esa ciudad y sus zonas recomendadas.
-                </span>
-              </div>
-
-              <label className="marketing-field">
-                <span>Tipo de contacto</span>
-                <select
-                  value={contactMode}
-                  onChange={(event) => setContactMode(event.target.value === 'whatsapp' ? 'whatsapp' : 'lead_form')}
-                >
-                  {CONTACT_MODE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="marketing-field">
-                <span>Presupuesto maximo</span>
-                <input
-                  type="number"
-                  min="1"
-                  step="0.01"
-                  placeholder="Ej. 500000"
-                  value={budget}
-                  onChange={(event) => setBudget(event.target.value)}
-                />
-              </label>
-
-              <label className="marketing-field">
-                <span>Fecha de inicio</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                />
-              </label>
-
-              <label className="marketing-field">
-                <span>Fecha de fin</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(event) => setEndDate(event.target.value)}
-                />
-              </label>
-
-              <label className="marketing-field">
-                <span>Meta Access Token</span>
-                <input
-                  type="password"
-                  placeholder="EAAB..."
-                  value={mcpAccessToken}
-                  onChange={(event) => setMcpAccessToken(event.target.value)}
-                />
-              </label>
-
-              <label className="marketing-field">
-                <span>Meta Page Access Token</span>
-                <input
-                  type="password"
-                  placeholder="EAAB... (token de pagina)"
-                  value={mcpPageAccessToken}
-                  onChange={(event) => setMcpPageAccessToken(event.target.value)}
-                />
-              </label>
-
-              <label className="marketing-field">
-                <span>Ad Account ID</span>
-                <input
-                  type="text"
-                  placeholder="438871067037500 o act_438871067037500"
-                  value={mcpAdAccountId}
-                  onChange={(event) => setMcpAdAccountId(event.target.value)}
-                />
-              </label>
-
-              <label className="marketing-field">
-                <span>Facebook Page ID (opcional)</span>
-                <input
-                  type="text"
-                  placeholder="115406607722279"
-                  value={mcpPageId}
-                  onChange={(event) => setMcpPageId(event.target.value)}
-                />
-              </label>
-
-              <div className="marketing-field marketing-field--full">
-                <span>Zonas de la ciudad</span>
-                <div className="marketing-zone-grid">
-                  {zoneOptions.length === 0 ? (
-                    <span className="marketing-zone-empty">Selecciona una ciudad para habilitar las zonas.</span>
-                  ) : (
-                    zoneOptions.map((zone) => {
-                      const active = selectedZones.includes(zone)
-                      return (
-                        <button
-                          key={zone}
-                          type="button"
-                          className={`marketing-zone-chip ${active ? 'marketing-zone-chip--active' : ''}`}
-                          onClick={() => {
-                            setSelectedZones((current) =>
-                              current.includes(zone)
-                                ? current.filter((item) => item !== zone)
-                                : [...current, zone]
-                            )
-                          }}
-                        >
-                          {zone}
-                        </button>
-                      )
-                    })
-                  )}
-                </div>
-              </div>
-            </form>
-            <p className="helper-text">
-              Si dejas vacio el Page ID, el flujo intentara resolver la pagina automaticamente con el token antes de crear la campana.
-            </p>
-
-            <div className="marketing-generated-card">
-              <div className="card-header">
-                <span className="card-icon">&#129504;</span>
-                <span className="card-title">Resumen Inteligente del Agente</span>
-              </div>
-              <div className="job-grid">
-                <div className="job-item">
-                  <span className="job-label">Pre-prompt aplicado</span>
-                  <span className="job-value">{prePrompt || 'Escribe un pre-prompt y pasalo al resumen inteligente.'}</span>
-                </div>
-                <div className="job-item">
-                  <span className="job-label">Prompt base</span>
-                  <span className="job-value">{promptPreview || 'Completa el pre-prompt, ciudad y tipo de contacto.'}</span>
-                </div>
-                <div className="job-item">
-                  <span className="job-label">Publico sugerido</span>
-                  <span className="job-value">{audiencePreview}</span>
-                </div>
-                <div className="job-item">
-                  <span className="job-label">Direccion visual</span>
-                  <span className="job-value">{visualPreview}</span>
-                </div>
-                <div className="job-item">
-                  <span className="job-label">Check zonas calientes</span>
-                  <span className="job-value">{zoneIntelligencePreview}</span>
-                </div>
-                <div className="job-item">
-                  <span className="job-label">Check segmentacion publico</span>
-                  <span className="job-value">{audienceSegmentationPreview}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="marketing-generated-card">
-              <div className="card-header">
-                <span className="card-icon">&#9997;</span>
-                <span className="card-title">Prompt Editable para los Agentes</span>
-              </div>
-              <label className="marketing-field marketing-field--full">
-                <span>Prompt final</span>
-                <textarea
-                  className="marketing-prompt-textarea"
-                  placeholder="Aqui aparecera el prompt generado para ads-analyst, image-creator y marketing..."
-                  value={marketingPrompt}
-                  onChange={(event) => {
-                    setMarketingPrompt(event.target.value)
-                    setPromptEdited(true)
-                  }}
-                />
-              </label>
-              <div className="marketing-prompt-actions">
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--small"
-                  onClick={() => {
-                    setMarketingPrompt(promptPreview)
-                    setPromptEdited(false)
-                  }}
-                >
-                  Regenerar prompt
-                </button>
-                <span className="helper-text">
-                  Este texto es el que se enviara al orquestador. Puedes ajustarlo antes de ejecutar la campana.
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="marketing-grid">
-            <div className="marketing-execution">
-              <div className="card-header">
-                <span className="card-icon">&#9654;</span>
-                <span className="card-title">Ejecucion del Agente</span>
-              </div>
-              <div className="marketing-execution__content">
-                <div className="status-item">
-                  <span className="status-item-label">Pre-prompt</span>
-                  <span className="status-item-value">{prePrompt || 'Pendiente'}</span>
-                </div>
-                <div className="status-item">
-                  <span className="status-item-label">Objetivo</span>
-                  <span className="status-item-value">{selectedContactMode.objective}</span>
-                </div>
-                <div className="status-item">
-                  <span className="status-item-label">Landing</span>
-                  <span className="status-item-value">{contactMode === 'whatsapp' ? 'WhatsApp' : 'noyecode.com'}</span>
-                </div>
-                <div className="status-item">
-                  <span className="status-item-label">Publico</span>
-                  <span className="status-item-value">
-                    {city
-                      ? `${city}${selectedZones.length > 0 ? ` | ${selectedZones.join(', ')}` : ''}`
-                      : 'Selecciona una ciudad'}
-                  </span>
-                </div>
-                <div className="status-item">
-                  <span className="status-item-label">Resumen</span>
-                  <span className="status-item-value marketing-status-summary">{runSummary}</span>
-                </div>
-                <div className="status-item">
-                  <span className="status-item-label">Checks</span>
-                  <span className="status-item-value">
-                    {[
-                      useZoneIntelligence ? 'zonas calientes' : null,
-                      useAudienceSegmentation ? 'segmentacion publico' : null,
-                    ].filter(Boolean).join(' | ') || 'sin checks'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="marketing-log-panel">
-              <div className="log-header">
-                <div className="card-header">
-                  <span className="card-icon">&#128196;</span>
-                  <span className="card-title">Log del Agente</span>
-                  <span className="log-count">{runLines.length} lineas</span>
-                </div>
-              </div>
-              <div className="log-content marketing-log-content">
-                {runLines.length === 0 ? (
-                  <p className="no-data">Aun no se ha ejecutado el agente.</p>
-                ) : (
-                  runLines.map((line, index) => (
-                    <div key={`${line}-${index}`} className="log-line log-info">
-                      {line}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {preview && (
-              <div className="marketing-preview">
-                <div className="card-header">
-                  <span className="card-icon">&#128203;</span>
-                  <span className="card-title">Vista Previa de Campana</span>
-                </div>
-                <div className="job-grid">
-                  <div className="job-item">
-                    <span className="job-label">Pre-prompt</span>
-                    <span className="job-value">{preview.prePrompt || 'Sin pre-prompt'}</span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">Concepto</span>
-                    <span className="job-value">{preview.campaignIdea || 'Sin concepto'}</span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">Objetivo</span>
-                    <span className="job-value">{preview.objective}</span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">URL</span>
-                    <span className="job-value">{preview.url}</span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">Pais</span>
-                    <span className="job-value">{preview.country}</span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">Ciudad / zonas</span>
-                    <span className="job-value">
-                      {preview.city || 'Sin ciudad'}
-                      {preview.zones && preview.zones.length > 0 ? ` | ${preview.zones.join(', ')}` : ''}
-                    </span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">Canal de contacto</span>
-                    <span className="job-value">
-                      {preview.contactMode === 'whatsapp' ? 'WhatsApp' : 'Contacto web'}
-                    </span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">Prompt enviado</span>
-                    <span className="job-value">{preview.marketingPrompt || 'Sin prompt'}</span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">Presupuesto</span>
-                    <span className="job-value">{preview.budget}</span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">Fechas</span>
-                    <span className="job-value">{preview.startDate} {'->'} {preview.endDate}</span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">Monitor navegador</span>
-                    <span className="job-value">{preview.browserMonitorUrl || 'Se abre al ejecutar'}</span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">Imagen usada</span>
-                    <span className="job-value">
-                      {preview.imageAsset
-                        ? `${preview.imageAsset.fileName} ${preview.imageAsset.width && preview.imageAsset.height ? `(${preview.imageAsset.width}x${preview.imageAsset.height})` : ''}`
-                        : 'Se detecta al ejecutar'}
-                    </span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">MCP</span>
-                    <span className={`job-badge ${preview.mcpAvailable ? 'badge--success' : 'badge--error'}`}>
-                      {preview.mcpAvailable ? 'Disponible' : 'No disponible'}
-                    </span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">Checks activos</span>
-                    <span className="job-value">
-                      {[
-                        preview.zoneIntelligenceEnabled ? 'zonas calientes' : null,
-                        preview.audienceSegmentationEnabled ? 'segmentacion de publico' : null,
-                        preview.generateImageFromMarketingPrompt ? 'imagen automatica' : null,
-                      ].filter(Boolean).join(' | ') || 'sin checks'}
-                    </span>
-                  </div>
-                  <div className="job-item">
-                    <span className="job-label">Estado imagen automatica</span>
-                    <span className="job-value">
-                      {preview.generatedImageStatus === 'generated'
-                        ? 'Generada y aplicada'
-                        : preview.generatedImageStatus === 'failed'
-                          ? `Fallida${preview.generatedImageError ? `: ${preview.generatedImageError}` : ''}`
-                          : preview.generatedImageStatus === 'busy'
-                            ? `Ocupada${preview.generatedImageError ? `: ${preview.generatedImageError}` : ''}`
-                            : preview.generatedImageStatus === 'pending'
-                              ? 'Pendiente de generar'
-                              : 'Desactivada'}
-                    </span>
-                  </div>
-                </div>
-
-                {preview.zoneInsights && (
-                  <>
-                    <div className="card-header" style={{ marginTop: 16 }}>
-                      <span className="card-icon">&#128205;</span>
-                      <span className="card-title">Zonas con Mayor Afinidad</span>
-                    </div>
-                    <div className="job-grid">
-                      <div className="job-item">
-                        <span className="job-label">Resumen</span>
-                        <span className="job-value">{preview.zoneInsights.summary}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Search signals</span>
-                        <span className="job-value">{preview.zoneInsights.searchSignals.join(' | ') || 'Sin señales'}</span>
-                      </div>
-                      {preview.zoneInsights.topZones.map((zone) => (
-                        <div key={zone.zone} className="job-item">
-                          <span className="job-label">{zone.zone}</span>
-                          <span className="job-value">{zone.scoreLabel}</span>
-                          <span className="job-value">{zone.reason}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {preview.audienceInsights && (
-                  <>
-                    <div className="card-header" style={{ marginTop: 16 }}>
-                      <span className="card-icon">&#128101;</span>
-                      <span className="card-title">Segmentacion de Publico</span>
-                    </div>
-                    <div className="job-grid">
-                      <div className="job-item">
-                        <span className="job-label">Resumen</span>
-                        <span className="job-value">{preview.audienceInsights.summary}</span>
-                      </div>
-                      {preview.audienceInsights.segments.map((item) => (
-                        <div key={item.label} className="job-item">
-                          <span className="job-label">{item.label}</span>
-                          <span className="job-value">{item.reason}</span>
-                          <span className="job-value">Intereses: {item.interests.join(', ')}</span>
-                          <span className="job-value">Senales: {item.intentSignals.join(', ')}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {preview.orchestrator && (
-                  <>
-                    <div className="card-header" style={{ marginTop: 16 }}>
-                      <span className="card-icon">&#129504;</span>
-                      <span className="card-title">Orquestador y Subagentes</span>
-                    </div>
-                    <div className="job-grid">
-                      <div className="job-item">
-                        <span className="job-label">Plan</span>
-                        <span className="job-value">{preview.orchestrator.plan.task}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Cuenta / Tipo</span>
-                        <span className="job-value">
-                          {preview.orchestrator.execution.accountHint} {'/'} {preview.orchestrator.execution.campaignType}
-                        </span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Ciudad / zonas</span>
-                        <span className="job-value">
-                          {preview.orchestrator.execution.city || 'Sin ciudad'}
-                          {preview.orchestrator.execution.zones && preview.orchestrator.execution.zones.length > 0
-                            ? ` | ${preview.orchestrator.execution.zones.join(', ')}`
-                            : ''}
-                        </span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Canal</span>
-                        <span className="job-value">{preview.orchestrator.execution.contactChannel || 'Sin definir'}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Pre-prompt</span>
-                        <span className="job-value">{preview.orchestrator.execution.prePrompt || 'Sin pre-prompt aplicado'}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">ads-analyst</span>
-                        <span className="job-value">
-                          {preview.orchestrator.adsAnalyst.hook} {'|'} CTA: {preview.orchestrator.adsAnalyst.cta}
-                        </span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Publico base</span>
-                        <span className="job-value">{preview.orchestrator.adsAnalyst.audience}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Zonas foco ads-analyst</span>
-                        <span className="job-value">{preview.orchestrator.adsAnalyst.zoneFocus || 'Sin foco adicional'}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Segmentos ads-analyst</span>
-                        <span className="job-value">{preview.orchestrator.adsAnalyst.audienceSegments?.join(' | ') || 'Sin segmentos sugeridos'}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">seo-analyzer</span>
-                        <span className="job-value">{preview.orchestrator.seoAnalyzer?.zoneSummary || 'Sin analisis SEO local'}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Search intent</span>
-                        <span className="job-value">{preview.orchestrator.seoAnalyzer?.searchIntent?.join(' | ') || 'Sin search intent'}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Content angles</span>
-                        <span className="job-value">{preview.orchestrator.seoAnalyzer?.recommendedContentAngles?.join(' | ') || 'Sin angulos sugeridos'}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">image-creator</span>
-                        <span className="job-value">
-                          {preview.orchestrator.imageCreator.style} {'|'} {preview.orchestrator.imageCreator.dimensions}
-                        </span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Prompt visual</span>
-                        <span className="job-value">{preview.orchestrator.imageCreator.prompt}</span>
-                      </div>
-                      {preview.generatedImagePrompt && (
-                        <div className="job-item">
-                          <span className="job-label">Prompt usado para generar la imagen</span>
-                          <span className="job-value">{preview.generatedImagePrompt}</span>
-                        </div>
+                        </>
                       )}
-                      <div className="job-item">
-                        <span className="job-label">marketing</span>
-                        <span className="job-value">
-                          {preview.orchestrator.marketing.verdict}. {preview.orchestrator.marketing.notes.join(' ')}
-                        </span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Zonas recomendadas</span>
-                        <span className="job-value">{preview.orchestrator.execution.recommendedZones?.join(' | ') || 'Sin zonas recomendadas'}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Publicos recomendados</span>
-                        <span className="job-value">{preview.orchestrator.execution.audienceSegments?.join(' | ') || 'Sin publicos recomendados'}</span>
-                      </div>
-                    </div>
-                  </>
-                )}
 
-                {preview.creativeDraftConfig && (
-                  <>
-                    <div className="card-header" style={{ marginTop: 16 }}>
-                      <span className="card-icon">&#127912;</span>
-                      <span className="card-title">Configuracion del Creativo</span>
-                    </div>
-                    <div className="job-grid">
-                      <div className="job-item">
-                        <span className="job-label">Lead Form enlazado</span>
-                        <span className="job-value">{preview.creativeDraftConfig.leadgenFormId}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">CTA</span>
-                        <span className="job-value">{preview.creativeDraftConfig.callToActionType}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Titular</span>
-                        <span className="job-value">{preview.creativeDraftConfig.headline}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Mensaje</span>
-                        <span className="job-value">{preview.creativeDraftConfig.message}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Estado</span>
-                        <span className="job-value">{preview.creativeDraftConfig.adDraftStatus}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Imagen preparada</span>
-                        <span className="job-value">{preview.creativeDraftConfig.imageAssetPath}</span>
-                      </div>
-                      {preview.metaCreative && (
+                      {preview.creativeDraftConfig && (
                         <>
-                          <div className="job-item">
-                            <span className="job-label">Creative ID</span>
-                            <span className="job-value">{preview.metaCreative.creativeId}</span>
+                          <div className="card-header" style={{ marginTop: 16 }}>
+                            <span className="card-icon">&#127912;</span>
+                            <span className="card-title">Creativo</span>
                           </div>
-                          <div className="job-item">
-                            <span className="job-label">Image Hash</span>
-                            <span className="job-value">{preview.metaCreative.imageHash}</span>
+                          <div className="job-grid">
+                            <div className="job-item">
+                              <span className="job-label">Titular</span>
+                              <span className="job-value">{preview.creativeDraftConfig.headline}</span>
+                            </div>
+                            <div className="job-item">
+                              <span className="job-label">Mensaje</span>
+                              <span className="job-value">{preview.creativeDraftConfig.message}</span>
+                            </div>
+                            <div className="job-item">
+                              <span className="job-label">CTA</span>
+                              <span className="job-value">{preview.creativeDraftConfig.callToActionType}</span>
+                            </div>
+                            <div className="job-item">
+                              <span className="job-label">Estado</span>
+                              <span className="job-value">{preview.creativeDraftConfig.adDraftStatus}</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {preview.adDraftConfig && (
+                        <>
+                          <div className="card-header" style={{ marginTop: 16 }}>
+                            <span className="card-icon">&#128227;</span>
+                            <span className="card-title">Anuncio</span>
+                          </div>
+                          <div className="job-grid">
+                            <div className="job-item">
+                              <span className="job-label">Nombre</span>
+                              <span className="job-value">{preview.adDraftConfig.adName}</span>
+                            </div>
+                            <div className="job-item">
+                              <span className="job-label">Estado</span>
+                              <span className="job-value">{preview.adDraftConfig.status}</span>
+                            </div>
+                            {preview.metaAd && (
+                              <div className="job-item">
+                                <span className="job-label">Ad ID</span>
+                                <span className="job-value">{preview.metaAd.adId}</span>
+                              </div>
+                            )}
                           </div>
                         </>
                       )}
                     </div>
-                  </>
-                )}
+                  )}
+                </>
+              )}
 
-                {preview.adDraftConfig && (
-                  <>
-                    <div className="card-header" style={{ marginTop: 16 }}>
-                      <span className="card-icon">&#128227;</span>
-                      <span className="card-title">Configuracion del Anuncio</span>
-                    </div>
-                    <div className="job-grid">
-                      <div className="job-item">
-                        <span className="job-label">Ad Set</span>
-                        <span className="job-value">{preview.adDraftConfig.adsetId}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Nombre</span>
-                        <span className="job-value">{preview.adDraftConfig.adName}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Estado</span>
-                        <span className="job-value">{preview.adDraftConfig.status}</span>
-                      </div>
-                      <div className="job-item">
-                        <span className="job-label">Creative</span>
-                        <span className="job-value">{preview.adDraftConfig.creativeStatus}</span>
-                      </div>
-                      {preview.metaAd && (
-                        <div className="job-item">
-                          <span className="job-label">Ad ID</span>
-                          <span className="job-value">{preview.metaAd.adId}</span>
-                        </div>
-                      )}
-                    </div>
-                  </>
+              {/* Footer step 3 */}
+              <div className="marketing-modal__footer">
+                <button className="btn btn--ghost" onClick={() => setStep('configure')} style={{ flex: 'none' }} disabled={runState === 'running'}>
+                  Atras
+                </button>
+                <span className="marketing-validation" style={{ flex: 1, textAlign: 'center' }}>
+                  {runState === 'running' ? 'El agente esta trabajando...' : runState === 'success' ? 'Campana creada. Revisa los detalles arriba.' : ''}
+                </span>
+                {runState !== 'running' && (
+                  <button
+                    className="btn btn--start"
+                    onClick={handleRun}
+                    disabled={!canRun}
+                    style={{ flex: 'none', minWidth: 180 }}
+                  >
+                    {runState === 'success' || runState === 'error' ? 'Re-ejecutar' : 'Ejecutar campana'}
+                  </button>
                 )}
               </div>
-            )}
-          </div>
-        </div>
-
-        <div className="marketing-modal__footer">
-          <span className="marketing-validation">{validationMessage}</span>
-          <button
-            className="btn btn--start"
-            disabled={!canRun}
-            onClick={handleRun}
-          >
-            {runState === 'running' ? 'Ejecutando agente...' : 'Continuar a vista previa'}
-          </button>
+            </>
+          )}
         </div>
       </section>
     </div>

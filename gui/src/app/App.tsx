@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import { BrochurePage } from '../pages/BrochurePage'
+import { ChatBotPage } from '../pages/ChatBotPage'
 import { CompanyProfilesPage } from '../pages/CompanyProfilesPage'
 import { Header } from '../components/Header'
 import { SettingsPage } from '../pages/SettingsPage'
@@ -9,10 +10,10 @@ import { MarketingCampaignModal } from '../features/marketing/MarketingCampaignM
 import { useBotStatus } from '../hooks/useBotStatus'
 import { HomePage } from '../pages/HomePage'
 
-type AppPage = 'home' | 'companies' | 'settings' | 'brochure'
+type AppPage = 'assistant' | 'home' | 'companies' | 'settings' | 'brochure'
 
 export default function App() {
-  const [page, setPage] = useState<AppPage>('home')
+  const [page, setPage] = useState<AppPage>('assistant')
   const [marketingOpen, setMarketingOpen] = useState(false)
   const { brandName, brandLogoUrl, refreshBrand } = useBranding()
   const botStatus = useBotStatus()
@@ -26,6 +27,9 @@ export default function App() {
         onOpenSettings={() => setPage('settings')}
       />
       <nav className="app-tabs">
+        <button className={`app-tab ${page === 'assistant' ? 'app-tab--active' : ''}`} onClick={() => setPage('assistant')}>
+          Asistente
+        </button>
         <button className={`app-tab ${page === 'home' ? 'app-tab--active' : ''}`} onClick={() => setPage('home')}>
           Panel
         </button>
@@ -37,6 +41,7 @@ export default function App() {
         </button>
       </nav>
 
+      {page === 'assistant' && <ChatBotPage />}
       {page === 'home' && (
         <HomePage
           botStatus={botStatus}

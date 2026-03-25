@@ -269,11 +269,23 @@ function runLocalMarketingOrchestrator(preview) {
     ],
   }
 
+  const userDescription = String(preview.prePrompt || preview.campaignIdea || '').trim()
   const imageCreator = {
     dimensions: '1200x628',
     style: contactConfig.mode === 'whatsapp' ? 'Local service cercano y confiable' : 'Captacion local premium',
-    prompt:
-      `Create a Facebook ad image for ${segment.serviceLabel} in ${segment.city}, Colombia. Prioritize visual cues from ${segment.zoneLabel}. Show ${segment.visualReference}. Keep it clean, high-contrast, mobile-friendly, no tiny unreadable text, and aligned with a ${contactConfig.mode === 'whatsapp' ? 'WhatsApp conversation' : 'lead generation'} campaign.`,
+    prompt: [
+      `Create a Facebook ad image for: "${userDescription || segment.serviceLabel}".`,
+      `The campaign promotes: ${segment.serviceLabel} in ${segment.city}, Colombia.`,
+      `Key zones: ${segment.zoneLabel}.`,
+      `Target audience: ${segment.role} (${segment.industry}).`,
+      `Pain point the ad addresses: ${segment.pain}`,
+      `Hook/message: ${adsAnalyst.hook}`,
+      `Visual direction: ${segment.visualReference}`,
+      `The user specifically described: "${userDescription}". Make this the CENTRAL visual theme of the image.`,
+      `Style: high-contrast, mobile-first, realistic photography, professional.`,
+      `Campaign type: ${contactConfig.mode === 'whatsapp' ? 'WhatsApp conversation' : 'lead generation form'}.`,
+      `IMPORTANT: The image must visually reflect "${userDescription}" — not a generic office scene. Be creative and specific to what the user described.`,
+    ].join('\n'),
     status: selectedImage?.preparedPath ? 'asset_local_listo' : 'brief_listo',
     selectedAsset: selectedImage
       ? {
@@ -323,7 +335,7 @@ function runLocalMarketingOrchestrator(preview) {
     zoneInsights: intelligence?.zoneInsights || null,
     audienceInsights: intelligence?.audienceInsights || null,
     execution: {
-      accountHint: `act_${getTargetAdAccountId()}`,
+      accountHint: String(getTargetAdAccountId()).startsWith('act_') ? getTargetAdAccountId() : `act_${getTargetAdAccountId()}`,
       accountId: getTargetAdAccountId(),
       pageId,
       campaignType: contactConfig.campaignType,

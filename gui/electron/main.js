@@ -24,7 +24,7 @@ function createWindow() {
     minWidth: 760,
     minHeight: 500,
     title: 'Bot Publicitario NoyeCode',
-    backgroundColor: '#0a0a1a',
+    backgroundColor: '#f8f9fb',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -68,6 +68,7 @@ app.whenReady().then(() => {
   const { registerMarketingHandlers } = require('./ipc/marketing')
   const { registerLogoHandlers } = require('./ipc/logo')
   const { registerBrochureHandlers } = require('./ipc/brochure')
+  const { registerChatHandlers } = require('./ipc/chat')
 
   registerBotHandlers(ipcMain)
   registerPollerHandlers(ipcMain)
@@ -76,6 +77,7 @@ app.whenReady().then(() => {
   registerMarketingHandlers(ipcMain)
   registerLogoHandlers(ipcMain)
   registerBrochureHandlers(ipcMain)
+  registerChatHandlers(ipcMain)
 
   // 3. Start log watchers (lightweight)
   const { startLogWatcher, startBotLogWatcher } = require('./log-watcher')
