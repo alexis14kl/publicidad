@@ -7,6 +7,7 @@
     "start": "iniciar.bat"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.83",
     "playwright": "^1.58.0"
   }
 }

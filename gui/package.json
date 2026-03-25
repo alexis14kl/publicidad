@@ -10,6 +10,7 @@
     "start": "electron ."
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.83",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
