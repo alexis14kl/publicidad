@@ -501,6 +501,237 @@ export interface MarketingRunUpdate {
   }
 }
 
+// ── Meta Marketing API Types ──────────────────────────────────────────────────
+
+export interface MetaApiResult {
+  success: boolean
+  error?: string
+}
+
+export interface MetaAppTokenResult extends MetaApiResult {
+  access_token?: string
+  token_type?: string
+}
+
+export interface MetaOAuthUrlResult extends MetaApiResult {
+  url?: string
+}
+
+export interface MetaExchangeCodePayload {
+  code: string
+  appId?: string
+  appSecret?: string
+  redirectUri?: string
+}
+
+export interface MetaTokenResult extends MetaApiResult {
+  access_token?: string
+  token_type?: string
+  expires_in?: number | null
+}
+
+export interface MetaExchangeLongLivedPayload {
+  shortLivedToken: string
+  appId?: string
+  appSecret?: string
+}
+
+export interface MetaPageToken {
+  id: string
+  name: string
+  access_token: string
+  category: string
+  tasks: string[]
+}
+
+export interface MetaPageTokensResult extends MetaApiResult {
+  pages?: MetaPageToken[]
+}
+
+export interface MetaDebugTokenPayload {
+  inputToken: string
+  appToken?: string
+  appId?: string
+  appSecret?: string
+}
+
+export interface MetaDebugTokenResult extends MetaApiResult {
+  app_id?: string
+  type?: string
+  is_valid?: boolean
+  expires_at?: number
+  scopes?: string[]
+  user_id?: string
+}
+
+export interface MetaUploadAdImagePayload {
+  adAccountId?: string
+  imageBase64?: string
+  imagePath?: string
+  token?: string
+}
+
+export interface MetaUploadAdImageResult extends MetaApiResult {
+  image_hash?: string
+  url?: string
+  name?: string
+}
+
+export interface MetaCreateLeadgenFormPayload {
+  pageId?: string
+  token?: string
+  name?: string
+  questions?: { type: string }[]
+  privacyPolicyUrl?: string
+  thankYouTitle?: string
+  thankYouBody?: string
+  locale?: string
+}
+
+export interface MetaCreateLeadgenFormResult extends MetaApiResult {
+  form_id?: string
+}
+
+export interface MetaCreateCampaignPayload {
+  adAccountId?: string
+  token?: string
+  name?: string
+  objective?: string
+  status?: string
+  specialAdCategories?: string[]
+  bidStrategy?: string
+}
+
+export interface MetaCreateCampaignResult extends MetaApiResult {
+  campaign_id?: string
+}
+
+export interface MetaCreateAdSetPayload {
+  adAccountId?: string
+  token?: string
+  name?: string
+  campaignId: string
+  optimizationGoal?: string
+  billingEvent?: string
+  dailyBudget?: number
+  bidAmount?: number
+  status?: string
+  pageId?: string
+  targeting?: {
+    geo_locations?: { countries?: string[]; cities?: { key: string }[] }
+    age_min?: number
+    age_max?: number
+    genders?: number[]
+    interests?: { id: string; name: string }[]
+  }
+}
+
+export interface MetaCreateAdSetResult extends MetaApiResult {
+  adset_id?: string
+}
+
+export interface MetaCreateAdCreativePayload {
+  adAccountId?: string
+  token?: string
+  name?: string
+  pageId?: string
+  imageHash: string
+  message?: string
+  caption?: string
+  callToActionType?: string
+  leadgenFormId?: string
+}
+
+export interface MetaCreateAdCreativeResult extends MetaApiResult {
+  creative_id?: string
+}
+
+export interface MetaCreateAdPayload {
+  adAccountId?: string
+  token?: string
+  name?: string
+  adsetId: string
+  creativeId: string
+  status?: string
+}
+
+export interface MetaCreateAdResult extends MetaApiResult {
+  ad_id?: string
+}
+
+export interface MetaActivateCampaignPayload {
+  campaignId: string
+  token?: string
+}
+
+export interface MetaActivateCampaignResult extends MetaApiResult {
+  campaign_id?: string
+}
+
+export interface MetaLeadPipelinePayload {
+  token?: string
+  pageToken?: string
+  adAccountId?: string
+  pageId?: string
+  imageBase64?: string
+  imagePath?: string
+  formName?: string
+  formQuestions?: { type: string }[]
+  privacyPolicyUrl?: string
+  campaignName?: string
+  campaignObjective?: string
+  bidStrategy?: string
+  adsetName?: string
+  dailyBudget?: number
+  bidAmount?: number
+  targeting?: MetaCreateAdSetPayload['targeting']
+  creativeName?: string
+  message?: string
+  caption?: string
+  callToActionType?: string
+  adName?: string
+}
+
+export interface MetaLeadPipelineResult extends MetaApiResult {
+  image_hash?: string | null
+  form_id?: string | null
+  campaign_id?: string | null
+  adset_id?: string | null
+  creative_id?: string | null
+  ad_id?: string | null
+  errors?: string[]
+}
+
+export interface MetaPipelineStepEvent {
+  step: number
+  message: string
+}
+
+export interface MetaPublishPagePostPayload {
+  pageId?: string
+  token?: string
+  message?: string
+  link?: string
+  published?: boolean
+}
+
+export interface MetaPublishPagePostResult extends MetaApiResult {
+  post_id?: string
+}
+
+export interface MetaPublishPagePhotoPayload {
+  pageId?: string
+  token?: string
+  imageUrl: string
+  message?: string
+  published?: boolean
+}
+
+export interface MetaPublishPagePhotoResult extends MetaApiResult {
+  post_id?: string
+  photo_id?: string
+}
+
 export interface PreflightCheck {
   name: string
   required: string
@@ -547,4 +778,22 @@ export interface ElectronAPI {
   onLogNewLines: (callback: (lines: string[]) => void) => () => void
   onBotLogLines: (callback: (lines: string[]) => void) => () => void
   onMarketingRunUpdate: (callback: (update: MarketingRunUpdate) => void) => () => void
+  // Meta Marketing API
+  metaGetAppToken: (payload?: Record<string, string>) => Promise<MetaAppTokenResult>
+  metaGetOAuthUrl: (payload?: Record<string, string | string[]>) => Promise<MetaOAuthUrlResult>
+  metaExchangeCode: (payload: MetaExchangeCodePayload) => Promise<MetaTokenResult>
+  metaExchangeLongLived: (payload: MetaExchangeLongLivedPayload) => Promise<MetaTokenResult>
+  metaGetPageTokens: (payload?: { userToken?: string }) => Promise<MetaPageTokensResult>
+  metaDebugToken: (payload: MetaDebugTokenPayload) => Promise<MetaDebugTokenResult>
+  metaUploadAdImage: (payload: MetaUploadAdImagePayload) => Promise<MetaUploadAdImageResult>
+  metaCreateLeadgenForm: (payload?: MetaCreateLeadgenFormPayload) => Promise<MetaCreateLeadgenFormResult>
+  metaCreateCampaign: (payload?: MetaCreateCampaignPayload) => Promise<MetaCreateCampaignResult>
+  metaCreateAdset: (payload: MetaCreateAdSetPayload) => Promise<MetaCreateAdSetResult>
+  metaCreateAdCreative: (payload: MetaCreateAdCreativePayload) => Promise<MetaCreateAdCreativeResult>
+  metaCreateAd: (payload: MetaCreateAdPayload) => Promise<MetaCreateAdResult>
+  metaActivateCampaign: (payload: MetaActivateCampaignPayload) => Promise<MetaActivateCampaignResult>
+  metaExecuteLeadPipeline: (payload: MetaLeadPipelinePayload) => Promise<MetaLeadPipelineResult>
+  metaPublishPagePost: (payload?: MetaPublishPagePostPayload) => Promise<MetaPublishPagePostResult>
+  metaPublishPagePhoto: (payload: MetaPublishPagePhotoPayload) => Promise<MetaPublishPagePhotoResult>
+  onMetaPipelineStep: (callback: (data: MetaPipelineStepEvent) => void) => () => void
 }

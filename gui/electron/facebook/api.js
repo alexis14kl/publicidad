@@ -435,7 +435,7 @@ function validateMetaToken(token) {
       return
     }
 
-    const url = new URL('https://graph.facebook.com/v22.0/me/adaccounts')
+    const url = new URL('https://graph.facebook.com/v25.0/me/adaccounts')
     url.searchParams.set('limit', '1')
     url.searchParams.set('fields', 'id,name')
     url.searchParams.set('access_token', token)
@@ -499,7 +499,7 @@ function validateMetaToken(token) {
 
 function facebookApiRequest(method, pathName, params = {}, token = '') {
   return new Promise((resolve, reject) => {
-    const url = new URL(`https://graph.facebook.com/v22.0/${pathName.replace(/^\/+/, '')}`)
+    const url = new URL(`https://graph.facebook.com/v25.0/${pathName.replace(/^\/+/, '')}`)
     const headers = {
       Accept: 'application/json',
       'User-Agent': 'noyecode-facebook-ads-mcp/1.0',
