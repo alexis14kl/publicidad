@@ -30,7 +30,7 @@ function updateContext(text) {
   conversationContext.messages.push(text)
   const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
-  // Accumulate description
+  // Accumulate description within the session
   const cleaned = text
     .replace(/^(genera|crea|publica|haz|diseña|lanza|quiero)\s+(una?\s+)?(imagen|foto|video|reel|campana|campaña|anuncio|publicacion)\s*(de|sobre|para|con)?\s*/i, '')
     .trim()
@@ -40,10 +40,15 @@ function updateContext(text) {
       : cleaned
   }
 
-  // Detect type (latest wins)
-  if (/video|reel|clip|animacion/.test(lower)) conversationContext.type = 'video'
-  else if (/campana|campaign|leads|anuncio|ads|pauta/.test(lower)) conversationContext.type = 'campaign'
-  else if (/imagen|image|foto|genera|crear|disena/.test(lower)) conversationContext.type = 'image'
+  // Detect type — image is DEFAULT, campaign/video only if explicitly mentioned
+  if (/video|reel|clip|animacion/.test(lower)) {
+    conversationContext.type = 'video'
+  } else if (/campan[aã]|campaign|leads|anuncio(?:s)?(?:\s+pag(?:ados|ado))?|ads\b|pauta/.test(lower)) {
+    conversationContext.type = 'campaign'
+  } else {
+    // Default: image (including "genera imagen", "crea una foto", or just a description)
+    conversationContext.type = 'image'
+  }
 
   // Detect platform — default facebook, only change if EXPLICITLY mentioned in THIS message
   if (/instagram|ig\b/.test(lower)) conversationContext.platform = 'instagram'
@@ -116,12 +121,13 @@ async function generateContent(ctx) {
   console.log('[GENERATE] Using Claude AI image prompt:', ctx.aiImagePrompt.slice(0, 100))
   const imagePrompt = `Generate this image now:\n\n${ctx.aiImagePrompt}\n\nAll visible text in the image MUST be in Spanish. Full-bleed design, no margins. Reserve top 8% for logo. Deliver exactly ONE final image.`
 
-  // For video: DON'T pass profile_name — let the orchestrator pick VIDEO_INITIAL_PROFILE
-  // For image: use INITIAL_PROFILE (ChatGPT)
   const payload = JSON.stringify({
     ...(ctx.type !== 'video' ? { profile_name: env.INITIAL_PROFILE || '#1 Chat Gpt PRO' } : {}),
     image_prompt: imagePrompt,
   })
+
+  // Record timestamp BEFORE generation to distinguish new files from old ones
+  const startTime = Date.now()
 
   return new Promise((resolve, reject) => {
     const child = spawn(pythonBin, ['-m', 'core.server.bot_runner', 'run_full_cycle', payload], {
@@ -133,24 +139,27 @@ async function generateContent(ctx) {
       const outputDir = ctx.type === 'video'
         ? path.join(PROJECT_ROOT, 'output', 'videos')
         : path.join(PROJECT_ROOT, 'output', 'images')
-      const latest = findLatestFile(outputDir)
-      if (code === 0 && latest) {
-        resolve(latest)
-      } else if (latest) {
-        // Even if exit code != 0, if we have an image, use it
-        resolve(latest)
+      // Only accept files created AFTER we started generation
+      const newFile = findFileNewerThan(outputDir, startTime)
+      if (newFile) {
+        resolve(newFile)
       } else {
-        reject(new Error(`Generación terminó con código ${code}. No se encontró archivo generado.`))
+        reject(new Error(
+          code === 0
+            ? 'El bot terminó OK pero no se generó un archivo nuevo. Revisa que DiCloak esté abierto y ChatGPT tenga sesión activa.'
+            : `El bot terminó con código ${code}. Revisa los logs del bot.`
+        ))
       }
     })
   })
 }
 
-function findLatestFile(dir) {
+function findFileNewerThan(dir, afterMs) {
   if (!fs.existsSync(dir)) return null
   const files = fs.readdirSync(dir)
     .filter(f => /\.(png|jpg|jpeg|mp4|webm)$/i.test(f))
-    .map(f => ({ name: f, full: path.join(dir, f), mtime: fs.statSync(path.join(dir, f)).mtimeMs }))
+    .map(f => ({ full: path.join(dir, f), mtime: fs.statSync(path.join(dir, f)).mtimeMs }))
+    .filter(f => f.mtime > afterMs)
     .sort((a, b) => b.mtime - a.mtime)
   return files[0]?.full || null
 }
@@ -166,24 +175,47 @@ async function getCampaignPreview(ctx) {
     name: ctx.description,
     description: ctx.description,
     budget: ctx.budget,
+    content_type: ctx.type,  // image, video, or campaign
     access_token: env.FB_ACCESS_TOKEN || '',
     ad_account_id: env.FB_AD_ACCOUNT_ID || 'act_438871067037500',
     page_id: env.FB_PAGE_ID || '115406607722279',
   }
 
   try {
-    const stdout = await new Promise((resolve) => {
+    const { stdout, stderr } = await new Promise((resolve) => {
       let out = ''
+      let err = ''
       const child = spawn(pythonBin, ['-m', 'core.n8n.meta_campaign_engine', '--dry-run', '--stdin'], {
-        cwd: PROJECT_ROOT, env: { ...env, PYTHONPATH: PROJECT_ROOT },
+        cwd: PROJECT_ROOT, env: { ...env, PYTHONPATH: PROJECT_ROOT, ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY || '' },
       })
       child.stdin.write(JSON.stringify(engineInput))
       child.stdin.end()
       child.stdout?.on('data', d => { out += d.toString() })
-      child.on('exit', () => resolve(out))
+      child.stderr?.on('data', d => { err += d.toString() })
+      child.on('exit', () => resolve({ stdout: out, stderr: err }))
     })
-    return JSON.parse(stdout)
-  } catch {
+
+    // Log stderr (Claude analysis progress)
+    if (stderr) {
+      for (const line of stderr.split('\n').filter(Boolean)) {
+        console.log('[CAMPAIGN-ENGINE]', line)
+      }
+    }
+
+    if (!stdout.trim()) {
+      console.error('[CAMPAIGN-ENGINE] No output from engine. stderr:', stderr.slice(0, 300))
+      return null
+    }
+
+    const spec = JSON.parse(stdout)
+    if (spec?.meta?.image_prompt) {
+      console.log('[CAMPAIGN-ENGINE] image_prompt:', spec.meta.image_prompt.slice(0, 100))
+    } else {
+      console.warn('[CAMPAIGN-ENGINE] No image_prompt in spec')
+    }
+    return spec
+  } catch (err) {
+    console.error('[CAMPAIGN-ENGINE] Parse error:', err.message)
     return null
   }
 }
@@ -191,47 +223,82 @@ async function getCampaignPreview(ctx) {
 // ─── Publishing ─────────────────────────────────────────────────────────────
 
 async function publishToMeta(job) {
-  const { ctx, filePath } = job
+  const { ctx, filePath, spec } = job
 
-  if (ctx.publishAs === 'campaign') {
-    return publishCampaign(ctx)
+  if (ctx.publishAs === 'campaign' || ctx.type === 'campaign') {
+    // Use the SAME spec the AI already generated — don't regenerate
+    return executeCampaignSpec(spec, filePath)
   }
 
-  // Publish image/video
-  const pythonBin = findPython()
-  if (!pythonBin) throw new Error('Python no encontrado')
+  // Publish image/video directly via Meta API REST (POST /{PAGE_ID}/photos)
+  if (!filePath) throw new Error('No hay imagen para publicar.')
 
   const env = getProjectEnv()
-  const botEnv = { ...env, PYTHONPATH: PROJECT_ROOT, PYTHONIOENCODING: 'utf-8' }
-  if (ctx.companyName) {
-    const credEnv = buildCompanyCredentialEnv(ctx.companyName)
-    if (credEnv) Object.assign(botEnv, credEnv)
-  }
+  const pageToken = env.FB_PAGE_ACCESS_TOKEN || env.FB_ACCESS_TOKEN || ''
+  const pageId = env.FB_PAGE_ID || '115406607722279'
+  if (!pageToken) throw new Error('No hay FB_ACCESS_TOKEN ni FB_PAGE_ACCESS_TOKEN en .env')
 
-  // Use Claude's post_caption (written by copywriting agent) as the post text
-  const postCaption = spec?.meta?.post_caption || ''
-  const hashtags = (spec?.meta?.post_hashtags || []).map(h => h.startsWith('#') ? h : `#${h}`).join(' ')
-  const caption = postCaption
-    ? `${postCaption}${hashtags ? '\n\n' + hashtags : ''}`
+  // Build caption from Claude's analysis
+  const analysis = spec?.meta?.ai_analysis || ''
+  const caption = analysis
+    ? `${ctx.description}\n\n${analysis.slice(0, 200)}\n\nnoyecode.com`
     : `${ctx.description}\n\nnoyecode.com`
 
+  // Read image and convert to base64 for multipart upload
+  const imageBuffer = fs.readFileSync(filePath)
+  const boundary = '----FormBoundary' + Date.now().toString(36)
+  const body = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="source"; filename="image.png"\r\nContent-Type: image/png\r\n\r\n`
+    ),
+    imageBuffer,
+    Buffer.from(
+      `\r\n--${boundary}\r\nContent-Disposition: form-data; name="message"\r\n\r\n${caption}\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="access_token"\r\n\r\n${pageToken}\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="published"\r\n\r\ntrue\r\n` +
+      `--${boundary}--\r\n`
+    ),
+  ])
+
+  const https = require('https')
   return new Promise((resolve, reject) => {
-    let stdout = ''
-    let stderr = ''
-    const child = spawn(pythonBin, [path.join(PROJECT_ROOT, 'core', 'n8n', 'public_img.py'), ...args], {
-      cwd: PROJECT_ROOT, env: botEnv,
+    const req = https.request({
+      hostname: 'graph.facebook.com',
+      path: `/v25.0/${pageId}/photos`,
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': body.length,
+      },
+    }, (res) => {
+      let data = ''
+      res.on('data', chunk => { data += chunk })
+      res.on('end', () => {
+        try {
+          const result = JSON.parse(data)
+          if (result.id || result.post_id) {
+            resolve({ success: true, message: `Publicado en ${ctx.platform}. Post ID: ${result.post_id || result.id}` })
+          } else if (result.error) {
+            reject(new Error(`Meta API: ${result.error.message || JSON.stringify(result.error)}`))
+          } else {
+            resolve({ success: true, message: `Publicado en ${ctx.platform}.` })
+          }
+        } catch {
+          reject(new Error(`Respuesta inesperada de Meta: ${data.slice(0, 200)}`))
+        }
+      })
     })
-    child.stdout?.on('data', d => { stdout += d.toString() })
-    child.stderr?.on('data', d => { stderr += d.toString() })
-    child.on('exit', (code) => {
-      code === 0
-        ? resolve({ success: true, message: `Publicado en ${ctx.platform}.` })
-        : reject(new Error(stderr.slice(0, 300) || `exit ${code}`))
-    })
+    req.on('error', reject)
+    req.write(body)
+    req.end()
   })
 }
 
-async function publishCampaign(ctx) {
+async function executeCampaignSpec(spec, imagePath) {
+  /**
+   * Ejecuta el spec que el AI ya generó — NO vuelve a analizar.
+   * Pasa la imagen generada por DiCloak al spec para que los creativos la usen.
+   */
   const pythonBin = findPython()
   if (!pythonBin) throw new Error('Python no encontrado')
 
@@ -239,32 +306,46 @@ async function publishCampaign(ctx) {
   const token = env.FB_ACCESS_TOKEN || ''
   if (!token) throw new Error('No hay FB_ACCESS_TOKEN en .env')
 
-  const input = {
-    name: ctx.description,
-    description: ctx.description,
-    budget: ctx.budget,
-    access_token: token,
-    ad_account_id: env.FB_AD_ACCOUNT_ID || 'act_438871067037500',
-    page_id: env.FB_PAGE_ID || '115406607722279',
+  if (!spec || !spec.campaign) {
+    throw new Error('No hay spec de campaña para ejecutar.')
+  }
+
+  // Inject access_token and image path into the spec
+  spec._execute = true
+  spec._access_token = token
+  if (imagePath) {
+    spec._image_path = imagePath
   }
 
   return new Promise((resolve, reject) => {
     let stdout = ''
     let stderr = ''
-    const child = spawn(pythonBin, ['-m', 'core.n8n.meta_campaign_engine', '--stdin'], {
-      cwd: PROJECT_ROOT, env: { ...env, PYTHONPATH: PROJECT_ROOT },
+    // Pass the FULL spec via stdin with --execute flag
+    const child = spawn(pythonBin, ['-m', 'core.n8n.meta_campaign_engine', '--stdin', '--execute-spec'], {
+      cwd: PROJECT_ROOT, env: { ...env, PYTHONPATH: PROJECT_ROOT, ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY || '' },
     })
-    child.stdin.write(JSON.stringify(input))
+    child.stdin.write(JSON.stringify(spec))
     child.stdin.end()
     child.stdout?.on('data', d => { stdout += d.toString() })
     child.stderr?.on('data', d => { stderr += d.toString() })
     child.on('exit', (code) => {
       try {
         const result = JSON.parse(stdout)
-        const r = result.results || {}
-        r.ok
-          ? resolve({ success: true, message: `Campaña creada (PAUSED). ID: ${r.campaign?.id}` })
-          : reject(new Error((r.errors || [])[0] || 'Error'))
+        const r = result.results || result
+        if (r.ok) {
+          const adsets = (r.adsets || []).filter(a => a.id)
+          const adCount = adsets.reduce((sum, a) => sum + (a.ads || []).length, 0)
+          resolve({
+            success: true,
+            message: `Campaña creada en Meta Ads (PAUSED).\n\n`
+              + `• ID Campaña: ${r.campaign?.id}\n`
+              + `• ${adsets.length} conjuntos de anuncios\n`
+              + `• ${adCount} anuncios\n`
+              + (imagePath ? `• Imagen incluida en los creativos` : ''),
+          })
+        } else {
+          reject(new Error((r.errors || [])[0] || 'Error creando campaña'))
+        }
       } catch {
         reject(new Error(stderr.slice(0, 300) || `exit ${code}`))
       }
@@ -293,29 +374,52 @@ async function handleChatCommand(text) {
 
   const typeLabel = ctx.type === 'video' ? 'video' : ctx.type === 'campaign' ? 'imagen para la campaña' : 'imagen'
 
-  // ── STEP 1: Generate visual content FIRST ──
+  // ══════════════════════════════════════════════════════════════════════
+  // STEP 1: MANDATORY — Claude analyzes via skills/agents
+  // Sin respuesta de Claude = no continuar. NADA se genera sin análisis.
+  // ══════════════════════════════════════════════════════════════════════
+  console.log('[CHAT] Step 1: Sending to Claude for analysis...')
+  const spec = await getCampaignPreview(ctx)
+
+  if (!spec || !spec.meta || spec.meta.error) {
+    const reason = spec?.meta?.error || 'Claude no respondió'
+    return {
+      success: false,
+      error: `Los agentes expertos no pudieron analizar tu solicitud: ${reason}.\n\nVerifica que ANTHROPIC_API_KEY esté configurada en .env y que el servicio esté disponible. Intenta de nuevo.`,
+    }
+  }
+
+  if (!spec.meta.image_prompt) {
+    return {
+      success: false,
+      error: 'Claude analizó la solicitud pero no generó el prompt de imagen. Intenta con una descripción más detallada.',
+    }
+  }
+
+  ctx.aiImagePrompt = spec.meta.image_prompt
+  console.log('[CHAT] Step 1 OK: image_prompt =', spec.meta.image_prompt.slice(0, 80))
+  console.log('[CHAT] Step 1 OK: analysis =', (spec.meta.ai_analysis || '').slice(0, 80))
+  console.log('[CHAT] Step 1 OK: adsets =', (spec.adsets || []).length)
+
+  // ══════════════════════════════════════════════════════════════════════
+  // STEP 2: Generate visual content via DiCloak using Claude's prompt
+  // ══════════════════════════════════════════════════════════════════════
+  console.log('[CHAT] Step 2: Generating visual content with DiCloak...')
   let filePath = null
   try {
     filePath = await generateContent(ctx)
+    console.log('[CHAT] Step 2 OK: filePath =', filePath)
   } catch (err) {
     console.error('[CHAT] Step 2 FAILED:', err.message)
-
-    if (ctx.type === 'video') {
-      return {
-        success: false,
-        error: `No se pudo generar el video: ${err.message}\n\n`
-          + 'Google Flow (Veo 3) no respondió correctamente. Verifica:\n'
-          + '• Que el perfil "Flow Veo 3" esté abierto en DiCloak\n'
-          + '• Que la sesión de Google esté activa en ese perfil\n'
-          + '• Que labs.google/fx/tools/flow cargue correctamente',
-      }
-    } else if (ctx.type !== 'campaign') {
+    // For campaigns, continue without image. For standalone images, fail.
+    if (ctx.type !== 'campaign') {
       return { success: false, error: `No se pudo generar la ${typeLabel}: ${err.message}` }
     }
   }
 
-  // ── STEP 2: Get campaign spec if it's a campaign (AI analyzes) ──
-  let spec = null
+  // ══════════════════════════════════════════════════════════════════════
+  // STEP 3: Build campaign info from Claude's analysis
+  // ══════════════════════════════════════════════════════════════════════
   let campaignInfo = ''
 
   // ══════════════════════════════════════════════════════════════════════
@@ -327,24 +431,6 @@ async function handleChatCommand(text) {
 
   // Start with Claude's strategic analysis
   campaignInfo = '\n\n**Análisis de los agentes expertos:**\n' + (meta.ai_analysis || 'Sin análisis disponible.')
-
-  // Show the post caption that will be published
-  const postCaption = meta.post_caption || ''
-  const postHashtags = (meta.post_hashtags || []).map(h => h.startsWith('#') ? h : `#${h}`).join(' ')
-  if (postCaption) {
-    campaignInfo += '\n\n**Texto de la publicación:**\n' + postCaption
-    if (postHashtags) campaignInfo += '\n' + postHashtags
-  }
-
-  // Show video scenes storyboard if available
-  const videoScenes = spec?.video_scenes || spec?.meta?.video_scenes || []
-  if (videoScenes.length > 0) {
-    campaignInfo += '\n\n**Storyboard del video (' + videoScenes.length + ' escenas):**'
-    for (const scene of videoScenes) {
-      campaignInfo += `\n• **Escena ${scene.scene_number || '?'}** (${scene.duration_seconds || 7}s): ${scene.visual_description || ''}`
-      if (scene.voiceover) campaignInfo += `\n  _Narración: "${scene.voiceover}"_`
-    }
-  }
 
   // Campaign-specific info: audiences, ads, schedule
   if (adsets.length > 0) {
@@ -376,43 +462,10 @@ async function handleChatCommand(text) {
 
   // Campaign state
   if (ctx.type === 'campaign') {
-    spec = await getCampaignPreview(ctx)
-    if (spec) {
-      const meta = spec.meta || {}
-      const schedule = meta.schedule || {}
-
-      // AI analysis and reasoning
-      const aiAnalysis = meta.ai_analysis || ''
-      const calendarReasoning = meta.ai_calendar_reasoning || ''
-      const warnings = meta.ai_warnings || []
-
-      // Extract audiences and their reasoning
-      const adsets = spec.adsets || []
-      const audienceLines = adsets.map((a) => {
-        const dailyCop = Math.round((a.daily_budget || 0) / 100)
-        const interestCount = a.interests_resolved || 0
-        const cities = (a.targeting?.geo_locations?.cities || []).map(c => c.name).join(', ') || 'Colombia'
-        return `• **${a.audience_key}** — $${dailyCop.toLocaleString()}/día | ${cities} | ${interestCount} intereses\n  _${a.reasoning || ''}_`
-      }).join('\n')
-
-      // Extract ad angles
-      const adLines = adsets.flatMap(a => (a.ads || []).map(ad =>
-        `• **${ad.angle || ad.name}**: "${(ad.creative?.object_story_spec?.link_data?.name || '').slice(0, 50)}..."\n  _${ad.reasoning || ''}_`
-      )).join('\n')
-
-      campaignInfo = '\n\n**Análisis del experto en marketing:**'
-        + (aiAnalysis ? `\n${aiAnalysis}` : '')
-        + `\n\n**Presupuesto:** $${schedule.daily_budget_cop?.toLocaleString() || ctx.budget}/día → $${schedule.total_budget_cop?.toLocaleString() || '?'} total`
-        + `\n**Duración:** ${schedule.total_days || '?'} días (inicio ${schedule.start_date || '?'})`
-        + (calendarReasoning ? `\n_${calendarReasoning}_` : '')
-        + `\n\n**Audiencias y segmentación:**\n${audienceLines || '(sin audiencias)'}`
-        + `\n\n**Anuncios:**\n${adLines || '(sin anuncios)'}`
-        + (warnings.length ? `\n\n**Alertas:**\n${warnings.map(w => `⚠️ ${w}`).join('\n')}` : '')
-        + `\n\n**Estado:** Todo se crea en PAUSED`
-    }
+    campaignInfo += '\n\n**Estado inicial:** Todo se crea en PAUSED (no se activa sin tu confirmación)'
   }
 
-  // ── STEP 3: Show preview with image + justification ──
+  // ── Build final message ──
   const publishLabel = ctx.publishAs === 'story' ? 'historia' : ctx.publishAs === 'reel' ? 'reel' : ctx.type === 'campaign' ? 'campaña' : 'publicación'
 
   const jobId = `job-${Date.now()}`
@@ -420,14 +473,42 @@ async function handleChatCommand(text) {
 
   let message = ''
   if (ctx.type === 'campaign') {
-    message = `He analizado tu solicitud: **"${ctx.description}"**\n\n`
-      + (filePath ? `La imagen promocional está lista (se muestra abajo).` : `No se pudo generar la imagen promocional.`)
-      + campaignInfo
-      + `\n\n¿Apruebas esta campaña?`
+    message = `He analizado tu campaña: **"${ctx.description}"**`
+    message += campaignInfo
+    if (filePath) {
+      message += '\n\n**Imagen promocional** generada (se muestra abajo).'
+    } else {
+      message += '\n\n_No se pudo generar la imagen, pero la campaña se puede crear sin ella._'
+    }
+    message += '\n\n¿Apruebas la campaña?'
+  } else if (ctx.type === 'video') {
+    message = `He preparado tu video publicitario: **"${ctx.description}"**`
+    message += campaignInfo
+    if (filePath) {
+      message += '\n\n**Video** generado (se muestra abajo).'
+    }
+    message += '\n\n¿Apruebas para publicar?'
   } else {
-    message = filePath
-      ? `Tu ${typeLabel} está lista para **${ctx.platform}**${ctx.companyName ? ` (${ctx.companyName})` : ''}.\n\nSe publicará como **${publishLabel}**.\n\n¿Apruebas?`
-      : `No se pudo generar la ${typeLabel}. ¿Quieres intentar con otra descripción?`
+    // Image
+    message = `He creado tu imagen publicitaria: **"${ctx.description}"**`
+    message += campaignInfo
+    if (filePath) {
+      message += '\n\n**Imagen** lista (se muestra abajo).'
+    } else {
+      message += '\n\nNo se pudo generar la imagen. Verifica que DiCloak esté abierto.'
+    }
+    message += '\n\n¿Apruebas para publicar en ' + ctx.platform + '?'
+  }
+
+  // Convert image to data URL so Electron renderer can display it
+  let imageDataUrl = ''
+  if (filePath && fs.existsSync(filePath)) {
+    try {
+      const ext = path.extname(filePath).toLowerCase().replace('.', '')
+      const mime = ext === 'png' ? 'image/png' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png'
+      const base64 = fs.readFileSync(filePath).toString('base64')
+      imageDataUrl = `data:${mime};base64,${base64}`
+    } catch { /* ignore */ }
   }
 
   return {
@@ -438,8 +519,9 @@ async function handleChatCommand(text) {
     preview: {
       type: ctx.type,
       imagePath: filePath,
+      imageDataUrl,
       summary: ctx.type === 'campaign'
-        ? `${Object.keys(spec?.meta?.budget_distribution || {}).length} audiencias | $${Number(ctx.budget).toLocaleString()}/día | ${[...new Set((spec?.adsets || []).flatMap(a => (a?.targeting?.geo_locations?.cities || []).map(c => c.name)))].join(', ') || 'Colombia'}`
+        ? `${(spec?.adsets || []).length} audiencias | $${Number(ctx.budget).toLocaleString()}/día`
         : `${ctx.platform} | ${publishLabel}`,
       campaignSpec: spec,
     },

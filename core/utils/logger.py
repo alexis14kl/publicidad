@@ -35,11 +35,12 @@ def _is_tty() -> bool:
 
 def _safe_echo(message: str, *, fg=None, bold: bool = False, dim: bool = False) -> None:
     try:
-        # Skip ANSI styling when stdout is piped (GUI, file, etc.)
+        # When stdout is piped (subprocess), write logs to stderr
+        # so stdout stays clean for JSON output
         if _is_tty():
             typer.echo(typer.style(message, fg=fg, bold=bold, dim=dim))
         else:
-            print(message, flush=True)
+            print(message, file=sys.stderr, flush=True)
         _append_to_log_file(message)
     except UnicodeEncodeError:
         sanitized = (
@@ -49,7 +50,7 @@ def _safe_echo(message: str, *, fg=None, bold: bool = False, dim: bool = False) 
         if _is_tty():
             typer.echo(typer.style(sanitized, fg=fg, bold=bold, dim=dim))
         else:
-            print(sanitized, flush=True)
+            print(sanitized, file=sys.stderr, flush=True)
         _append_to_log_file(sanitized)
 
 

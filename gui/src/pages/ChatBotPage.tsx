@@ -12,11 +12,9 @@ interface ChatMessage {
 interface PreviewData {
   type: 'image' | 'video' | 'campaign'
   imagePath?: string
-  imageUrl?: string
+  imageDataUrl?: string
   campaignSpec?: Record<string, unknown>
   summary: string
-  publishTarget?: string
-  jobId?: string
 }
 
 const api = () => window.electronAPI
@@ -183,12 +181,15 @@ export function ChatBotPage() {
                   .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                   .replace(/\n/g, '<br/>')
               }} />
-              {msg.preview?.imagePath && (
+              {msg.preview?.imageDataUrl && (
                 <img
                   className="chatbot-preview-img"
-                  src={`file://${msg.preview.imagePath}`}
+                  src={msg.preview.imageDataUrl}
                   alt="Preview"
                 />
+              )}
+              {msg.preview?.imagePath && !msg.preview?.imageDataUrl && (
+                <div className="chatbot-preview-summary">Imagen generada: {msg.preview.imagePath.split('/').pop()}</div>
               )}
               {msg.preview?.summary && (
                 <div className="chatbot-preview-summary">{msg.preview.summary}</div>
