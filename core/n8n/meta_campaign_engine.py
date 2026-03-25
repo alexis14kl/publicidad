@@ -202,6 +202,8 @@ Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
       "reasoning": "qué principio psicológico aplica (Cialdini, loss aversion, etc.)"
     }}
   ],
+  "post_caption": "Texto completo para el post de la publicación en redes sociales (en español). Aplica el framework del agente copywriting: Hook (primera línea que atrapa) → Contexto (por qué importa) → Valor (qué ofreces) → Prueba (credibilidad) → CTA (acción clara). Incluye emojis relevantes. Máximo 300 palabras. DEBE estar enfocado en lo que el usuario solicitó.",
+  "post_hashtags": ["hashtag1", "hashtag2", "hashtag3"],
   "image_prompt": "prompt EN INGLÉS para generar la imagen publicitaria con IA. IMPORTANTE: (1) Debe reflejar LITERALMENTE lo que el usuario pidió — si pidió una vaca con un PC, genera una vaca con un PC. (2) SIEMPRE incluir elementos publicitarios: slogan visible en español, headline text, branding de la empresa, call-to-action visual, información de contacto. (3) Debe parecer un anuncio profesional de redes sociales, no una foto cualquiera. (4) Formato: 1080x1350 vertical, zona superior 15% limpia para logo overlay posterior. (5) Estilo: high-quality, professional advertising photography, vibrant colors.",
   "video_scenes": [
     {{
@@ -215,30 +217,18 @@ Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
   "warnings": ["alertas relevantes"]
 }}
 
-REGLAS CRÍTICAS:
-1. SOLO JSON válido. Nada antes ni después.
-2. Respeta el TIPO DE CONTENIDO:
-   - "image": genera SOLO image_prompt (publicitario, con slogan, headline, branding). audiences y ads pueden estar vacíos [].
-   - "video": genera SOLO image_prompt + video_scenes. audiences y ads pueden estar vacíos [].
-   - "campaign": genera TODO: audiences + ads + image_prompt + calendar.
-3. El image_prompt SIEMPRE debe ser una pieza PUBLICITARIA profesional:
-   - Incluir texto visible en español: slogan, headline, call-to-action
-   - Incluir branding de la empresa si se menciona
-   - Reflejar EXACTAMENTE lo que el usuario pidió visualmente
-   - NO generar fotos genéricas sin texto publicitario
-4. Los copies deben aplicar Hook→Contexto→Valor→Prueba→CTA del agente copywriting.
-5. Cada ángulo de anuncio debe usar un principio psicológico diferente.
-6. Presupuesto bajo (<$10,000/día): 1-2 audiencias. Medio ($10K-50K): 2-3. Alto (>$50K): 3-5.
-7. Las ciudades deben ser relevantes al concepto."""
+Reglas:
+1. SOLO JSON válido. Sin texto antes ni después.
+2. Mínimo 2 anuncios, máximo 5.
+3. Mínimo 1 audiencia, máximo 5 (según presupuesto).
+4. Los copies deben ser en español colombiano, persuasivos, específicos al concepto.
+5. Si el presupuesto es bajo (<$10,000/día), concentra en 1-2 audiencias.
+6. Las ciudades deben ser las más relevantes para el concepto (no siempre las 4 principales).
+7. Los interests_search_terms deben ser palabras que existan como intereses en Meta Ads.
+8. El image_prompt debe ser literal sobre lo que el usuario pidió. Si pidió vacas con sombrero, genera vacas con sombrero.
+9. Siempre incluye el análisis de por qué tomaste cada decisión."""
 
-    user_prompt = (
-        f'SOLICITUD DEL USUARIO:\n"{user_request}"\n\n'
-        f'TIPO DE CONTENIDO: {content_type}\n'
-        f'PRESUPUESTO DIARIO: ${budget} COP (mercado colombiano)\n\n'
-        f'Genera la estrategia completa en JSON.'
-    )
-
-    response = ask_claude(system_prompt, user_prompt)
+    response = ask_ai(prompt, webhook_url, timeout=120)
     if not response:
         return {}
 
@@ -386,6 +376,9 @@ def build_spec_from_strategy(
             "ai_calendar_reasoning": calendar.get("reasoning", ""),
             "ai_warnings": strategy.get("warnings", []),
             "image_prompt": strategy.get("image_prompt", ""),
+            "post_caption": strategy.get("post_caption", ""),
+            "post_hashtags": strategy.get("post_hashtags", []),
+            "video_scenes": strategy.get("video_scenes", []),
             "schedule": {
                 "start_date": start.strftime("%Y-%m-%d"),
                 "end_date": end.strftime("%Y-%m-%d"),
@@ -547,6 +540,7 @@ def get_page_token(user_token: str, page_id: str) -> str:
                 token = page.get("access_token", "")
                 if token:
                     log_ok(f"Page Token obtenido para {page.get('name', page_id)}")
+                    _save_token_to_env("FB_PAGE_ACCESS_TOKEN", token)
                     return token
         log_warn(f"No se encontró página {page_id} en /me/accounts")
     except Exception as exc:
@@ -563,19 +557,48 @@ def extend_token(short_token: str) -> str | None:
     if not app_id or not app_secret:
         return None
     try:
-        result = _meta_request("GET", "oauth/access_token", "", {
+        params = urllib.parse.urlencode({
             "grant_type": "fb_exchange_token",
             "client_id": app_id,
             "client_secret": app_secret,
             "fb_exchange_token": short_token,
         })
+        url = f"{GRAPH_API_BASE}/oauth/access_token?{params}"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode())
         new_token = result.get("access_token")
         if new_token:
-            log_ok(f"Token extendido. Expira en {result.get('expires_in', '?')}s")
+            expires = result.get("expires_in", 0)
+            days = expires // 86400 if expires else "?"
+            log_ok(f"Token extendido. Expira en {days} días")
+            # Save to .env for persistence
+            _save_token_to_env("FB_ACCESS_TOKEN", new_token)
             return new_token
     except Exception as exc:
         log_warn(f"No se pudo extender token: {exc}")
     return None
+
+
+def _save_token_to_env(key: str, value: str) -> None:
+    """Guarda un token actualizado en .env para que persista entre sesiones."""
+    env_file = PROJECT_ROOT / ".env"
+    if not env_file.exists():
+        return
+    try:
+        lines = env_file.read_text("utf-8").splitlines()
+        found = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith(f"{key}=") or line.strip().startswith(f"{key} ="):
+                lines[i] = f"{key}={value}"
+                found = True
+                break
+        if not found:
+            lines.append(f"{key}={value}")
+        env_file.write_text("\n".join(lines) + "\n", "utf-8")
+        log_ok(f"{key} actualizado en .env")
+    except Exception as exc:
+        log_warn(f"No se pudo guardar {key} en .env: {exc}")
 
 
 def upload_image_to_meta(image_path: str, ad_account_id: str, access_token: str) -> str | None:

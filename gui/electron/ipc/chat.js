@@ -50,10 +50,10 @@ function updateContext(text) {
     conversationContext.type = 'image'
   }
 
-  // Detect platform
-  if (/instagram|ig/.test(lower)) conversationContext.platform = 'instagram'
+  // Detect platform — default facebook, only change if EXPLICITLY mentioned in THIS message
+  if (/instagram|ig\b/.test(lower)) conversationContext.platform = 'instagram'
   else if (/tiktok/.test(lower)) conversationContext.platform = 'tiktok'
-  else if (/facebook|fb/.test(lower)) conversationContext.platform = 'facebook'
+  else conversationContext.platform = 'facebook'
 
   // Detect publish type
   if (/historia|story|stories/.test(lower)) conversationContext.publishAs = 'story'
@@ -121,8 +121,10 @@ async function generateContent(ctx) {
   console.log('[GENERATE] Using Claude AI image prompt:', ctx.aiImagePrompt.slice(0, 100))
   const imagePrompt = `Generate this image now:\n\n${ctx.aiImagePrompt}\n\nAll visible text in the image MUST be in Spanish. Full-bleed design, no margins. Reserve top 8% for logo. Deliver exactly ONE final image.`
 
+  // For video: DON'T pass profile_name — let the orchestrator pick VIDEO_INITIAL_PROFILE
+  // For image: use INITIAL_PROFILE (ChatGPT)
   const payload = JSON.stringify({
-    profile_name: env.INITIAL_PROFILE || '#1 Chat Gpt PRO',
+    ...(ctx.type !== 'video' ? { profile_name: env.INITIAL_PROFILE || '#1 Chat Gpt PRO' } : {}),
     image_prompt: imagePrompt,
   })
 
@@ -234,33 +236,19 @@ async function publishToMeta(job) {
   if (!filePath) throw new Error('No hay imagen para publicar.')
 
   const env = getProjectEnv()
-  const pageToken = env.FB_PAGE_ACCESS_TOKEN || env.FB_ACCESS_TOKEN || ''
-  const pageId = env.FB_PAGE_ID || '115406607722279'
-  if (!pageToken) throw new Error('No hay FB_ACCESS_TOKEN ni FB_PAGE_ACCESS_TOKEN en .env')
+  const botEnv = { ...env, PYTHONPATH: PROJECT_ROOT, PYTHONIOENCODING: 'utf-8' }
+  if (ctx.companyName) {
+    const credEnv = buildCompanyCredentialEnv(ctx.companyName)
+    if (credEnv) Object.assign(botEnv, credEnv)
+  }
 
-  // Build caption from Claude's analysis
-  const analysis = spec?.meta?.ai_analysis || ''
-  const caption = analysis
-    ? `${ctx.description}\n\n${analysis.slice(0, 200)}\n\nnoyecode.com`
+  // Use Claude's post_caption (written by copywriting agent) as the post text
+  const postCaption = spec?.meta?.post_caption || ''
+  const hashtags = (spec?.meta?.post_hashtags || []).map(h => h.startsWith('#') ? h : `#${h}`).join(' ')
+  const caption = postCaption
+    ? `${postCaption}${hashtags ? '\n\n' + hashtags : ''}`
     : `${ctx.description}\n\nnoyecode.com`
 
-  // Read image and convert to base64 for multipart upload
-  const imageBuffer = fs.readFileSync(filePath)
-  const boundary = '----FormBoundary' + Date.now().toString(36)
-  const body = Buffer.concat([
-    Buffer.from(
-      `--${boundary}\r\nContent-Disposition: form-data; name="source"; filename="image.png"\r\nContent-Type: image/png\r\n\r\n`
-    ),
-    imageBuffer,
-    Buffer.from(
-      `\r\n--${boundary}\r\nContent-Disposition: form-data; name="message"\r\n\r\n${caption}\r\n` +
-      `--${boundary}\r\nContent-Disposition: form-data; name="access_token"\r\n\r\n${pageToken}\r\n` +
-      `--${boundary}\r\nContent-Disposition: form-data; name="published"\r\n\r\ntrue\r\n` +
-      `--${boundary}--\r\n`
-    ),
-  ])
-
-  const https = require('https')
   return new Promise((resolve, reject) => {
     const req = https.request({
       hostname: 'graph.facebook.com',
@@ -411,8 +399,17 @@ async function handleChatCommand(text) {
     console.log('[CHAT] Step 2 OK: filePath =', filePath)
   } catch (err) {
     console.error('[CHAT] Step 2 FAILED:', err.message)
-    // For campaigns, continue without image. For standalone images, fail.
-    if (ctx.type !== 'campaign') {
+
+    if (ctx.type === 'video') {
+      return {
+        success: false,
+        error: `No se pudo generar el video: ${err.message}\n\n`
+          + 'Google Flow (Veo 3) no respondió correctamente. Verifica:\n'
+          + '• Que el perfil "Flow Veo 3" esté abierto en DiCloak\n'
+          + '• Que la sesión de Google esté activa en ese perfil\n'
+          + '• Que labs.google/fx/tools/flow cargue correctamente',
+      }
+    } else if (ctx.type !== 'campaign') {
       return { success: false, error: `No se pudo generar la ${typeLabel}: ${err.message}` }
     }
   }
@@ -432,9 +429,58 @@ async function handleChatCommand(text) {
   // Start with Claude's strategic analysis
   campaignInfo = '\n\n**Análisis de los agentes expertos:**\n' + (meta.ai_analysis || 'Sin análisis disponible.')
 
+  // Show the post caption that will be published
+  const postCaption = meta.post_caption || ''
+  const postHashtags = (meta.post_hashtags || []).map(h => h.startsWith('#') ? h : `#${h}`).join(' ')
+  if (postCaption) {
+    campaignInfo += '\n\n**Texto de la publicación:**\n' + postCaption
+    if (postHashtags) campaignInfo += '\n' + postHashtags
+  }
+
+  // Show video scenes storyboard if available
+  const videoScenes = spec?.video_scenes || spec?.meta?.video_scenes || []
+  if (videoScenes.length > 0) {
+    campaignInfo += '\n\n**Storyboard del video (' + videoScenes.length + ' escenas):**'
+    for (const scene of videoScenes) {
+      campaignInfo += `\n• **Escena ${scene.scene_number || '?'}** (${scene.duration_seconds || 7}s): ${scene.visual_description || ''}`
+      if (scene.voiceover) campaignInfo += `\n  _Narración: "${scene.voiceover}"_`
+    }
+  }
+
   // Campaign-specific info: audiences, ads, schedule
   if (adsets.length > 0) {
     const schedule = meta.schedule || {}
+
+    const audienceLines = adsets.map((a) => {
+      const dailyCop = Math.round((a.daily_budget || 0) / 100)
+      const interestCount = a.interests_resolved || 0
+      const cities = (a.targeting?.geo_locations?.cities || []).map(c => c.name).join(', ') || 'Colombia'
+      return `• **${a.audience_key}** — $${dailyCop.toLocaleString()}/día | ${cities} | ${interestCount} intereses\n  _${a.reasoning || ''}_`
+    }).join('\n')
+
+    const adLines = adsets.flatMap(a => (a.ads || []).map(ad =>
+      `• **${ad.angle || ad.name}**: "${(ad.creative?.object_story_spec?.link_data?.name || '').slice(0, 50)}"\n  _${ad.reasoning || ''}_`
+    )).join('\n')
+
+    campaignInfo += `\n\n**Presupuesto:** $${schedule.daily_budget_cop?.toLocaleString() || ctx.budget}/día → $${schedule.total_budget_cop?.toLocaleString() || '?'} total`
+      + `\n**Duración:** ${schedule.total_days || '?'} días`
+      + (meta.ai_calendar_reasoning ? `\n_${meta.ai_calendar_reasoning}_` : '')
+      + `\n\n**Audiencias (${adsets.length}):**\n${audienceLines}`
+      + `\n\n**Anuncios (${adsets.reduce((s, a) => s + (a.ads || []).length, 0)}):**\n${adLines}`
+  }
+
+  // Warnings
+  const warnings = meta.ai_warnings || []
+  if (warnings.length) {
+    campaignInfo += `\n\n**Alertas del experto:**\n${warnings.map(w => `⚠️ ${w}`).join('\n')}`
+  }
+
+  // Campaign state
+  if (ctx.type === 'campaign') {
+    spec = await getCampaignPreview(ctx)
+    if (spec) {
+      const meta = spec.meta || {}
+      const schedule = meta.schedule || {}
 
     const audienceLines = adsets.map((a) => {
       const dailyCop = Math.round((a.daily_budget || 0) / 100)
