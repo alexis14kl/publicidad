@@ -14,6 +14,35 @@ import type {
   ListFacebookPagePhotosPayload,
   MarketingCampaignPayload,
   MarketingRunUpdate,
+  MetaActivateCampaignPayload,
+  MetaActivateCampaignResult,
+  MetaAppTokenResult,
+  MetaCreateAdCreativePayload,
+  MetaCreateAdCreativeResult,
+  MetaCreateAdPayload,
+  MetaCreateAdResult,
+  MetaCreateAdSetPayload,
+  MetaCreateAdSetResult,
+  MetaCreateCampaignPayload,
+  MetaCreateCampaignResult,
+  MetaCreateLeadgenFormPayload,
+  MetaCreateLeadgenFormResult,
+  MetaDebugTokenPayload,
+  MetaDebugTokenResult,
+  MetaExchangeCodePayload,
+  MetaExchangeLongLivedPayload,
+  MetaLeadPipelinePayload,
+  MetaLeadPipelineResult,
+  MetaOAuthUrlResult,
+  MetaPageTokensResult,
+  MetaPipelineStepEvent,
+  MetaPublishPagePhotoPayload,
+  MetaPublishPagePhotoResult,
+  MetaPublishPagePostPayload,
+  MetaPublishPagePostResult,
+  MetaTokenResult,
+  MetaUploadAdImagePayload,
+  MetaUploadAdImageResult,
   SaveCompanyPayload,
   SelectCompanyPublicationAccountPayload,
   SelectCompanyPublicationAccountResult,
@@ -93,3 +122,63 @@ export interface AutoCampaignResult {
 
 export const runAutoCampaign = (payload: AutoCampaignInput): Promise<AutoCampaignResult> =>
   api().runAutoCampaign(payload)
+
+// ── Meta Marketing API ──────────────────────────────────────────────────────
+
+// 1. App Access Token
+export const metaGetAppToken = (payload?: Record<string, string>): Promise<MetaAppTokenResult> =>
+  api().metaGetAppToken(payload)
+
+// 2. OAuth Flow
+export const metaGetOAuthUrl = (payload?: Record<string, string | string[]>): Promise<MetaOAuthUrlResult> =>
+  api().metaGetOAuthUrl(payload)
+
+export const metaExchangeCode = (payload: MetaExchangeCodePayload): Promise<MetaTokenResult> =>
+  api().metaExchangeCode(payload)
+
+export const metaExchangeLongLived = (payload: MetaExchangeLongLivedPayload): Promise<MetaTokenResult> =>
+  api().metaExchangeLongLived(payload)
+
+// 3. Page Tokens
+export const metaGetPageTokens = (payload?: { userToken?: string }): Promise<MetaPageTokensResult> =>
+  api().metaGetPageTokens(payload)
+
+// Token Debug
+export const metaDebugToken = (payload: MetaDebugTokenPayload): Promise<MetaDebugTokenResult> =>
+  api().metaDebugToken(payload)
+
+// 4. Campaign Pipeline (individual steps)
+export const metaUploadAdImage = (payload: MetaUploadAdImagePayload): Promise<MetaUploadAdImageResult> =>
+  api().metaUploadAdImage(payload)
+
+export const metaCreateLeadgenForm = (payload?: MetaCreateLeadgenFormPayload): Promise<MetaCreateLeadgenFormResult> =>
+  api().metaCreateLeadgenForm(payload)
+
+export const metaCreateCampaign = (payload?: MetaCreateCampaignPayload): Promise<MetaCreateCampaignResult> =>
+  api().metaCreateCampaign(payload)
+
+export const metaCreateAdset = (payload: MetaCreateAdSetPayload): Promise<MetaCreateAdSetResult> =>
+  api().metaCreateAdset(payload)
+
+export const metaCreateAdCreative = (payload: MetaCreateAdCreativePayload): Promise<MetaCreateAdCreativeResult> =>
+  api().metaCreateAdCreative(payload)
+
+export const metaCreateAd = (payload: MetaCreateAdPayload): Promise<MetaCreateAdResult> =>
+  api().metaCreateAd(payload)
+
+export const metaActivateCampaign = (payload: MetaActivateCampaignPayload): Promise<MetaActivateCampaignResult> =>
+  api().metaActivateCampaign(payload)
+
+// Pipeline completo (6 pasos en secuencia)
+export const metaExecuteLeadPipeline = (payload: MetaLeadPipelinePayload): Promise<MetaLeadPipelineResult> =>
+  api().metaExecuteLeadPipeline(payload)
+
+// 5. Page Posts
+export const metaPublishPagePost = (payload?: MetaPublishPagePostPayload): Promise<MetaPublishPagePostResult> =>
+  api().metaPublishPagePost(payload)
+
+export const metaPublishPagePhoto = (payload: MetaPublishPagePhotoPayload): Promise<MetaPublishPagePhotoResult> =>
+  api().metaPublishPagePhoto(payload)
+
+// Pipeline step event listener
+export const onMetaPipelineStep = (cb: (data: MetaPipelineStepEvent) => void) => api().onMetaPipelineStep(cb)

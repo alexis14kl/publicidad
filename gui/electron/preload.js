@@ -51,4 +51,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('marketing-run-update', handler)
     return () => ipcRenderer.removeListener('marketing-run-update', handler)
   },
+
+  // ── Meta Marketing API ────────────────────────────────────────────────────
+  metaGetAppToken: (payload) => ipcRenderer.invoke('meta-get-app-token', payload),
+  metaGetOAuthUrl: (payload) => ipcRenderer.invoke('meta-get-oauth-url', payload),
+  metaExchangeCode: (payload) => ipcRenderer.invoke('meta-exchange-code', payload),
+  metaExchangeLongLived: (payload) => ipcRenderer.invoke('meta-exchange-long-lived', payload),
+  metaGetPageTokens: (payload) => ipcRenderer.invoke('meta-get-page-tokens', payload),
+  metaDebugToken: (payload) => ipcRenderer.invoke('meta-debug-token', payload),
+  metaUploadAdImage: (payload) => ipcRenderer.invoke('meta-upload-ad-image', payload),
+  metaCreateLeadgenForm: (payload) => ipcRenderer.invoke('meta-create-leadgen-form', payload),
+  metaCreateCampaign: (payload) => ipcRenderer.invoke('meta-create-campaign', payload),
+  metaCreateAdset: (payload) => ipcRenderer.invoke('meta-create-adset', payload),
+  metaCreateAdCreative: (payload) => ipcRenderer.invoke('meta-create-ad-creative', payload),
+  metaCreateAd: (payload) => ipcRenderer.invoke('meta-create-ad', payload),
+  metaActivateCampaign: (payload) => ipcRenderer.invoke('meta-activate-campaign', payload),
+  metaExecuteLeadPipeline: (payload) => ipcRenderer.invoke('meta-execute-lead-pipeline', payload),
+  metaPublishPagePost: (payload) => ipcRenderer.invoke('meta-publish-page-post', payload),
+  metaPublishPagePhoto: (payload) => ipcRenderer.invoke('meta-publish-page-photo', payload),
+  onMetaPipelineStep: (callback) => {
+    const handler = (_event, data) => callback(data)
+    ipcRenderer.on('meta-pipeline-step', handler)
+    return () => ipcRenderer.removeListener('meta-pipeline-step', handler)
+  },
 })
