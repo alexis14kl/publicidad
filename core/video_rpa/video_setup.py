@@ -23,7 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 from core.cfg.platform import PROMPT_FILE
 from core.utils.logger import log_info, log_ok, log_warn, log_error
 
-FLOW_URL = "https://labs.google/fx/es/tools/flow"
+FLOW_URL = "https://labs.google/fx/tools/flow"
 DEFAULT_CDP_PORT = 9225
 
 
@@ -151,71 +151,116 @@ def _go_to_flow_list(page: Page) -> bool:
 
 
 def _click_new_project(page: Page) -> bool:
-    """Espera que la lista cargue, luego click en 'Nuevo proyecto'."""
+    """
+    Flow UI 2026: el prompt box está directamente en la galería.
+    Campo 'What do you want to create?' con Start/End y flecha → de envío.
+    Puede requerir scroll al fondo para hacerlo visible.
+    """
 
-    # 1. Polling: esperar que la lista de Flow tenga el DOM cargado
-    if not _poll_page_ready(page, {
-        "botones": "button",
-    }, timeout_sec=20, label="lista Flow"):
+    if not _poll_page_ready(page, {"botones": "button"}, timeout_sec=20, label="Flow"):
         return False
 
-    log_info("Lista de Flow cargada. Buscando boton 'Nuevo proyecto'...")
+    log_info("Flow cargada. Buscando campo de prompt...")
 
-    # 2. Click en "Nuevo proyecto" (puede estar hidden, aparece con hover)
-    clicked = page.evaluate("""() => {
-        const buttons = Array.from(document.querySelectorAll('button'));
-        const btn = buttons.find(b => {
-            const text = (b.innerText || b.textContent || '').toLowerCase();
-            return text.includes('nuevo proyecto') || text.includes('new project');
-        });
-        if (btn) {
-            btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            btn.click();
-            return true;
+    # Scroll al fondo — el prompt box está debajo de la galería de videos
+    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    page.wait_for_timeout(2000)
+
+    # Buscar CUALQUIER campo de input/textarea/contenteditable en la página
+    found = page.evaluate("""() => {
+        // Strategy 1: Find by placeholder text
+        const allInputs = document.querySelectorAll('input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"]');
+        for (const el of allInputs) {
+            if (el.offsetParent === null) continue;
+            const ph = (el.getAttribute('placeholder') || el.getAttribute('data-placeholder') || el.getAttribute('aria-label') || '').toLowerCase();
+            if (ph.includes('create') || ph.includes('want') || ph.includes('generar') || ph.includes('quieres')) {
+                el.scrollIntoView({block: 'center'});
+                el.click();
+                el.focus();
+                return {found: true, method: 'placeholder', tag: el.tagName, ph: ph.slice(0, 50)};
+            }
         }
-        return false;
+
+        // Strategy 2: Find any visible editable field in bottom half of page
+        for (const el of allInputs) {
+            if (el.offsetParent === null) continue;
+            const rect = el.getBoundingClientRect();
+            if (rect.bottom > window.innerHeight * 0.5 && rect.width > 100) {
+                el.scrollIntoView({block: 'center'});
+                el.click();
+                el.focus();
+                return {found: true, method: 'position', tag: el.tagName, y: rect.y};
+            }
+        }
+
+        // Strategy 3: Find by role=textbox
+        const textboxes = document.querySelectorAll('[role="textbox"], [role="combobox"]');
+        for (const el of textboxes) {
+            if (el.offsetParent !== null) {
+                el.scrollIntoView({block: 'center'});
+                el.click();
+                el.focus();
+                return {found: true, method: 'role', tag: el.tagName};
+            }
+        }
+
+        // Strategy 4: Click on "+" button in the top bar to create new project
+        const btns = Array.from(document.querySelectorAll('button, [role="button"]'));
+        const plusBtn = btns.find(b => {
+            const text = (b.innerText || '').trim();
+            const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+            return text === '+' || aria.includes('new') || aria.includes('add') || aria.includes('create');
+        });
+        if (plusBtn) {
+            plusBtn.click();
+            return {found: true, method: 'plus-button'};
+        }
+
+        // Debug: list all inputs/editables found
+        const debug = [];
+        document.querySelectorAll('input, textarea, [contenteditable], [role="textbox"]').forEach(el => {
+            debug.push({
+                tag: el.tagName,
+                type: el.getAttribute('type') || '',
+                ph: (el.getAttribute('placeholder') || '').slice(0, 40),
+                ce: el.getAttribute('contenteditable') || '',
+                role: el.getAttribute('role') || '',
+                visible: el.offsetParent !== null,
+                w: el.getBoundingClientRect().width,
+            });
+        });
+        return {found: false, debug: debug};
     }""")
 
-    if not clicked:
-        # Fallback: hover en zona FAB inferior derecha
-        log_info("Boton no encontrado. Intentando hover en zona FAB...")
-        viewport = page.viewport_size
-        if viewport:
-            page.mouse.move(viewport["width"] - 100, viewport["height"] - 100)
-            page.wait_for_timeout(2000)
+    if found and found.get("found"):
+        log_ok(f"Campo de prompt encontrado ({found.get('method')}, {found.get('tag', '?')}). Listo para pegar.")
+        if found.get("method") == "plus-button":
+            page.wait_for_timeout(3000)
+        return True
 
-            clicked = page.evaluate("""() => {
-                const buttons = Array.from(document.querySelectorAll('button'));
-                const btn = buttons.find(b => {
-                    const text = (b.innerText || b.textContent || '').toLowerCase();
-                    return text.includes('nuevo proyecto') || text.includes('new project');
-                });
-                if (btn) { btn.click(); return true; }
-                return false;
-            }""")
-
-    if not clicked:
-        log_error("No se encontro el boton 'Nuevo proyecto'.")
-        return False
-
-    log_ok("Click en 'Nuevo proyecto' realizado.")
-
-    # 3. Polling: esperar que la pagina del proyecto cargue completamente
-    return _poll_page_ready(page, {
-        "contenteditable": "[contenteditable='true']",
-        "boton_crear": "button",
-    }, timeout_sec=30, label="proyecto nuevo")
+    # Log debug info
+    debug = found.get("debug", []) if found else []
+    log_error(f"No se encontro campo de prompt. Inputs en la pagina: {debug}")
+    return False
 
 
 def _paste_prompt_in_flow(page: Page, prompt_text: str) -> bool:
     """Pega el prompt en el contenteditable de Flow usando el clipboard (como humano)."""
     log_info("Buscando campo de texto del proyecto...")
 
-    # Buscar el contenteditable del proyecto
+    # Flow UI 2026: campo de texto "What do you want to create?"
+    # Puede ser textarea, input, contenteditable, o role=textbox
     selectors = [
-        "div[contenteditable='true']",
+        "textarea",
+        "input[type='text']",
+        "input:not([type='hidden'])",
+        "[role='textbox']",
+        "[role='combobox']",
         "[contenteditable='true']",
-        ".sc-74ba1bc0-5",
+        "[contenteditable='plaintext-only']",
+        "[placeholder*='create']",
+        "[placeholder*='want']",
+        "[data-placeholder]",
     ]
 
     textarea = None
@@ -251,8 +296,12 @@ def _paste_prompt_in_flow(page: Page, prompt_text: str) -> bool:
     page.keyboard.press(f"{modifier}+v")
     page.wait_for_timeout(2000)
 
-    # Verificar que el texto se pego de verdad y coincide con el prompt esperado.
+    # Verificar que el texto se pego de verdad
     pasted = page.evaluate("""() => {
+        // Check textarea/input first (new UI)
+        const textarea = document.querySelector('textarea, input[type="text"]');
+        if (textarea && textarea.value) return textarea.value.trim();
+        // Check contenteditable (old UI)
         const candidates = Array.from(document.querySelectorAll('[contenteditable="true"]'));
         const el = candidates.find((item) => item.offsetParent !== null) || candidates[0];
         if (!el) return '';
@@ -1265,20 +1314,33 @@ def _wait_for_prompt_settle(
 
 
 def _click_create(page: Page, max_retries: int = 5) -> bool:
-    """Click en el boton 'Crear' (arrow_forward) con click real de Playwright."""
-    log_info("Buscando boton 'Crear' (arrow_forward)...")
+    """Click en el boton de envio (flecha →, arrow_forward, Crear) con click real."""
+    log_info("Buscando boton de envio...")
 
     for attempt in range(max_retries):
-        # Obtener posicion del boton arrow_forward Crear
         btn_info = page.evaluate("""() => {
-            const buttons = Array.from(document.querySelectorAll('button'));
+            const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
+            // Try multiple strategies to find the send/create button
             const btn = buttons.find(b => {
-                const text = (b.innerText || '').toLowerCase();
-                return text.includes('arrow_forward') && text.includes('crear');
+                const text = (b.innerText || '').toLowerCase().trim();
+                const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+                return (
+                    (text.includes('arrow_forward') && text.includes('crear')) ||
+                    text === '→' || text === '➡' || text === '▶' ||
+                    aria.includes('send') || aria.includes('submit') || aria.includes('generate') ||
+                    aria.includes('crear') || aria.includes('create') ||
+                    (text.includes('video') && b.nextElementSibling?.tagName === 'BUTTON')
+                );
             });
-            if (btn && btn.offsetParent !== null) {
-                const rect = btn.getBoundingClientRect();
-                return { found: true, x: rect.x, y: rect.y, w: rect.width, h: rect.height };
+            // Fallback: last button in the bottom prompt bar
+            const fallback = buttons.filter(b => {
+                const r = b.getBoundingClientRect();
+                return r.bottom > window.innerHeight - 150 && r.right > window.innerWidth - 200 && b.offsetParent;
+            }).pop();
+            const target = btn || fallback;
+            if (target && target.offsetParent !== null) {
+                const rect = target.getBoundingClientRect();
+                return { found: true, x: rect.x, y: rect.y, w: rect.width, h: rect.height, text: (target.innerText || '').slice(0, 30) };
             }
             return { found: false };
         }""")
@@ -1290,14 +1352,14 @@ def _click_create(page: Page, max_retries: int = 5) -> bool:
             log_info(f"Boton encontrado en ({cx:.0f}, {cy:.0f}). Haciendo click real...")
             page.mouse.click(cx, cy)
             page.wait_for_timeout(2000)
-            log_ok("Click en 'Crear' realizado (mouse.click).")
+            log_ok(f"Click en boton de envio realizado ({btn_info.get('text','?')}).")
             return True
 
         if attempt < max_retries - 1:
-            log_info(f"Boton 'Crear' no encontrado. Reintento {attempt + 2}/{max_retries} en 3s...")
+            log_info(f"Boton de envio no encontrado. Reintento {attempt + 2}/{max_retries} en 3s...")
             page.wait_for_timeout(3000)
 
-    log_error("No se encontro el boton 'Crear' despues de todos los reintentos.")
+    log_error("No se encontro el boton de envio despues de todos los reintentos.")
     return False
 
 
@@ -1346,14 +1408,168 @@ def _click_followup_send(page: Page, scene_index: int, max_retries: int = 8) -> 
     return False
 
 
-def _wait_for_session_ready(page: Page, timeout_sec: int = 30) -> bool:
-    """Espera a que Flow este listo (no login wall)."""
+def _handle_google_login(page: Page, timeout_sec: int = 30) -> bool:
+    """
+    Maneja el login de Google cuando Flow lo requiere.
+    Hace click en la cuenta guardada — la contraseña está en el navegador.
+    """
+    log_info("Detectado login de Google. Seleccionando cuenta guardada...")
+
+    page.wait_for_timeout(3000)
+
     deadline = time.time() + timeout_sec
     while time.time() < deadline:
         url = (page.url or "").lower()
+
+        # Auth error page — click "Sign in with Google" to retry
+        if "error=callback" in url or "signin?error" in url:
+            log_warn("Error de autenticación. Reintentando login...")
+            page.evaluate("""() => {
+                const all = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+                const btn = all.find(b => {
+                    const t = (b.innerText || '').toLowerCase();
+                    return t.includes('sign in with google') || t.includes('iniciar sesión con google') ||
+                           t.includes('try signing') || t.includes('intentar');
+                });
+                if (btn) btn.click();
+            }""")
+            page.wait_for_timeout(4000)
+            continue
+
+        # Success — landed on Flow
+        if "labs.google/fx" in url and "accounts.google" not in url and "error" not in url:
+            log_ok("Login de Google completado.")
+            return True
+
+        try:
+            # Google Sign-In account chooser: click on the first account row
+            # The account row is a <li> containing a <div> with the user's name and email
+            # It's inside a <ul> in the account chooser form
+            clicked = page.evaluate("""() => {
+                // Strategy 1: Google's account chooser uses data-identifier on the account link
+                const byId = document.querySelector('[data-identifier]');
+                if (byId) { byId.click(); return 'data-identifier'; }
+
+                // Strategy 2: Find the <li> that contains an email address
+                // Google wraps each account in a <li> inside the chooser
+                const items = document.querySelectorAll('ul li');
+                for (const li of items) {
+                    const text = li.innerText || '';
+                    // An account row contains @ (email) and has reasonable size
+                    if (text.includes('@') && li.getBoundingClientRect().height > 40) {
+                        li.click();
+                        return 'li-with-email';
+                    }
+                }
+
+                // Strategy 3: Find the account card div directly
+                // Google uses class like JDAKTe or similar for account rows
+                const divs = document.querySelectorAll('div[role="link"], div[tabindex="0"], div[data-authuser]');
+                for (const div of divs) {
+                    const text = div.innerText || '';
+                    if (text.includes('@')) {
+                        div.click();
+                        return 'div-role-link';
+                    }
+                }
+
+                // Strategy 4: Find the specific "Saliste de la cuenta" text and click its parent row
+                const spans = document.querySelectorAll('div, span');
+                for (const span of spans) {
+                    const text = (span.innerText || '').trim();
+                    if (text.includes('Saliste de la cuenta') || text.includes('Signed out')) {
+                        // Go up to find the clickable container
+                        let parent = span.parentElement;
+                        for (let i = 0; i < 5 && parent; i++) {
+                            if (parent.getAttribute('role') === 'link' || parent.getAttribute('tabindex') === '0' || parent.tagName === 'LI') {
+                                parent.click();
+                                return 'signed-out-parent';
+                            }
+                            parent = parent.parentElement;
+                        }
+                        // Click the nearest ancestor with click handler
+                        span.closest('li, [role="link"], [tabindex="0"]')?.click();
+                        return 'signed-out-closest';
+                    }
+                }
+
+                return false;
+            }""")
+
+            if clicked:
+                log_ok(f"Click en cuenta de Google ({clicked}). Esperando...")
+                page.wait_for_timeout(4000)
+
+                url_after = (page.url or "").lower()
+                if "accounts.google" not in url_after:
+                    continue  # Login completed
+
+                # Still on Google login — need to handle password page
+                log_info("Pagina de contraseña detectada. Activando autofill...")
+
+                # Step A: Click on the password field to trigger browser autofill
+                try:
+                    pwd_field = page.query_selector('input[type="password"]')
+                    if pwd_field:
+                        pwd_field.click()
+                        log_info("Click en campo de contraseña. Esperando autofill...")
+                        page.wait_for_timeout(2000)
+
+                        # Step B: The browser should show autofill dropdown
+                        # Press ArrowDown + Enter to select the saved password
+                        page.keyboard.press("ArrowDown")
+                        page.wait_for_timeout(500)
+                        page.keyboard.press("Enter")
+                        log_info("Seleccionada contraseña guardada via teclado.")
+                        page.wait_for_timeout(2000)
+                except Exception as pwd_err:
+                    log_warn(f"No se pudo interactuar con campo de password: {pwd_err}")
+
+                # Step C: Click "Next" / "Siguiente" / "Sign in" button
+                page.evaluate("""() => {
+                    const btns = Array.from(document.querySelectorAll('button, [role="button"]'));
+                    const next = btns.find(b => {
+                        const t = (b.innerText || '').toLowerCase();
+                        return t.includes('next') || t.includes('siguiente') ||
+                               t.includes('continuar') || t.includes('sign in') ||
+                               t.includes('iniciar') || t.includes('acceder');
+                    });
+                    if (next) { next.click(); return true; }
+                    // Fallback: submit the form
+                    const form = document.querySelector('form');
+                    if (form) { form.submit(); return true; }
+                    return false;
+                }""")
+                log_info("Click en boton Siguiente/Sign in.")
+                page.wait_for_timeout(5000)
+                continue
+        except Exception as exc:
+            log_warn(f"Error durante login de Google: {exc}")
+
+        page.wait_for_timeout(2000)
+
+    # Final check
+    if "labs.google" in (page.url or "").lower():
+        log_ok("Login completado.")
+        return True
+
+    log_error("No se pudo completar el login de Google en el tiempo esperado.")
+    return False
+
+
+def _wait_for_session_ready(page: Page, timeout_sec: int = 60) -> bool:
+    """Espera a que Flow este listo. Si hay login wall, lo maneja automáticamente."""
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        url = (page.url or "").lower()
+
+        # Login wall detected — handle it
         if "accounts.google.com" in url:
-            log_error("Flow requiere login. El perfil DiCloak debe tener sesion activa de Google.")
-            return False
+            if not _handle_google_login(page, timeout_sec=45):
+                return False
+            page.wait_for_timeout(3000)
+            continue
+
         if "labs.google/fx" in url:
             # Cerrar dialogo de bienvenida si existe
             try:
@@ -1465,7 +1681,7 @@ def run_video_setup(cdp_port: int = DEFAULT_CDP_PORT) -> int:
                     return 1
 
             # Esperar a que Flow termine de fijar el prompt completo antes de crear.
-            settle_selector = '[contenteditable="true"]' if scene_index <= 1 else '[data-codex-followup="1"]'
+            settle_selector = 'textarea, input:not([type="hidden"]), [contenteditable="true"], [role="textbox"]' if scene_index <= 1 else '[data-codex-followup="1"]'
             if not _wait_for_prompt_settle(
                 project_page,
                 prompt_text,

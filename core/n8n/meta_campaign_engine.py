@@ -126,8 +126,19 @@ Analiza la solicitud y genera la estrategia óptima:
       "reasoning": "por qué este ángulo funciona"
     }}
   ],
-  "image_prompt": "prompt detallado en inglés para generar la imagen promocional con IA. Debe reflejar exactamente lo que el usuario pidió, NO una persona genérica con laptop.",
-  "warnings": ["alerta1", "alerta2"]
+  "post_caption": "Texto completo para el post de la publicación en redes sociales (en español). Aplica el framework del agente copywriting: Hook (primera línea que atrapa) → Contexto (por qué importa) → Valor (qué ofreces) → Prueba (credibilidad) → CTA (acción clara). Incluye emojis relevantes. Máximo 300 palabras. DEBE estar enfocado en lo que el usuario solicitó.",
+  "post_hashtags": ["hashtag1", "hashtag2", "hashtag3"],
+  "image_prompt": "prompt EN INGLÉS para generar la imagen publicitaria con IA. IMPORTANTE: (1) Debe reflejar LITERALMENTE lo que el usuario pidió — si pidió una vaca con un PC, genera una vaca con un PC. (2) SIEMPRE incluir elementos publicitarios: slogan visible en español, headline text, branding de la empresa, call-to-action visual, información de contacto. (3) Debe parecer un anuncio profesional de redes sociales, no una foto cualquiera. (4) Formato: 1080x1350 vertical, zona superior 15% limpia para logo overlay posterior. (5) Estilo: high-quality, professional advertising photography, vibrant colors.",
+  "video_scenes": [
+    {{
+      "scene_number": 1,
+      "duration_seconds": 7,
+      "visual_description": "descripción visual exacta de la escena",
+      "voiceover": "texto del narrador (8-16 palabras, español)",
+      "camera": "tipo de toma"
+    }}
+  ],
+  "warnings": ["alertas relevantes"]
 }}
 
 Reglas:
@@ -289,6 +300,9 @@ def build_spec_from_strategy(
             "ai_calendar_reasoning": calendar.get("reasoning", ""),
             "ai_warnings": strategy.get("warnings", []),
             "image_prompt": strategy.get("image_prompt", ""),
+            "post_caption": strategy.get("post_caption", ""),
+            "post_hashtags": strategy.get("post_hashtags", []),
+            "video_scenes": strategy.get("video_scenes", []),
             "schedule": {
                 "start_date": start.strftime("%Y-%m-%d"),
                 "end_date": end.strftime("%Y-%m-%d"),
@@ -429,6 +443,111 @@ def build_spec_from_strategy(
 # ---------------------------------------------------------------------------
 # Campaign executor
 # ---------------------------------------------------------------------------
+
+def get_page_token(user_token: str, page_id: str) -> str:
+    """Obtiene el Page Access Token a partir del User Token (documentación oficial paso 3)."""
+    # Primero intentar el FB_PAGE_ACCESS_TOKEN del .env
+    page_token = os.environ.get("FB_PAGE_ACCESS_TOKEN", "").strip()
+    if page_token:
+        # Validar que funcione
+        try:
+            _meta_request("GET", page_id, page_token, {"fields": "id"})
+            return page_token
+        except Exception:
+            log_warn("FB_PAGE_ACCESS_TOKEN expirado. Obteniendo nuevo via /me/accounts...")
+
+    # Obtener via /me/accounts (requiere User Token con pages_manage_ads)
+    try:
+        result = _meta_request("GET", "me/accounts", user_token, {"fields": "id,name,access_token"})
+        for page in result.get("data", []):
+            if page.get("id") == page_id:
+                token = page.get("access_token", "")
+                if token:
+                    log_ok(f"Page Token obtenido para {page.get('name', page_id)}")
+                    _save_token_to_env("FB_PAGE_ACCESS_TOKEN", token)
+                    return token
+        log_warn(f"No se encontró página {page_id} en /me/accounts")
+    except Exception as exc:
+        log_warn(f"No se pudo obtener Page Token: {exc}")
+
+    # Fallback al user token (funciona para la mayoría de operaciones)
+    return user_token
+
+
+def extend_token(short_token: str) -> str | None:
+    """Extiende un token short-lived a long-lived (60 días)."""
+    app_id = os.environ.get("FB_APP_ID", "").strip()
+    app_secret = os.environ.get("FB_APP_SECRET", "").strip()
+    if not app_id or not app_secret:
+        return None
+    try:
+        params = urllib.parse.urlencode({
+            "grant_type": "fb_exchange_token",
+            "client_id": app_id,
+            "client_secret": app_secret,
+            "fb_exchange_token": short_token,
+        })
+        url = f"{GRAPH_API_BASE}/oauth/access_token?{params}"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode())
+        new_token = result.get("access_token")
+        if new_token:
+            expires = result.get("expires_in", 0)
+            days = expires // 86400 if expires else "?"
+            log_ok(f"Token extendido. Expira en {days} días")
+            # Save to .env for persistence
+            _save_token_to_env("FB_ACCESS_TOKEN", new_token)
+            return new_token
+    except Exception as exc:
+        log_warn(f"No se pudo extender token: {exc}")
+    return None
+
+
+def _save_token_to_env(key: str, value: str) -> None:
+    """Guarda un token actualizado en .env para que persista entre sesiones."""
+    env_file = PROJECT_ROOT / ".env"
+    if not env_file.exists():
+        return
+    try:
+        lines = env_file.read_text("utf-8").splitlines()
+        found = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith(f"{key}=") or line.strip().startswith(f"{key} ="):
+                lines[i] = f"{key}={value}"
+                found = True
+                break
+        if not found:
+            lines.append(f"{key}={value}")
+        env_file.write_text("\n".join(lines) + "\n", "utf-8")
+        log_ok(f"{key} actualizado en .env")
+    except Exception as exc:
+        log_warn(f"No se pudo guardar {key} en .env: {exc}")
+
+
+def upload_image_to_meta(image_path: str, ad_account_id: str, access_token: str) -> str | None:
+    """Sube imagen a Meta y devuelve image_hash. Paso 1 del flujo oficial."""
+    import base64
+    if not image_path or not os.path.exists(image_path):
+        return None
+    try:
+        with open(image_path, "rb") as f:
+            img_bytes = base64.b64encode(f.read()).decode("utf-8")
+        result = _meta_request("POST", f"{ad_account_id}/adimages", access_token, {
+            "bytes": img_bytes,
+        })
+        # Response: {"images": {"bytes": {"hash": "abc123", ...}}}
+        images = result.get("images", {})
+        for key, val in images.items():
+            if isinstance(val, dict) and "hash" in val:
+                log_ok(f"Imagen subida a Meta. Hash: {val['hash']}")
+                return val["hash"]
+        log_warn(f"Meta no devolvió image_hash: {result}")
+        return None
+    except Exception as exc:
+        log_warn(f"No se pudo subir imagen a Meta: {exc}")
+        return None
+
 
 def execute_campaign(spec: dict[str, Any], access_token: str) -> dict[str, Any]:
     results: dict[str, Any] = {"ok": False, "campaign": None, "adsets": [], "lead_form": None, "errors": []}
