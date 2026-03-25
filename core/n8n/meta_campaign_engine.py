@@ -36,6 +36,14 @@ except ImportError:
     pass
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# Load .env so ANTHROPIC_API_KEY and other vars are available
+try:
+    from dotenv import load_dotenv
+    load_dotenv(PROJECT_ROOT / ".env")
+except ImportError:
+    pass
+
 from core.utils.logger import log_info, log_ok, log_warn, log_error
 
 # ---------------------------------------------------------------------------
@@ -51,97 +59,186 @@ WEBSITE = "https://www.noyecode.com"
 PRIVACY_URL = "https://www.noyecode.com/privacidad"
 
 # ---------------------------------------------------------------------------
-# n8n AI — el cerebro que razona
+# Anthropic Claude — el cerebro que razona
 # ---------------------------------------------------------------------------
 
-def ask_ai(prompt: str, webhook_url: str, timeout: int = 90) -> str:
-    """Envía un prompt al webhook de n8n y devuelve la respuesta del modelo de IA."""
-    payload = json.dumps({"text": prompt}, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        webhook_url,
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "publicidad-n8n-client/1.0",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            # n8n puede devolver en "output", "text", "response", o el root
-            return str(
-                data.get("output") or data.get("text") or data.get("response") or json.dumps(data)
-            ).strip()
-    except Exception as exc:
-        log_error(f"n8n AI error: {exc}")
+def ask_claude(system_prompt: str, user_prompt: str, max_retries: int = 3) -> str:
+    """Envía un prompt a Claude via Anthropic SDK con retry para overloaded."""
+    import time as _time
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        log_error("ANTHROPIC_API_KEY no configurada en .env")
         return ""
 
+    try:
+        import anthropic
+    except ImportError:
+        log_error("SDK de anthropic no instalado. Ejecuta: pip install anthropic")
+        return ""
 
-def ai_generate_strategy(user_request: str, budget: str, webhook_url: str) -> dict[str, Any]:
+    client = anthropic.Anthropic(api_key=api_key)
+
+    models = ["claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"]
+    for model in models:
+        for attempt in range(max_retries):
+            try:
+                log_info(f"Consultando {model} (intento {attempt + 1}/{max_retries})...")
+                message = client.messages.create(
+                    model=model,
+                    max_tokens=4096,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_prompt}],
+                )
+                log_ok(f"Respuesta recibida de {model}")
+                return message.content[0].text.strip()
+            except anthropic.APIStatusError as exc:
+                if exc.status_code == 529 and attempt < max_retries - 1:
+                    wait = (attempt + 1) * 3
+                    log_warn(f"{model} sobrecargado. Reintentando en {wait}s...")
+                    _time.sleep(wait)
+                    continue
+                if exc.status_code == 529:
+                    log_warn(f"{model} no disponible. Intentando siguiente modelo...")
+                    break  # Try next model
+                log_error(f"Claude API error: {exc}")
+                return ""
+            except Exception as exc:
+                log_error(f"Claude error: {exc}")
+                return ""
+
+    log_error("Ningún modelo de Claude disponible.")
+    return ""
+
+
+def _load_skills_knowledge() -> str:
+    """Lee los skills de marketing y los agentes para inyectar su conocimiento al LLM."""
+    skills_dir = PROJECT_ROOT / ".claude" / "skills"
+    agents_dir = PROJECT_ROOT / "core" / "utils" / "AgenteMarketing"
+    knowledge = []
+
+    # Skills relevantes para campañas
+    skill_files = ["paid-ads.md", "ad-creative.md", "copywriting.md", "marketing-psychology.md"]
+    for fname in skill_files:
+        fpath = skills_dir / fname
+        if fpath.exists():
+            content = fpath.read_text("utf-8").strip()
+            # Extract only the content after the frontmatter
+            if "---" in content:
+                parts = content.split("---", 2)
+                if len(parts) >= 3:
+                    content = parts[2].strip()
+            knowledge.append(f"[SKILL: {fname.replace('.md','')}]\n{content}")
+
+    # Agentes relevantes
+    agent_files = ["ads-analyst.md", "image-creator.md", "marketing.md", "video-scene-creator.md"]
+    for fname in agent_files:
+        fpath = agents_dir / fname
+        if fpath.exists():
+            content = fpath.read_text("utf-8").strip()[:2000]  # Limit to avoid token overflow
+            knowledge.append(f"[AGENTE: {fname.replace('.md','')}]\n{content}")
+
+    return "\n\n".join(knowledge)
+
+
+def ai_generate_strategy(user_request: str, budget: str, webhook_url: str = "", content_type: str = "campaign") -> dict[str, Any]:
     """
-    Envía la solicitud del usuario al LLM y recibe la estrategia completa.
-    El LLM decide TODO: audiencias, copies, targeting, calendario.
+    Envía el preprompt del usuario + conocimiento de skills/agentes a Claude.
+    Claude razona con la expertise de los multiagentes para generar la estrategia.
     """
-    prompt = f"""Eres un experto en Meta Ads B2B con experiencia en el mercado colombiano.
+    skills_knowledge = _load_skills_knowledge()
 
-El usuario quiere crear esta campaña:
-"{user_request}"
+    system_prompt = f"""Eres un equipo de agentes expertos en marketing digital, media buying y creación de contenido publicitario.
 
-Presupuesto diario: ${budget} COP
+Tienes el conocimiento combinado de estos agentes especialistas:
+- ads-analyst: análisis competitivo, segmentación, briefs publicitarios
+- image-creator: dirección visual, prompts para generación de imágenes con IA
+- marketing: copy persuasivo, compliance, ejecución de campañas
+- video-scene-creator: narrativa visual, escenas de video para redes
+- paid-ads: estrategia de medios pagados, presupuesto, plataformas
+- ad-creative: ángulos creativos, formatos por plataforma
+- copywriting: principios de copy (claridad > creatividad, beneficios > features)
+- marketing-psychology: modelos mentales, Cialdini, behavioral triggers
 
-Responde SOLO en JSON válido (sin explicaciones, sin markdown, sin backticks).
-Analiza la solicitud y genera la estrategia óptima:
+BASE DE CONOCIMIENTO DE LOS AGENTES:
+{skills_knowledge}
+
+INSTRUCCIONES:
+Analiza la solicitud del usuario como lo haría un equipo de agentes expertos.
+Cada decisión debe tener una razón basada en los frameworks de los agentes.
+
+Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
 
 {{
-  "campaign_name": "nombre descriptivo de la campaña",
-  "analysis": "tu análisis de por qué elegiste esta estrategia (2-3 oraciones)",
+  "campaign_name": "nombre creativo y descriptivo",
+  "analysis": "análisis estratégico: qué entendiste de la solicitud, qué oportunidad detectas, qué enfoque elegiste y por qué (usa los frameworks de los agentes)",
+  "content_type": "{content_type}",
   "calendar": {{
-    "recommended_days": número de días recomendados,
-    "start_day": "mejor día de la semana para lanzar",
-    "reasoning": "por qué este calendario"
+    "recommended_days": número,
+    "start_day": "día óptimo para lanzar",
+    "reasoning": "justificación basada en el comportamiento de la audiencia objetivo"
   }},
   "audiences": [
     {{
       "name": "nombre del segmento",
-      "budget_pct": porcentaje del presupuesto (0.0-1.0),
-      "age_min": edad mínima,
-      "age_max": edad máxima,
+      "budget_pct": 0.0 a 1.0,
+      "age_min": número,
+      "age_max": número,
       "cities": ["ciudad1", "ciudad2"],
-      "city_radius_km": radio en km,
-      "interests_search_terms": ["término1", "término2", "término3"],
-      "destination": "whatsapp" o "lead_form" o "website",
-      "cta": "SIGN_UP" o "LEARN_MORE" o "GET_QUOTE" o "WHATSAPP_MESSAGE" o "CONTACT_US",
-      "reasoning": "por qué esta audiencia"
+      "city_radius_km": número,
+      "interests_search_terms": ["término1", "término2"],
+      "destination": "whatsapp" | "lead_form" | "website",
+      "cta": "SIGN_UP" | "LEARN_MORE" | "GET_QUOTE" | "WHATSAPP_MESSAGE" | "CONTACT_US",
+      "reasoning": "por qué esta audiencia, qué framework del agente aplica"
     }}
   ],
   "ads": [
     {{
       "audience_index": 0,
-      "angle": "nombre del ángulo (ej: dolor, resultado, autoridad)",
-      "primary_text": "texto principal del anuncio (max 500 chars, en español)",
+      "angle": "dolor | resultado | prueba_social | curiosidad | comparación | identidad",
+      "primary_text": "copy del anuncio en español colombiano (max 500 chars). Aplica: Hook→Contexto→Valor→Prueba→CTA",
       "headline": "titular (max 40 chars)",
       "description": "descripción corta (max 30 chars)",
-      "reasoning": "por qué este ángulo funciona"
+      "reasoning": "qué principio psicológico aplica (Cialdini, loss aversion, etc.)"
     }}
   ],
-  "image_prompt": "prompt detallado en inglés para generar la imagen promocional con IA. Debe reflejar exactamente lo que el usuario pidió, NO una persona genérica con laptop.",
-  "warnings": ["alerta1", "alerta2"]
+  "image_prompt": "prompt EN INGLÉS para generar la imagen publicitaria con IA. IMPORTANTE: (1) Debe reflejar LITERALMENTE lo que el usuario pidió — si pidió una vaca con un PC, genera una vaca con un PC. (2) SIEMPRE incluir elementos publicitarios: slogan visible en español, headline text, branding de la empresa, call-to-action visual, información de contacto. (3) Debe parecer un anuncio profesional de redes sociales, no una foto cualquiera. (4) Formato: 1080x1350 vertical, zona superior 15% limpia para logo overlay posterior. (5) Estilo: high-quality, professional advertising photography, vibrant colors.",
+  "video_scenes": [
+    {{
+      "scene_number": 1,
+      "duration_seconds": 7,
+      "visual_description": "descripción visual exacta de la escena",
+      "voiceover": "texto del narrador (8-16 palabras, español)",
+      "camera": "tipo de toma"
+    }}
+  ],
+  "warnings": ["alertas relevantes"]
 }}
 
-Reglas:
-1. SOLO JSON válido. Sin texto antes ni después.
-2. Mínimo 2 anuncios, máximo 5.
-3. Mínimo 1 audiencia, máximo 5 (según presupuesto).
-4. Los copies deben ser en español colombiano, persuasivos, específicos al concepto.
-5. Si el presupuesto es bajo (<$10,000/día), concentra en 1-2 audiencias.
-6. Las ciudades deben ser las más relevantes para el concepto (no siempre las 4 principales).
-7. Los interests_search_terms deben ser palabras que existan como intereses en Meta Ads.
-8. El image_prompt debe ser literal sobre lo que el usuario pidió. Si pidió vacas con sombrero, genera vacas con sombrero.
-9. Siempre incluye el análisis de por qué tomaste cada decisión."""
+REGLAS CRÍTICAS:
+1. SOLO JSON válido. Nada antes ni después.
+2. Respeta el TIPO DE CONTENIDO:
+   - "image": genera SOLO image_prompt (publicitario, con slogan, headline, branding). audiences y ads pueden estar vacíos [].
+   - "video": genera SOLO image_prompt + video_scenes. audiences y ads pueden estar vacíos [].
+   - "campaign": genera TODO: audiences + ads + image_prompt + calendar.
+3. El image_prompt SIEMPRE debe ser una pieza PUBLICITARIA profesional:
+   - Incluir texto visible en español: slogan, headline, call-to-action
+   - Incluir branding de la empresa si se menciona
+   - Reflejar EXACTAMENTE lo que el usuario pidió visualmente
+   - NO generar fotos genéricas sin texto publicitario
+4. Los copies deben aplicar Hook→Contexto→Valor→Prueba→CTA del agente copywriting.
+5. Cada ángulo de anuncio debe usar un principio psicológico diferente.
+6. Presupuesto bajo (<$10,000/día): 1-2 audiencias. Medio ($10K-50K): 2-3. Alto (>$50K): 3-5.
+7. Las ciudades deben ser relevantes al concepto."""
 
-    response = ask_ai(prompt, webhook_url, timeout=120)
+    user_prompt = (
+        f'SOLICITUD DEL USUARIO:\n"{user_request}"\n\n'
+        f'TIPO DE CONTENIDO: {content_type}\n'
+        f'PRESUPUESTO DIARIO: ${budget} COP (mercado colombiano)\n\n'
+        f'Genera la estrategia completa en JSON.'
+    )
+
+    response = ask_claude(system_prompt, user_prompt)
     if not response:
         return {}
 
@@ -430,12 +527,114 @@ def build_spec_from_strategy(
 # Campaign executor
 # ---------------------------------------------------------------------------
 
+def get_page_token(user_token: str, page_id: str) -> str:
+    """Obtiene el Page Access Token a partir del User Token (documentación oficial paso 3)."""
+    # Primero intentar el FB_PAGE_ACCESS_TOKEN del .env
+    page_token = os.environ.get("FB_PAGE_ACCESS_TOKEN", "").strip()
+    if page_token:
+        # Validar que funcione
+        try:
+            _meta_request("GET", page_id, page_token, {"fields": "id"})
+            return page_token
+        except Exception:
+            log_warn("FB_PAGE_ACCESS_TOKEN expirado. Obteniendo nuevo via /me/accounts...")
+
+    # Obtener via /me/accounts (requiere User Token con pages_manage_ads)
+    try:
+        result = _meta_request("GET", "me/accounts", user_token, {"fields": "id,name,access_token"})
+        for page in result.get("data", []):
+            if page.get("id") == page_id:
+                token = page.get("access_token", "")
+                if token:
+                    log_ok(f"Page Token obtenido para {page.get('name', page_id)}")
+                    return token
+        log_warn(f"No se encontró página {page_id} en /me/accounts")
+    except Exception as exc:
+        log_warn(f"No se pudo obtener Page Token: {exc}")
+
+    # Fallback al user token (funciona para la mayoría de operaciones)
+    return user_token
+
+
+def extend_token(short_token: str) -> str | None:
+    """Extiende un token short-lived a long-lived (60 días)."""
+    app_id = os.environ.get("FB_APP_ID", "").strip()
+    app_secret = os.environ.get("FB_APP_SECRET", "").strip()
+    if not app_id or not app_secret:
+        return None
+    try:
+        result = _meta_request("GET", "oauth/access_token", "", {
+            "grant_type": "fb_exchange_token",
+            "client_id": app_id,
+            "client_secret": app_secret,
+            "fb_exchange_token": short_token,
+        })
+        new_token = result.get("access_token")
+        if new_token:
+            log_ok(f"Token extendido. Expira en {result.get('expires_in', '?')}s")
+            return new_token
+    except Exception as exc:
+        log_warn(f"No se pudo extender token: {exc}")
+    return None
+
+
+def upload_image_to_meta(image_path: str, ad_account_id: str, access_token: str) -> str | None:
+    """Sube imagen a Meta y devuelve image_hash. Paso 1 del flujo oficial."""
+    import base64
+    if not image_path or not os.path.exists(image_path):
+        return None
+    try:
+        with open(image_path, "rb") as f:
+            img_bytes = base64.b64encode(f.read()).decode("utf-8")
+        result = _meta_request("POST", f"{ad_account_id}/adimages", access_token, {
+            "bytes": img_bytes,
+        })
+        # Response: {"images": {"bytes": {"hash": "abc123", ...}}}
+        images = result.get("images", {})
+        for key, val in images.items():
+            if isinstance(val, dict) and "hash" in val:
+                log_ok(f"Imagen subida a Meta. Hash: {val['hash']}")
+                return val["hash"]
+        log_warn(f"Meta no devolvió image_hash: {result}")
+        return None
+    except Exception as exc:
+        log_warn(f"No se pudo subir imagen a Meta: {exc}")
+        return None
+
+
 def execute_campaign(spec: dict[str, Any], access_token: str) -> dict[str, Any]:
-    results: dict[str, Any] = {"ok": False, "campaign": None, "adsets": [], "lead_form": None, "errors": []}
+    results: dict[str, Any] = {"ok": False, "campaign": None, "adsets": [], "lead_form": None, "image_hash": None, "errors": []}
     acct = spec["ad_account_id"]
+    page_id = spec.get("page_id", DEFAULT_PAGE_ID)
 
     try:
-        log_info("Creando campaña en Meta...")
+        # Validate token
+        log_info("Validando token de acceso...")
+        try:
+            _meta_request("GET", "me", access_token, {"fields": "id,name"})
+            log_ok("Token válido.")
+        except Exception:
+            log_warn("Token podría estar expirado. Intentando extender...")
+            new_token = extend_token(access_token)
+            if new_token:
+                access_token = new_token
+            else:
+                log_warn("No se pudo extender. Continuando con token actual.")
+
+        # Get Page Token for leadgen_forms (requires Page Access Token per docs)
+        page_token = get_page_token(access_token, page_id)
+
+        # Step 0: Upload image if available
+        image_path = spec.get("_image_path")
+        image_hash = None
+        if image_path:
+            log_info(f"Paso 1/6: Subiendo imagen a Meta: {os.path.basename(image_path)}...")
+            image_hash = upload_image_to_meta(image_path, acct, access_token)
+            results["image_hash"] = image_hash
+        else:
+            log_info("Sin imagen local. Los creativos usarán link sin image_hash.")
+
+        log_info("Paso 2/6: Creando campaña en Meta...")
         cr = _meta_request("POST", f"{acct}/campaigns", access_token, {
             "name": spec["campaign"]["name"],
             "objective": spec["campaign"]["objective"],
@@ -449,10 +648,11 @@ def execute_campaign(spec: dict[str, Any], access_token: str) -> dict[str, Any]:
 
         lfid = None
         if spec.get("lead_form"):
-            log_info("Creando formulario...")
+            log_info("Paso 3/6: Creando formulario de leads (requiere Page Token)...")
             fs = spec["lead_form"]
             try:
-                fr = _meta_request("POST", f"{spec['page_id']}/leadgen_forms", access_token, {
+                # leadgen_forms requires PAGE TOKEN per Meta docs
+                fr = _meta_request("POST", f"{page_id}/leadgen_forms", page_token, {
                     "name": fs["name"], "locale": fs["locale"],
                     "questions": json.dumps(fs["questions"]),
                     "privacy_policy": json.dumps(fs["privacy_policy"]),
@@ -467,7 +667,7 @@ def execute_campaign(spec: dict[str, Any], access_token: str) -> dict[str, Any]:
         for adset_spec in spec["adsets"]:
             aset_result: dict[str, Any] = {"name": adset_spec["audience_key"], "ads": [], "error": None}
             try:
-                log_info(f"Creando adset: {adset_spec['name']}...")
+                log_info(f"Paso 4/6: Creando adset: {adset_spec['name']}...")
                 asd = {
                     "name": adset_spec["name"], "campaign_id": cid,
                     "daily_budget": adset_spec["daily_budget"],
@@ -488,9 +688,15 @@ def execute_campaign(spec: dict[str, Any], access_token: str) -> dict[str, Any]:
 
                 for ad in adset_spec["ads"]:
                     try:
-                        cs = ad["creative"]
+                        cs = json.loads(json.dumps(ad["creative"]))
                         if lfid:
                             cs = json.loads(json.dumps(cs).replace("{{LEAD_FORM_ID}}", str(lfid)))
+                        # Inject image_hash into creative if we uploaded an image
+                        if image_hash:
+                            link_data = cs.get("object_story_spec", {}).get("link_data", {})
+                            link_data["image_hash"] = image_hash
+                            # Remove picture URL if present (image_hash takes priority)
+                            link_data.pop("picture", None)
                         cvr = _meta_request("POST", f"{acct}/adcreatives", access_token, {
                             "name": cs["name"],
                             "object_story_spec": json.dumps(cs["object_story_spec"]),
@@ -526,12 +732,10 @@ def build_campaign_spec(user_input: dict[str, Any]) -> dict[str, Any]:
     description = user_input.get("description") or user_input.get("name", "")
     budget = user_input.get("budget", "50000")
     access_token = user_input.get("access_token") or os.environ.get("FB_ACCESS_TOKEN", "")
-    webhook_url = user_input.get("webhook_url") or os.environ.get(
-        "N8N_WEBHOOK_PROMPT_IMGS", "https://n8n-dev.noyecode.com/webhook/py-prompt-imgs"
-    )
+    content_type = user_input.get("content_type", "campaign")
 
-    log_info(f"Enviando solicitud al AI para análisis estratégico...")
-    strategy = ai_generate_strategy(description, budget, webhook_url)
+    log_info(f"Enviando solicitud a Claude para análisis estratégico (tipo: {content_type})...")
+    strategy = ai_generate_strategy(description, budget, content_type=content_type)
 
     if not strategy:
         log_error("El AI no devolvió estrategia. Verifica la conexión con n8n.")
@@ -550,6 +754,7 @@ def main() -> int:
     parser.add_argument("--input", help="JSON file")
     parser.add_argument("--stdin", action="store_true", help="Read from stdin")
     parser.add_argument("--dry-run", action="store_true", help="Generate spec only")
+    parser.add_argument("--execute-spec", action="store_true", help="Execute a pre-generated spec directly")
     args = parser.parse_args()
 
     raw = sys.stdin.read() if args.stdin else (
@@ -560,6 +765,16 @@ def main() -> int:
     except json.JSONDecodeError as e:
         log_error(f"JSON inválido: {e}")
         return 1
+
+    if args.execute_spec:
+        # Execute a pre-generated spec directly (from chat approve flow)
+        token = user_input.get("_access_token") or os.environ.get("FB_ACCESS_TOKEN", "")
+        if not token:
+            log_error("Sin access_token.")
+            return 1
+        results = execute_campaign(user_input, token)
+        print(json.dumps({"results": results}, indent=2, ensure_ascii=False))
+        return 0 if results["ok"] else 1
 
     spec = build_campaign_spec(user_input)
 
