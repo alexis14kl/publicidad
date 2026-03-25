@@ -732,6 +732,188 @@ export interface MetaPublishPagePhotoResult extends MetaApiResult {
   photo_id?: string
 }
 
+// ── Instagram API Types ───────────────────────────────────────────────────────
+
+export interface IgApiResult {
+  success: boolean
+  error?: string
+}
+
+export interface IgBusinessAccount {
+  page_id: string
+  page_name: string
+  ig_user_id: string
+}
+
+export interface IgGetUserIdResult extends IgApiResult {
+  accounts?: IgBusinessAccount[]
+}
+
+export interface IgAccountInfo extends IgApiResult {
+  id?: string
+  username?: string
+  name?: string
+  biography?: string
+  website?: string
+  followers_count?: number
+  follows_count?: number
+  media_count?: number
+  profile_picture_url?: string
+}
+
+export interface IgContainerResult extends IgApiResult {
+  container_id?: string
+}
+
+export interface IgCarouselResult extends IgApiResult {
+  container_id?: string
+  child_ids?: string[]
+}
+
+export interface IgContainerStatusResult extends IgApiResult {
+  container_id?: string
+  status_code?: 'FINISHED' | 'IN_PROGRESS' | 'ERROR' | 'EXPIRED' | string
+  status?: unknown
+}
+
+export interface IgPublishResult extends IgApiResult {
+  media_id?: string
+  container_id?: string
+}
+
+export interface IgMediaItem {
+  id: string
+  media_type: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM'
+  media_url?: string
+  caption?: string
+  timestamp?: string
+  permalink?: string
+  like_count?: number
+  comments_count?: number
+  media_product_type?: 'AD' | 'FEED' | 'STORY' | 'REELS'
+}
+
+export interface IgListMediaResult extends IgApiResult {
+  media?: IgMediaItem[]
+}
+
+export interface IgMediaDetail extends IgApiResult {
+  id?: string
+  media_type?: string
+  media_url?: string
+  thumbnail_url?: string
+  caption?: string
+  timestamp?: string
+  permalink?: string
+  like_count?: number
+  comments_count?: number
+  is_comment_enabled?: boolean
+  media_product_type?: string
+  shortcode?: string
+  username?: string
+}
+
+export interface IgPublishingLimit extends IgApiResult {
+  config?: { quota_total?: number }
+  quota_usage?: number
+}
+
+export interface IgComment {
+  id: string
+  text: string
+  timestamp: string
+  username?: string
+  like_count?: number
+  replies?: { data: { id: string; text: string; timestamp: string; username?: string }[] }
+}
+
+export interface IgListCommentsResult extends IgApiResult {
+  comments?: IgComment[]
+}
+
+export interface IgCommentResult extends IgApiResult {
+  comment_id?: string
+}
+
+export interface IgInsightValue {
+  value: number
+  end_time?: string
+}
+
+export interface IgInsightMetric {
+  name: string
+  period: string
+  values: IgInsightValue[]
+  title?: string
+  description?: string
+}
+
+export interface IgInsightsResult extends IgApiResult {
+  insights?: IgInsightMetric[]
+}
+
+export interface IgPublishStepEvent {
+  step: number
+  message: string
+}
+
+export interface IgCreateImagePayload {
+  igUserId?: string
+  token?: string
+  imageUrl: string
+  caption?: string
+}
+
+export interface IgCreateReelPayload {
+  igUserId?: string
+  token?: string
+  videoUrl: string
+  caption?: string
+  thumbOffset?: number
+}
+
+export interface IgCreateStoryPayload {
+  igUserId?: string
+  token?: string
+  imageUrl?: string
+  videoUrl?: string
+}
+
+export interface IgCarouselItem {
+  imageUrl?: string
+  videoUrl?: string
+}
+
+export interface IgCreateCarouselPayload {
+  igUserId?: string
+  token?: string
+  items: IgCarouselItem[]
+  caption?: string
+}
+
+export interface IgPublishImagePayload {
+  igUserId?: string
+  token?: string
+  imageUrl: string
+  caption?: string
+}
+
+export interface IgPublishReelPayload {
+  igUserId?: string
+  token?: string
+  videoUrl: string
+  caption?: string
+  thumbOffset?: number
+  maxWaitMs?: number
+}
+
+export interface IgInsightsPayload {
+  igUserId?: string
+  token?: string
+  metrics?: string
+  period?: 'day' | 'lifetime'
+}
+
 export interface PreflightCheck {
   name: string
   required: string
@@ -796,4 +978,25 @@ export interface ElectronAPI {
   metaPublishPagePost: (payload?: MetaPublishPagePostPayload) => Promise<MetaPublishPagePostResult>
   metaPublishPagePhoto: (payload: MetaPublishPagePhotoPayload) => Promise<MetaPublishPagePhotoResult>
   onMetaPipelineStep: (callback: (data: MetaPipelineStepEvent) => void) => () => void
+  // Instagram API
+  igGetUserId: (payload?: { token?: string }) => Promise<IgGetUserIdResult>
+  igGetAccountInfo: (payload?: { igUserId?: string; token?: string }) => Promise<IgAccountInfo>
+  igCreateImageContainer: (payload: IgCreateImagePayload) => Promise<IgContainerResult>
+  igCreateReelContainer: (payload: IgCreateReelPayload) => Promise<IgContainerResult>
+  igCreateStoryContainer: (payload: IgCreateStoryPayload) => Promise<IgContainerResult>
+  igCreateCarousel: (payload: IgCreateCarouselPayload) => Promise<IgCarouselResult>
+  igCheckContainerStatus: (payload: { containerId: string; token?: string }) => Promise<IgContainerStatusResult>
+  igPublishContainer: (payload: { igUserId?: string; token?: string; containerId: string }) => Promise<IgPublishResult>
+  igPublishImage: (payload: IgPublishImagePayload) => Promise<IgPublishResult>
+  igPublishReel: (payload: IgPublishReelPayload) => Promise<IgPublishResult>
+  igListMedia: (payload?: { igUserId?: string; token?: string; limit?: number }) => Promise<IgListMediaResult>
+  igGetMediaDetail: (payload: { mediaId: string; token?: string }) => Promise<IgMediaDetail>
+  igGetPublishingLimit: (payload?: { igUserId?: string; token?: string }) => Promise<IgPublishingLimit>
+  igListComments: (payload: { mediaId: string; token?: string; limit?: number }) => Promise<IgListCommentsResult>
+  igReplyComment: (payload: { commentId: string; token?: string; message: string }) => Promise<IgCommentResult>
+  igHideComment: (payload: { commentId: string; token?: string; hide?: boolean }) => Promise<IgApiResult>
+  igToggleComments: (payload: { mediaId: string; token?: string; enabled?: boolean }) => Promise<IgApiResult>
+  igGetAccountInsights: (payload?: IgInsightsPayload) => Promise<IgInsightsResult>
+  igGetMediaInsights: (payload: { mediaId: string; token?: string; metrics?: string }) => Promise<IgInsightsResult>
+  onIgPublishStep: (callback: (data: IgPublishStepEvent) => void) => () => void
 }

@@ -43,6 +43,27 @@ import type {
   MetaTokenResult,
   MetaUploadAdImagePayload,
   MetaUploadAdImageResult,
+  IgAccountInfo,
+  IgApiResult,
+  IgCarouselResult,
+  IgCommentResult,
+  IgContainerResult,
+  IgContainerStatusResult,
+  IgCreateCarouselPayload,
+  IgCreateImagePayload,
+  IgCreateReelPayload,
+  IgCreateStoryPayload,
+  IgGetUserIdResult,
+  IgInsightsPayload,
+  IgInsightsResult,
+  IgListCommentsResult,
+  IgListMediaResult,
+  IgMediaDetail,
+  IgPublishImagePayload,
+  IgPublishReelPayload,
+  IgPublishResult,
+  IgPublishStepEvent,
+  IgPublishingLimit,
   SaveCompanyPayload,
   SelectCompanyPublicationAccountPayload,
   SelectCompanyPublicationAccountResult,
@@ -182,3 +203,72 @@ export const metaPublishPagePhoto = (payload: MetaPublishPagePhotoPayload): Prom
 
 // Pipeline step event listener
 export const onMetaPipelineStep = (cb: (data: MetaPipelineStepEvent) => void) => api().onMetaPipelineStep(cb)
+
+// ── Instagram API ───────────────────────────────────────────────────────────
+
+// 1. IG User ID
+export const igGetUserId = (payload?: { token?: string }): Promise<IgGetUserIdResult> =>
+  api().igGetUserId(payload)
+
+// 2. Account Info
+export const igGetAccountInfo = (payload?: { igUserId?: string; token?: string }): Promise<IgAccountInfo> =>
+  api().igGetAccountInfo(payload)
+
+// 3. Publishing — Containers
+export const igCreateImageContainer = (payload: IgCreateImagePayload): Promise<IgContainerResult> =>
+  api().igCreateImageContainer(payload)
+
+export const igCreateReelContainer = (payload: IgCreateReelPayload): Promise<IgContainerResult> =>
+  api().igCreateReelContainer(payload)
+
+export const igCreateStoryContainer = (payload: IgCreateStoryPayload): Promise<IgContainerResult> =>
+  api().igCreateStoryContainer(payload)
+
+export const igCreateCarousel = (payload: IgCreateCarouselPayload): Promise<IgCarouselResult> =>
+  api().igCreateCarousel(payload)
+
+export const igCheckContainerStatus = (payload: { containerId: string; token?: string }): Promise<IgContainerStatusResult> =>
+  api().igCheckContainerStatus(payload)
+
+export const igPublishContainer = (payload: { igUserId?: string; token?: string; containerId: string }): Promise<IgPublishResult> =>
+  api().igPublishContainer(payload)
+
+// 3. Publishing — Convenience
+export const igPublishImage = (payload: IgPublishImagePayload): Promise<IgPublishResult> =>
+  api().igPublishImage(payload)
+
+export const igPublishReel = (payload: IgPublishReelPayload): Promise<IgPublishResult> =>
+  api().igPublishReel(payload)
+
+// 4. Media
+export const igListMedia = (payload?: { igUserId?: string; token?: string; limit?: number }): Promise<IgListMediaResult> =>
+  api().igListMedia(payload)
+
+export const igGetMediaDetail = (payload: { mediaId: string; token?: string }): Promise<IgMediaDetail> =>
+  api().igGetMediaDetail(payload)
+
+export const igGetPublishingLimit = (payload?: { igUserId?: string; token?: string }): Promise<IgPublishingLimit> =>
+  api().igGetPublishingLimit(payload)
+
+// 5. Comments
+export const igListComments = (payload: { mediaId: string; token?: string; limit?: number }): Promise<IgListCommentsResult> =>
+  api().igListComments(payload)
+
+export const igReplyComment = (payload: { commentId: string; token?: string; message: string }): Promise<IgCommentResult> =>
+  api().igReplyComment(payload)
+
+export const igHideComment = (payload: { commentId: string; token?: string; hide?: boolean }): Promise<IgApiResult> =>
+  api().igHideComment(payload)
+
+export const igToggleComments = (payload: { mediaId: string; token?: string; enabled?: boolean }): Promise<IgApiResult> =>
+  api().igToggleComments(payload)
+
+// 6. Insights
+export const igGetAccountInsights = (payload?: IgInsightsPayload): Promise<IgInsightsResult> =>
+  api().igGetAccountInsights(payload)
+
+export const igGetMediaInsights = (payload: { mediaId: string; token?: string; metrics?: string }): Promise<IgInsightsResult> =>
+  api().igGetMediaInsights(payload)
+
+// Publish step event listener
+export const onIgPublishStep = (cb: (data: IgPublishStepEvent) => void) => api().onIgPublishStep(cb)

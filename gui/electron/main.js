@@ -70,6 +70,7 @@ app.whenReady().then(() => {
   const { registerBrochureHandlers } = require('./ipc/brochure')
   const { registerChatHandlers } = require('./ipc/chat')
   const { registerMetaAuthHandlers } = require('./ipc/meta-auth')
+  const { registerInstagramHandlers } = require('./ipc/instagram')
 
   registerBotHandlers(ipcMain)
   registerPollerHandlers(ipcMain)
@@ -80,6 +81,7 @@ app.whenReady().then(() => {
   registerBrochureHandlers(ipcMain)
   registerChatHandlers(ipcMain)
   registerMetaAuthHandlers(ipcMain)
+  registerInstagramHandlers(ipcMain)
 
   // 3. Start log watchers (lightweight)
   const { startLogWatcher, startBotLogWatcher } = require('./log-watcher')

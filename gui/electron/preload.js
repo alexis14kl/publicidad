@@ -74,4 +74,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('meta-pipeline-step', handler)
     return () => ipcRenderer.removeListener('meta-pipeline-step', handler)
   },
+
+  // ── Instagram API ───────────────────────────────────────────────────────
+  igGetUserId: (payload) => ipcRenderer.invoke('ig-get-user-id', payload),
+  igGetAccountInfo: (payload) => ipcRenderer.invoke('ig-get-account-info', payload),
+  igCreateImageContainer: (payload) => ipcRenderer.invoke('ig-create-image-container', payload),
+  igCreateReelContainer: (payload) => ipcRenderer.invoke('ig-create-reel-container', payload),
+  igCreateStoryContainer: (payload) => ipcRenderer.invoke('ig-create-story-container', payload),
+  igCreateCarousel: (payload) => ipcRenderer.invoke('ig-create-carousel', payload),
+  igCheckContainerStatus: (payload) => ipcRenderer.invoke('ig-check-container-status', payload),
+  igPublishContainer: (payload) => ipcRenderer.invoke('ig-publish-container', payload),
+  igPublishImage: (payload) => ipcRenderer.invoke('ig-publish-image', payload),
+  igPublishReel: (payload) => ipcRenderer.invoke('ig-publish-reel', payload),
+  igListMedia: (payload) => ipcRenderer.invoke('ig-list-media', payload),
+  igGetMediaDetail: (payload) => ipcRenderer.invoke('ig-get-media-detail', payload),
+  igGetPublishingLimit: (payload) => ipcRenderer.invoke('ig-get-publishing-limit', payload),
+  igListComments: (payload) => ipcRenderer.invoke('ig-list-comments', payload),
+  igReplyComment: (payload) => ipcRenderer.invoke('ig-reply-comment', payload),
+  igHideComment: (payload) => ipcRenderer.invoke('ig-hide-comment', payload),
+  igToggleComments: (payload) => ipcRenderer.invoke('ig-toggle-comments', payload),
+  igGetAccountInsights: (payload) => ipcRenderer.invoke('ig-get-account-insights', payload),
+  igGetMediaInsights: (payload) => ipcRenderer.invoke('ig-get-media-insights', payload),
+  onIgPublishStep: (callback) => {
+    const handler = (_event, data) => callback(data)
+    ipcRenderer.on('ig-publish-step', handler)
+    return () => ipcRenderer.removeListener('ig-publish-step', handler)
+  },
 })
