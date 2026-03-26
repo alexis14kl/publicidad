@@ -157,6 +157,9 @@ Copiar `.env.example` → `.env`. Variables criticas:
 | `FREEIMAGE_API_KEY` | API hosting imagenes |
 | `CDP_DICLOAK_URL` | Endpoint DICloak (default 127.0.0.1:9333) |
 | `CDP_CHATGPT_PORT` | Puerto perfil ChatGPT (default 9225) |
+| `DICLOAK_API_PORT` | Puerto Open API local DICloak (default 52140) |
+| `DICLOAK_API_KEY` | API Key de DICloak (Settings > Open API) |
+| `DICLOAK_MCP_URL` | URL MCP DICloak Cloud (opcional) |
 | `INITIAL_PROFILE` | Perfil DICloak principal |
 | `FALLBACK_PROFILES` | Perfiles de rotacion (comma-separated) |
 | `FB_ACCESS_TOKEN`, `FB_PAGE_ID` | Credenciales Facebook |

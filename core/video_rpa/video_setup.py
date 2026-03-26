@@ -152,9 +152,10 @@ def _go_to_flow_list(page: Page) -> bool:
 
 def _click_new_project(page: Page) -> bool:
     """
-    Flow UI 2026: el prompt box está directamente en la galería.
-    Campo 'What do you want to create?' con Start/End y flecha → de envío.
-    Puede requerir scroll al fondo para hacerlo visible.
+    Flow UI 2026: la galería muestra proyectos anteriores.
+    El campo de prompt puede estar oculto (textarea con width=0).
+    Necesitamos: 1) buscar campo visible, 2) si no, click en "+ New project",
+    3) si no, click en el textarea oculto para expandirlo, 4) navegar directo.
     """
 
     if not _poll_page_ready(page, {"botones": "button"}, timeout_sec=20, label="Flow"):
@@ -162,18 +163,17 @@ def _click_new_project(page: Page) -> bool:
 
     log_info("Flow cargada. Buscando campo de prompt...")
 
-    # Scroll al fondo — el prompt box está debajo de la galería de videos
+    # Scroll al fondo — el prompt box puede estar debajo de la galería
     page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
     page.wait_for_timeout(2000)
 
-    # Buscar CUALQUIER campo de input/textarea/contenteditable en la página
     found = page.evaluate("""() => {
-        // Strategy 1: Find by placeholder text
+        // Strategy 1: Find visible editable field by placeholder text
         const allInputs = document.querySelectorAll('input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"]');
         for (const el of allInputs) {
             if (el.offsetParent === null) continue;
             const ph = (el.getAttribute('placeholder') || el.getAttribute('data-placeholder') || el.getAttribute('aria-label') || '').toLowerCase();
-            if (ph.includes('create') || ph.includes('want') || ph.includes('generar') || ph.includes('quieres')) {
+            if (ph.includes('create') || ph.includes('want') || ph.includes('generar') || ph.includes('quieres') || ph.includes('describe') || ph.includes('prompt')) {
                 el.scrollIntoView({block: 'center'});
                 el.click();
                 el.focus();
@@ -204,19 +204,45 @@ def _click_new_project(page: Page) -> bool:
             }
         }
 
-        // Strategy 4: Click on "+" button in the top bar to create new project
-        const btns = Array.from(document.querySelectorAll('button, [role="button"]'));
-        const plusBtn = btns.find(b => {
-            const text = (b.innerText || '').trim();
+        // Strategy 4: Click "New project" button — matches text content, not just "+"
+        const btns = Array.from(document.querySelectorAll('button, [role="button"], a'));
+        const newProjectBtn = btns.find(b => {
+            const text = (b.innerText || b.textContent || '').trim().toLowerCase();
             const aria = (b.getAttribute('aria-label') || '').toLowerCase();
-            return text === '+' || aria.includes('new') || aria.includes('add') || aria.includes('create');
+            return text === '+' ||
+                   text.includes('new project') || text.includes('nuevo proyecto') ||
+                   text.includes('new') && text.length < 20 ||
+                   aria.includes('new') || aria.includes('add') || aria.includes('create') ||
+                   aria.includes('nuevo') || aria.includes('crear');
         });
-        if (plusBtn) {
-            plusBtn.click();
-            return {found: true, method: 'plus-button'};
+        if (newProjectBtn) {
+            newProjectBtn.scrollIntoView({block: 'center'});
+            newProjectBtn.click();
+            return {found: true, method: 'new-project-button', text: (newProjectBtn.innerText || '').slice(0, 30)};
         }
 
-        // Debug: list all inputs/editables found
+        // Strategy 5: Force-click hidden textarea/input to expand it
+        for (const el of allInputs) {
+            const rect = el.getBoundingClientRect();
+            if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+                // Even if hidden (offsetParent null), try to make it visible
+                el.style.display = 'block';
+                el.style.visibility = 'visible';
+                el.style.width = '100%';
+                el.style.height = 'auto';
+                el.style.opacity = '1';
+                el.scrollIntoView({block: 'center'});
+                el.click();
+                el.focus();
+                // Check if it became visible after our intervention
+                const newRect = el.getBoundingClientRect();
+                if (newRect.width > 50) {
+                    return {found: true, method: 'force-expand', tag: el.tagName, w: newRect.width};
+                }
+            }
+        }
+
+        // Debug: list all inputs/editables and buttons found
         const debug = [];
         document.querySelectorAll('input, textarea, [contenteditable], [role="textbox"]').forEach(el => {
             debug.push({
@@ -229,18 +255,65 @@ def _click_new_project(page: Page) -> bool:
                 w: el.getBoundingClientRect().width,
             });
         });
-        return {found: false, debug: debug};
+        const btnDebug = [];
+        document.querySelectorAll('button, [role="button"], a').forEach(b => {
+            const text = (b.innerText || '').trim();
+            if (text && text.length < 40) btnDebug.push(text);
+        });
+        return {found: false, debug: debug, buttons: btnDebug.slice(0, 15)};
     }""")
 
     if found and found.get("found"):
-        log_ok(f"Campo de prompt encontrado ({found.get('method')}, {found.get('tag', '?')}). Listo para pegar.")
-        if found.get("method") == "plus-button":
-            page.wait_for_timeout(3000)
+        method = found.get("method")
+        log_ok(f"Campo de prompt encontrado ({method}, {found.get('tag', found.get('text', '?'))}). Listo para pegar.")
+        if method in ("new-project-button", "plus-button"):
+            log_info("Esperando que se abra el editor de nuevo proyecto...")
+            page.wait_for_timeout(4000)
+            # After clicking new project, wait for the prompt field to appear
+            _wait_for_visible_prompt_field(page, timeout_sec=15)
+        elif method == "force-expand":
+            page.wait_for_timeout(2000)
         return True
 
-    # Log debug info
+    # Strategy 6 (last resort): navigate directly to new project URL
+    log_warn("No se encontro campo de prompt en la galeria. Intentando navegar directamente...")
     debug = found.get("debug", []) if found else []
-    log_error(f"No se encontro campo de prompt. Inputs en la pagina: {debug}")
+    buttons = found.get("buttons", []) if found else []
+    log_info(f"  Inputs detectados: {debug}")
+    log_info(f"  Botones detectados: {buttons}")
+
+    try:
+        page.goto("https://labs.google/fx/tools/video-fx", wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(4000)
+        if _wait_for_visible_prompt_field(page, timeout_sec=20):
+            log_ok("Campo de prompt encontrado tras navegar a video-fx.")
+            return True
+    except Exception as exc:
+        log_warn(f"Navegacion a video-fx fallo: {exc}")
+
+    log_error(f"No se encontro campo de prompt en ninguna ruta.")
+    return False
+
+
+def _wait_for_visible_prompt_field(page: Page, timeout_sec: int = 15) -> bool:
+    """Espera a que aparezca un campo de texto visible para el prompt."""
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        visible = page.evaluate("""() => {
+            const fields = document.querySelectorAll('textarea, input[type="text"], [contenteditable="true"], [role="textbox"]');
+            for (const el of fields) {
+                if (el.offsetParent !== null && el.getBoundingClientRect().width > 50) {
+                    el.scrollIntoView({block: 'center'});
+                    el.click();
+                    el.focus();
+                    return true;
+                }
+            }
+            return false;
+        }""")
+        if visible:
+            return True
+        page.wait_for_timeout(1000)
     return False
 
 
@@ -249,28 +322,59 @@ def _paste_prompt_in_flow(page: Page, prompt_text: str) -> bool:
     log_info("Buscando campo de texto del proyecto...")
 
     # Flow UI 2026: campo de texto "What do you want to create?"
-    # Puede ser textarea, input, contenteditable, o role=textbox
-    selectors = [
-        "textarea",
-        "input[type='text']",
-        "input:not([type='hidden'])",
+    # Es un DIV contenteditable con role=textbox (w~564px)
+    # IMPORTANTE: priorizar contenteditable/role=textbox sobre input/textarea
+    # porque input[type=text] puede ser el campo de fecha (w~151px)
+    selectors_priority = [
         "[role='textbox']",
-        "[role='combobox']",
         "[contenteditable='true']",
         "[contenteditable='plaintext-only']",
         "[placeholder*='create']",
         "[placeholder*='want']",
         "[data-placeholder]",
+        "textarea",
+        "[role='combobox']",
     ]
 
     textarea = None
-    for selector in selectors:
+    for selector in selectors_priority:
         try:
-            textarea = page.wait_for_selector(selector, timeout=10000, state="visible")
+            textarea = page.wait_for_selector(selector, timeout=8000, state="visible")
             if textarea:
-                break
+                # Verify this is a wide enough field to be the prompt (not a date/title field)
+                box = textarea.bounding_box()
+                if box and box.get("width", 0) > 200:
+                    break
+                # If too narrow, keep looking
+                log_info(f"  Campo {selector} demasiado estrecho ({box.get('width', 0) if box else 0}px), buscando otro...")
+                textarea = None
+                continue
         except Exception:
             continue
+
+    if not textarea:
+        # Fallback: try any wide visible editable field via JS
+        textarea_js = page.evaluate("""() => {
+            const candidates = Array.from(document.querySelectorAll('[contenteditable="true"], [role="textbox"], textarea'));
+            for (const el of candidates) {
+                if (el.offsetParent !== null && el.getBoundingClientRect().width > 200) {
+                    el.scrollIntoView({block: 'center'});
+                    el.click();
+                    el.focus();
+                    return true;
+                }
+            }
+            return false;
+        }""")
+        if textarea_js:
+            # Re-acquire the element
+            for sel in ["[role='textbox']", "[contenteditable='true']"]:
+                try:
+                    textarea = page.wait_for_selector(sel, timeout=3000, state="visible")
+                    if textarea:
+                        break
+                except Exception:
+                    continue
 
     if not textarea:
         log_error("No se encontro el campo de texto del proyecto.")
@@ -1213,13 +1317,21 @@ def _wait_for_prompt_settle(
             attempts += 1
             remaining = max(0, int(deadline - time.time()))
             current_text = page.evaluate("""(selector) => {
-                const tagged = document.querySelector(selector);
+                // Priority: find the WIDEST visible contenteditable/textbox (the prompt field)
+                // NOT the narrow date or title inputs
                 const candidates = Array.from(document.querySelectorAll(
-                    '[contenteditable="true"], textarea, [role="textbox"], input[type="text"], input:not([type])'
+                    '[contenteditable="true"], [role="textbox"], textarea, input[type="text"], input:not([type])'
                 ));
-                const el = tagged || candidates.find((item) => item.offsetParent !== null) || candidates[0];
+                const visible = candidates.filter(el => el.offsetParent !== null);
+                // Sort by width descending — the prompt field is the widest
+                visible.sort((a, b) => b.getBoundingClientRect().width - a.getBoundingClientRect().width);
+                const tagged = document.querySelector(selector);
+                // Prefer tagged if it's visible and wide, otherwise take widest
+                const el = (tagged && tagged.offsetParent !== null && tagged.getBoundingClientRect().width > 200)
+                    ? tagged
+                    : visible.find(v => v.getBoundingClientRect().width > 200) || visible[0];
                 if (!el) return '';
-                if ('value' in el) return (el.value || '').trim();
+                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') return (el.value || '').trim();
                 return (el.innerText || el.textContent || '').trim();
             }""", editor_selector)
             normalized_current = _normalize_prompt_text(current_text)
@@ -1275,11 +1387,21 @@ def _wait_for_prompt_settle(
                 return !btn.disabled && btn.getAttribute('aria-disabled') !== 'true';
             }""", {"selector": editor_selector, "actionMode": action_mode})
 
-            if normalized_current == normalized_expected and action_ready:
+            # Exact match or close enough (>90% of expected length and action button ready)
+            text_match = (normalized_current == normalized_expected)
+            close_enough = (
+                not text_match
+                and action_ready
+                and expected_len > 0
+                and len(normalized_current) >= expected_len * 0.9
+                and normalized_expected[:50] in normalized_current
+            )
+            if (text_match or close_enough) and action_ready:
                 stable_hits += 1
                 if stable_hits >= phase_stable_rounds:
+                    match_type = "exacto" if text_match else f"~{len(normalized_current)}/{expected_len} chars"
                     log_ok(
-                        f"Prompt estable y completo en Flow ({len(normalized_current)} chars). "
+                        f"Prompt estable y completo en Flow ({match_type}). "
                         "Ya se puede pulsar el boton de envio."
                     )
                     return True
@@ -1319,28 +1441,43 @@ def _click_create(page: Page, max_retries: int = 5) -> bool:
 
     for attempt in range(max_retries):
         btn_info = page.evaluate("""() => {
-            const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
-            // Try multiple strategies to find the send/create button
-            const btn = buttons.find(b => {
+            const buttons = Array.from(document.querySelectorAll('button, [role="button"]')).filter(b => b.offsetParent !== null);
+            // Strategy 1: Find "arrow_forward + Create/Crear" button (the actual send button)
+            const sendBtn = buttons.find(b => {
                 const text = (b.innerText || '').toLowerCase().trim();
-                const aria = (b.getAttribute('aria-label') || '').toLowerCase();
                 return (
-                    (text.includes('arrow_forward') && text.includes('crear')) ||
-                    text === '→' || text === '➡' || text === '▶' ||
-                    aria.includes('send') || aria.includes('submit') || aria.includes('generate') ||
-                    aria.includes('crear') || aria.includes('create') ||
-                    (text.includes('video') && b.nextElementSibling?.tagName === 'BUTTON')
+                    (text.includes('arrow_forward') && (text.includes('create') || text.includes('crear'))) ||
+                    text === 'arrow_forward' ||
+                    text === '→' || text === '➡' || text === '▶'
                 );
             });
-            // Fallback: last button in the bottom prompt bar
-            const fallback = buttons.filter(b => {
+            if (sendBtn) {
+                const rect = sendBtn.getBoundingClientRect();
+                return { found: true, x: rect.x, y: rect.y, w: rect.width, h: rect.height, text: (sendBtn.innerText || '').slice(0, 30), method: 'arrow_forward' };
+            }
+            // Strategy 2: Find by aria-label
+            const ariaBtn = buttons.find(b => {
+                const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+                return aria.includes('send') || aria.includes('submit') || aria.includes('generate') ||
+                       aria.includes('crear') || aria.includes('create');
+            });
+            if (ariaBtn) {
+                const rect = ariaBtn.getBoundingClientRect();
+                return { found: true, x: rect.x, y: rect.y, w: rect.width, h: rect.height, text: (ariaBtn.innerText || '').slice(0, 30), method: 'aria' };
+            }
+            // Strategy 3: Find the LAST small button in the bottom-right (the send arrow is always rightmost)
+            const bottomBtns = buttons.filter(b => {
                 const r = b.getBoundingClientRect();
-                return r.bottom > window.innerHeight - 150 && r.right > window.innerWidth - 200 && b.offsetParent;
-            }).pop();
-            const target = btn || fallback;
-            if (target && target.offsetParent !== null) {
-                const rect = target.getBoundingClientRect();
-                return { found: true, x: rect.x, y: rect.y, w: rect.width, h: rect.height, text: (target.innerText || '').slice(0, 30) };
+                return r.bottom > window.innerHeight - 150 && r.right > window.innerWidth - 200;
+            }).sort((a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right);
+            // The rightmost small button in the bottom bar is the send arrow
+            const rightmost = bottomBtns.find(b => {
+                const r = b.getBoundingClientRect();
+                return r.width < 60 && r.height < 60; // send button is small (~32x32), not the options button (~89x34)
+            }) || bottomBtns[0];
+            if (rightmost) {
+                const rect = rightmost.getBoundingClientRect();
+                return { found: true, x: rect.x, y: rect.y, w: rect.width, h: rect.height, text: (rightmost.innerText || '').slice(0, 30), method: 'rightmost' };
             }
             return { found: false };
         }""")

@@ -366,6 +366,31 @@ def _video_pipeline(cdp_port: int, dev_mode: bool) -> int:
         else:
             log_ok(f"Video de la escena {index} descargado con exito")
 
+    # ── Apply branding overlay (logo + contact bar) via ffmpeg ──
+    videos = sorted(VIDEO_DIR.glob("*.mp4"), key=lambda f: f.stat().st_mtime, reverse=True)
+    if videos:
+        try:
+            from core.utils.overlay_video import overlay_video
+            company_name = get_env("BOT_COMPANY_NAME", "")
+            website = get_env("BUSINESS_WEBSITE", "")
+            phone = get_env("BUSINESS_WHATSAPP", "")
+            logo_path = get_env("BOT_COMPANY_LOGO_PATH", "")
+            overlay_video(
+                videos[0],
+                company_name=company_name,
+                website=website,
+                phone=phone,
+                logo_path=logo_path or None,
+            )
+        except Exception as exc:
+            log_warn(f"No se pudo aplicar overlay al video (se publicara sin branding): {exc}")
+
+    # ── Check if publishing is skipped (chat flow handles its own publishing) ──
+    skip_publish = str(get_env("BOT_SKIP_PUBLISH", "0") or "0").strip() == "1"
+    if skip_publish:
+        log_ok("Video generado y descargado con branding. Publicacion omitida (BOT_SKIP_PUBLISH=1).")
+        return _cleanup_and_exit(dev_mode, 0)
+
     # Step V3: Verificar/renovar token de Facebook
     if "facebook" in str(get_env("PUBLISH_PLATFORMS", "facebook") or "").lower():
         try:

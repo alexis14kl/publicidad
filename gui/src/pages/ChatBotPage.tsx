@@ -13,6 +13,7 @@ interface PreviewData {
   type: 'image' | 'video' | 'campaign'
   imagePath?: string
   imageDataUrl?: string
+  videoDataUrl?: string
   campaignSpec?: Record<string, unknown>
   summary: string
 }
@@ -20,6 +21,7 @@ interface PreviewData {
 const api = () => window.electronAPI
 
 export function ChatBotPage() {
+  const [videoModal, setVideoModal] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
@@ -181,15 +183,24 @@ export function ChatBotPage() {
                   .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                   .replace(/\n/g, '<br/>')
               }} />
-              {msg.preview?.imageDataUrl && (
+              {msg.preview?.videoDataUrl && (
+                <button
+                  className="chatbot-video-thumb"
+                  onClick={() => setVideoModal(msg.preview?.videoDataUrl || null)}
+                >
+                  <span className="chatbot-video-thumb__icon">&#9654;</span>
+                  <span className="chatbot-video-thumb__label">Ver video generado</span>
+                </button>
+              )}
+              {msg.preview?.imageDataUrl && !msg.preview?.videoDataUrl && (
                 <img
                   className="chatbot-preview-img"
                   src={msg.preview.imageDataUrl}
                   alt="Preview"
                 />
               )}
-              {msg.preview?.imagePath && !msg.preview?.imageDataUrl && (
-                <div className="chatbot-preview-summary">Imagen generada: {msg.preview.imagePath.split('/').pop()}</div>
+              {msg.preview?.imagePath && !msg.preview?.imageDataUrl && !msg.preview?.videoDataUrl && (
+                <div className="chatbot-preview-summary">Archivo generado: {msg.preview.imagePath.split('/').pop()}</div>
               )}
               {msg.preview?.summary && (
                 <div className="chatbot-preview-summary">{msg.preview.summary}</div>
@@ -243,6 +254,21 @@ export function ChatBotPage() {
           {isProcessing ? '...' : '→'}
         </button>
       </div>
+
+      {videoModal && (
+        <div className="chatbot-video-modal-backdrop" onClick={() => setVideoModal(null)}>
+          <div className="chatbot-video-modal" onClick={e => e.stopPropagation()}>
+            <button className="chatbot-video-modal__close" onClick={() => setVideoModal(null)}>✕</button>
+            <video
+              className="chatbot-video-modal__player"
+              src={videoModal}
+              controls
+              autoPlay
+              playsInline
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

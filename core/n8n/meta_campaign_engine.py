@@ -202,8 +202,8 @@ Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
       "reasoning": "qué principio psicológico aplica (Cialdini, loss aversion, etc.)"
     }}
   ],
-  "post_caption": "Texto completo para el post de la publicación en redes sociales (en español). Aplica el framework del agente copywriting: Hook (primera línea que atrapa) → Contexto (por qué importa) → Valor (qué ofreces) → Prueba (credibilidad) → CTA (acción clara). Incluye emojis relevantes. Máximo 300 palabras. DEBE estar enfocado en lo que el usuario solicitó.",
-  "post_hashtags": ["hashtag1", "hashtag2", "hashtag3"],
+  "post_caption": "OBLIGATORIO. Texto completo para la publicación en redes sociales (en español colombiano). Aplica el framework del agente copywriting: Hook (primera línea impactante que detenga el scroll) → Contexto (por qué importa ahora) → Valor (qué ofrece la empresa) → Prueba (dato, testimonio o credibilidad) → CTA (acción clara: visita la web, escríbenos, agenda). Usa emojis estratégicamente. Menciona el nombre de la empresa. Máximo 300 palabras. NO repetir la solicitud del usuario literalmente — transforma la idea en copy profesional que venda.",
+  "post_hashtags": "OBLIGATORIO. Array de 8-15 hashtags relevantes en español. Mezclar: 3-4 hashtags de nicho específico del servicio/producto, 3-4 hashtags de la industria o sector, 2-3 hashtags de ubicación (Colombia, ciudad si aplica), 1-2 hashtags de marca si se menciona empresa. Sin # en el valor. Ejemplo: ['AutomatizacionEmpresarial', 'TransformacionDigital', 'NoyeCode', 'SoftwareColombia', 'Bogota', 'EmpresariosDigitales']",
   "image_prompt": "prompt EN INGLÉS para generar la imagen publicitaria con IA. IMPORTANTE: (1) Debe reflejar LITERALMENTE lo que el usuario pidió — si pidió una vaca con un PC, genera una vaca con un PC. (2) SIEMPRE incluir elementos publicitarios: slogan visible en español, headline text, branding de la empresa, call-to-action visual, información de contacto. (3) Debe parecer un anuncio profesional de redes sociales, no una foto cualquiera. (4) Formato: 1080x1350 vertical, zona superior 15% limpia para logo overlay posterior. (5) Estilo: high-quality, professional advertising photography, vibrant colors.",
   "video_scenes": [
     {{
@@ -217,18 +217,43 @@ Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
   "warnings": ["alertas relevantes"]
 }}
 
-Reglas:
-1. SOLO JSON válido. Sin texto antes ni después.
-2. Mínimo 2 anuncios, máximo 5.
-3. Mínimo 1 audiencia, máximo 5 (según presupuesto).
-4. Los copies deben ser en español colombiano, persuasivos, específicos al concepto.
-5. Si el presupuesto es bajo (<$10,000/día), concentra en 1-2 audiencias.
-6. Las ciudades deben ser las más relevantes para el concepto (no siempre las 4 principales).
-7. Los interests_search_terms deben ser palabras que existan como intereses en Meta Ads.
-8. El image_prompt debe ser literal sobre lo que el usuario pidió. Si pidió vacas con sombrero, genera vacas con sombrero.
-9. Siempre incluye el análisis de por qué tomaste cada decisión."""
+REGLAS CRÍTICAS:
+1. SOLO JSON válido. Nada antes ni después.
+2. Respeta el TIPO DE CONTENIDO:
+   - "image": genera image_prompt + post_caption + post_hashtags. audiences y ads pueden estar vacíos [].
+   - "video": genera image_prompt + video_scenes + post_caption + post_hashtags. audiences y ads pueden estar vacíos []. NO generar audiences ni ads para videos orgánicos.
+   - "campaign": genera TODO: audiences + ads + image_prompt + post_caption + post_hashtags + calendar. Si la campaña se beneficia de video, incluye también video_scenes.
+3. post_caption y post_hashtags son OBLIGATORIOS para TODOS los tipos. NUNCA dejarlos vacíos.
+   - post_caption: copy profesional (Hook→Contexto→Valor→Prueba→CTA). NO repetir el prompt del usuario.
+   - post_hashtags: 8-15 hashtags relevantes.
+4. El image_prompt SIEMPRE debe ser una pieza PUBLICITARIA profesional:
+   - Incluir texto visible en español: slogan, headline, call-to-action
+   - Incluir el NOMBRE REAL de la empresa si se menciona en la solicitud (NO inventar nombres)
+   - Incluir número de WhatsApp o web de la empresa si se proporcionaron
+   - Reflejar EXACTAMENTE lo que el usuario pidió visualmente
+   - NO generar fotos genéricas sin texto publicitario
+5. Los copies deben aplicar Hook→Contexto→Valor→Prueba→CTA del agente copywriting.
+6. Cada ángulo de anuncio debe usar un principio psicológico diferente.
+7. Presupuesto bajo (<$10,000/día): 1-2 audiencias. Medio ($10K-50K): 2-3. Alto (>$50K): 3-5.
+8. Las ciudades deben ser relevantes al concepto.
+9. IMPORTANTE para tipo "video": El image_prompt se usa para generar el video en Veo 3. Reglas ESTRICTAS para video:
+   - Describir SOLO la escena visual, acciones y ambiente. NO incluir texto en pantalla.
+   - PROHIBIDO poner texto, logos, nombres de empresa, slogans, titulares, numeros de telefono, URLs o cualquier texto visible en el prompt de video.
+   - Razon: la IA de video NO puede renderizar texto correctamente — siempre genera errores ortograficos y logos inventados.
+   - El texto, logo e info de contacto se agregan DESPUES como overlay profesional sobre el video.
+   - Enfocarse en: actores, expresiones, objetos, ambientes, iluminacion, movimiento de camara, transiciones.
+   - Ejemplo CORRECTO: "Frustrated office worker slamming old CRT computer, papers flying. Cut to: modern professional smiling at sleek laptop with colorful dashboard. Split screen transition, cinematic lighting, 7 seconds."
+   - Ejemplo INCORRECTO: "Video with text 'Automatiza con NoyeCode' and company logo at top..." (esto genera texto ilegible)
+10. Para tipo "image": el image_prompt SI debe incluir texto visible (slogan, headline, branding) porque la IA de imagenes maneja texto mejor."""
 
-    response = ask_ai(prompt, webhook_url, timeout=120)
+    user_prompt = (
+        f'SOLICITUD DEL USUARIO:\n"{user_request}"\n\n'
+        f'TIPO DE CONTENIDO: {content_type}\n'
+        f'PRESUPUESTO DIARIO: ${budget} COP (mercado colombiano)\n\n'
+        f'Genera la estrategia completa en JSON.'
+    )
+
+    response = ask_claude(system_prompt, user_prompt)
     if not response:
         return {}
 
@@ -339,7 +364,9 @@ def build_spec_from_strategy(
     raw_account = user_input.get("ad_account_id", DEFAULT_AD_ACCOUNT)
     ad_account_id = raw_account if raw_account.startswith("act_") else f"act_{raw_account}"
     page_id = user_input.get("page_id", DEFAULT_PAGE_ID)
-    website = user_input.get("website", WEBSITE)
+    website = user_input.get("website", user_input.get("company_website", WEBSITE))
+    company_name = user_input.get("company_name", "")
+    company_phone = user_input.get("company_phone", "")
     calendar = strategy.get("calendar", {})
     audiences = strategy.get("audiences", [])
     ads = strategy.get("ads", [])
@@ -379,6 +406,9 @@ def build_spec_from_strategy(
             "post_caption": strategy.get("post_caption", ""),
             "post_hashtags": strategy.get("post_hashtags", []),
             "video_scenes": strategy.get("video_scenes", []),
+            "company_name": company_name,
+            "company_website": website,
+            "company_phone": company_phone,
             "schedule": {
                 "start_date": start.strftime("%Y-%m-%d"),
                 "end_date": end.strftime("%Y-%m-%d"),
@@ -540,7 +570,6 @@ def get_page_token(user_token: str, page_id: str) -> str:
                 token = page.get("access_token", "")
                 if token:
                     log_ok(f"Page Token obtenido para {page.get('name', page_id)}")
-                    _save_token_to_env("FB_PAGE_ACCESS_TOKEN", token)
                     return token
         log_warn(f"No se encontró página {page_id} en /me/accounts")
     except Exception as exc:
@@ -557,48 +586,19 @@ def extend_token(short_token: str) -> str | None:
     if not app_id or not app_secret:
         return None
     try:
-        params = urllib.parse.urlencode({
+        result = _meta_request("GET", "oauth/access_token", "", {
             "grant_type": "fb_exchange_token",
             "client_id": app_id,
             "client_secret": app_secret,
             "fb_exchange_token": short_token,
         })
-        url = f"{GRAPH_API_BASE}/oauth/access_token?{params}"
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            result = json.loads(resp.read().decode())
         new_token = result.get("access_token")
         if new_token:
-            expires = result.get("expires_in", 0)
-            days = expires // 86400 if expires else "?"
-            log_ok(f"Token extendido. Expira en {days} días")
-            # Save to .env for persistence
-            _save_token_to_env("FB_ACCESS_TOKEN", new_token)
+            log_ok(f"Token extendido. Expira en {result.get('expires_in', '?')}s")
             return new_token
     except Exception as exc:
         log_warn(f"No se pudo extender token: {exc}")
     return None
-
-
-def _save_token_to_env(key: str, value: str) -> None:
-    """Guarda un token actualizado en .env para que persista entre sesiones."""
-    env_file = PROJECT_ROOT / ".env"
-    if not env_file.exists():
-        return
-    try:
-        lines = env_file.read_text("utf-8").splitlines()
-        found = False
-        for i, line in enumerate(lines):
-            if line.strip().startswith(f"{key}=") or line.strip().startswith(f"{key} ="):
-                lines[i] = f"{key}={value}"
-                found = True
-                break
-        if not found:
-            lines.append(f"{key}={value}")
-        env_file.write_text("\n".join(lines) + "\n", "utf-8")
-        log_ok(f"{key} actualizado en .env")
-    except Exception as exc:
-        log_warn(f"No se pudo guardar {key} en .env: {exc}")
 
 
 def upload_image_to_meta(image_path: str, ad_account_id: str, access_token: str) -> str | None:
