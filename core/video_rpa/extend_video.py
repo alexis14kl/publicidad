@@ -366,6 +366,81 @@ def _click_send_button(page) -> bool:
     return True
 
 
+def _click_video_tile_to_open(page) -> bool:
+    """
+    Click the last video tile in the project gallery to open the video view.
+    The "What happens next?" field only appears after clicking into a video.
+    """
+    clicked = page.evaluate("""() => {
+        // Find clickable video tiles (large buttons with play_circle or video elements)
+        const candidates = Array.from(document.querySelectorAll(
+            'button, [role="button"]'
+        )).filter(el => {
+            if (!el.offsetParent) return false;
+            const rect = el.getBoundingClientRect();
+            if (rect.width < 100 || rect.height < 80) return false;
+            const text = (el.innerText || '').toLowerCase();
+            return text.includes('play_circle') || text.includes('videocam')
+                || el.querySelector('video') !== null;
+        });
+        // Click the LAST one (most recently generated video)
+        if (candidates.length) {
+            candidates[candidates.length - 1].click();
+            return true;
+        }
+        // Fallback: click any large video element
+        const videos = Array.from(document.querySelectorAll('video')).filter(v => {
+            const r = v.getBoundingClientRect();
+            return r.width > 50 && r.height > 50 && v.offsetParent !== null;
+        });
+        if (videos.length) {
+            videos[videos.length - 1].click();
+            return true;
+        }
+        return false;
+    }""")
+
+    if clicked:
+        log_ok("Click en video tile para abrir vista individual.")
+        return True
+
+    log_error("No se encontró tile de video para abrir.")
+    return False
+
+
+def _wait_for_followup_field(page, timeout_sec: int = 15) -> bool:
+    """
+    Wait for the "What happens next?" field to appear after clicking a video tile.
+    Polls for a contenteditable field below 50% of the viewport.
+    """
+    import time
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        found = page.evaluate("""() => {
+            const editables = Array.from(document.querySelectorAll(
+                '[contenteditable="true"], [role="textbox"]'
+            )).filter(el => {
+                if (!el.offsetParent) return false;
+                const rect = el.getBoundingClientRect();
+                return rect.width > 200 && rect.y > window.innerHeight * 0.5;
+            });
+            // Also check for Extend button as indicator we're in video view
+            const buttons = Array.from(document.querySelectorAll('button'))
+                .filter(b => b.offsetParent !== null);
+            const hasExtend = buttons.some(b =>
+                (b.innerText || '').toLowerCase().includes('extend')
+            );
+            return editables.length > 0 || hasExtend;
+        }""")
+        if found:
+            log_ok("Vista de video individual lista (campo de continuación visible).")
+            return True
+        page.wait_for_timeout(1000)
+
+    log_error(f"Timeout ({timeout_sec}s): el campo 'What happens next?' no apareció.")
+    return False
+
+
 def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
     """
     Extiende el video actual en Flow:
@@ -431,14 +506,24 @@ def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
             page = project_page
             page.wait_for_timeout(2000)
 
-            # Directly find and paste into "What happens next?" field
-            # NO click on video needed - the field is already visible
+            # Step 1: Click the last video tile to open the video view
+            # (the "What happens next?" field only appears in the video view)
+            if not _click_video_tile_to_open(page):
+                return 1
+
+            page.wait_for_timeout(3000)
+
+            # Step 2: Wait for "What happens next?" field to appear
+            if not _wait_for_followup_field(page, timeout_sec=15):
+                return 1
+
+            # Step 3: Find and paste into the field
             if not _find_followup_field_and_paste(page, extend_prompt):
                 return 1
 
             page.wait_for_timeout(1000)
 
-            # Click the send button (→)
+            # Step 4: Click the send button (→)
             if not _click_send_button(page):
                 return 1
 
@@ -473,6 +558,25 @@ def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
     if rc != 0:
         log_error("No se pudo descargar el video extendido.")
         return 1
+
+    # Apply branding overlay (same as _video_pipeline in post_opening.py)
+    videos = sorted(VIDEO_DIR.glob("*.mp4"), key=lambda f: f.stat().st_mtime, reverse=True)
+    if videos:
+        try:
+            from core.utils.overlay_video import overlay_video
+            company_name = os.environ.get("BOT_COMPANY_NAME", "")
+            website = os.environ.get("BUSINESS_WEBSITE", "")
+            phone = os.environ.get("BUSINESS_WHATSAPP", "")
+            logo_path = os.environ.get("BOT_COMPANY_LOGO_PATH", "")
+            overlay_video(
+                videos[0],
+                company_name=company_name,
+                website=website,
+                phone=phone,
+                logo_path=logo_path or None,
+            )
+        except Exception as exc:
+            log_warn(f"No se pudo aplicar overlay al video extendido: {exc}")
 
     log_ok("Video extendido descargado con éxito.")
     return 0

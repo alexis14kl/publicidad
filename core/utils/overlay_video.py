@@ -27,16 +27,16 @@ DEFAULT_LOGO_PNG = PROJECT_ROOT / "assets" / "logos" / "logoapporange.png"
 
 # ─── Config ─────────────────────────────────────────────────────────────────
 
-# Header bar (top) — designed to cover Veo 3 fake logos
-HEADER_HEIGHT_RATIO = 0.14       # Top bar height as fraction of video height
-HEADER_BG_COLOR = (15, 15, 15, 230)  # Near-black, almost opaque
+# Header bar (top) — MUST fully cover Veo 3 fake logos/text
+HEADER_HEIGHT_RATIO = 0.20       # Top bar height — 20% covers all Veo fake text
+HEADER_BG_COLOR = (10, 10, 10, 255)  # Fully opaque black — no fake logos visible
 
 # Logo
-LOGO_SCALE = 0.28               # Logo width as fraction of video width
+LOGO_SCALE = 0.35               # Logo width — large and prominent
 LOGO_OPACITY = 1.0              # Full opacity
-LOGO_SHADOW_RADIUS = 6          # Drop shadow blur radius
-LOGO_SHADOW_OFFSET = (3, 3)     # Drop shadow offset (x, y)
-LOGO_SHADOW_COLOR = (0, 0, 0, 180)
+LOGO_SHADOW_RADIUS = 8          # Drop shadow blur radius
+LOGO_SHADOW_OFFSET = (4, 4)     # Drop shadow offset (x, y)
+LOGO_SHADOW_COLOR = (0, 0, 0, 200)
 
 # Bottom bar
 BAR_HEIGHT_RATIO = 0.11         # Bottom bar height as fraction of video height
@@ -187,11 +187,8 @@ def _create_header_overlay(
 
     header_h = int(video_h * HEADER_HEIGHT_RATIO)
 
-    # Draw gradient header bar (darker at top, slightly lighter at bottom)
-    for y in range(header_h):
-        progress = y / max(header_h - 1, 1)
-        alpha = int(HEADER_BG_COLOR[3] * (1.0 - progress * 0.3))
-        draw.line([(0, y), (video_w, y)], fill=(HEADER_BG_COLOR[0], HEADER_BG_COLOR[1], HEADER_BG_COLOR[2], alpha))
+    # Draw solid opaque header bar — fully covers Veo 3 fake logos
+    draw.rectangle([(0, 0), (video_w, header_h)], fill=HEADER_BG_COLOR)
 
     # Load and place logo
     if not logo_path.exists():
@@ -237,8 +234,8 @@ def _create_header_overlay(
     shadow.paste(shadow_img, (10 + LOGO_SHADOW_OFFSET[0], 10 + LOGO_SHADOW_OFFSET[1]), shadow_img)
     shadow = shadow.filter(ImageFilter.GaussianBlur(radius=LOGO_SHADOW_RADIUS))
 
-    # Position: left side of header bar, vertically centered
-    logo_x = int(video_w * 0.04)
+    # Position: centered horizontally in header bar, vertically centered
+    logo_x = (video_w - target_w) // 2
     logo_y = (header_h - target_h) // 2
 
     # Paste shadow first, then logo
