@@ -18,6 +18,16 @@ function isCompanyActive(companyName) {
   return !!company?.activo
 }
 
+function getDefaultActiveCompany() {
+  /** Returns the first active company from the database, or null. */
+  try {
+    const records = aggregateCompanyRows(
+      Object.fromEntries([...COMPANY_PLATFORMS].map(p => [p, fetchCompanyRowsForPlatform(p)]))
+    )
+    return records.find(c => !!c.activo) || null
+  } catch { return null }
+}
+
 function buildCompanyCredentialEnv(companyName) {
   const company = lookupCompanyData(companyName)
   if (!company || !company.activo) {
@@ -221,6 +231,7 @@ function buildBrochurePrompt(userIdea, companyName, customColors) {
 module.exports = {
   lookupCompanyData,
   isCompanyActive,
+  getDefaultActiveCompany,
   buildCompanyCredentialEnv,
   buildCompanyRule,
   buildColorRule,

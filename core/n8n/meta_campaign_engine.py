@@ -202,8 +202,8 @@ Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
       "reasoning": "qué principio psicológico aplica (Cialdini, loss aversion, etc.)"
     }}
   ],
-  "post_caption": "Texto completo para el post de la publicación en redes sociales (en español). Aplica el framework del agente copywriting: Hook (primera línea que atrapa) → Contexto (por qué importa) → Valor (qué ofreces) → Prueba (credibilidad) → CTA (acción clara). Incluye emojis relevantes. Máximo 300 palabras. DEBE estar enfocado en lo que el usuario solicitó.",
-  "post_hashtags": ["hashtag1", "hashtag2", "hashtag3"],
+  "post_caption": "OBLIGATORIO. Texto completo para la publicación en redes sociales (en español colombiano). Aplica el framework del agente copywriting: Hook (primera línea impactante que detenga el scroll) → Contexto (por qué importa ahora) → Valor (qué ofrece la empresa) → Prueba (dato, testimonio o credibilidad) → CTA (acción clara: visita la web, escríbenos, agenda). Usa emojis estratégicamente. Menciona el nombre de la empresa. Máximo 300 palabras. NO repetir la solicitud del usuario literalmente — transforma la idea en copy profesional que venda.",
+  "post_hashtags": "OBLIGATORIO. Array de 8-15 hashtags relevantes en español. Mezclar: 3-4 hashtags de nicho específico del servicio/producto, 3-4 hashtags de la industria o sector, 2-3 hashtags de ubicación (Colombia, ciudad si aplica), 1-2 hashtags de marca si se menciona empresa. Sin # en el valor. Ejemplo: ['AutomatizacionEmpresarial', 'TransformacionDigital', 'NoyeCode', 'SoftwareColombia', 'Bogota', 'EmpresariosDigitales']",
   "image_prompt": "prompt EN INGLÉS para generar la imagen publicitaria con IA. IMPORTANTE: (1) Debe reflejar LITERALMENTE lo que el usuario pidió — si pidió una vaca con un PC, genera una vaca con un PC. (2) SIEMPRE incluir elementos publicitarios: slogan visible en español, headline text, branding de la empresa, call-to-action visual, información de contacto. (3) Debe parecer un anuncio profesional de redes sociales, no una foto cualquiera. (4) Formato: 1080x1350 vertical, zona superior 15% limpia para logo overlay posterior. (5) Estilo: high-quality, professional advertising photography, vibrant colors.",
   "video_scenes": [
     {{
@@ -220,18 +220,31 @@ Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
 REGLAS CRÍTICAS:
 1. SOLO JSON válido. Nada antes ni después.
 2. Respeta el TIPO DE CONTENIDO:
-   - "image": genera SOLO image_prompt (publicitario, con slogan, headline, branding). audiences y ads pueden estar vacíos [].
-   - "video": genera SOLO image_prompt + video_scenes. audiences y ads pueden estar vacíos [].
-   - "campaign": genera TODO: audiences + ads + image_prompt + calendar.
-3. El image_prompt SIEMPRE debe ser una pieza PUBLICITARIA profesional:
+   - "image": genera image_prompt + post_caption + post_hashtags. audiences y ads pueden estar vacíos [].
+   - "video": genera image_prompt + video_scenes + post_caption + post_hashtags. audiences y ads pueden estar vacíos []. NO generar audiences ni ads para videos orgánicos.
+   - "campaign": genera TODO: audiences + ads + image_prompt + post_caption + post_hashtags + calendar. Si la campaña se beneficia de video, incluye también video_scenes.
+3. post_caption y post_hashtags son OBLIGATORIOS para TODOS los tipos. NUNCA dejarlos vacíos.
+   - post_caption: copy profesional (Hook→Contexto→Valor→Prueba→CTA). NO repetir el prompt del usuario.
+   - post_hashtags: 8-15 hashtags relevantes.
+4. El image_prompt SIEMPRE debe ser una pieza PUBLICITARIA profesional:
    - Incluir texto visible en español: slogan, headline, call-to-action
-   - Incluir branding de la empresa si se menciona
+   - Incluir el NOMBRE REAL de la empresa si se menciona en la solicitud (NO inventar nombres)
+   - Incluir número de WhatsApp o web de la empresa si se proporcionaron
    - Reflejar EXACTAMENTE lo que el usuario pidió visualmente
    - NO generar fotos genéricas sin texto publicitario
-4. Los copies deben aplicar Hook→Contexto→Valor→Prueba→CTA del agente copywriting.
-5. Cada ángulo de anuncio debe usar un principio psicológico diferente.
-6. Presupuesto bajo (<$10,000/día): 1-2 audiencias. Medio ($10K-50K): 2-3. Alto (>$50K): 3-5.
-7. Las ciudades deben ser relevantes al concepto."""
+5. Los copies deben aplicar Hook→Contexto→Valor→Prueba→CTA del agente copywriting.
+6. Cada ángulo de anuncio debe usar un principio psicológico diferente.
+7. Presupuesto bajo (<$10,000/día): 1-2 audiencias. Medio ($10K-50K): 2-3. Alto (>$50K): 3-5.
+8. Las ciudades deben ser relevantes al concepto.
+9. IMPORTANTE para tipo "video": El image_prompt se usa para generar el video en Veo 3. Reglas ESTRICTAS para video:
+   - Describir SOLO la escena visual, acciones y ambiente. NO incluir texto en pantalla.
+   - PROHIBIDO poner texto, logos, nombres de empresa, slogans, titulares, numeros de telefono, URLs o cualquier texto visible en el prompt de video.
+   - Razon: la IA de video NO puede renderizar texto correctamente — siempre genera errores ortograficos y logos inventados.
+   - El texto, logo e info de contacto se agregan DESPUES como overlay profesional sobre el video.
+   - Enfocarse en: actores, expresiones, objetos, ambientes, iluminacion, movimiento de camara, transiciones.
+   - Ejemplo CORRECTO: "Frustrated office worker slamming old CRT computer, papers flying. Cut to: modern professional smiling at sleek laptop with colorful dashboard. Split screen transition, cinematic lighting, 7 seconds."
+   - Ejemplo INCORRECTO: "Video with text 'Automatiza con NoyeCode' and company logo at top..." (esto genera texto ilegible)
+10. Para tipo "image": el image_prompt SI debe incluir texto visible (slogan, headline, branding) porque la IA de imagenes maneja texto mejor."""
 
     user_prompt = (
         f'SOLICITUD DEL USUARIO:\n"{user_request}"\n\n'
@@ -351,7 +364,9 @@ def build_spec_from_strategy(
     raw_account = user_input.get("ad_account_id", DEFAULT_AD_ACCOUNT)
     ad_account_id = raw_account if raw_account.startswith("act_") else f"act_{raw_account}"
     page_id = user_input.get("page_id", DEFAULT_PAGE_ID)
-    website = user_input.get("website", WEBSITE)
+    website = user_input.get("website", user_input.get("company_website", WEBSITE))
+    company_name = user_input.get("company_name", "")
+    company_phone = user_input.get("company_phone", "")
     calendar = strategy.get("calendar", {})
     audiences = strategy.get("audiences", [])
     ads = strategy.get("ads", [])
@@ -391,6 +406,9 @@ def build_spec_from_strategy(
             "post_caption": strategy.get("post_caption", ""),
             "post_hashtags": strategy.get("post_hashtags", []),
             "video_scenes": strategy.get("video_scenes", []),
+            "company_name": company_name,
+            "company_website": website,
+            "company_phone": company_phone,
             "schedule": {
                 "start_date": start.strftime("%Y-%m-%d"),
                 "end_date": end.strftime("%Y-%m-%d"),

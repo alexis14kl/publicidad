@@ -27,7 +27,8 @@ from core.utils.logger import log_info, log_ok, log_warn, log_error
 LAST_DOWNLOAD_FILE = VIDEO_DIR / "last_download.json"
 DEFAULT_CDP_PORT = 9225
 DEFAULT_WAIT_TIMEOUT_SEC = 600  # 10 minutos — videos tardan mas que imagenes
-DEFAULT_POLL_INTERVAL_SEC = 5
+DEFAULT_POLL_INTERVAL_SEC = 3   # Polling mas rapido (antes: 5s)
+MAX_DOWNLOAD_RETRIES = 3        # Reintentos de descarga
 
 
 def _find_project_page(browser: Browser) -> Page | None:
@@ -56,12 +57,18 @@ def _poll_for_video(
     previous_video_url: str = "",
 ) -> dict | None:
     """Polling: espera a que aparezca un video listo para descargar."""
-    log_info(f"Esperando video generado (timeout {timeout_sec}s, polling cada {poll_interval}s)...")
+    log_info(f"Esperando video generado (timeout {timeout_sec}s)...")
     deadline = time.time() + timeout_sec
     attempt = 0
+    # Adaptive polling: fast at start (generation usually takes 30-120s), slower after
+    FAST_POLL_SEC = 2
+    NORMAL_POLL_SEC = poll_interval
+    SLOW_POLL_SEC = 8
+    FAST_PHASE_UNTIL = 60  # First 60s: poll every 2s
 
     while time.time() < deadline:
         attempt += 1
+        elapsed = timeout_sec - int(deadline - time.time())
         remaining = int(deadline - time.time())
 
         try:
@@ -161,7 +168,28 @@ def _poll_for_video(
             h = video_info.get('height', 0)
             dur = video_info.get('duration', 0)
             dl = "con Descargar" if video_info.get('hasDownload') else ""
-            log_ok(f"Video listo! {w}x{h} | {dur:.1f}s | readyState={video_info.get('readyState', '?')} {dl}")
+            rs = video_info.get('readyState', 0)
+            log_ok(f"Video listo! {w}x{h} | {dur:.1f}s | readyState={rs} {dl}")
+
+            # Si readyState < 4 (no completamente buffered), esperar un poco mas
+            # para obtener la mejor calidad posible
+            if rs < 4 and remaining > 15:
+                log_info("Video disponible pero no completamente buffered. Esperando 10s para mejor calidad...")
+                page.wait_for_timeout(10000)
+                # Re-check with updated readyState
+                try:
+                    updated = page.evaluate("""(prevSrc) => {
+                        const v = Array.from(document.querySelectorAll('video')).find(
+                            el => (el.src || el.currentSrc || '').trim() === prevSrc
+                        );
+                        if (!v) return null;
+                        return { readyState: v.readyState, width: v.videoWidth, height: v.videoHeight };
+                    }""", video_info.get('src', ''))
+                    if updated and updated.get('readyState', 0) >= 4:
+                        log_ok(f"Video completamente buffered (readyState=4). Calidad maxima.")
+                except Exception:
+                    pass
+
             return video_info
 
         # Log status
@@ -184,18 +212,32 @@ def _poll_for_video(
                 status = f"{total} videos (sin src)"
             log_info(f"  [{attempt}] {status} | quedan {remaining}s")
 
-        page.wait_for_timeout(poll_interval * 1000)
+        # Adaptive poll interval
+        current_interval = (
+            FAST_POLL_SEC if elapsed < FAST_PHASE_UNTIL
+            else NORMAL_POLL_SEC if elapsed < 300
+            else SLOW_POLL_SEC
+        )
+        page.wait_for_timeout(current_interval * 1000)
 
     log_error(f"Timeout ({timeout_sec}s): no se genero ningun video.")
     return None
 
 
 def _download_video(page: Page, video_url: str) -> Path | None:
-    """Descarga el video desde la URL."""
+    """
+    Descarga el video con reintentos y fallback.
+
+    Estrategia:
+    1. Intenta con Playwright context.request (tiene cookies del browser)
+    2. Si falla, intenta descarga directa con urllib (mas rapido, sin overhead del browser)
+    3. Verifica que el archivo sea un MP4 valido (>100KB)
+    """
+    import urllib.request as _urllib_request
+
     VIDEO_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Extraer ID del video de la URL si es posible
     match = re.search(r"name=([a-f0-9-]+)", video_url)
     video_id = match.group(1)[:12] if match else f"veo_{int(time.time())}"
     filename = f"{timestamp}_{video_id}.mp4"
@@ -203,22 +245,92 @@ def _download_video(page: Page, video_url: str) -> Path | None:
 
     log_info(f"Descargando video: {video_url[:80]}...")
 
+    # ── Strategy 1: Playwright CDP request (has browser cookies) ──
+    for attempt in range(1, MAX_DOWNLOAD_RETRIES + 1):
+        try:
+            context = page.context
+            response = context.request.get(video_url, timeout=180000)  # 3 min timeout
+            if not response.ok:
+                log_warn(f"Intento {attempt}/{MAX_DOWNLOAD_RETRIES}: HTTP {response.status}")
+                if attempt < MAX_DOWNLOAD_RETRIES:
+                    time.sleep(3)
+                    continue
+                break
+
+            video_bytes = response.body()
+            if len(video_bytes) < 100_000:  # <100KB = probably not a real video
+                log_warn(f"Intento {attempt}: archivo muy pequeño ({len(video_bytes)} bytes), reintentando...")
+                if attempt < MAX_DOWNLOAD_RETRIES:
+                    time.sleep(3)
+                    continue
+                break
+
+            output_path.write_bytes(video_bytes)
+            size_mb = len(video_bytes) / (1024 * 1024)
+            log_ok(f"Video descargado via CDP: {output_path.name} ({size_mb:.1f}MB)")
+            return output_path
+
+        except Exception as e:
+            log_warn(f"Intento {attempt}/{MAX_DOWNLOAD_RETRIES} fallo: {e}")
+            if attempt < MAX_DOWNLOAD_RETRIES:
+                time.sleep(3)
+                continue
+
+    # ── Strategy 2: Direct urllib download (faster, no browser overhead) ──
+    log_info("Intentando descarga directa (sin browser)...")
+    for attempt in range(1, MAX_DOWNLOAD_RETRIES + 1):
+        try:
+            req = _urllib_request.Request(video_url, headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                "Accept": "video/mp4,video/*;q=0.9,*/*;q=0.8",
+            })
+            with _urllib_request.urlopen(req, timeout=180) as resp:
+                video_bytes = resp.read()
+
+            if len(video_bytes) < 100_000:
+                log_warn(f"Descarga directa intento {attempt}: archivo muy pequeño ({len(video_bytes)} bytes)")
+                if attempt < MAX_DOWNLOAD_RETRIES:
+                    time.sleep(3)
+                    continue
+                break
+
+            output_path.write_bytes(video_bytes)
+            size_mb = len(video_bytes) / (1024 * 1024)
+            log_ok(f"Video descargado via HTTP directo: {output_path.name} ({size_mb:.1f}MB)")
+            return output_path
+
+        except Exception as e:
+            log_warn(f"Descarga directa intento {attempt}/{MAX_DOWNLOAD_RETRIES} fallo: {e}")
+            if attempt < MAX_DOWNLOAD_RETRIES:
+                time.sleep(3)
+                continue
+
+    # ── Strategy 3: Extract blob URL and download via CDP evaluate ──
+    log_info("Intentando extraccion via blob/fetch en el browser...")
     try:
-        context = page.context
-        response = context.request.get(video_url, timeout=120000)
-        if not response.ok:
-            log_error(f"Error descargando video: HTTP {response.status}")
-            return None
-
-        video_bytes = response.body()
-        output_path.write_bytes(video_bytes)
-        size_mb = len(video_bytes) / (1024 * 1024)
-        log_ok(f"Video descargado: {output_path.name} ({size_mb:.1f}MB)")
-        return output_path
-
+        b64_data = page.evaluate("""(url) => {
+            return fetch(url)
+                .then(r => r.blob())
+                .then(blob => new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result.split(',')[1]);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                }));
+        }""", video_url)
+        if b64_data:
+            import base64
+            video_bytes = base64.b64decode(b64_data)
+            if len(video_bytes) > 100_000:
+                output_path.write_bytes(video_bytes)
+                size_mb = len(video_bytes) / (1024 * 1024)
+                log_ok(f"Video descargado via fetch+blob: {output_path.name} ({size_mb:.1f}MB)")
+                return output_path
     except Exception as e:
-        log_error(f"Error descargando video: {e}")
-        return None
+        log_warn(f"Fetch+blob fallo: {e}")
+
+    log_error("No se pudo descargar el video despues de todos los intentos.")
+    return None
 
 
 def _write_last_download_state(output_path: Path, video_url: str, scene_index: int) -> None:
