@@ -36,7 +36,11 @@ export function ChatBotPage() {
   const [input, setInput] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [awaitingApproval, setAwaitingApproval] = useState<string | null>(null)
+  const [approvalStep, setApprovalStep] = useState<'extend' | 'publish'>('extend')
+  const [lastPreviewType, setLastPreviewType] = useState<string | null>(null)
+  const [extendPrompt, setExtendPrompt] = useState('')
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const extendInputRef = useRef<HTMLTextAreaElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -97,6 +101,9 @@ export function ChatBotPage() {
         if (result.needsApproval) {
           // Show preview and wait for user approval
           setAwaitingApproval(result.jobId || 'pending')
+          const previewType = result.preview?.type || 'image'
+          setLastPreviewType(previewType)
+          setApprovalStep(previewType === 'video' ? 'extend' : 'publish')
           addMsg('assistant', result.message, 'preview', result.preview || null)
         } else {
           addMsg('assistant', result.message || 'Listo.', 'done')
@@ -144,13 +151,56 @@ export function ChatBotPage() {
 
   function handleReject() {
     setAwaitingApproval(null)
+    setApprovalStep('extend')
+    setLastPreviewType(null)
+    setExtendPrompt('')
     addMsg('user', 'Rechazado. No publicar.')
     addMsg('assistant', 'Entendido. El contenido no se publicará. Puedes darme más detalles o empezar algo nuevo.', 'done')
+  }
+
+  async function handleExtendVideo() {
+    if (!awaitingApproval) return
+    const prompt = extendPrompt.trim()
+    if (!prompt) {
+      addMsg('assistant', 'Escribe un prompt de continuación para extender el video.', 'error')
+      extendInputRef.current?.focus()
+      return
+    }
+
+    setIsProcessing(true)
+    setExtendPrompt('')
+    addMsg('user', `Extender video: ${prompt}`)
+    addMsg('assistant', 'Generando video extendido en Google Flow...', 'pending')
+
+    try {
+      const result = await (api() as any).chatExtendVideo(awaitingApproval, prompt)
+      updateMessages(prev => prev.filter(m => m.status !== 'pending'))
+
+      if (result.success) {
+        setAwaitingApproval(result.jobId || 'pending')
+        setApprovalStep('extend')
+        addMsg('assistant', result.message, 'preview', result.preview || null)
+      } else {
+        addMsg('assistant', result.error || 'Error al extender el video.', 'error')
+      }
+    } catch (err: any) {
+      updateMessages(prev => prev.filter(m => m.status !== 'pending'))
+      addMsg('assistant', `Error: ${err.message || err}`, 'error')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  function handleContinueToPublish() {
+    setApprovalStep('publish')
   }
 
   async function handleNewConversation() {
     await (api() as any).chatReset()
     setAwaitingApproval(null)
+    setApprovalStep('extend')
+    setLastPreviewType(null)
+    setExtendPrompt('')
     setIsProcessing(false)
     setMessages([{
       id: `new-${Date.now()}`,
@@ -200,7 +250,35 @@ export function ChatBotPage() {
           </div>
         ))}
 
-        {awaitingApproval && (
+        {awaitingApproval && approvalStep === 'extend' && lastPreviewType === 'video' && (
+          <div className="chatbot-extend-section">
+            <textarea
+              ref={extendInputRef}
+              className="chatbot-extend-input"
+              value={extendPrompt}
+              onChange={e => setExtendPrompt(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleExtendVideo()
+                }
+              }}
+              placeholder="Describe qué pasa después en el video..."
+              disabled={isProcessing}
+              rows={2}
+            />
+            <div className="chatbot-approval">
+              <button className="chatbot-extend" onClick={handleExtendVideo} disabled={isProcessing || !extendPrompt.trim()}>
+                Extender video
+              </button>
+              <button className="chatbot-continue" onClick={handleContinueToPublish} disabled={isProcessing}>
+                Continuar con publicación
+              </button>
+            </div>
+          </div>
+        )}
+
+        {awaitingApproval && approvalStep === 'publish' && (
           <div className="chatbot-approval">
             <button className="chatbot-approve" onClick={handleApprove} disabled={isProcessing}>
               Aprobar y publicar

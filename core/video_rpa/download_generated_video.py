@@ -192,12 +192,53 @@ def _poll_for_video(
 
             return video_info
 
+        # If videos have src but readyState=0 and no Download button,
+        # we may be in the gallery/tile view. Click the video tile to open playback view.
+        with_src = video_info.get("videosWithSrc", 0)
+        has_dl = video_info.get("hasDownload", False)
+        ready_videos = video_info.get("readyVideos", 0)
+        if with_src > 0 and not has_dl and ready_videos == 0 and attempt in (3, 8, 20, 40):
+            try:
+                clicked_tile = page.evaluate("""() => {
+                    // Look for clickable video tiles/cards in gallery view
+                    // Flow uses buttons with play_circle icon or video thumbnails
+                    const candidates = Array.from(document.querySelectorAll(
+                        'button, [role="button"], [role="listitem"]'
+                    )).filter(el => {
+                        if (!el.offsetParent) return false;
+                        const rect = el.getBoundingClientRect();
+                        // Large enough to be a video tile (not a small icon button)
+                        if (rect.width < 100 || rect.height < 80) return false;
+                        const text = (el.innerText || '').toLowerCase();
+                        // Has play icon or video-related text
+                        return text.includes('play_circle') || text.includes('videocam')
+                            || el.querySelector('video') !== null;
+                    });
+                    // Click the last one (most recently generated)
+                    if (candidates.length) {
+                        candidates[candidates.length - 1].click();
+                        return true;
+                    }
+                    // Fallback: click any large visible video element
+                    const videos = Array.from(document.querySelectorAll('video')).filter(v => {
+                        const r = v.getBoundingClientRect();
+                        return r.width > 50 && r.height > 50;
+                    });
+                    if (videos.length) {
+                        videos[videos.length - 1].click();
+                        return true;
+                    }
+                    return false;
+                }""")
+                if clicked_tile:
+                    log_info("Vista de galeria detectada. Click en tile para abrir video...")
+                    page.wait_for_timeout(3000)
+            except Exception:
+                pass
+
         # Log status
         if attempt % 3 == 1:
             total = video_info.get("totalVideos", 0)
-            with_src = video_info.get("videosWithSrc", 0)
-            ready_videos = video_info.get("readyVideos", 0)
-            has_dl = video_info.get("hasDownload", False)
             generating = video_info.get("isGenerating", False)
             matched_previous = video_info.get("matchedPrevious", False)
             if matched_previous:

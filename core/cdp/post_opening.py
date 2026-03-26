@@ -320,6 +320,13 @@ def _video_pipeline(cdp_port: int, dev_mode: bool) -> int:
     VIDEO_DIR.mkdir(parents=True, exist_ok=True)
     previous_video_url = ""
 
+    # Save CDP port for extend_video to find later
+    try:
+        port_file = Path(__file__).resolve().parent.parent.parent / ".video_cdp_port"
+        port_file.write_text(str(cdp_port), encoding="utf-8")
+    except Exception:
+        pass
+
     for index, scene_prompt in enumerate(scene_prompts, start=1):
         log_info(f"Procesando escena {index}/{len(scene_prompts)} en Gemini/Veo...")
 

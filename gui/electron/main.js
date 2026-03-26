@@ -57,10 +57,8 @@ function createWindow() {
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
-  // 1. Create window FIRST — show UI as fast as possible
-  createWindow()
-
-  // 2. Register IPC handlers AFTER window created (lazy-loaded modules)
+  // 1. Register IPC handlers BEFORE window — avoids race condition
+  //    where renderer sends calls before handlers exist
   const { registerBotHandlers } = require('./ipc/bot')
   const { registerPollerHandlers } = require('./ipc/poller')
   const { registerConfigHandlers } = require('./ipc/config')
@@ -82,6 +80,9 @@ app.whenReady().then(() => {
   registerChatHandlers(ipcMain)
   registerMetaAuthHandlers(ipcMain)
   registerInstagramHandlers(ipcMain)
+
+  // 2. Create window AFTER handlers are ready
+  createWindow()
 
   // 3. Start log watchers (lightweight)
   const { startLogWatcher, startBotLogWatcher } = require('./log-watcher')

@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runAutoCampaign: (payload) => ipcRenderer.invoke('run-auto-campaign', payload),
   chatCommand: (text) => ipcRenderer.invoke('chat-command', text),
   chatApprove: (jobId) => ipcRenderer.invoke('chat-approve', jobId),
+  chatExtendVideo: (jobId, extendPrompt) => ipcRenderer.invoke('chat-extend-video', jobId, extendPrompt),
   chatReset: () => ipcRenderer.invoke('chat-reset'),
   onLogNewLines: (callback) => {
     const handler = (_event, lines) => callback(lines)

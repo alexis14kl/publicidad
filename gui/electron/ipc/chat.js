@@ -167,6 +167,8 @@ async function generateSingleContent(ctx) {
   }
 
   botEnv.BOT_SKIP_PUBLISH = '1'
+  // Keep browser open for video extension (don't close tabs/browser after generation)
+  if (isVideo) botEnv.DEV_MODE = '1'
 
   // MANDATORY: Claude must provide the image prompt. No fallbacks.
   if (!ctx.aiImagePrompt) {
@@ -185,11 +187,27 @@ async function generateSingleContent(ctx) {
 
   return new Promise((resolve, reject) => {
     const child = spawn(pythonBin, ['-m', 'core.server.bot_runner', 'run_full_cycle', payload], {
-      cwd: PROJECT_ROOT, env: botEnv, stdio: 'ignore',
+      cwd: PROJECT_ROOT, env: botEnv, stdio: ['ignore', 'pipe', 'ignore'],
     })
     state.botProcess = child
+    // Capture stdout to detect CDP port for video extension
+    let childStdout = ''
+    child.stdout.on('data', d => { childStdout += d.toString() })
     child.on('exit', (code) => {
       state.botProcess = null
+      // Save CDP port from bot output for later video extension
+      if (isVideo) {
+        try {
+          const portFile = path.join(PROJECT_ROOT, '.video_cdp_port')
+          // Try to read from cdp_debug_info.json or bot output
+          const cdpInfoFile = path.join(PROJECT_ROOT, 'cdp_debug_info.json')
+          if (fs.existsSync(cdpInfoFile)) {
+            const info = JSON.parse(fs.readFileSync(cdpInfoFile, 'utf-8'))
+            const ports = Object.values(info).map(e => e.debugPort).filter(Boolean)
+            if (ports.length) fs.writeFileSync(portFile, String(ports[0]))
+          }
+        } catch { /* ignore */ }
+      }
       const outputDir = isVideo
         ? path.join(PROJECT_ROOT, 'output', 'videos')
         : path.join(PROJECT_ROOT, 'output', 'images')
@@ -575,9 +593,6 @@ async function handleChatCommand(text) {
     const adLines = adsets.flatMap(a => (a.ads || []).map(ad =>
       `• **${ad.angle || ad.name}**: "${(ad.creative?.object_story_spec?.link_data?.name || '').slice(0, 50)}"\n  _${ad.reasoning || ''}_`
     )).join('\n')
-    const adLines = adsets.flatMap(a => (a.ads || []).map(ad =>
-      `• **${ad.angle || ad.name}**: "${(ad.creative?.object_story_spec?.link_data?.name || '').slice(0, 50)}"\n  _${ad.reasoning || ''}_`
-    )).join('\n')
 
     campaignInfo += `\n\n**Presupuesto:** $${schedule.daily_budget_cop?.toLocaleString() || ctx.budget}/día → $${schedule.total_budget_cop?.toLocaleString() || '?'} total`
       + `\n**Duración:** ${schedule.total_days || '?'} días`
@@ -601,6 +616,8 @@ async function handleChatCommand(text) {
   const publishLabel = ctx.publishAs === 'story' ? 'historia' : ctx.publishAs === 'reel' ? 'reel' : ctx.type === 'campaign' ? 'campaña' : 'publicación'
 
   const jobId = `job-${Date.now()}`
+  const videoFilePath = ctx.type === 'video' ? filePath : null
+  const imageFilePath = ctx.type !== 'video' ? filePath : null
   pendingJobs.set(jobId, { ctx: { ...ctx }, filePath, videoFilePath, imageFilePath, spec })
 
   let message = ''
@@ -660,6 +677,118 @@ async function handleChatCommand(text) {
   }
 }
 
+async function handleChatExtendVideo(jobId, extendPrompt) {
+  const job = pendingJobs.get(jobId)
+  if (!job) return { success: false, error: 'No hay contenido pendiente.' }
+
+  const ctx = job.ctx
+  if (ctx.type !== 'video' && ctx.type !== 'video_campaign') {
+    return { success: false, error: 'Solo se puede extender contenido de video.' }
+  }
+
+  if (!extendPrompt || !extendPrompt.trim()) {
+    return { success: false, error: 'Debes proporcionar un prompt para extender el video.' }
+  }
+
+  // Read last download state for previous video URL
+  const lastDownloadFile = path.join(PROJECT_ROOT, 'output', 'videos', 'last_download.json')
+  let previousVideoUrl = ''
+  try {
+    if (fs.existsSync(lastDownloadFile)) {
+      const dlState = JSON.parse(fs.readFileSync(lastDownloadFile, 'utf-8'))
+      previousVideoUrl = dlState.video_url || ''
+    }
+  } catch { /* ignore */ }
+
+  const pythonBin = findPython()
+  if (!pythonBin) return { success: false, error: 'Python no encontrado.' }
+
+  const env = getProjectEnv()
+  const cdpPort = env.CDP_PROFILE_PORT || env.CDP_CHATGPT_PORT || '9225'
+
+  const botEnv = {
+    ...env,
+    PYTHONPATH: PROJECT_ROOT,
+    PYTHONIOENCODING: 'utf-8',
+    BOT_VIDEO_EXTEND_PROMPT: extendPrompt.trim(),
+    BOT_VIDEO_PREVIOUS_VIDEO_URL: previousVideoUrl,
+    CDP_PROFILE_PORT: cdpPort,
+  }
+
+  // Add company env if available
+  if (ctx.companyName) {
+    const credEnv = buildCompanyCredentialEnv(ctx.companyName)
+    if (credEnv) Object.assign(botEnv, credEnv)
+    const company = lookupCompanyData(ctx.companyName)
+    if (company) {
+      botEnv.BOT_COMPANY_NAME = company.nombre || ''
+      botEnv.BUSINESS_WEBSITE = company.sitio_web || env.BUSINESS_WEBSITE || ''
+      botEnv.BUSINESS_WHATSAPP = company.telefono || env.BUSINESS_WHATSAPP || ''
+      if (company.logo) {
+        const logoPath = path.join(PROJECT_ROOT, 'assets', 'logos', 'companies', company.logo)
+        if (fs.existsSync(logoPath)) botEnv.BOT_COMPANY_LOGO_PATH = logoPath
+      }
+    }
+  }
+
+  const startTime = Date.now()
+  const videoDir = path.join(PROJECT_ROOT, 'output', 'videos')
+
+  try {
+    const newFilePath = await new Promise((resolve, reject) => {
+      const child = spawn(pythonBin, ['-m', 'core.video_rpa.extend_video', cdpPort], {
+        cwd: PROJECT_ROOT, env: botEnv, stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      state.botProcess = child
+      let stdout = '', stderr = ''
+      child.stdout.on('data', d => { stdout += d.toString(); console.log('[EXTEND]', d.toString().trim()) })
+      child.stderr.on('data', d => { stderr += d.toString(); console.error('[EXTEND]', d.toString().trim()) })
+      child.on('exit', (code) => {
+        state.botProcess = null
+        const newFile = findFileNewerThan(videoDir, startTime)
+        if (newFile) {
+          resolve(newFile)
+        } else {
+          const detail = stderr.trim().split('\n').filter(l => l.includes('[ERROR]')).pop() || stderr.trim().split('\n').pop() || ''
+          reject(new Error(
+            code === 0
+              ? 'Extension completada pero no se encontró archivo nuevo.'
+              : `Error al extender video (código ${code}). ${detail}`
+          ))
+        }
+      })
+      child.on('error', (err) => {
+        state.botProcess = null
+        reject(err)
+      })
+    })
+
+    // Update the pending job with the new file
+    const newJobId = `job-${Date.now()}`
+    pendingJobs.delete(jobId)
+    pendingJobs.set(newJobId, {
+      ctx: { ...ctx },
+      filePath: newFilePath,
+      videoFilePath: newFilePath,
+      imageFilePath: null,
+      spec: job.spec,
+    })
+
+    return {
+      success: true,
+      jobId: newJobId,
+      message: 'Video extendido generado. ¿Deseas continuar con la publicación o extender de nuevo?',
+      preview: {
+        type: 'video',
+        imagePath: newFilePath,
+        summary: `${ctx.platform} | video extendido`,
+      },
+    }
+  } catch (err) {
+    return { success: false, error: `Error al extender video: ${err.message || err}` }
+  }
+}
+
 async function handleChatApprove(jobId) {
   const job = pendingJobs.get(jobId)
   if (!job) return { success: false, error: 'No hay contenido pendiente.' }
@@ -688,6 +817,14 @@ function registerChatHandlers(ipcMain) {
   ipcMain.handle('chat-approve', async (_event, jobId) => {
     try {
       return await handleChatApprove(String(jobId || ''))
+    } catch (err) {
+      return { success: false, error: err.message || String(err) }
+    }
+  })
+
+  ipcMain.handle('chat-extend-video', async (_event, jobId, extendPrompt) => {
+    try {
+      return await handleChatExtendVideo(String(jobId || ''), String(extendPrompt || ''))
     } catch (err) {
       return { success: false, error: err.message || String(err) }
     }
