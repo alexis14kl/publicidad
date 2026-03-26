@@ -45,6 +45,7 @@ except ImportError:
     pass
 
 from core.utils.logger import log_info, log_ok, log_warn, log_error
+from core.utils.claude_client import ask_claude
 
 # ---------------------------------------------------------------------------
 # Config — SOLO credenciales y endpoints, nada de estrategia
@@ -59,56 +60,9 @@ WEBSITE = "https://www.noyecode.com"
 PRIVACY_URL = "https://www.noyecode.com/privacidad"
 
 # ---------------------------------------------------------------------------
-# Anthropic Claude — el cerebro que razona
+# Anthropic Claude — importado de core.utils.claude_client
 # ---------------------------------------------------------------------------
-
-def ask_claude(system_prompt: str, user_prompt: str, max_retries: int = 3) -> str:
-    """Envía un prompt a Claude via Anthropic SDK con retry para overloaded."""
-    import time as _time
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if not api_key:
-        log_error("ANTHROPIC_API_KEY no configurada en .env")
-        return ""
-
-    try:
-        import anthropic
-    except ImportError:
-        log_error("SDK de anthropic no instalado. Ejecuta: pip install anthropic")
-        return ""
-
-    client = anthropic.Anthropic(api_key=api_key)
-
-    models = ["claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"]
-    for model in models:
-        for attempt in range(max_retries):
-            try:
-                log_info(f"Consultando {model} (intento {attempt + 1}/{max_retries})...")
-                message = client.messages.create(
-                    model=model,
-                    max_tokens=4096,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": user_prompt}],
-                )
-                log_ok(f"Respuesta recibida de {model}")
-                return message.content[0].text.strip()
-            except anthropic.APIStatusError as exc:
-                if exc.status_code == 529 and attempt < max_retries - 1:
-                    wait = (attempt + 1) * 3
-                    log_warn(f"{model} sobrecargado. Reintentando en {wait}s...")
-                    _time.sleep(wait)
-                    continue
-                if exc.status_code == 529:
-                    log_warn(f"{model} no disponible. Intentando siguiente modelo...")
-                    break  # Try next model
-                log_error(f"Claude API error: {exc}")
-                return ""
-            except Exception as exc:
-                log_error(f"Claude error: {exc}")
-                return ""
-
-    log_error("Ningún modelo de Claude disponible.")
-    return ""
+# ask_claude() se importa de core.utils.claude_client (línea 48)
 
 
 def _load_skills_knowledge() -> str:
@@ -239,11 +193,14 @@ REGLAS CRÍTICAS:
 9. IMPORTANTE para tipo "video": El image_prompt se usa para generar el video en Veo 3. Reglas ESTRICTAS para video:
    - Describir SOLO la escena visual, acciones y ambiente. NO incluir texto en pantalla.
    - PROHIBIDO poner texto, logos, nombres de empresa, slogans, titulares, numeros de telefono, URLs o cualquier texto visible en el prompt de video.
-   - Razon: la IA de video NO puede renderizar texto correctamente — siempre genera errores ortograficos y logos inventados.
-   - El texto, logo e info de contacto se agregan DESPUES como overlay profesional sobre el video.
+   - PROHIBIDO describir pantallas de computador que muestren nombres de software, dashboards con titulos, o cualquier UI con texto legible. Si hay pantallas, deben mostrar graficos abstractos sin texto.
+   - Razon: la IA de video NO puede renderizar texto correctamente — SIEMPRE genera errores ortograficos, logos inventados (como "LOGCOX", "TECHFLOW", etc.) y marcas ficticias que dañan el branding real.
+   - El texto, logo e info de contacto se agregan DESPUES como overlay profesional sobre el video con ffmpeg.
    - Enfocarse en: actores, expresiones, objetos, ambientes, iluminacion, movimiento de camara, transiciones.
-   - Ejemplo CORRECTO: "Frustrated office worker slamming old CRT computer, papers flying. Cut to: modern professional smiling at sleek laptop with colorful dashboard. Split screen transition, cinematic lighting, 7 seconds."
+   - CADA prompt de video DEBE terminar con: "No text, no logos, no brand names, no written words visible anywhere."
+   - Ejemplo CORRECTO: "Frustrated office worker slamming old CRT computer, papers flying. Cut to: modern professional smiling at sleek laptop with colorful abstract dashboard. Split screen transition, cinematic lighting, 7 seconds. No text, no logos, no brand names, no written words visible anywhere."
    - Ejemplo INCORRECTO: "Video with text 'Automatiza con NoyeCode' and company logo at top..." (esto genera texto ilegible)
+   - Ejemplo INCORRECTO: "Computer screen showing 'ProductivityPro' dashboard..." (Veo 3 inventara un nombre diferente con errores)
 10. Para tipo "image": el image_prompt SI debe incluir texto visible (slogan, headline, branding) porque la IA de imagenes maneja texto mejor."""
 
     user_prompt = (

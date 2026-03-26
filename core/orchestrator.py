@@ -161,7 +161,7 @@ def _resolve_existing_profile_cdp_port(timeout_sec: int = 3) -> int:
 
 
 def _generate_prompt() -> bool:
-    """Generate prompt and caption via n8n. Returns True on success."""
+    """Generate prompt and caption via Anthropic Claude. Returns True on success."""
     custom_prompt = str(os.getenv("BOT_CUSTOM_IMAGE_PROMPT", "")).strip()
     if custom_prompt:
         PROMPT_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -180,7 +180,7 @@ def _generate_prompt() -> bool:
         return True
 
     if not N8N_PROMPT_CLIENT_PY.exists():
-        log_warn(f"No existe cliente n8n: {N8N_PROMPT_CLIENT_PY}. Se conserva el prompt actual.")
+        log_warn(f"No existe cliente de prompts: {N8N_PROMPT_CLIENT_PY}. Se conserva el prompt actual.")
         return False
     if not PROMPT_SEED_FILE.exists():
         log_warn(f"No existe brief base: {PROMPT_SEED_FILE}. Se conserva el flujo actual.")
@@ -192,7 +192,7 @@ def _generate_prompt() -> bool:
         "--output", str(PROMPT_FILE),
     )
     if rc != 0:
-        log_warn(f"No se pudo regenerar el prompt con n8n. Se usara el contenido actual de {PROMPT_FILE}.")
+        log_warn(f"No se pudo regenerar el prompt con Claude. Se usara el contenido actual de {PROMPT_FILE}.")
         return False
 
     log_ok(f"Prompt regenerado en {PROMPT_FILE}.")
@@ -204,7 +204,7 @@ def _generate_prompt() -> bool:
             "--output", str(POST_TEXT_FILE),
         )
         if rc2 != 0:
-            log_warn("No se pudo regenerar el texto de publicacion con n8n.")
+            log_warn("No se pudo regenerar el texto de publicacion con Claude.")
         else:
             log_ok(f"Caption regenerado en {POST_TEXT_FILE}.")
     return True
@@ -220,7 +220,7 @@ def _fast_path(cdp_port: int = 9225) -> int:
     log_step("FAST", "Depuracion activa detectada. Ejecutando ruta rapida...")
 
     # 1. Generar prompt
-    log_step("FAST 1/4", "Generando prompt con IA de n8n...")
+    log_step("FAST 1/4", "Generando prompt con Anthropic Claude...")
     _generate_prompt()
 
     # 2. Pegar prompt + esperar imagen + descargar + logo + publicar
@@ -289,7 +289,7 @@ def run_orchestrator(
     # -----------------------------------------------------------------------
     # Step 1/10: Generate prompt via n8n
     # -----------------------------------------------------------------------
-    log_step("1/10", "Generando prompt inicial con IA de n8n...")
+    log_step("1/10", "Generando prompt inicial con Anthropic Claude...")
     _generate_prompt()
 
     # -----------------------------------------------------------------------

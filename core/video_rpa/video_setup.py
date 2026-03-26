@@ -27,17 +27,29 @@ FLOW_URL = "https://labs.google/fx/tools/flow"
 DEFAULT_CDP_PORT = 9225
 
 
+_VIDEO_ANTI_TEXT_SUFFIX = (
+    " CRITICAL CONSTRAINT: Absolutely NO text, NO logos, NO brand names, NO written words, "
+    "NO signage, NO watermarks, NO titles, NO subtitles, NO captions visible anywhere in the frame. "
+    "The scene must be purely visual with zero readable characters. "
+    "Any company branding or contact information will be added as a professional overlay in post-production."
+)
+
+
 def read_prompt() -> str:
-    """Lee el prompt activo desde env o prontm.txt."""
+    """Lee el prompt activo desde env o prontm.txt e inyecta instrucciones anti-texto."""
     env_prompt = str(os.environ.get("BOT_VIDEO_ACTIVE_SCENE_PROMPT", "") or "").strip()
     if env_prompt:
-        return env_prompt
-    if not PROMPT_FILE.exists():
+        raw = env_prompt
+    elif PROMPT_FILE.exists():
+        raw = PROMPT_FILE.read_text(encoding="utf-8").strip()
+        if not raw:
+            raise ValueError("prontm.txt esta vacio")
+    else:
         raise FileNotFoundError(f"No existe {PROMPT_FILE}")
-    text = PROMPT_FILE.read_text(encoding="utf-8").strip()
-    if not text:
-        raise ValueError("prontm.txt esta vacio")
-    return text
+
+    if "no text" not in raw.lower() and "no logos" not in raw.lower():
+        raw = raw.rstrip(". ") + "." + _VIDEO_ANTI_TEXT_SUFFIX
+    return raw
 
 
 def _normalize_prompt_text(value: str) -> str:
