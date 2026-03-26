@@ -58,7 +58,8 @@ function updateContext(text) {
   conversationContext.messages.push(text)
   const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
-  // Accumulate description within the session
+  // Set description — use the LATEST message as the full description, don't accumulate
+  // The user's request should be self-contained, not a concatenation of all messages
   const cleaned = text
     .replace(/^(genera|crea|publica|haz|diseña|lanza|quiero)\s+(una?\s+)?(imagen|foto|video|reel|campana|campaña|anuncio|publicacion)\s*(de|sobre|para|con)?\s*/i, '')
     .trim()
@@ -70,15 +71,30 @@ function updateContext(text) {
     conversationContext.description = cleaned
   }
 
-  // Detect type — image is DEFAULT, campaign/video only if explicitly mentioned
-  if (/video|reel|clip|animacion/.test(lower)) {
+  // Detect content type from THIS message only (not accumulated context)
+  const isVideo = /video|reel|clip|animacion/.test(lower)
+  const isCampaign = /campan[aã]|campaign|leads|anuncio(?:s)?(?:\s+pag(?:ados|ado))?|ads\b|pauta/.test(lower)
+
+  // "campaña con video" or "video para campaña" — explicit dual request
+  const explicitVideoCampaign = isVideo && isCampaign && (
+    /campan[aã]\s+(con|de|para)\s+(video|reel)/i.test(lower) ||
+    /video\s+(para|de)\s+(la\s+)?campan[aã]/i.test(lower) ||
+    /campaña.*video|video.*campaña/i.test(lower)
+  )
+
+  if (explicitVideoCampaign) {
+    conversationContext.type = 'video_campaign'
+  } else if (isVideo) {
+    // "video publicitario", "genera un reel" — organic video/reel
     conversationContext.type = 'video'
-  } else if (/campan[aã]|campaign|leads|anuncio(?:s)?(?:\s+pag(?:ados|ado))?|ads\b|pauta/.test(lower)) {
+  } else if (isCampaign) {
+    // "crea una campaña de X" — campaign (the AI decides if it needs video, image or both)
     conversationContext.type = 'campaign'
-  } else {
-    // Default: image (including "genera imagen", "crea una foto", or just a description)
+  } else if (!conversationContext.type || conversationContext.type === 'image') {
+    // Default: image
     conversationContext.type = 'image'
   }
+  // If type was already set from a previous message and this one doesn't override, keep it
 
   // Detect platform
   if (/instagram|ig\b/.test(lower)) conversationContext.platform = 'instagram'
@@ -170,19 +186,25 @@ async function generateSingleContent(ctx) {
   // Keep browser open for video extension (don't close tabs/browser after generation)
   if (isVideo) botEnv.DEV_MODE = '1'
 
-  // MANDATORY: Claude must provide the image prompt. No fallbacks.
   if (!ctx.aiImagePrompt) {
     throw new Error('Los agentes expertos no generaron el prompt de imagen. Verifica la conexión con Claude (ANTHROPIC_API_KEY).')
   }
-  console.log('[GENERATE] Using Claude AI image prompt:', ctx.aiImagePrompt.slice(0, 100))
-  const imagePrompt = `Generate this image now:\n\n${ctx.aiImagePrompt}\n\nAll visible text in the image MUST be in Spanish. Full-bleed design, no margins. Reserve top 8% for logo. Deliver exactly ONE final image.`
+  console.log('[GENERATE] Using Claude AI prompt:', ctx.aiImagePrompt.slice(0, 100))
+  let imagePrompt
+  if (isVideo) {
+    // Video prompt: NO text, NO logos — pure visual scene
+    // Text/logo/contact info are added as overlay AFTER generation
+    imagePrompt = `Generate this video now:\n\n${ctx.aiImagePrompt}\n\nCRITICAL RULES:\n- Do NOT include any text, titles, subtitles, captions, logos, brand names, phone numbers, URLs, or watermarks in the video.\n- Do NOT render any written words on screen.\n- Focus ONLY on: actors, actions, expressions, environments, objects, lighting, camera movement, transitions.\n- The video must be a clean visual scene without any overlaid text.\n- Professional cinematic quality, smooth transitions.`
+  } else {
+    // Image prompt: text overlay is fine (AI handles it better for images)
+    imagePrompt = `Generate this image now:\n\n${ctx.aiImagePrompt}\n\nAll visible text in the image MUST be in Spanish. Full-bleed design, no margins. Reserve top 8% for logo. Deliver exactly ONE final image.`
+  }
 
   const payload = JSON.stringify({
     ...(!isVideo ? { profile_name: env.INITIAL_PROFILE || '#1 Chat Gpt PRO' } : {}),
     image_prompt: imagePrompt,
   })
 
-  // Record timestamp BEFORE generation to distinguish new files from old ones
   const startTime = Date.now()
 
   return new Promise((resolve, reject) => {
@@ -199,7 +221,6 @@ async function generateSingleContent(ctx) {
       if (isVideo) {
         try {
           const portFile = path.join(PROJECT_ROOT, '.video_cdp_port')
-          // Try to read from cdp_debug_info.json or bot output
           const cdpInfoFile = path.join(PROJECT_ROOT, 'cdp_debug_info.json')
           if (fs.existsSync(cdpInfoFile)) {
             const info = JSON.parse(fs.readFileSync(cdpInfoFile, 'utf-8'))
@@ -211,7 +232,6 @@ async function generateSingleContent(ctx) {
       const outputDir = isVideo
         ? path.join(PROJECT_ROOT, 'output', 'videos')
         : path.join(PROJECT_ROOT, 'output', 'images')
-      // Only accept files created AFTER we started generation
       const newFile = findFileNewerThan(outputDir, startTime)
       if (newFile) {
         resolve(newFile)
@@ -224,6 +244,42 @@ async function generateSingleContent(ctx) {
       }
     })
   })
+}
+
+async function generateVideoCampaignContent(ctx) {
+  /**
+   * Video + Campaña: genera AMBOS assets en secuencia.
+   * 1. Genera el VIDEO (Veo 3 via DiCloak)
+   * 2. Genera la IMAGEN (ChatGPT/Gemini via DiCloak)
+   * Retorna objeto con ambos paths.
+   */
+  console.log('[GENERATE] video_campaign: Generating VIDEO first...')
+  const videoCtx = { ...ctx, type: 'video' }
+  let videoPath = null
+  try {
+    videoPath = await generateSingleContent(videoCtx)
+    console.log('[GENERATE] video_campaign: Video OK:', videoPath)
+  } catch (err) {
+    console.error('[GENERATE] video_campaign: Video failed:', err.message)
+    // Continue — the campaign can still be created with just the image
+  }
+
+  console.log('[GENERATE] video_campaign: Now generating IMAGE...')
+  const imageCtx = { ...ctx, type: 'image' }
+  let imagePath = null
+  try {
+    imagePath = await generateSingleContent(imageCtx)
+    console.log('[GENERATE] video_campaign: Image OK:', imagePath)
+  } catch (err) {
+    console.error('[GENERATE] video_campaign: Image failed:', err.message)
+  }
+
+  if (!videoPath && !imagePath) {
+    throw new Error('No se pudo generar ni el video ni la imagen. Revisa que DiCloak esté abierto.')
+  }
+
+  // Return combined result — the main handler will use both
+  return { videoPath, imagePath }
 }
 
 function findFileNewerThan(dir, afterMs) {
@@ -263,7 +319,7 @@ async function getCampaignPreview(ctx) {
     name: `${brandName} - ${ctx.description}`,
     description: `${companyContext}\n\nSolicitud: ${ctx.description}`,
     budget: ctx.budget,
-    content_type: ctx.type,  // image, video, or campaign
+    content_type: ctx.type === 'video_campaign' ? 'campaign' : ctx.type,
     access_token: env.FB_ACCESS_TOKEN || '',
     ad_account_id: env.FB_AD_ACCOUNT_ID || 'act_438871067037500',
     page_id: env.FB_PAGE_ID || '115406607722279',
@@ -367,28 +423,67 @@ function buildPublishCaption(spec, _ctx) {
 // ─── Publishing ─────────────────────────────────────────────────────────────
 
 async function publishToMeta(job) {
-  const { ctx, filePath, spec } = job
+  const { ctx, filePath, videoFilePath, imageFilePath, spec } = job
+
+  if (ctx.type === 'video_campaign') {
+    // VIDEO + CAMPAIGN: execute both in sequence
+    // 1. Create campaign with the IMAGE as creative
+    // 2. Publish the VIDEO as a reel
+    const results = []
+
+    const campaignImagePath = imageFilePath || filePath
+    if (spec && spec.campaign) {
+      try {
+        const campaignResult = await executeCampaignSpec(spec, campaignImagePath)
+        results.push(campaignResult.message || 'Campaña creada.')
+      } catch (err) {
+        results.push(`Error creando campaña: ${err.message}`)
+      }
+    }
+
+    const reelVideoPath = videoFilePath || (filePath && /\.(mp4|mov|webm)$/i.test(filePath) ? filePath : null)
+    if (reelVideoPath) {
+      try {
+        const env = getProjectEnv()
+        const pageToken = env.FB_PAGE_ACCESS_TOKEN || env.FB_ACCESS_TOKEN || ''
+        const pageId = env.FB_PAGE_ID || '115406607722279'
+        const caption = buildPublishCaption(spec, ctx)
+        const reelResult = await publishVideoToMeta(pageId, pageToken, reelVideoPath, caption, { ...ctx, publishAs: 'reel' })
+        results.push(reelResult.message || 'Reel publicado.')
+      } catch (err) {
+        results.push(`Error publicando reel: ${err.message}`)
+      }
+    }
+
+    return {
+      success: results.length > 0,
+      message: results.join('\n\n'),
+    }
+  }
 
   if (ctx.publishAs === 'campaign' || ctx.type === 'campaign') {
-    // Use the SAME spec the AI already generated — don't regenerate
     return executeCampaignSpec(spec, filePath)
   }
 
-  // Publish image/video directly via Meta API REST (POST /{PAGE_ID}/photos)
-  if (!filePath) throw new Error('No hay imagen para publicar.')
+  // Publish image or video directly via Meta API REST
+  if (!filePath) throw new Error('No hay archivo para publicar.')
 
   const env = getProjectEnv()
   const pageToken = env.FB_PAGE_ACCESS_TOKEN || env.FB_ACCESS_TOKEN || ''
   const pageId = env.FB_PAGE_ID || '115406607722279'
   if (!pageToken) throw new Error('No hay FB_ACCESS_TOKEN ni FB_PAGE_ACCESS_TOKEN en .env')
 
-  // Build caption from Claude's analysis
-  const analysis = spec?.meta?.ai_analysis || ''
-  const caption = analysis
-    ? `${ctx.description}\n\n${analysis.slice(0, 200)}\n\nnoyecode.com`
-    : `${ctx.description}\n\nnoyecode.com`
+  // Build caption from Claude's copywriting skill
+  const caption = buildPublishCaption(spec, ctx)
 
-  // Read image and convert to base64 for multipart upload
+  const isVideo = ctx.type === 'video' || /\.(mp4|mov|webm)$/i.test(filePath)
+
+  if (isVideo) {
+    // ── Video/Reel: POST /{PAGE_ID}/videos ──
+    return publishVideoToMeta(pageId, pageToken, filePath, caption, ctx)
+  }
+
+  // ── Image: POST /{PAGE_ID}/photos ──
   const imageBuffer = fs.readFileSync(filePath)
   const boundary = '----FormBoundary' + Date.now().toString(36)
   const body = Buffer.concat([
@@ -421,17 +516,164 @@ async function publishToMeta(job) {
         try {
           const result = JSON.parse(data)
           if (result.id || result.post_id) {
-            resolve({ success: true, message: `Publicado en ${ctx.platform}. Post ID: ${result.post_id || result.id}` })
+            resolve({ success: true, message: `Imagen publicada en ${ctx.platform}. Post ID: ${result.post_id || result.id}` })
           } else if (result.error) {
             reject(new Error(`Meta API: ${result.error.message || JSON.stringify(result.error)}`))
           } else {
-            resolve({ success: true, message: `Publicado en ${ctx.platform}.` })
+            resolve({ success: true, message: `Imagen publicada en ${ctx.platform}.` })
           }
         } catch {
           reject(new Error(`Respuesta inesperada de Meta: ${data.slice(0, 200)}`))
         }
       })
     })
+    req.on('error', reject)
+    req.write(body)
+    req.end()
+  })
+}
+
+async function publishVideoToMeta(pageId, pageToken, filePath, caption, ctx) {
+  /**
+   * Publica un video en Facebook.
+   *
+   * Para REELS (9:16, 3-90s) — 3 fases segun la documentacion oficial:
+   *   1. POST /{page_id}/video_reels?upload_phase=start → video_id + upload_url
+   *   2. POST upload_url con binary (application/octet-stream, headers: Authorization, offset, file_size)
+   *   3. POST /{page_id}/video_reels?upload_phase=finish&video_state=PUBLISHED → publish
+   *
+   * Para VIDEO NORMAL — multipart form-data a graph-video.facebook.com:
+   *   POST /{page_id}/videos con source=@file, description, access_token
+   *
+   * Ref: https://developers.facebook.com/docs/video-api/guides/reels-publishing
+   * Ref: https://developers.facebook.com/docs/video-api/guides/publishing
+   */
+  const https = require('https')
+  const publishAs = ctx.publishAs === 'reel' || ctx.publishAs === 'story' ? 'reel' : 'post'
+
+  if (publishAs === 'reel') {
+    // ══════════════════════════════════════════════════════════════════════
+    // REEL: 3-phase upload (official Graph API Reels Publishing flow)
+    // ══════════════════════════════════════════════════════════════════════
+
+    // Phase 1: Initialize — POST /{page_id}/video_reels?upload_phase=start
+    const initResult = await metaApiPost(`/${pageId}/video_reels`, {
+      upload_phase: 'start',
+      access_token: pageToken,
+    })
+    const videoId = initResult.video_id
+    if (!videoId) throw new Error('Meta no devolvio video_id al iniciar el upload del Reel.')
+
+    // Phase 2: Upload binary — POST to rupload.facebook.com
+    // Content-Type: application/octet-stream (raw binary, NOT multipart)
+    // Headers: Authorization: OAuth {token}, offset: 0, file_size: {bytes}
+    const videoBuffer = fs.readFileSync(filePath)
+
+    await new Promise((resolve, reject) => {
+      const uploadReq = https.request({
+        hostname: 'rupload.facebook.com',
+        path: `/video-upload/v25.0/${videoId}`,
+        method: 'POST',
+        headers: {
+          'Authorization': `OAuth ${pageToken}`,
+          'Content-Type': 'application/octet-stream',
+          'Content-Length': videoBuffer.length,
+          'offset': '0',
+          'file_size': String(videoBuffer.length),
+        },
+      }, (res) => {
+        let data = ''
+        res.on('data', chunk => { data += chunk })
+        res.on('end', () => {
+          try {
+            const result = JSON.parse(data)
+            if (result.success !== false && !result.error) {
+              resolve(result)
+            } else if (result.error) {
+              reject(new Error(`Reel upload fase 2: ${result.error.message || JSON.stringify(result.error)}`))
+            } else {
+              resolve(result)
+            }
+          } catch {
+            reject(new Error(`Reel upload respuesta invalida: ${data.slice(0, 300)}`))
+          }
+        })
+      })
+      uploadReq.on('error', reject)
+      uploadReq.on('timeout', () => uploadReq.destroy(new Error('Timeout subiendo video a rupload.facebook.com')))
+      uploadReq.setTimeout(120000)
+      uploadReq.write(videoBuffer)
+      uploadReq.end()
+    })
+
+    // Phase 3: Finish & Publish — POST /{page_id}/video_reels?upload_phase=finish
+    const finishResult = await metaApiPost(`/${pageId}/video_reels`, {
+      upload_phase: 'finish',
+      video_id: videoId,
+      video_state: 'PUBLISHED',
+      title: (ctx.description || '').slice(0, 100) || 'Video publicitario',
+      description: caption,
+      access_token: pageToken,
+    })
+
+    return {
+      success: true,
+      message: `Reel publicado en ${ctx.platform}. Video ID: ${videoId}${finishResult.success ? ' (procesando por Meta)' : ''}`,
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // VIDEO NORMAL: multipart form-data a graph-video.facebook.com
+  // POST /{page_id}/videos con source=@archivo
+  // Ref: https://developers.facebook.com/docs/video-api/guides/publishing
+  // ══════════════════════════════════════════════════════════════════════
+  const videoBuffer = fs.readFileSync(filePath)
+  const boundary = '----FormBoundary' + Date.now().toString(36)
+  const ext = path.extname(filePath).toLowerCase()
+  const contentType = ext === '.mov' ? 'video/quicktime' : 'video/mp4'
+  const fileName = path.basename(filePath)
+
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="source"; filename="${fileName}"\r\nContent-Type: ${contentType}\r\n\r\n`),
+    videoBuffer,
+    Buffer.from(
+      `\r\n--${boundary}\r\nContent-Disposition: form-data; name="title"\r\n\r\n${(ctx.description || '').slice(0, 100)}\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="description"\r\n\r\n${caption}\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="access_token"\r\n\r\n${pageToken}\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="published"\r\n\r\ntrue\r\n` +
+      `--${boundary}--\r\n`
+    ),
+  ])
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'graph-video.facebook.com',
+      path: `/v25.0/${pageId}/videos`,
+      method: 'POST',
+      timeout: 120000,
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': body.length,
+      },
+    }, (res) => {
+      let data = ''
+      res.on('data', chunk => { data += chunk })
+      res.on('end', () => {
+        try {
+          const result = JSON.parse(data)
+          if (result.id) {
+            resolve({ success: true, message: `Video publicado en ${ctx.platform}. Video ID: ${result.id}` })
+          } else if (result.error) {
+            reject(new Error(`Meta API: ${result.error.message || JSON.stringify(result.error)}`))
+          } else {
+            resolve({ success: true, message: `Video publicado en ${ctx.platform}.` })
+          }
+        } catch {
+          reject(new Error(`Respuesta inesperada de Meta: ${data.slice(0, 200)}`))
+        }
+      })
+    })
+    req.on('timeout', () => req.destroy(new Error('Timeout publicando video en Meta')))
     req.on('error', reject)
     req.write(body)
     req.end()
@@ -552,14 +794,25 @@ async function handleChatCommand(text) {
   // STEP 2: Generate visual content via DiCloak using Claude's prompt
   // ══════════════════════════════════════════════════════════════════════
   console.log('[CHAT] Step 2: Generating visual content with DiCloak...')
-  let filePath = null
+  let filePath = null       // Primary file (image for campaign/image, video for video)
+  let videoFilePath = null  // Video file (only for video_campaign)
+  let imageFilePath = null  // Image file (only for video_campaign)
   try {
-    filePath = await generateContent(ctx)
-    console.log('[CHAT] Step 2 OK: filePath =', filePath)
+    const result = await generateContent(ctx)
+    if (ctx.type === 'video_campaign' && result && typeof result === 'object' && !Buffer.isBuffer(result)) {
+      // video_campaign returns { videoPath, imagePath }
+      videoFilePath = result.videoPath || null
+      imageFilePath = result.imagePath || null
+      filePath = imageFilePath || videoFilePath // primary = image for campaign creative
+      console.log('[CHAT] Step 2 OK: videoPath =', videoFilePath, '| imagePath =', imageFilePath)
+    } else {
+      filePath = result
+      console.log('[CHAT] Step 2 OK: filePath =', filePath)
+    }
   } catch (err) {
     console.error('[CHAT] Step 2 FAILED:', err.message)
-    // For campaigns, continue without image. For standalone images, fail.
-    if (ctx.type !== 'campaign') {
+    // For campaigns/video_campaign, continue without assets. For standalone, fail.
+    if (ctx.type !== 'campaign' && ctx.type !== 'video_campaign') {
       return { success: false, error: `No se pudo generar la ${typeLabel}: ${err.message}` }
     }
   }
@@ -608,20 +861,32 @@ async function handleChatCommand(text) {
   }
 
   // Campaign state
-  if (ctx.type === 'campaign') {
-    campaignInfo += '\n\n**Estado inicial:** Todo se crea en PAUSED (no se activa sin tu confirmación)'
+  if (ctx.type === 'campaign' || ctx.type === 'video_campaign') {
+    campaignInfo += '\n\n**Estado inicial:** La campaña se crea en PAUSED (no se activa sin tu confirmación)'
   }
 
   // ── Build final message ──
-  const publishLabel = ctx.publishAs === 'story' ? 'historia' : ctx.publishAs === 'reel' ? 'reel' : ctx.type === 'campaign' ? 'campaña' : 'publicación'
+  const publishLabel = ctx.type === 'video_campaign' ? 'video + campaña'
+    : ctx.publishAs === 'story' ? 'historia'
+    : ctx.publishAs === 'reel' ? 'reel'
+    : ctx.type === 'campaign' ? 'campaña'
+    : 'publicación'
 
   const jobId = `job-${Date.now()}`
-  const videoFilePath = ctx.type === 'video' ? filePath : null
-  const imageFilePath = ctx.type !== 'video' ? filePath : null
+  // videoFilePath and imageFilePath are set in Step 2 (lines 798-812)
   pendingJobs.set(jobId, { ctx: { ...ctx }, filePath, videoFilePath, imageFilePath, spec })
 
   let message = ''
-  if (ctx.type === 'campaign') {
+  if (ctx.type === 'video_campaign') {
+    message = `He preparado tu campaña con video: **"${ctx.description}"**`
+    message += campaignInfo
+    const parts = []
+    if (videoFilePath) parts.push('**Video** generado para publicar como reel')
+    if (imageFilePath) parts.push('**Imagen** generada para el creativo de la campaña')
+    if (parts.length) message += '\n\n' + parts.join('\n') + '\n\n(se muestran abajo)'
+    if (!imageFilePath && !videoFilePath) message += '\n\n_No se pudieron generar los assets. La campaña se puede crear sin ellos._'
+    message += '\n\nAl aprobar:\n1. Se crea la **campaña** en Meta Ads (PAUSED) con la imagen\n2. Se publica el **video como reel** en tu página\n\n¿Apruebas?'
+  } else if (ctx.type === 'campaign') {
     message = `He analizado tu campaña: **"${ctx.description}"**`
     message += campaignInfo
     if (filePath) {
@@ -636,9 +901,8 @@ async function handleChatCommand(text) {
     if (filePath) {
       message += '\n\n**Video** generado (se muestra abajo).'
     }
-    message += '\n\n¿Apruebas para publicar?'
+    message += '\n\n¿Apruebas para publicar como reel?'
   } else {
-    // Image
     message = `He creado tu imagen publicitaria: **"${ctx.description}"**`
     message += campaignInfo
     if (filePath) {
@@ -649,13 +913,22 @@ async function handleChatCommand(text) {
     message += '\n\n¿Apruebas para publicar en ' + ctx.platform + '?'
   }
 
-  // Convert image to data URL so Electron renderer can display it
+  // Convert image/video for preview in Electron renderer
   let imageDataUrl = ''
-  if (filePath && fs.existsSync(filePath)) {
+  let videoDataUrl = ''
+
+  // For video_campaign: show both video and image previews
+  const effectiveVideoPath = videoFilePath || (ctx.type === 'video' && filePath ? filePath : null)
+  const effectiveImagePath = imageFilePath || (ctx.type !== 'video' && filePath ? filePath : null)
+
+  if (effectiveVideoPath && fs.existsSync(effectiveVideoPath)) {
+    videoDataUrl = `file://${effectiveVideoPath}`
+  }
+  if (effectiveImagePath && fs.existsSync(effectiveImagePath)) {
     try {
-      const ext = path.extname(filePath).toLowerCase().replace('.', '')
+      const ext = path.extname(effectiveImagePath).toLowerCase().replace('.', '')
       const mime = ext === 'png' ? 'image/png' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png'
-      const base64 = fs.readFileSync(filePath).toString('base64')
+      const base64 = fs.readFileSync(effectiveImagePath).toString('base64')
       imageDataUrl = `data:${mime};base64,${base64}`
     } catch { /* ignore */ }
   }
@@ -667,11 +940,14 @@ async function handleChatCommand(text) {
     message,
     preview: {
       type: ctx.type,
-      imagePath: filePath,
+      imagePath: effectiveImagePath,
       imageDataUrl,
-      summary: ctx.type === 'campaign'
-        ? `${(spec?.adsets || []).length} audiencias | $${Number(ctx.budget).toLocaleString()}/día`
-        : `${ctx.platform} | ${publishLabel}`,
+      videoDataUrl,
+      summary: ctx.type === 'video_campaign'
+        ? `${(spec?.adsets || []).length} audiencias | video + campaña`
+        : ctx.type === 'campaign'
+          ? `${(spec?.adsets || []).length} audiencias | $${Number(ctx.budget).toLocaleString()}/día`
+          : `${ctx.platform} | ${publishLabel}`,
       campaignSpec: spec,
     },
   }

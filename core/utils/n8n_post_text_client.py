@@ -1,27 +1,28 @@
+"""
+Post Text Client — genera captions para redes sociales via Anthropic Claude.
+
+Reemplaza el antiguo flujo via webhook n8n. Ahora la generación del caption
+se hace directamente con Claude (Sonnet → Haiku fallback).
+"""
 import argparse
-import json
 import os
 import re
-import sys
 from pathlib import Path
-from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-from core.utils.logger import progress_bar
+from core.utils.logger import progress_bar, log_info
+from core.utils.claude_client import ask_claude
 from core.cfg.platform import get_env, PROMPT_FILE, POST_TEXT_FILE
 from core.cfg.sqlite_store import add_artifact, new_run
 
 DEFAULT_PROMPT_FILE = PROMPT_FILE
 DEFAULT_OUTPUT_FILE = POST_TEXT_FILE
-DEFAULT_WEBHOOK_URL = "https://n8n-dev.noyecode.com/webhook/py-post-fb-text"
 DEFAULT_WEBSITE = "noyecode.com"
 DEFAULT_WHATSAPP = "+57 301 385 9952"
 
 
-class N8NPostTextError(RuntimeError):
+class PostTextGenerationError(RuntimeError):
     pass
 
 
@@ -34,10 +35,14 @@ def read_prompt(prompt_file: Path) -> str:
     return text
 
 
+# ==============================
+# LIMPIEZA Y FORMATO
+# ==============================
+
 def clean_post_text(text: str, prompt_text: str = "") -> str:
     normalized = "\n".join(line.rstrip() for line in str(text).strip().splitlines()).strip()
     if not normalized:
-        raise N8NPostTextError("n8n devolvio un caption vacio")
+        raise PostTextGenerationError("Claude devolvio un caption vacio")
     formatted = _format_for_facebook(normalized)
     if _needs_rebuild(formatted):
         return _build_caption_from_prompt(prompt_text)
@@ -116,7 +121,7 @@ def _format_for_facebook(text: str) -> str:
 
     result = "\n\n".join(part for part in compact if part).strip()
     if not result:
-        raise N8NPostTextError("No se pudo normalizar el caption de n8n")
+        raise PostTextGenerationError("No se pudo normalizar el caption")
     return result
 
 
@@ -177,53 +182,69 @@ def _build_caption_from_prompt(prompt_text: str) -> str:
     )
 
 
-def _read_json_response(resp: Any) -> dict[str, Any]:
-    raw = resp.read().decode("utf-8", errors="replace").strip()
-    if not raw:
-        raise N8NPostTextError("n8n respondio vacio")
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise N8NPostTextError(f"n8n no devolvio JSON valido: {raw[:300]}") from exc
-    if not isinstance(data, dict):
-        raise N8NPostTextError("n8n devolvio un JSON inesperado")
-    return data
+# ==============================
+# SYSTEM PROMPT PARA CLAUDE
+# ==============================
+
+_SYSTEM_PROMPT = """Eres un copywriter experto en redes sociales para empresas de tecnología en Colombia.
+
+Tu tarea es generar UN caption profesional para una publicación de Facebook/Instagram
+a partir del prompt visual de una imagen publicitaria.
+
+REGLAS:
+1. Responde SOLO con el caption. Nada más — sin explicaciones, sin prefijos, sin markdown extra.
+2. Idioma: español colombiano, tono profesional y cercano.
+3. Estructura obligatoria:
+   - Hook (primera línea impactante que detenga el scroll)
+   - Contexto (por qué importa ahora)
+   - Valor (qué ofrece la empresa)
+   - Prueba (dato, testimonio o credibilidad)
+   - CTA (acción clara: visita la web, escríbenos por WhatsApp)
+4. Incluir info de contacto:
+   - WhatsApp: +57 301 385 9952
+   - Web: noyecode.com
+5. Mencionar el nombre de la empresa (NoyeCode) al menos una vez.
+6. Usar emojis estratégicamente (máximo 5-6 en todo el texto).
+7. Terminar con 8-12 hashtags relevantes en una línea separada.
+8. Máximo 200 palabras (sin contar hashtags).
+9. NO describir la imagen. Escribir copy que VENDA el servicio.
+10. NO usar markdown (ni **, ni ##, ni bullets con -)."""
 
 
 def generate_post_text(
     prompt_text: str,
-    webhook_url: str = DEFAULT_WEBHOOK_URL,
-    timeout: int = 60,
+    **_kwargs,
 ) -> str:
-    payload = json.dumps({"prompt_text": prompt_text}, ensure_ascii=False).encode("utf-8")
-    req = Request(
-        webhook_url,
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "publicidad-n8n-post-text-client/1.0",
-        },
-        method="POST",
+    """Genera caption para redes sociales usando Claude directamente.
+
+    Acepta **_kwargs para compatibilidad con callers antiguos que pasaban
+    webhook_url, timeout, etc.
+    """
+    log_info("Generando caption con Claude...")
+
+    user_prompt = (
+        f"PROMPT VISUAL DE LA IMAGEN PUBLICITARIA:\n{prompt_text}\n\n"
+        f"Genera el caption profesional para Facebook/Instagram."
     )
 
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            data = _read_json_response(resp)
-    except HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace").strip()
-        raise N8NPostTextError(f"n8n devolvio HTTP {exc.code}: {body[:300]}") from exc
-    except URLError as exc:
-        raise N8NPostTextError(f"No se pudo conectar con n8n: {exc}") from exc
+    response = ask_claude(_SYSTEM_PROMPT, user_prompt, max_tokens=1024)
 
-    output = str(data.get("output", "")).strip()
-    if not output:
-        raise N8NPostTextError(f"n8n no devolvio el campo output: {json.dumps(data, ensure_ascii=False)}")
-    return clean_post_text(output, prompt_text=prompt_text)
+    if not response:
+        raise PostTextGenerationError(
+            "Claude no devolvió respuesta para el caption. Verifica ANTHROPIC_API_KEY en .env"
+        )
 
+    return clean_post_text(response, prompt_text=prompt_text)
+
+
+# ==============================
+# CLI
+# ==============================
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Genera el caption comercial de Facebook en n8n.")
+    parser = argparse.ArgumentParser(
+        description="Genera el caption comercial para redes sociales con Anthropic Claude."
+    )
     parser.add_argument(
         "--prompt-file",
         default=str(DEFAULT_PROMPT_FILE),
@@ -240,20 +261,20 @@ def parse_args() -> argparse.Namespace:
         help="Imprime el caption y no escribe archivo.",
     )
     parser.add_argument(
-        "--webhook-url",
-        default=get_env("N8N_WEBHOOK_POST_FB_TEXT", DEFAULT_WEBHOOK_URL),
-        help="Webhook de n8n que genera el caption.",
-    )
-    parser.add_argument(
         "--timeout",
         type=int,
         default=60,
-        help="Timeout en segundos para la llamada a n8n.",
+        help="(Ignorado, mantenido por compatibilidad).",
+    )
+    parser.add_argument(
+        "--webhook-url",
+        default=None,
+        help="(Ignorado, mantenido por compatibilidad).",
     )
     parser.add_argument(
         "--run-id",
         default=str(os.getenv("PUBLICIDAD_RUN_ID", "")).strip(),
-        help="Run ID para versionado en SQLite. Por defecto usa PUBLICIDAD_RUN_ID si existe.",
+        help="Run ID para versionado en SQLite.",
     )
     parser.add_argument(
         "--no-db",
@@ -269,8 +290,8 @@ def main() -> int:
     output_file = Path(args.output).expanduser().resolve()
 
     prompt_text = read_prompt(prompt_file)
-    with progress_bar("Generando caption con IA de n8n..."):
-        post_text = generate_post_text(prompt_text, webhook_url=args.webhook_url, timeout=args.timeout)
+    with progress_bar("Generando caption con Anthropic Claude..."):
+        post_text = generate_post_text(prompt_text)
 
     if args.stdout_only:
         print(post_text)
@@ -283,7 +304,7 @@ def main() -> int:
     if not args.no_db:
         run_id = new_run(
             "generate_post_text",
-            {"webhook_url": str(args.webhook_url or "").strip(), "prompt_file": str(prompt_file)},
+            {"source": "anthropic_claude", "prompt_file": str(prompt_file)},
             run_id=str(args.run_id or "").strip() or None,
             status="ok",
         )
