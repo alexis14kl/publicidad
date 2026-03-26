@@ -1,9 +1,15 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, protocol, net } = require('electron')
 const path = require('path')
+const url = require('url')
 
 // Suppress harmless EGL/GPU driver log noise on macOS
 app.commandLine.appendSwitch('log-level', '3')
 app.commandLine.appendSwitch('enable-logging', 'false')
+
+// Register custom protocol scheme BEFORE app.ready (required by Electron)
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'local-video', privileges: { stream: true, bypassCSP: true, supportFetchAPI: true } },
+])
 
 const state = require('./state')
 const { PROJECT_ROOT } = require('./config/project-paths')
@@ -57,6 +63,15 @@ function createWindow() {
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
+  // 0. Register custom protocol for serving local video/image files securely
+  protocol.handle('local-video', (request) => {
+    // URL: local-video:///Users/.../file.mp4?t=123 — extract path, strip query
+    let filePath = request.url.slice('local-video://'.length)
+    const qIdx = filePath.indexOf('?')
+    if (qIdx !== -1) filePath = filePath.slice(0, qIdx)
+    return net.fetch(url.pathToFileURL(filePath).href)
+  })
+
   // 1. Register IPC handlers BEFORE window — avoids race condition
   //    where renderer sends calls before handlers exist
   const { registerBotHandlers } = require('./ipc/bot')

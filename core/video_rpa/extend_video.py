@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 import time
 import urllib.request
@@ -26,7 +25,6 @@ from pathlib import Path
 from core.utils.logger import log_info, log_ok, log_warn, log_error
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-DOWNLOAD_VIDEO_PY = PROJECT_ROOT / "core" / "video_rpa" / "download_generated_video.py"
 VIDEO_DIR = PROJECT_ROOT / "output" / "videos"
 CDP_DEBUG_INFO = PROJECT_ROOT / "cdp_debug_info.json"
 DEFAULT_CDP_PORT = 9225
@@ -441,6 +439,141 @@ def _wait_for_followup_field(page, timeout_sec: int = 15) -> bool:
     return False
 
 
+def _poll_for_combined_video(page, timeout_sec: int = 540) -> dict | None:
+    """
+    Poll for the combined video (original + extension) to appear.
+    Flow replaces the current video with the combined one (duration > original).
+    We look for a non-placeholder video with readyState >= 3.
+    """
+    import time
+    log_info(f"Esperando video combinado (timeout {timeout_sec}s)...")
+    deadline = time.time() + timeout_sec
+    attempt = 0
+
+    while time.time() < deadline:
+        attempt += 1
+        remaining = int(deadline - time.time())
+
+        try:
+            info = page.evaluate("""() => {
+                const videos = Array.from(document.querySelectorAll('video'));
+                const isPlaceholder = (url) => {
+                    const v = String(url || '').toLowerCase();
+                    return v.includes('gstatic.com/aitestkitchen') || v.endsWith('/back.mp4');
+                };
+                const buttons = Array.from(document.querySelectorAll('button'));
+                const hasDownload = buttons.some(b => {
+                    const text = (b.innerText || '').toLowerCase();
+                    return (text.includes('descargar') || text.includes('download')) && b.offsetParent !== null;
+                });
+                const ready = videos.filter(v => {
+                    const src = (v.src || v.currentSrc || '').trim();
+                    if (!src || isPlaceholder(src)) return false;
+                    const w = v.videoWidth || 0;
+                    const h = v.videoHeight || 0;
+                    if (w > 0 && h > 0 && (w < 320 || h < 180)) return false;
+                    if (!(v.readyState >= 3 || hasDownload)) return false;
+                    return true;
+                });
+                if (!ready.length) {
+                    const body = (document.body.innerText || '').toLowerCase();
+                    const generating = body.includes('generating') || body.includes('generando')
+                        || body.includes('processing') || body.includes('procesando');
+                    return { found: false, count: videos.length, generating, hasDownload };
+                }
+                // Pick the video with the longest duration (combined video)
+                ready.sort((a, b) => {
+                    const da = isNaN(a.duration) ? 0 : a.duration;
+                    const db = isNaN(b.duration) ? 0 : b.duration;
+                    return db - da;
+                });
+                const v = ready[0];
+                return {
+                    found: true,
+                    src: v.src || v.currentSrc || '',
+                    width: v.videoWidth || 0,
+                    height: v.videoHeight || 0,
+                    duration: isNaN(v.duration) ? 0 : v.duration,
+                    readyState: v.readyState,
+                    hasDownload,
+                };
+            }""")
+        except Exception as e:
+            if "Execution context was destroyed" in str(e):
+                page.wait_for_timeout(2000)
+                continue
+            raise
+
+        if info.get("found"):
+            rs = info.get("readyState", 0)
+            if rs < 4 and remaining > 15:
+                log_info("Video disponible, esperando buffering completo...")
+                page.wait_for_timeout(8000)
+            return info
+
+        if attempt % 3 == 1:
+            gen = "generando..." if info.get("generating") else ""
+            dl = "Download visible" if info.get("hasDownload") else ""
+            log_info(f"  [{attempt}] {gen} {dl} | quedan {remaining}s")
+
+        elapsed = timeout_sec - remaining
+        interval = 2 if elapsed < 60 else 3 if elapsed < 300 else 8
+        page.wait_for_timeout(interval * 1000)
+
+    log_error(f"Timeout ({timeout_sec}s): no se generó el video combinado.")
+    return None
+
+
+def _download_combined_video(page, video_url: str) -> Path | None:
+    """Download the combined video using CDP context request."""
+    from datetime import datetime
+    import hashlib
+
+    log_info(f"Descargando video combinado: {video_url[:80]}...")
+
+    for attempt in range(3):
+        try:
+            context = page.context
+            response = context.request.get(video_url, timeout=180000)
+            video_bytes = response.body()
+            if len(video_bytes) < 100_000:
+                log_warn(f"Intento {attempt + 1}: archivo muy pequeño ({len(video_bytes)} bytes)")
+                page.wait_for_timeout(3000)
+                continue
+
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            vid = hashlib.md5(video_url.encode()).hexdigest()[:11]
+            output_path = VIDEO_DIR / f"{ts}_{vid}.mp4"
+            output_path.write_bytes(video_bytes)
+            size_mb = len(video_bytes) / (1024 * 1024)
+            log_ok(f"Video combinado descargado: {output_path.name} ({size_mb:.1f}MB)")
+            return output_path
+        except Exception as e:
+            log_warn(f"Intento {attempt + 1} fallo: {e}")
+            page.wait_for_timeout(3000)
+
+    # Fallback: urllib
+    try:
+        import urllib.request as _req
+        req = _req.Request(video_url, headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "video/mp4,video/*;q=0.9,*/*;q=0.8",
+        })
+        with _req.urlopen(req, timeout=180) as resp:
+            video_bytes = resp.read()
+        if len(video_bytes) > 100_000:
+            from datetime import datetime
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_path = VIDEO_DIR / f"{ts}_combined.mp4"
+            output_path.write_bytes(video_bytes)
+            log_ok(f"Video descargado via urllib: {output_path.name}")
+            return output_path
+    except Exception as e:
+        log_error(f"Descarga urllib fallo: {e}")
+
+    return None
+
+
 def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
     """
     Extiende el video actual en Flow:
@@ -527,37 +660,48 @@ def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
             if not _click_send_button(page):
                 return 1
 
-            log_ok("Prompt de extensión enviado. Video en proceso de generación...")
+            log_ok("Prompt de extensión enviado. Esperando video combinado...")
             print("PROMPT_SENT=extend")
+
+            # Wait for the combined video (duration > 10s) in the SAME session
+            # Flow generates the combined video in-place — we poll for it
+            page.wait_for_timeout(5000)  # Give Flow time to start generating
+
+            combined_video = _poll_for_combined_video(page, timeout_sec=540)
+            if not combined_video:
+                log_error("No se generó el video combinado.")
+                return 1
+
+            video_url = combined_video["src"]
+            duration = combined_video.get("duration", 0)
+            log_ok(f"Video combinado listo: {combined_video.get('width', 0)}x{combined_video.get('height', 0)} | {duration:.1f}s")
+
+            # Download the combined video
+            VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+            output_path = _download_combined_video(page, video_url)
+            if not output_path:
+                log_error("No se pudo descargar el video combinado.")
+                return 1
+
+            # Update last_download.json
+            import json as _json
+            from datetime import datetime as _dt
+            dl_state = {
+                "scene_index": scene_index,
+                "video_url": video_url,
+                "output_path": str(output_path),
+                "downloaded_at": _dt.now().isoformat(),
+            }
+            (VIDEO_DIR / "last_download.json").write_text(
+                _json.dumps(dl_state, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            log_ok(f"Video combinado descargado: {output_path.name}")
 
         except Exception as e:
             log_error(f"Error en extend_video: {e}")
             return 1
         finally:
             browser.close()
-
-    # Download the extended video
-    log_info("Esperando descarga del video extendido...")
-    VIDEO_DIR.mkdir(parents=True, exist_ok=True)
-
-    env = {**os.environ}
-    env.update({
-        "CDP_PROFILE_PORT": str(cdp_port),
-        "BOT_VIDEO_ACTIVE_SCENE_INDEX": str(scene_index),
-        "BOT_VIDEO_PREVIOUS_VIDEO_URL": previous_video_url,
-        "BOT_VIDEO_SKIP_DOWNLOAD": "0",
-    })
-
-    rc = subprocess.run(
-        [sys.executable, str(DOWNLOAD_VIDEO_PY), str(cdp_port)],
-        cwd=str(PROJECT_ROOT),
-        env=env,
-        timeout=600,
-    ).returncode
-
-    if rc != 0:
-        log_error("No se pudo descargar el video extendido.")
-        return 1
 
     # Apply branding overlay (same as _video_pipeline in post_opening.py)
     videos = sorted(VIDEO_DIR.glob("*.mp4"), key=lambda f: f.stat().st_mtime, reverse=True)

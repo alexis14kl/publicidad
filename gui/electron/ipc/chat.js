@@ -922,7 +922,7 @@ async function handleChatCommand(text) {
   const effectiveImagePath = imageFilePath || (ctx.type !== 'video' && filePath ? filePath : null)
 
   if (effectiveVideoPath && fs.existsSync(effectiveVideoPath)) {
-    videoDataUrl = `file://${effectiveVideoPath}`
+    videoDataUrl = `local-video://${effectiveVideoPath}`
   }
   if (effectiveImagePath && fs.existsSync(effectiveImagePath)) {
     try {
@@ -1021,7 +1021,23 @@ async function handleChatExtendVideo(jobId, extendPrompt) {
       child.stderr.on('data', d => { stderr += d.toString(); console.error('[EXTEND]', d.toString().trim()) })
       child.on('exit', (code) => {
         state.botProcess = null
-        const newFile = findFileNewerThan(videoDir, startTime)
+        // Read the extended video path from last_download.json (most reliable)
+        let newFile = null
+        try {
+          const dlState = JSON.parse(fs.readFileSync(path.join(videoDir, 'last_download.json'), 'utf-8'))
+          if (dlState.output_path && fs.existsSync(dlState.output_path)) {
+            const dlMtime = fs.statSync(dlState.output_path).mtimeMs
+            if (dlMtime > startTime) {
+              newFile = dlState.output_path
+              console.log('[EXTEND] Using video from last_download.json:', newFile)
+            }
+          }
+        } catch { /* ignore */ }
+        // Fallback: find newest file
+        if (!newFile) {
+          newFile = findFileNewerThan(videoDir, startTime)
+          if (newFile) console.log('[EXTEND] Using newest video file:', newFile)
+        }
         if (newFile) {
           resolve(newFile)
         } else {
@@ -1050,6 +1066,12 @@ async function handleChatExtendVideo(jobId, extendPrompt) {
       spec: job.spec,
     })
 
+    // Build video preview URL with cache buster so Electron loads the NEW file
+    let videoDataUrl = ''
+    if (newFilePath && fs.existsSync(newFilePath)) {
+      videoDataUrl = `local-video://${newFilePath}?t=${Date.now()}`
+    }
+
     return {
       success: true,
       jobId: newJobId,
@@ -1057,6 +1079,7 @@ async function handleChatExtendVideo(jobId, extendPrompt) {
       preview: {
         type: 'video',
         imagePath: newFilePath,
+        videoDataUrl,
         summary: `${ctx.platform} | video extendido`,
       },
     }
