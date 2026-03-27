@@ -508,6 +508,66 @@ export interface MetaApiResult {
   error?: string
 }
 
+export interface MetaOAuthPage {
+  id: string
+  name: string
+  access_token: string
+  category: string
+  tasks: string[]
+}
+
+export interface MetaStartOAuthResult extends MetaApiResult {
+  user_token?: string
+  expires_in?: number | null
+  pages?: MetaOAuthPage[]
+}
+
+// ── OAuth generico (multi-plataforma) ─────────────────────────────────────
+
+export type OAuthPlatform = 'facebook' | 'tiktok' | 'linkedin'
+
+export interface OAuthAccountDetails {
+  picture_url: string | null
+  website: string | null
+  phone: string | null
+  email: string | null
+  about: string | null
+  category: string | null
+  instagram: {
+    id: string
+    username: string
+    name: string
+    profile_picture_url: string | null
+  } | null
+}
+
+export interface OAuthAccount {
+  id: string
+  name: string
+  access_token: string
+  platform: string
+  details: OAuthAccountDetails | null
+}
+
+export interface OAuthResult {
+  success: boolean
+  error?: string
+  platform?: OAuthPlatform
+  user_token?: string
+  expires_in?: number | null
+  accounts?: OAuthAccount[]
+}
+
+export interface OAuthAutoCreateResult {
+  success: boolean
+  error?: string
+  created?: CompanyRecord[]
+  errors?: { account_id: string; account_name: string; error: string }[]
+  total?: number
+  created_count?: number
+  error_count?: number
+}
+
 export interface MetaAppTokenResult extends MetaApiResult {
   access_token?: string
   token_type?: string
@@ -960,7 +1020,11 @@ export interface ElectronAPI {
   onLogNewLines: (callback: (lines: string[]) => void) => () => void
   onBotLogLines: (callback: (lines: string[]) => void) => () => void
   onMarketingRunUpdate: (callback: (update: MarketingRunUpdate) => void) => () => void
+  // OAuth generico
+  oauthStart: (platform: OAuthPlatform) => Promise<OAuthResult>
+  oauthAutoCreateAccounts: (payload: { accounts: OAuthAccount[] }) => Promise<OAuthAutoCreateResult>
   // Meta Marketing API
+  metaStartOAuth: () => Promise<MetaStartOAuthResult>
   metaGetAppToken: (payload?: Record<string, string>) => Promise<MetaAppTokenResult>
   metaGetOAuthUrl: (payload?: Record<string, string | string[]>) => Promise<MetaOAuthUrlResult>
   metaExchangeCode: (payload: MetaExchangeCodePayload) => Promise<MetaTokenResult>

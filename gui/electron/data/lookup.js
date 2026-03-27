@@ -37,7 +37,6 @@ function buildCompanyCredentialEnv(companyName) {
   const envUpdates = {
     FB_ACCESS_TOKEN: '',
     FB_PAGE_ID: '',
-    INSTAGRAM_ACCESS_TOKEN: '',
     LINKEDIN_ACCESS_TOKEN: '',
     TIKTOK_ACCESS_TOKEN: '',
     GOOGLE_ADS_ACCESS_TOKEN: '',
@@ -51,12 +50,19 @@ function buildCompanyCredentialEnv(companyName) {
 
     if (!primaryAccount?.token) continue
 
+    // Instagram reutiliza el token de Facebook — no necesita token separado.
+    // El IG User ID se auto-resuelve desde la Facebook Page vinculada.
+    if (platformRecord.platform === 'instagram') {
+      // Si el usuario configuró un token específico de Instagram, usarlo como fallback
+      if (primaryAccount.token) {
+        envUpdates.INSTAGRAM_ACCESS_TOKEN = String(primaryAccount.token).trim()
+      }
+      continue
+    }
+
     envUpdates[platformConfig.tokenEnvKey] = String(primaryAccount.token || '').trim()
     if (platformRecord.platform === 'facebook') {
       envUpdates.FB_PAGE_ID = String(primaryAccount.page_id || '').trim()
-    }
-    if (platformRecord.platform === 'instagram') {
-      envUpdates.INSTAGRAM_ACCOUNT_ID = String(primaryAccount.account_id || primaryAccount.page_id || '').trim()
     }
   }
 

@@ -28,7 +28,7 @@ function getAppCredentials() {
   return {
     appId: String(env.FB_APP_ID || '').trim(),
     appSecret: String(env.FB_APP_SECRET || '').trim(),
-    redirectUri: String(env.FB_OAUTH_REDIRECT_URI || 'https://localhost:3000/auth/facebook/callback').trim(),
+    redirectUri: String(env.FB_OAUTH_REDIRECT_URI || 'http://localhost:19284/auth/facebook/callback').trim(),
   }
 }
 
@@ -704,6 +704,56 @@ async function debugToken({ inputToken, appToken, appId, appSecret } = {}) {
   }
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 6. PAGE DETAILS (para OAuth auto-create)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/**
+ * Obtiene detalles completos de una pagina de Facebook.
+ * Usa el Page Access Token (no el User Token).
+ *
+ * GET /{page_id}?fields=name,picture{url},website,phone,emails,about,category,link,
+ *   instagram_business_account{id,username,name,profile_picture_url}
+ */
+async function fetchPageDetails({ pageId, pageAccessToken } = {}) {
+  if (!pageId) throw new Error('Se requiere un page_id.')
+  if (!pageAccessToken) throw new Error('Se requiere un Page Access Token.')
+
+  const fields = [
+    'name',
+    'picture{url}',
+    'website',
+    'phone',
+    'emails',
+    'about',
+    'category',
+    'link',
+    'instagram_business_account{id,username,name,profile_picture_url}',
+  ].join(',')
+
+  const result = await graphApiRequest('GET', pageId, { fields }, pageAccessToken)
+
+  const igAccount = result?.instagram_business_account || null
+
+  return {
+    page_id: String(result?.id || pageId),
+    name: String(result?.name || ''),
+    picture_url: result?.picture?.data?.url || null,
+    website: result?.website || null,
+    phone: result?.phone || null,
+    email: Array.isArray(result?.emails) && result.emails.length > 0 ? result.emails[0] : null,
+    about: result?.about || null,
+    category: result?.category || null,
+    link: result?.link || null,
+    instagram: igAccount ? {
+      id: String(igAccount.id || ''),
+      username: String(igAccount.username || ''),
+      name: String(igAccount.name || ''),
+      profile_picture_url: igAccount.profile_picture_url || null,
+    } : null,
+  }
+}
+
 module.exports = {
   // Config helpers
   getAppCredentials,
@@ -730,6 +780,8 @@ module.exports = {
   // 5. Page Posts
   publishPagePost,
   publishPagePhoto,
+  // 6. Page Details
+  fetchPageDetails,
   // Debug
   debugToken,
 }

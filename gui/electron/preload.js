@@ -53,7 +53,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('marketing-run-update', handler)
   },
 
+  // ── OAuth generico ───────────────────────────────────────────────────────
+  oauthStart: (platform) => ipcRenderer.invoke('oauth-start', { platform }),
+  oauthAutoCreateAccounts: (payload) => ipcRenderer.invoke('oauth-auto-create-accounts', payload),
+
   // ── Meta Marketing API ────────────────────────────────────────────────────
+  metaStartOAuth: () => ipcRenderer.invoke('meta-start-oauth'),
   metaGetAppToken: (payload) => ipcRenderer.invoke('meta-get-app-token', payload),
   metaGetOAuthUrl: (payload) => ipcRenderer.invoke('meta-get-oauth-url', payload),
   metaExchangeCode: (payload) => ipcRenderer.invoke('meta-exchange-code', payload),

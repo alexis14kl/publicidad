@@ -40,7 +40,12 @@ import type {
   MetaPublishPagePhotoResult,
   MetaPublishPagePostPayload,
   MetaPublishPagePostResult,
+  MetaStartOAuthResult,
   MetaTokenResult,
+  OAuthAccount,
+  OAuthAutoCreateResult,
+  OAuthPlatform,
+  OAuthResult,
   MetaUploadAdImagePayload,
   MetaUploadAdImageResult,
   IgAccountInfo,
@@ -145,6 +150,14 @@ export const runAutoCampaign = (payload: AutoCampaignInput): Promise<AutoCampaig
   api().runAutoCampaign(payload)
 
 // ── Meta Marketing API ──────────────────────────────────────────────────────
+
+// ── OAuth generico (multi-plataforma) ──────────────────────────────────────
+export const oauthStart = (platform: OAuthPlatform): Promise<OAuthResult> => api().oauthStart(platform)
+export const oauthAutoCreateAccounts = (accounts: OAuthAccount[]): Promise<OAuthAutoCreateResult> =>
+  api().oauthAutoCreateAccounts({ accounts })
+
+// 0. OAuth Window Flow (backward compat)
+export const metaStartOAuth = (): Promise<MetaStartOAuthResult> => api().metaStartOAuth()
 
 // 1. App Access Token
 export const metaGetAppToken = (payload?: Record<string, string>): Promise<MetaAppTokenResult> =>
