@@ -580,6 +580,386 @@
   border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
+/* ─── OAuth Connect Button ─────────────────────────────────────────────── */
+
+.company-oauth-connect {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 20px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  border: 2px dashed var(--glass-border);
+}
+
+.company-oauth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 28px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.company-oauth-btn__icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.company-oauth-btn--facebook {
+  background: #1877f2;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(24, 119, 242, 0.3);
+}
+
+.company-oauth-btn--facebook:hover:not(:disabled) {
+  background: #166fe5;
+  box-shadow: 0 4px 14px rgba(24, 119, 242, 0.4);
+  transform: translateY(-1px);
+}
+
+.company-oauth-btn--facebook:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.company-oauth-btn--reconnect {
+  background: transparent;
+  color: #1877f2;
+  border: 1px solid rgba(24, 119, 242, 0.3);
+  font-size: 12px;
+  padding: 8px 16px;
+}
+
+.company-oauth-btn--reconnect:hover:not(:disabled) {
+  background: rgba(24, 119, 242, 0.06);
+  border-color: #1877f2;
+}
+
+.company-oauth-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  max-width: 380px;
+  line-height: 1.5;
+}
+
+/* ─── OAuth Status (connected) ─────────────────────────────────────────── */
+
+.company-oauth-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.company-oauth-status__badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-green);
+}
+
+.company-oauth-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+}
+
+/* ─── OAuth Account Row ────────────────────────────────────────────────── */
+
+.company-account-row--oauth {
+  grid-template-columns: 1fr;
+  padding: 16px;
+}
+
+.company-oauth-account-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.company-oauth-account-info strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.company-oauth-account-info small {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ─── OAuth Buttons Section ────────────────────────────────────────────── */
+
+.company-oauth-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 20px;
+}
+
+.company-oauth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.company-oauth-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.company-oauth-btn:disabled {
+  cursor: not-allowed;
+  transform: none;
+}
+
+.company-oauth-btn__icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* ─── Page Card ────────────────────────────────────────────────────────── */
+
+.company-page-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.company-page-card {
+  padding: 0;
+  border-radius: var(--radius);
+  background: var(--surface-0);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.company-page-card:hover {
+  box-shadow: var(--shadow);
+  border-color: var(--glass-border-hover);
+}
+
+.company-page-card--inactive {
+  opacity: 0.6;
+}
+
+.company-page-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--surface-2);
+}
+
+.company-page-card__identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.company-page-card__avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 2px solid var(--glass-border);
+}
+
+.company-page-card__avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-gradient-soft);
+  color: var(--brand-primary);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.company-page-card__identity h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.company-page-card__badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.company-platform-badge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.company-platform-badge--facebook { background: #1877f2; }
+.company-platform-badge--instagram { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+.company-platform-badge--tiktok { background: #000; }
+.company-platform-badge--linkedin { background: #0a66c2; }
+.company-platform-badge--googleads { background: #4285f4; }
+
+/* ─── Page Card Info ───────────────────────────────────────────────────── */
+
+.company-page-card__info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.company-page-card__info div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.company-page-card__info span {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.company-page-card__info strong {
+  font-size: 13px;
+  word-break: break-word;
+  color: var(--text-primary);
+}
+
+/* ─── Page Card Platforms ──────────────────────────────────────────────── */
+
+.company-page-card__platforms {
+  padding: 0 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.company-page-card__platform {
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--glass-border);
+}
+
+.company-page-card__platform-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.company-page-card__platform-header strong {
+  font-size: 13px;
+}
+
+.company-page-card__platform-header small {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.company-page-card__account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-0);
+  border: 1px solid var(--surface-2);
+  margin-bottom: 6px;
+}
+
+.company-page-card__account:last-child {
+  margin-bottom: 0;
+}
+
+.company-page-card__account-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.company-page-card__account-meta span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.company-page-card__account-meta strong {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-primary);
+}
+
+.company-page-card__account-meta small {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* ─── Page Card Edit Panel ─────────────────────────────────────────────── */
+
+.company-page-card__edit {
+  padding: 20px;
+  background: var(--surface-1);
+  border-top: 1px solid var(--glass-border);
+}
+
+.company-page-card__edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.company-page-card__edit-colors {
+  margin-bottom: 16px;
+}
+
+.company-page-card__edit-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .status-badge--online {
   background: var(--accent-green-light);
   color: var(--accent-green);

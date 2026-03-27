@@ -497,11 +497,12 @@ function serveVideoTemporarily(videoPath, timeoutMs = 300000) {
 // ─── Publish to Instagram via Instagram API ──────────────────────────────────
 async function publishToInstagram(job) {
   const { ctx, filePath, videoFilePath } = job
-  const { publishImage, publishReel, getInstagramConfig } = require('../facebook/instagram-api')
+  const { publishImage, publishReel, resolveInstagramConfig } = require('../facebook/instagram-api')
 
-  const config = getInstagramConfig()
-  if (!config.igUserId) throw new Error('INSTAGRAM_BUSINESS_ACCOUNT_ID no configurada en .env. Configúrala en Empresas.')
-  if (!config.accessToken) throw new Error('No hay token de Instagram. Configura INSTAGRAM_ACCESS_TOKEN o FB_PAGE_ACCESS_TOKEN en .env.')
+  // Auto-resuelve IG User ID desde el token de Facebook — no requiere config separada
+  const config = await resolveInstagramConfig()
+  if (!config.igUserId) throw new Error('No se pudo detectar la cuenta de Instagram vinculada a tu Facebook Page. Verifica que tu Page tenga Instagram Business conectado.')
+  if (!config.accessToken) throw new Error('No hay token configurado. Configura FB_ACCESS_TOKEN o FB_PAGE_ACCESS_TOKEN en .env.')
 
   const spec = job.spec
   const caption = buildPublishCaption(spec, ctx)
@@ -517,7 +518,6 @@ async function publishToInstagram(job) {
     const { url: videoUrl, cleanup } = await serveVideoTemporarily(effectiveFilePath)
     try {
       const result = await publishReel({
-        igUserId: config.igUserId,
         token: config.accessToken,
         videoUrl,
         caption,
@@ -531,7 +531,6 @@ async function publishToInstagram(job) {
     // Instagram requires a public URL for images — upload to FreeImage first
     const imageUrl = await uploadToFreeImage(effectiveFilePath)
     const result = await publishImage({
-      igUserId: config.igUserId,
       token: config.accessToken,
       imageUrl,
       caption,
