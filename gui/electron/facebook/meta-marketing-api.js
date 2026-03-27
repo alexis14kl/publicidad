@@ -282,6 +282,8 @@ async function createLeadgenForm({
     thank_you_page: JSON.stringify({
       title: thankYouTitle,
       body: thankYouBody,
+      button_type: 'VIEW_WEBSITE',
+      button_text: 'Visitar sitio web',
     }),
     locale,
   }
@@ -392,8 +394,11 @@ async function createAdCreative({
   name = 'Creative NoyeCode',
   pageId,
   imageHash,
+  picture = '',
+  link = '',
   message = '',
   caption = '',
+  description = '',
   callToActionType = 'SIGN_UP',
   leadgenFormId,
 } = {}) {
@@ -405,18 +410,39 @@ async function createAdCreative({
   if (!resolvedToken) throw new Error('Se requiere un Access Token.')
   if (!resolvedAccount) throw new Error('Se requiere un Ad Account ID.')
   if (!resolvedPageId) throw new Error('Se requiere un page_id.')
-  if (!imageHash) throw new Error('Se requiere un image_hash (sube la imagen con uploadAdImage primero).')
+  if (!imageHash && !picture) throw new Error('Se requiere un image_hash o picture URL (sube la imagen con uploadAdImage primero).')
+
+  const linkData = {
+    message: message,
+    call_to_action: {
+      type: callToActionType,
+    },
+  }
+
+  // image_hash tiene prioridad; si no existe, usar picture URL
+  if (imageHash) {
+    linkData.image_hash = imageHash
+  }
+  if (picture) {
+    linkData.picture = picture
+  }
+
+  // link destino — requerido por Meta para evitar error #1443135
+  if (link) {
+    linkData.link = link
+  }
+
+  if (caption) {
+    linkData.caption = caption
+  }
+
+  if (description) {
+    linkData.description = description
+  }
 
   const objectStorySpec = {
     page_id: resolvedPageId,
-    link_data: {
-      image_hash: imageHash,
-      message: message,
-      caption: caption,
-      call_to_action: {
-        type: callToActionType,
-      },
-    },
+    link_data: linkData,
   }
 
   if (leadgenFormId) {
@@ -522,6 +548,9 @@ async function executeLeadCampaignPipeline({
   creativeName,
   message,
   caption,
+  description,
+  link,
+  picture,
   callToActionType,
   // Ad
   adName,
@@ -596,8 +625,11 @@ async function executeLeadCampaignPipeline({
       name: creativeName,
       pageId,
       imageHash: result.image_hash,
+      picture,
+      link,
       message,
       caption,
+      description,
       callToActionType,
       leadgenFormId: result.form_id,
     })

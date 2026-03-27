@@ -187,7 +187,7 @@ function registerMarketingHandlers(ipcMain) {
     const zones = Array.isArray(payload.zones)
       ? payload.zones.map((value) => String(value || '').trim()).filter(Boolean)
       : []
-    const contactMode = String(payload.contactMode || '').trim() === 'whatsapp' ? 'whatsapp' : 'lead_form'
+    const contactMode = 'lead_form'
     const useZoneIntelligence = Boolean(payload.useZoneIntelligence)
     const useAudienceSegmentation = Boolean(payload.useAudienceSegmentation)
     const generateImageFromMarketingPrompt = Boolean(payload.generateImageFromMarketingPrompt)

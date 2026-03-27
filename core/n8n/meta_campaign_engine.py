@@ -129,6 +129,8 @@ INSTRUCCIONES:
 Analiza la solicitud del usuario como lo haría un equipo de agentes expertos.
 Cada decisión debe tener una razón basada en los frameworks de los agentes.
 
+IMPORTANTE: Genera EXACTAMENTE 1 audiencia y 1 anuncio. NO crear múltiples audiencias ni múltiples ads. Una sola audiencia con budget_pct=1.0 y un solo ad con audience_index=0.
+
 Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
 
 {{
@@ -149,8 +151,8 @@ Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
       "cities": ["ciudad1", "ciudad2"],
       "city_radius_km": número,
       "interests_search_terms": ["término1", "término2"],
-      "destination": "whatsapp" | "lead_form" | "website",
-      "cta": "SIGN_UP" | "LEARN_MORE" | "GET_QUOTE" | "WHATSAPP_MESSAGE" | "CONTACT_US",
+      "destination": "lead_form",
+      "cta": "SIGN_UP" | "LEARN_MORE" | "GET_QUOTE" | "CONTACT_US",
       "reasoning": "por qué esta audiencia, qué framework del agente aplica"
     }}
   ],
@@ -277,7 +279,8 @@ def search_interests(query: str, access_token: str, limit: int = 5) -> list[dict
 
 
 def _to_meta_money(amount: float) -> int:
-    return int(amount * 100)
+    """Convierte COP a formato Meta API. COP no tiene centavos, el factor es 1."""
+    return int(amount)
 
 
 def _to_meta_dt(date_str: str, end_of_day: bool = False) -> str:
@@ -325,7 +328,7 @@ def build_spec_from_strategy(
     access_token: str,
 ) -> dict[str, Any]:
     """Convierte la estrategia del AI en un spec ejecutable para Meta API."""
-    budget = float(re.sub(r"[^\d.]", "", str(user_input.get("budget", "50000"))) or "50000")
+    budget = float(re.sub(r"[^\d.]", "", str(user_input.get("budget", "10000"))) or "10000")
     raw_account = user_input.get("ad_account_id", DEFAULT_AD_ACCOUNT)
     ad_account_id = raw_account if raw_account.startswith("act_") else f"act_{raw_account}"
     page_id = user_input.get("page_id", DEFAULT_PAGE_ID)
@@ -333,15 +336,34 @@ def build_spec_from_strategy(
     company_name = user_input.get("company_name", "")
     company_phone = user_input.get("company_phone", "")
     calendar = strategy.get("calendar", {})
-    audiences = strategy.get("audiences", [])
-    ads = strategy.get("ads", [])
+    audiences = strategy.get("audiences", [])[:1]  # Solo 1 audiencia → 1 adset
+    ads = strategy.get("ads", [])[:1]  # Solo 1 ad por audiencia
+    # Forzar budget_pct=1.0 en la unica audiencia
+    if audiences:
+        audiences[0]["budget_pct"] = 1.0
 
-    # Calculate dates
+    # Calculate dates — priorizar fechas del usuario sobre las de la IA
     from datetime import timedelta
+    user_start = str(user_input.get("start_date", "")).strip()
+    user_end = str(user_input.get("end_date", "")).strip()
     today = datetime.now()
     days = calendar.get("recommended_days", 14)
-    start = today + timedelta(days=1)
-    end = start + timedelta(days=days)
+
+    if user_start:
+        try:
+            start = datetime.strptime(user_start, "%Y-%m-%d")
+        except ValueError:
+            start = today + timedelta(days=1)
+    else:
+        start = today + timedelta(days=1)
+
+    if user_end:
+        try:
+            end = datetime.strptime(user_end, "%Y-%m-%d")
+        except ValueError:
+            end = start + timedelta(days=days)
+    else:
+        end = start + timedelta(days=days)
 
     # Resolve interests via Meta API for each audience
     for audience in audiences:
@@ -412,6 +434,7 @@ def build_spec_from_strategy(
             "thank_you_page": {
                 "title": "¡Gracias por tu interés!",
                 "body": "Te contactaremos pronto.",
+                "button_type": "VIEW_WEBSITE",
                 "button_text": "Visitar sitio web",
                 "website_url": website,
             },
@@ -419,8 +442,9 @@ def build_spec_from_strategy(
 
     # Build adsets from AI audiences
     for i, audience in enumerate(audiences):
+        META_MIN_DAILY_COP = 3708  # minimo diario de Meta para COP
         pct = audience.get("budget_pct", 1.0 / max(len(audiences), 1))
-        daily = max(budget * pct, 3708)  # Meta minimum
+        daily = max(budget * pct, META_MIN_DAILY_COP)  # minimo de Meta por adset
 
         # Resolve cities
         cities = []
@@ -447,7 +471,7 @@ def build_spec_from_strategy(
                 {"interests": audience["resolved_interests"]}
             ]
 
-        dest = audience.get("destination", "whatsapp")
+        dest = audience.get("destination", "lead_form")
         opt_goal = "LEAD_GENERATION" if dest == "lead_form" else "CONVERSATIONS" if dest == "whatsapp" else "LINK_CLICKS"
         dest_type = "ON_AD" if dest == "lead_form" else "WHATSAPP" if dest == "whatsapp" else "WEBSITE"
 
@@ -530,17 +554,20 @@ def get_page_token(user_token: str, page_id: str) -> str:
     # Obtener via /me/accounts (requiere User Token con pages_manage_ads)
     try:
         result = _meta_request("GET", "me/accounts", user_token, {"fields": "id,name,access_token"})
-        for page in result.get("data", []):
+        pages = result.get("data", [])
+        log_info(f"Páginas encontradas en /me/accounts: {[p.get('id') + ' (' + p.get('name', '') + ')' for p in pages]}")
+        for page in pages:
             if page.get("id") == page_id:
                 token = page.get("access_token", "")
                 if token:
                     log_ok(f"Page Token obtenido para {page.get('name', page_id)}")
                     return token
-        log_warn(f"No se encontró página {page_id} en /me/accounts")
+        log_warn(f"No se encontró página {page_id} en /me/accounts. Páginas disponibles: {[p.get('id') for p in pages]}")
     except Exception as exc:
         log_warn(f"No se pudo obtener Page Token: {exc}")
 
-    # Fallback al user token (funciona para la mayoría de operaciones)
+    # Fallback al user token — puede fallar en leadgen_forms
+    log_warn(f"Usando User Token como fallback. Si falla leadgen_forms, genera un Page Token para {page_id}.")
     return user_token
 
 
@@ -718,7 +745,7 @@ def execute_campaign(spec: dict[str, Any], access_token: str) -> dict[str, Any]:
 def build_campaign_spec(user_input: dict[str, Any]) -> dict[str, Any]:
     """Entry point: analiza con AI y construye spec."""
     description = user_input.get("description") or user_input.get("name", "")
-    budget = user_input.get("budget", "50000")
+    budget = user_input.get("budget", "10000")
     access_token = user_input.get("access_token") or os.environ.get("FB_ACCESS_TOKEN", "")
     content_type = user_input.get("content_type", "campaign")
 
