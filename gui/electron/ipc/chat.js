@@ -348,7 +348,13 @@ async function getCampaignPreview(ctx) {
       let out = ''
       let err = ''
       const child = spawn(pythonBin, ['-m', 'core.n8n.meta_campaign_engine', '--dry-run', '--stdin'], {
-        cwd: PROJECT_ROOT, env: { ...env, PYTHONPATH: PROJECT_ROOT, ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY || '' },
+        cwd: PROJECT_ROOT,
+        env: {
+          ...env,
+          PYTHONPATH: PROJECT_ROOT,
+          PYTHONIOENCODING: 'utf-8',
+          ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY || '',
+        },
       })
       child.stdin.write(JSON.stringify(engineInput))
       child.stdin.end()
@@ -854,7 +860,13 @@ async function executeCampaignSpec(spec, imagePath) {
     let stderr = ''
     // Pass the FULL spec via stdin with --execute flag
     const child = spawn(pythonBin, ['-m', 'core.n8n.meta_campaign_engine', '--stdin', '--execute-spec'], {
-      cwd: PROJECT_ROOT, env: { ...env, PYTHONPATH: PROJECT_ROOT, ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY || '' },
+      cwd: PROJECT_ROOT,
+      env: {
+        ...env,
+        PYTHONPATH: PROJECT_ROOT,
+        PYTHONIOENCODING: 'utf-8',
+        ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY || '',
+      },
     })
     child.stdin.write(JSON.stringify(spec))
     child.stdin.end()
