@@ -8,9 +8,8 @@ import { SettingsPage } from '../pages/SettingsPage'
 import { useBranding } from '../features/home/useBranding'
 import { MarketingCampaignModal } from '../features/marketing/MarketingCampaignModal'
 import { useBotStatus } from '../hooks/useBotStatus'
-import { HomePage } from '../pages/HomePage'
 
-type AppPage = 'assistant' | 'home' | 'companies' | 'settings' | 'brochure'
+type AppPage = 'assistant' | 'companies' | 'settings' | 'brochure'
 
 export default function App() {
   const [page, setPage] = useState<AppPage>('assistant')
@@ -30,9 +29,6 @@ export default function App() {
         <button className={`app-tab ${page === 'assistant' ? 'app-tab--active' : ''}`} onClick={() => setPage('assistant')}>
           Asistente
         </button>
-        <button className={`app-tab ${page === 'home' ? 'app-tab--active' : ''}`} onClick={() => setPage('home')}>
-          Panel
-        </button>
         <button className={`app-tab ${page === 'companies' ? 'app-tab--active' : ''}`} onClick={() => setPage('companies')}>
           Empresas
         </button>
@@ -42,16 +38,9 @@ export default function App() {
       </nav>
 
       {page === 'assistant' && <ChatBotPage />}
-      {page === 'home' && (
-        <HomePage
-          botStatus={botStatus}
-          onOpenMarketing={() => setMarketingOpen(true)}
-          onOpenBrochure={() => setPage('brochure')}
-        />
-      )}
       {page === 'companies' && <CompanyProfilesPage onCompaniesChanged={() => void refreshBrand()} />}
       {page === 'settings' && <SettingsPage brandName={brandName} brandLogoUrl={brandLogoUrl} />}
-      {page === 'brochure' && <BrochurePage onClose={() => setPage('home')} />}
+      {page === 'brochure' && <BrochurePage onClose={() => setPage('assistant')} />}
 
       <MarketingCampaignModal open={marketingOpen} onClose={() => setMarketingOpen(false)} />
     </div>
