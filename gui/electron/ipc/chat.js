@@ -48,6 +48,7 @@ const conversationContext = {
   description: '',
   type: 'image',        // image | video | campaign | video_campaign
   platform: 'facebook',
+  platforms: null,       // ['facebook', 'instagram'] — null = default to both
   publishAs: 'post',    // post | story | reel | campaign
   companyName: '',
   budget: '50000',
@@ -96,10 +97,23 @@ function updateContext(text) {
   }
   // If type was already set from a previous message and this one doesn't override, keep it
 
-  // Detect platform
-  if (/instagram|ig\b/.test(lower)) conversationContext.platform = 'instagram'
-  else if (/tiktok/.test(lower)) conversationContext.platform = 'tiktok'
-  else if (!conversationContext.platform) conversationContext.platform = 'facebook'
+  // Detect platforms — publish to ALL by default, or specific ones if user mentions them
+  const mentionsFb = /facebook|fb\b/.test(lower)
+  const mentionsIg = /instagram|ig\b/.test(lower)
+  const mentionsTt = /tiktok/.test(lower)
+  if (mentionsFb || mentionsIg || mentionsTt) {
+    // User mentioned specific platforms — only publish to those
+    const platforms = []
+    if (mentionsFb) platforms.push('facebook')
+    if (mentionsIg) platforms.push('instagram')
+    if (mentionsTt) platforms.push('tiktok')
+    conversationContext.platforms = platforms
+  } else if (!conversationContext.platforms) {
+    // Default: publish to both Facebook AND Instagram
+    conversationContext.platforms = ['facebook', 'instagram']
+  }
+  // Keep legacy .platform for backward compat
+  conversationContext.platform = conversationContext.platforms[0] || 'facebook'
 
   // Detect publish type — derived from content type
   if (conversationContext.type === 'video') conversationContext.publishAs = 'reel'
@@ -131,6 +145,7 @@ function resetContext() {
   conversationContext.description = ''
   conversationContext.type = 'image'
   conversationContext.platform = 'facebook'
+  conversationContext.platforms = null
   conversationContext.publishAs = 'post'
   conversationContext.budget = '50000'
   conversationContext.messages = []
@@ -422,7 +437,139 @@ function buildPublishCaption(spec, _ctx) {
 
 // ─── Publishing ─────────────────────────────────────────────────────────────
 
+// ─── Upload image to FreeImage for public URL (needed by Instagram API) ──────
+async function uploadToFreeImage(imagePath) {
+  const env = getProjectEnv()
+  const apiKey = env.FREEIMAGE_API_KEY || ''
+  if (!apiKey) throw new Error('FREEIMAGE_API_KEY no configurada en .env')
+
+  const imageBase64 = fs.readFileSync(imagePath).toString('base64')
+  const https = require('https')
+  const qs = require('querystring')
+  const body = qs.stringify({ key: apiKey, source: imageBase64, action: 'upload', format: 'json' })
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'freeimage.host',
+      path: '/api/1/upload',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
+    }, (res) => {
+      let data = ''
+      res.on('data', chunk => { data += chunk })
+      res.on('end', () => {
+        try {
+          const result = JSON.parse(data)
+          if (result.image && result.image.url) resolve(result.image.url)
+          else reject(new Error('FreeImage: no devolvió URL'))
+        } catch { reject(new Error('FreeImage: respuesta inválida')) }
+      })
+    })
+    req.on('error', reject)
+    req.write(body)
+    req.end()
+  })
+}
+
+// ─── Temporary HTTP server to serve local video files (needed by Instagram API) ─
+function serveVideoTemporarily(videoPath, timeoutMs = 300000) {
+  const http = require('http')
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      if (req.url === '/video.mp4') {
+        const stat = fs.statSync(videoPath)
+        res.writeHead(200, { 'Content-Type': 'video/mp4', 'Content-Length': stat.size })
+        fs.createReadStream(videoPath).pipe(res)
+      } else {
+        res.writeHead(404)
+        res.end()
+      }
+    })
+    server.listen(0, '0.0.0.0', () => {
+      const port = server.address().port
+      const cleanup = () => { try { server.close() } catch {} }
+      setTimeout(cleanup, timeoutMs)
+      resolve({ url: `http://localhost:${port}/video.mp4`, cleanup })
+    })
+  })
+}
+
+// ─── Publish to Instagram via Instagram API ──────────────────────────────────
+async function publishToInstagram(job) {
+  const { ctx, filePath, videoFilePath } = job
+  const { publishImage, publishReel, getInstagramConfig } = require('../facebook/instagram-api')
+
+  const config = getInstagramConfig()
+  if (!config.igUserId) throw new Error('INSTAGRAM_BUSINESS_ACCOUNT_ID no configurada en .env. Configúrala en Empresas.')
+  if (!config.accessToken) throw new Error('No hay token de Instagram. Configura INSTAGRAM_ACCESS_TOKEN o FB_PAGE_ACCESS_TOKEN en .env.')
+
+  const spec = job.spec
+  const caption = buildPublishCaption(spec, ctx)
+  const isVideo = ctx.type === 'video' || /\.(mp4|mov|webm)$/i.test(filePath || '')
+  const effectiveFilePath = (isVideo ? (videoFilePath || filePath) : filePath) || ''
+
+  if (!effectiveFilePath || !fs.existsSync(effectiveFilePath)) {
+    throw new Error('No hay archivo para publicar en Instagram.')
+  }
+
+  if (isVideo) {
+    // Instagram requires a public URL for videos — serve temporarily
+    const { url: videoUrl, cleanup } = await serveVideoTemporarily(effectiveFilePath)
+    try {
+      const result = await publishReel({
+        igUserId: config.igUserId,
+        token: config.accessToken,
+        videoUrl,
+        caption,
+        maxWaitMs: 180000,
+      })
+      return { success: true, message: `Reel publicado en Instagram. Media ID: ${result.media_id}` }
+    } finally {
+      cleanup()
+    }
+  } else {
+    // Instagram requires a public URL for images — upload to FreeImage first
+    const imageUrl = await uploadToFreeImage(effectiveFilePath)
+    const result = await publishImage({
+      igUserId: config.igUserId,
+      token: config.accessToken,
+      imageUrl,
+      caption,
+    })
+    return { success: true, message: `Imagen publicada en Instagram. Media ID: ${result.media_id}` }
+  }
+}
+
 async function publishToMeta(job) {
+  const { ctx } = job
+  const platforms = ctx.platforms || [ctx.platform || 'facebook']
+
+  // Publish to ALL platforms in the list
+  if (platforms.length > 1 || platforms.includes('instagram')) {
+    const results = []
+
+    for (const plat of platforms) {
+      try {
+        if (plat === 'instagram') {
+          const igResult = await publishToInstagram({ ...job, ctx: { ...ctx, platform: 'instagram' } })
+          results.push(igResult.message || 'Publicado en Instagram.')
+        } else {
+          const fbResult = await publishToFacebook({ ...job, ctx: { ...ctx, platform: 'facebook' } })
+          results.push(fbResult.message || 'Publicado en Facebook.')
+        }
+      } catch (err) {
+        results.push(`Error en ${plat}: ${err.message}`)
+      }
+    }
+
+    return { success: results.length > 0, message: results.join('\n\n') }
+  }
+
+  // Single platform: Facebook (default)
+  return publishToFacebook(job)
+}
+
+async function publishToFacebook(job) {
   const { ctx, filePath, videoFilePath, imageFilePath, spec } = job
 
   if (ctx.type === 'video_campaign') {
@@ -1088,10 +1235,15 @@ async function handleChatExtendVideo(jobId, extendPrompt) {
   }
 }
 
-async function handleChatApprove(jobId) {
+async function handleChatApprove(jobId, platform) {
   const job = pendingJobs.get(jobId)
   if (!job) return { success: false, error: 'No hay contenido pendiente.' }
   pendingJobs.delete(jobId)
+
+  // Use the platform selected by the user in the UI
+  if (platform === 'instagram' || platform === 'facebook') {
+    job.ctx.platform = platform
+  }
 
   try {
     const result = await publishToMeta(job)
@@ -1113,9 +1265,9 @@ function registerChatHandlers(ipcMain) {
     }
   })
 
-  ipcMain.handle('chat-approve', async (_event, jobId) => {
+  ipcMain.handle('chat-approve', async (_event, jobId, platform) => {
     try {
-      return await handleChatApprove(String(jobId || ''))
+      return await handleChatApprove(String(jobId || ''), String(platform || ''))
     } catch (err) {
       return { success: false, error: err.message || String(err) }
     }

@@ -22,9 +22,9 @@ function getInstagramConfig() {
   return {
     igUserId: String(env.INSTAGRAM_BUSINESS_ACCOUNT_ID || env.INSTAGRAM_ACCOUNT_ID || '').trim(),
     accessToken: String(
-      env.INSTAGRAM_ACCESS_TOKEN ||
       env.FB_PAGE_ACCESS_TOKEN ||
       env.FB_ACCESS_TOKEN ||
+      env.INSTAGRAM_ACCESS_TOKEN ||
       ''
     ).trim(),
     pageId: String(env.FB_PAGE_ID || '').trim(),

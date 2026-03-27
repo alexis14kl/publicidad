@@ -34,7 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openBrochurePdf: (filePath) => ipcRenderer.invoke('open-brochure-pdf', filePath),
   runAutoCampaign: (payload) => ipcRenderer.invoke('run-auto-campaign', payload),
   chatCommand: (text) => ipcRenderer.invoke('chat-command', text),
-  chatApprove: (jobId) => ipcRenderer.invoke('chat-approve', jobId),
+  chatApprove: (jobId, platform) => ipcRenderer.invoke('chat-approve', jobId, platform),
   chatExtendVideo: (jobId, extendPrompt) => ipcRenderer.invoke('chat-extend-video', jobId, extendPrompt),
   chatReset: () => ipcRenderer.invoke('chat-reset'),
   onLogNewLines: (callback) => {
