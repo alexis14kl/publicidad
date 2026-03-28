@@ -382,6 +382,21 @@
   color: var(--text-secondary);
 }
 
+.typewriter-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 14px;
+  background: var(--brand-primary);
+  vertical-align: text-bottom;
+  margin-left: 2px;
+  animation: cursorBlink 0.8s step-end infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 .chatbot-thinking-bubble__dots {
   display: flex;
   gap: 3px;

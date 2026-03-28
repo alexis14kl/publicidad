@@ -20,6 +20,24 @@ interface PreviewData {
 
 const api = () => window.electronAPI
 
+function Typewriter({ text, speed = 40 }: { text: string; speed?: number }) {
+  const [displayed, setDisplayed] = useState('')
+  const indexRef = useRef(0)
+
+  useEffect(() => {
+    setDisplayed('')
+    indexRef.current = 0
+    const interval = setInterval(() => {
+      indexRef.current++
+      setDisplayed(text.slice(0, indexRef.current))
+      if (indexRef.current >= text.length) clearInterval(interval)
+    }, speed)
+    return () => clearInterval(interval)
+  }, [text, speed])
+
+  return <>{displayed}</>
+}
+
 export function ChatBotPage() {
   const [videoModal, setVideoModal] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -340,7 +358,7 @@ export function ChatBotPage() {
             return (
               <div key={msg.id} className="chatbot-msg chatbot-msg--assistant chatbot-msg--pending">
                 <div className="chatbot-msg__bubble chatbot-thinking-bubble">
-                  <span className="chatbot-thinking-bubble__text">{msg.content}</span>
+                  <span className="chatbot-thinking-bubble__text"><Typewriter text={msg.content} speed={35} /></span>
                   <span className="chatbot-thinking-bubble__dots">
                     <span></span><span></span><span></span>
                   </span>
