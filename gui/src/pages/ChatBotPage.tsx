@@ -335,6 +335,20 @@ export function ChatBotPage() {
             )
           }
 
+          // Pending message → show as thinking indicator
+          if (msg.status === 'pending') {
+            return (
+              <div key={msg.id} className="chatbot-msg chatbot-msg--assistant chatbot-msg--pending">
+                <div className="chatbot-msg__bubble chatbot-thinking-bubble">
+                  <span className="chatbot-thinking-bubble__text">{msg.content}</span>
+                  <span className="chatbot-thinking-bubble__dots">
+                    <span></span><span></span><span></span>
+                  </span>
+                </div>
+              </div>
+            )
+          }
+
           return (
             <div key={msg.id} className={`chatbot-msg chatbot-msg--${msg.role} ${msg.status ? `chatbot-msg--${msg.status}` : ''}`}>
               <div className="chatbot-msg__bubble">
@@ -407,15 +421,6 @@ export function ChatBotPage() {
             <button className="chatbot-reject" onClick={handleReject} disabled={isProcessing}>
               Rechazar
             </button>
-          </div>
-        )}
-
-        {isProcessing && (
-          <div className="chatbot-thinking">
-            <div className="chatbot-thinking__icon">&#10024;</div>
-            <div className="chatbot-thinking__dots">
-              <span></span><span></span><span></span>
-            </div>
           </div>
         )}
 
