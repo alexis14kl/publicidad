@@ -26,9 +26,10 @@ function generateSelfSignedCert() {
   const certPath = path.join(tmpDir, `noyecode-oauth-cert-${Date.now()}.pem`)
 
   try {
+    const subj = process.platform === 'win32' ? '//CN=localhost' : '/CN=localhost'
     execSync(
-      `openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 1 -nodes -subj "/CN=localhost" 2>/dev/null`,
-      { timeout: 5000 }
+      `openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 1 -nodes -subj "${subj}"`,
+      { timeout: 10000, stdio: 'pipe' }
     )
     const key = fs.readFileSync(keyPath, 'utf8')
     const cert = fs.readFileSync(certPath, 'utf8')
