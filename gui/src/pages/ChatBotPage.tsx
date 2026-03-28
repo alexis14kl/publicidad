@@ -410,6 +410,15 @@ export function ChatBotPage() {
           </div>
         )}
 
+        {isProcessing && (
+          <div className="chatbot-thinking">
+            <div className="chatbot-thinking__icon">&#10024;</div>
+            <div className="chatbot-thinking__dots">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+        )}
+
         <div ref={chatEndRef} />
       </div>
 

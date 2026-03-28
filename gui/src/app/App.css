@@ -222,13 +222,12 @@ body::after { display: none; }
 .header {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   padding: 10px 0;
   flex-shrink: 0;
   border-bottom: 1px solid var(--glass-border);
   padding-bottom: 12px;
   margin-bottom: 8px;
-  position: relative;
 }
 
 .header-left {
@@ -263,8 +262,6 @@ body::after { display: none; }
 }
 
 .header-right {
-  position: absolute;
-  right: 0;
   display: flex;
   align-items: center;
   gap: 10px;
