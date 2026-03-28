@@ -103,7 +103,7 @@ def _load_skills_knowledge() -> str:
     return "\n\n".join(knowledge)
 
 
-def ai_generate_strategy(user_request: str, budget: str, webhook_url: str = "", content_type: str = "campaign") -> dict[str, Any]:
+def ai_generate_strategy(user_request: str, budget: str, webhook_url: str = "", content_type: str = "campaign", user_language: str = "es") -> dict[str, Any]:
     """
     Envía el preprompt del usuario + conocimiento de skills/agentes a Claude.
     Claude razona con la expertise de los multiagentes para generar la estrategia.
@@ -213,10 +213,20 @@ REGLAS CRÍTICAS:
    - Ejemplo INCORRECTO: "Computer screen showing 'ProductivityPro' dashboard..." (Veo 3 inventara un nombre diferente con errores)
 10. Para tipo "image": el image_prompt SI debe incluir texto visible (slogan, headline, branding) porque la IA de imagenes maneja texto mejor."""
 
+    lang_label = "español" if user_language == "es" else "inglés"
+    lang_instruction = (
+        f"\nIDIOMA DEL USUARIO: {lang_label}. "
+        f"TODOS los copies (post_caption, primary_text, headline, description, voiceover) "
+        f"DEBEN estar en {lang_label}. "
+        f"El image_prompt puede estar en inglés (es para el generador de IA), "
+        f"pero el tono y contexto cultural deben reflejar {'Latinoamérica' if user_language == 'es' else 'el mercado del usuario'}."
+    )
+
     user_prompt = (
         f'SOLICITUD DEL USUARIO:\n"{user_request}"\n\n'
         f'TIPO DE CONTENIDO: {content_type}\n'
-        f'PRESUPUESTO DIARIO: ${budget} COP (mercado colombiano)\n\n'
+        f'PRESUPUESTO DIARIO: ${budget} COP (mercado colombiano)\n'
+        f'{lang_instruction}\n\n'
         f'Genera la estrategia completa en JSON.'
     )
 
@@ -749,8 +759,9 @@ def build_campaign_spec(user_input: dict[str, Any]) -> dict[str, Any]:
     access_token = user_input.get("access_token") or os.environ.get("FB_ACCESS_TOKEN", "")
     content_type = user_input.get("content_type", "campaign")
 
+    user_language = user_input.get("user_language", "es")
     log_info(f"Enviando solicitud a Claude para análisis estratégico (tipo: {content_type})...")
-    strategy = ai_generate_strategy(description, budget, content_type=content_type)
+    strategy = ai_generate_strategy(description, budget, content_type=content_type, user_language=user_language)
 
     if not strategy:
         log_error("El AI no devolvió estrategia. Verifica la conexión con n8n.")

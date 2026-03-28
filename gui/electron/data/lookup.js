@@ -9,7 +9,13 @@ function lookupCompanyData(companyName) {
     const records = aggregateCompanyRows(
       Object.fromEntries([...COMPANY_PLATFORMS].map(p => [p, fetchCompanyRowsForPlatform(p)]))
     )
-    return records.find(c => c.nombre === companyName) || null
+    const target = companyName.toLowerCase()
+    // Exact match (case-insensitive)
+    return records.find(c => (c.nombre || '').toLowerCase() === target)
+      // Partial match: company name contains the search term or vice versa
+      || records.find(c => (c.nombre || '').toLowerCase().includes(target))
+      || records.find(c => target.includes((c.nombre || '').toLowerCase()))
+      || null
   } catch { return null }
 }
 

@@ -1,6 +1,6 @@
 Generate this video now:
 
-Split screen comparison: Left side shows frustrated business person struggling with generic clunky software interface with error messages, messy desktop, papers scattered. Right side shows confident professional using sleek custom software interface, organized workspace, satisfied expression. Modern office environment, professional lighting, high-quality photography style. No text, no logos, no brand names, no written words visible anywhere.
+Split-screen composition showing dramatic before/after transformation: LEFT SIDE - Chaotic office environment with overwhelmed businessman at cluttered desk, multiple error-filled computer screens, papers scattered, stress and frustration, dark moody lighting with red error alerts. RIGHT SIDE - Modern futuristic office with confident professional at sleek workstation, holographic blue dashboards with smooth data flows, AI-powered automated systems, bright blue neon lighting, clean minimalist design. Sharp vertical dividing line between chaos and order. Cinematic lighting contrast, ultra-realistic 4K quality, corporate technology aesthetic, professional photography style. No text, no logos, no brand names, no written words visible anywhere.
 
 CRITICAL RULES:
 - Do NOT include any text, titles, subtitles, captions, logos, brand names, phone numbers, URLs, or watermarks in the video.
@@ -8,3 +8,4 @@ CRITICAL RULES:
 - Focus ONLY on: actors, actions, expressions, environments, objects, lighting, camera movement, transitions.
 - The video must be a clean visual scene without any overlaid text.
 - Professional cinematic quality, smooth transitions.
+- The overall tone, setting, and cultural context of the video must feel Spanish-speaking (Latin American if Spanish is Spanish).

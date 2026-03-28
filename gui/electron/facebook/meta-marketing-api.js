@@ -88,12 +88,21 @@ async function getAppAccessToken({ appId, appSecret } = {}) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const DEFAULT_SCOPES = [
+  // Páginas — leer y publicar
+  'pages_show_list',
+  'pages_read_engagement',
+  'pages_manage_posts',
+  'pages_manage_engagement',
+  // Ads
   'ads_management',
   'ads_read',
   'leads_retrieval',
   'pages_manage_ads',
-  'pages_read_engagement',
-  'pages_show_list',
+  // Instagram (via Facebook Login)
+  'instagram_basic',
+  'instagram_content_publish',
+  'instagram_manage_comments',
+  'instagram_manage_insights',
 ]
 
 /**
