@@ -234,6 +234,94 @@
   margin-top: 6px;
 }
 
+/* ─── Log Group (collapsed system messages) ───────────────────────────────── */
+
+.chatbot-log-group {
+  align-self: flex-start;
+  max-width: 88%;
+  animation: chatFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  margin: 4px 0;
+}
+
+.chatbot-log-group__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--surface-3);
+  border-radius: 8px;
+  background: var(--surface-1);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+  width: 100%;
+}
+
+.chatbot-log-group__toggle:hover {
+  background: var(--surface-2);
+  border-color: var(--glass-border-hover);
+  color: var(--text-secondary);
+}
+
+.chatbot-log-group__chevron {
+  font-size: 8px;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.chatbot-log-group__chevron--open {
+  transform: rotate(90deg);
+}
+
+.chatbot-log-group__label {
+  flex: 1;
+  text-align: left;
+}
+
+.chatbot-log-group__time {
+  font-size: 10px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.chatbot-log-group__body {
+  margin-top: 4px;
+  padding: 8px 12px;
+  background: var(--surface-0);
+  border: 1px solid var(--surface-3);
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  animation: chatFadeIn 0.15s ease;
+}
+
+.chatbot-log-group__body::-webkit-scrollbar {
+  width: 3px;
+}
+
+.chatbot-log-group__body::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 999px;
+}
+
+.chatbot-log-group__line {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  line-height: 1.65;
+  color: var(--text-dim);
+  padding: 1px 0;
+  border-bottom: 1px solid var(--surface-2);
+}
+
+.chatbot-log-group__line:last-child {
+  border-bottom: none;
+}
+
 /* ─── Preview: Image ───────────────────────────────────────────────────────── */
 
 .chatbot-preview-img {

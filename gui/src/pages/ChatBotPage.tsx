@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 
 interface ChatMessage {
   id: string
@@ -222,43 +222,114 @@ export function ChatBotPage() {
     return new Date(ts).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
   }
 
+  const [expandedLogGroups, setExpandedLogGroups] = useState<Set<string>>(new Set())
+
+  // Group consecutive system messages into blocks
+  type RenderItem =
+    | { type: 'msg'; msg: ChatMessage }
+    | { type: 'log-group'; id: string; msgs: ChatMessage[] }
+
+  const renderItems = useMemo<RenderItem[]>(() => {
+    const items: RenderItem[] = []
+    let currentGroup: ChatMessage[] = []
+
+    const flushGroup = () => {
+      if (currentGroup.length === 0) return
+      if (currentGroup.length === 1) {
+        items.push({ type: 'msg', msg: currentGroup[0] })
+      } else {
+        items.push({ type: 'log-group', id: currentGroup[0].id, msgs: [...currentGroup] })
+      }
+      currentGroup = []
+    }
+
+    for (const msg of messages) {
+      if (msg.role === 'system') {
+        currentGroup.push(msg)
+      } else {
+        flushGroup()
+        items.push({ type: 'msg', msg })
+      }
+    }
+    flushGroup()
+    return items
+  }, [messages])
+
+  function toggleLogGroup(id: string) {
+    setExpandedLogGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   return (
     <div className="chatbot-page">
       <div className="chatbot-messages">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`chatbot-msg chatbot-msg--${msg.role} ${msg.status ? `chatbot-msg--${msg.status}` : ''}`}>
-            <div className="chatbot-msg__bubble">
-              <div className="chatbot-msg__content" dangerouslySetInnerHTML={{
-                __html: msg.content
-                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                  .replace(/\n/g, '<br/>')
-              }} />
-              {msg.preview?.videoDataUrl && (
+        {renderItems.map((item) => {
+          if (item.type === 'log-group') {
+            const expanded = expandedLogGroups.has(item.id)
+            const lastMsg = item.msgs[item.msgs.length - 1]
+            return (
+              <div key={item.id} className="chatbot-log-group">
                 <button
-                  className="chatbot-video-thumb"
-                  onClick={() => setVideoModal(msg.preview?.videoDataUrl || null)}
+                  className="chatbot-log-group__toggle"
+                  onClick={() => toggleLogGroup(item.id)}
                 >
-                  <span className="chatbot-video-thumb__icon">&#9654;</span>
-                  <span className="chatbot-video-thumb__label">Ver video generado</span>
+                  <span className={`chatbot-log-group__chevron ${expanded ? 'chatbot-log-group__chevron--open' : ''}`}>&#9654;</span>
+                  <span className="chatbot-log-group__label">
+                    {expanded ? 'Ocultar logs' : `${item.msgs.length} pasos del proceso`}
+                  </span>
+                  <span className="chatbot-log-group__time">{formatTime(lastMsg.timestamp)}</span>
                 </button>
-              )}
-              {msg.preview?.imageDataUrl && !msg.preview?.videoDataUrl && (
-                <img
-                  className="chatbot-preview-img"
-                  src={msg.preview.imageDataUrl}
-                  alt="Preview"
-                />
-              )}
-              {msg.preview?.imagePath && !msg.preview?.imageDataUrl && !msg.preview?.videoDataUrl && (
-                <div className="chatbot-preview-summary">Archivo generado: {msg.preview.imagePath.split('/').pop()}</div>
-              )}
-              {msg.preview?.summary && (
-                <div className="chatbot-preview-summary">{msg.preview.summary}</div>
-              )}
-              <span className="chatbot-msg__time">{formatTime(msg.timestamp)}</span>
+                {expanded && (
+                  <div className="chatbot-log-group__body">
+                    {item.msgs.map((m) => (
+                      <div key={m.id} className="chatbot-log-group__line">{m.content}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          }
+
+          const msg = item.msg
+          return (
+            <div key={msg.id} className={`chatbot-msg chatbot-msg--${msg.role} ${msg.status ? `chatbot-msg--${msg.status}` : ''}`}>
+              <div className="chatbot-msg__bubble">
+                <div className="chatbot-msg__content" dangerouslySetInnerHTML={{
+                  __html: msg.content
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\n/g, '<br/>')
+                }} />
+                {msg.preview?.videoDataUrl && (
+                  <button
+                    className="chatbot-video-thumb"
+                    onClick={() => setVideoModal(msg.preview?.videoDataUrl || null)}
+                  >
+                    <span className="chatbot-video-thumb__icon">&#9654;</span>
+                    <span className="chatbot-video-thumb__label">Ver video generado</span>
+                  </button>
+                )}
+                {msg.preview?.imageDataUrl && !msg.preview?.videoDataUrl && (
+                  <img
+                    className="chatbot-preview-img"
+                    src={msg.preview.imageDataUrl}
+                    alt="Preview"
+                  />
+                )}
+                {msg.preview?.imagePath && !msg.preview?.imageDataUrl && !msg.preview?.videoDataUrl && (
+                  <div className="chatbot-preview-summary">Archivo generado: {msg.preview.imagePath.split('/').pop()}</div>
+                )}
+                {msg.preview?.summary && (
+                  <div className="chatbot-preview-summary">{msg.preview.summary}</div>
+                )}
+                <span className="chatbot-msg__time">{formatTime(msg.timestamp)}</span>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {awaitingApproval && approvalStep === 'extend' && lastPreviewType === 'video' && (
           <div className="chatbot-extend-section">
