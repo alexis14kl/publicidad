@@ -488,6 +488,12 @@ def _image_pipeline(cdp_port: int, dev_mode: bool) -> int:
         else:
             log_ok("Logo superpuesto con exito")
 
+    # ── Check if publishing is skipped (chat flow handles its own publishing) ──
+    skip_publish = str(get_env("BOT_SKIP_PUBLISH", "0") or "0").strip() == "1"
+    if skip_publish:
+        log_ok("Imagen generada con logo. Publicacion omitida (BOT_SKIP_PUBLISH=1).")
+        return 0
+
     # Step 6.5: Verificar/renovar tokens antes de publicar
     platforms_to_check = str(get_env("PUBLISH_PLATFORMS", "facebook") or "").lower()
 

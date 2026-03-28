@@ -3,6 +3,24 @@ const { IMAGE_FORMATS } = require('../config/image-formats')
 const { NOYECODE_SERVICES } = require('../config/noyecode-services')
 const { aggregateCompanyRows, fetchCompanyRowsForPlatform, getCompanyPlatformConfig } = require('./db')
 
+function normalize(str) {
+  return (str || '').toLowerCase().replace(/[^a-z0-9áéíóúñ]/g, '')
+}
+
+/** Fuzzy: checks if all chars of `query` appear in order within `target` */
+function fuzzyMatch(target, query) {
+  const t = normalize(target)
+  const q = normalize(query)
+  if (!q || q.length < 3) return false
+  let ti = 0
+  for (let qi = 0; qi < q.length; qi++) {
+    const found = t.indexOf(q[qi], ti)
+    if (found === -1) return false
+    ti = found + 1
+  }
+  return true
+}
+
 function lookupCompanyData(companyName) {
   if (!companyName) return null
   try {
@@ -10,11 +28,20 @@ function lookupCompanyData(companyName) {
       Object.fromEntries([...COMPANY_PLATFORMS].map(p => [p, fetchCompanyRowsForPlatform(p)]))
     )
     const target = companyName.toLowerCase()
+    const targetNorm = normalize(companyName)
     // Exact match (case-insensitive)
     return records.find(c => (c.nombre || '').toLowerCase() === target)
       // Partial match: company name contains the search term or vice versa
       || records.find(c => (c.nombre || '').toLowerCase().includes(target))
       || records.find(c => target.includes((c.nombre || '').toLowerCase()))
+      // Normalized match: ignore spaces, dots, special chars
+      || records.find(c => normalize(c.nombre) === targetNorm)
+      || records.find(c => normalize(c.nombre).includes(targetNorm))
+      || records.find(c => targetNorm.includes(normalize(c.nombre)))
+      // Fuzzy match: "nygsst" → "NyG SG SST" (chars in order, prefer shortest name)
+      || records
+          .filter(c => fuzzyMatch(c.nombre, companyName))
+          .sort((a, b) => normalize(a.nombre).length - normalize(b.nombre).length)[0]
       || null
   } catch { return null }
 }

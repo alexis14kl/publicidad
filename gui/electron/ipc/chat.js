@@ -12,6 +12,7 @@ const { getProjectEnv } = require('../utils/env')
 const { findPython } = require('../utils/process')
 const { lookupCompanyData, isCompanyActive, buildCompanyCredentialEnv } = require('../data/lookup')
 const state = require('../state')
+const { insertPublication } = require('../data/publications')
 
 const pendingJobs = new Map()
 
@@ -556,6 +557,13 @@ async function publishToInstagram(job) {
         caption,
         maxWaitMs: 180000,
       })
+      try {
+        insertPublication({
+          postId: result.media_id, platform: 'instagram', pageId: config.igUserId || '',
+          pageName: ctx.companyName || '', companyName: ctx.companyName || '', contentType: 'reel',
+          message: caption.slice(0, 500), imageUrl: '', status: 'published',
+        })
+      } catch (err) { console.warn('[Publications] Error recording chat IG reel:', err.message) }
       return { success: true, message: `Reel publicado en Instagram. Media ID: ${result.media_id}` }
     } finally {
       cleanup()
@@ -568,6 +576,13 @@ async function publishToInstagram(job) {
       imageUrl,
       caption,
     })
+    try {
+      insertPublication({
+        postId: result.media_id, platform: 'instagram', pageId: config.igUserId || '',
+        pageName: '', companyName: ctx.companyName || '', contentType: 'image',
+        message: caption.slice(0, 500), imageUrl, status: 'published',
+      })
+    } catch (err) { console.warn('[Publications] Error recording chat IG image:', err.message) }
     return { success: true, message: `Imagen publicada en Instagram. Media ID: ${result.media_id}` }
   }
 }
@@ -648,11 +663,25 @@ async function resolveTargetPage(ctx) {
     }
   }
 
-  // 4. Último recurso: si tenemos pageId pero no pageToken, usar el userToken directamente
-  //    (funciona si el FB_ACCESS_TOKEN tiene permisos sobre esa página)
-  if (pageId && !pageToken && userToken) {
-    pageToken = userToken
-    console.log(`[PUBLISH] Usando FB_ACCESS_TOKEN como token para page_id=${pageId}`)
+  // 4. Si tenemos pageId pero no pageToken, buscar en la DB de facebook por page_id
+  if (pageId && !pageToken) {
+    try {
+      const { fetchCompanyRowsForPlatform } = require('../data/db')
+      const rows = fetchCompanyRowsForPlatform('facebook')
+      const match = rows.find(r => r.page_id === pageId)
+      if (match?.token) {
+        pageToken = match.token
+        pageName = pageName || match.nombre || ''
+        console.log(`[PUBLISH] Page Token obtenido de DB para page_id=${pageId}`)
+      }
+    } catch (err) {
+      console.warn(`[PUBLISH] Error buscando token en DB:`, err.message)
+    }
+  }
+
+  // NUNCA usar FB_ACCESS_TOKEN del .env como fallback — puede ser de otra página
+  if (pageId && !pageToken) {
+    console.error(`[PUBLISH] No se encontró Page Token para page_id=${pageId}. Reconecta la cuenta en Empresas.`)
   }
 
   return { pageId, pageToken, pageName }
@@ -665,11 +694,21 @@ async function publishToMeta(job) {
   const targetPage = await resolveTargetPage(ctx)
 
   // Resolver plataformas: si el usuario no especificó, usar las que la empresa tiene configuradas
+  console.log(`[PUBLISH] ctx.companyName="${ctx.companyName}", ctx.platforms=${JSON.stringify(ctx.platforms)}`)
   let platforms = ctx.platforms
   if (!platforms || platforms.length === 0) {
     platforms = []
-    if (ctx.companyName) {
-      const company = lookupCompanyData(ctx.companyName)
+    // Si no hay empresa en el contexto, intentar detectarla de nuevo
+    let companyName = ctx.companyName
+    if (!companyName) {
+      const defaultCompany = require('../data/lookup').getDefaultActiveCompany()
+      if (defaultCompany) {
+        companyName = defaultCompany.nombre
+        console.log(`[PUBLISH] Sin empresa en contexto, usando empresa activa por defecto: "${companyName}"`)
+      }
+    }
+    if (companyName) {
+      const company = lookupCompanyData(companyName)
       if (company) {
         for (const p of company.platforms || []) {
           if (p.platform === 'facebook' && p.accounts?.some(a => a.page_id || a.token)) {
@@ -688,6 +727,7 @@ async function publishToMeta(job) {
       }
     }
     if (platforms.length === 0) {
+      console.error(`[PUBLISH] No platforms found. companyName="${companyName}", ctx.companyName="${ctx.companyName}"`)
       throw new Error(
         'No se pudo determinar dónde publicar. '
         + 'Indica la plataforma en tu mensaje (ej: "publica en facebook") '
@@ -724,6 +764,9 @@ async function publishToFacebook(job) {
   const tp = job.targetPage || {}
   const pageId = tp.pageId || ''
   const pageToken = tp.pageToken || ''
+
+  // DEBUG: verificar que el token corresponde a la página correcta
+  console.log(`[PUBLISH-FB] pageId=${pageId}, pageName=${tp.pageName}, token_start=${pageToken.slice(0,15)}...`)
 
   if (!pageId) {
     throw new Error(
@@ -781,7 +824,24 @@ async function publishToFacebook(job) {
 
   // Publish image or video directly via Meta API REST
   if (!filePath) throw new Error('No hay archivo para publicar.')
-  if (!pageToken) throw new Error('No hay FB_ACCESS_TOKEN ni FB_PAGE_ACCESS_TOKEN en .env')
+
+  // Siempre usar el token de la DB para el pageId — nunca confiar en el token resuelto
+  let effectiveToken = pageToken
+  if (pageId) {
+    try {
+      const { fetchCompanyRowsForPlatform } = require('../data/db')
+      const rows = fetchCompanyRowsForPlatform('facebook')
+      const dbRow = rows.find(r => r.page_id === pageId)
+      if (dbRow?.token) {
+        effectiveToken = dbRow.token
+        console.log(`[PUBLISH-FB] Token de DB para page_id=${pageId} (${dbRow.nombre})`)
+      }
+    } catch (err) {
+      console.warn('[PUBLISH-FB] Error buscando token en DB, usando resuelto:', err.message)
+    }
+  }
+
+  if (!effectiveToken) throw new Error('No hay token de acceso para la página.')
 
   // Build caption from Claude's copywriting skill
   const caption = buildPublishCaption(spec, ctx)
@@ -803,7 +863,7 @@ async function publishToFacebook(job) {
     imageBuffer,
     Buffer.from(
       `\r\n--${boundary}\r\nContent-Disposition: form-data; name="message"\r\n\r\n${caption}\r\n` +
-      `--${boundary}\r\nContent-Disposition: form-data; name="access_token"\r\n\r\n${pageToken}\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="access_token"\r\n\r\n${effectiveToken}\r\n` +
       `--${boundary}\r\nContent-Disposition: form-data; name="published"\r\n\r\ntrue\r\n` +
       `--${boundary}--\r\n`
     ),
@@ -826,7 +886,15 @@ async function publishToFacebook(job) {
         try {
           const result = JSON.parse(data)
           if (result.id || result.post_id) {
-            resolve({ success: true, message: `Imagen publicada en ${ctx.platform}. Post ID: ${result.post_id || result.id}` })
+            const postId = result.post_id || result.id
+            try {
+              insertPublication({
+                postId, platform: 'facebook', pageId, pageName: tp.pageName || ctx.companyName || '',
+                companyName: ctx.companyName || '', contentType: 'image',
+                message: caption.slice(0, 500), imageUrl: '', status: 'published',
+              })
+            } catch (err) { console.warn('[Publications] Error recording chat FB image:', err.message) }
+            resolve({ success: true, message: `Imagen publicada en ${ctx.platform}. Post ID: ${postId}` })
           } else if (result.error) {
             reject(new Error(`Meta API: ${result.error.message || JSON.stringify(result.error)}`))
           } else {
@@ -926,6 +994,14 @@ async function publishVideoToMeta(pageId, pageToken, filePath, caption, ctx) {
       access_token: pageToken,
     })
 
+    try {
+      insertPublication({
+        postId: videoId, platform: 'facebook', pageId, pageName: ctx.companyName || '',
+        companyName: ctx.companyName || '', contentType: 'reel',
+        message: caption.slice(0, 500), imageUrl: '', status: 'published',
+      })
+    } catch (err) { console.warn('[Publications] Error recording chat FB reel:', err.message) }
+
     return {
       success: true,
       message: `Reel publicado en ${ctx.platform}. Video ID: ${videoId}${finishResult.success ? ' (procesando por Meta)' : ''}`,
@@ -972,6 +1048,13 @@ async function publishVideoToMeta(pageId, pageToken, filePath, caption, ctx) {
         try {
           const result = JSON.parse(data)
           if (result.id) {
+            try {
+              insertPublication({
+                postId: result.id, platform: 'facebook', pageId, pageName: ctx.companyName || '',
+                companyName: ctx.companyName || '', contentType: 'video',
+                message: caption.slice(0, 500), imageUrl: '', status: 'published',
+              })
+            } catch (err) { console.warn('[Publications] Error recording chat FB video:', err.message) }
             resolve({ success: true, message: `Video publicado en ${ctx.platform}. Video ID: ${result.id}` })
           } else if (result.error) {
             reject(new Error(`Meta API: ${result.error.message || JSON.stringify(result.error)}`))
