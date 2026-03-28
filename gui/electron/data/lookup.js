@@ -34,6 +34,16 @@ function getDefaultActiveCompany() {
   } catch { return null }
 }
 
+function listActiveCompanies() {
+  /** Returns all active companies from the database. */
+  try {
+    const records = aggregateCompanyRows(
+      Object.fromEntries([...COMPANY_PLATFORMS].map(p => [p, fetchCompanyRowsForPlatform(p)]))
+    )
+    return records.filter(c => !!c.activo)
+  } catch { return [] }
+}
+
 function buildCompanyCredentialEnv(companyName) {
   const company = lookupCompanyData(companyName)
   if (!company || !company.activo) {
@@ -244,6 +254,7 @@ module.exports = {
   lookupCompanyData,
   isCompanyActive,
   getDefaultActiveCompany,
+  listActiveCompanies,
   buildCompanyCredentialEnv,
   buildCompanyRule,
   buildColorRule,

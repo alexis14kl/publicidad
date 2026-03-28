@@ -7,8 +7,10 @@ import { LastJobCard } from '../components/LastJobCard'
 import { PreflightBanner } from '../components/PreflightBanner'
 import { SharedCompanyBar } from '../components/SharedCompanyBar'
 import { StatusCard } from '../components/StatusCard'
+import { JobQueue } from '../components/JobQueue'
 import { VideoTabContent } from '../features/video/VideoTabContent'
 import { useHomeDashboard } from '../features/home/useHomeDashboard'
+import { useJobQueue } from '../hooks/useJobQueue'
 import { buildEmptyVideoScenes, type VideoSceneHistoryEntry } from '../features/home/videoScenes'
 import { analyzeVideoScenes, startBot } from '../api/commands'
 import type { AnalyzeVideoScenesResult, BotStatus } from '../api/types'
@@ -27,6 +29,7 @@ export function HomePage({
   onOpenBrochure: () => void
 }) {
   const dashboard = useHomeDashboard(botStatus)
+  const jobQueue = useJobQueue()
   const [activeTab, setActiveTab] = useState<BotTabId>(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY_TAB)
     return saved === 'video' ? 'video' : 'image'
@@ -221,7 +224,11 @@ export function HomePage({
       </div>
 
       <main className="main-grid">
-        <StatusCard status={dashboard.botStatus} />
+        <StatusCard
+          status={dashboard.botStatus}
+          activeJobCount={jobQueue.activeCount}
+          queuedJobCount={jobQueue.queuedCount}
+        />
         <ControlPanel
           botStatus={dashboard.botStatus}
           botLoading={dashboard.botLoading}
@@ -229,6 +236,8 @@ export function HomePage({
           hasCompany={dashboard.hasCompany}
           pollerRunning={dashboard.poller.running}
           pollerLoading={dashboard.poller.loading}
+          activeJobCount={jobQueue.activeCount}
+          queuedJobCount={jobQueue.queuedCount}
           onStartPoller={dashboard.handleStartPoller}
           onStopPoller={dashboard.poller.stop}
           onStartBot={handleStartBot}
@@ -236,6 +245,15 @@ export function HomePage({
         />
         <LastJobCard job={dashboard.lastJob} />
       </main>
+
+      {(jobQueue.activeJobs.length > 0 || jobQueue.queuedJobs.length > 0 || jobQueue.recentJobs.length > 0) && (
+        <JobQueue
+          activeJobs={jobQueue.activeJobs}
+          queuedJobs={jobQueue.queuedJobs}
+          recentJobs={jobQueue.recentJobs}
+          onCancel={jobQueue.cancel}
+        />
+      )}
 
       <SharedCompanyBar
         companies={dashboard.companies}

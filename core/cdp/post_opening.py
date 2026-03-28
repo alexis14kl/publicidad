@@ -449,7 +449,7 @@ def _video_pipeline(cdp_port: int, dev_mode: bool) -> int:
 
 
 def _image_pipeline(cdp_port: int, dev_mode: bool) -> int:
-    """Pipeline de imagen: ChatGPT → descargar imagen → overlay logo → publicar via n8n."""
+    """Pipeline de imagen: ChatGPT → descargar imagen → overlay logo."""
     # Step 4: Paste prompt
     if not PROMPT_AUTOMATION_PY.exists():
         log_warn(f"No existe script de automatizacion: {PROMPT_AUTOMATION_PY}")
@@ -488,50 +488,10 @@ def _image_pipeline(cdp_port: int, dev_mode: bool) -> int:
         else:
             log_ok("Logo superpuesto con exito")
 
-    # Step 6.5: Verificar/renovar tokens antes de publicar
-    platforms_to_check = str(get_env("PUBLISH_PLATFORMS", "facebook") or "").lower()
-
-    if "facebook" in platforms_to_check:
-        try:
-            from core.n8n.verify_token_fb import run_token_verification
-            log_info("Verificando token de Facebook...")
-            renewed = run_token_verification()
-            if renewed:
-                log_ok("Token de Facebook renovado exitosamente.")
-        except Exception as exc:
-            log_warn(f"No se pudo verificar token FB (se usara el actual): {exc}")
-
-    if "instagram" in platforms_to_check:
-        try:
-            from core.n8n.verify_token_ig import run_token_verification as run_ig_verification
-            log_info("Verificando token de Instagram...")
-            renewed = run_ig_verification()
-            if renewed:
-                log_ok("Token de Instagram renovado exitosamente.")
-        except Exception as exc:
-            log_warn(f"No se pudo verificar token IG (se usara el actual): {exc}")
-
-    # Step 7: Send to n8n
-    if not PUBLIC_IMG_PY.exists():
-        log_warn(f"No existe script de publicacion local a n8n: {PUBLIC_IMG_PY}")
-        return 1
-
-    platforms_raw = str(get_env("PUBLISH_PLATFORMS", "facebook") or "").strip()
-    platforms = [p.strip().lower() for p in platforms_raw.split(",") if p.strip()]
-    if not platforms:
-        platforms = ["facebook"]
-    platforms = list(dict.fromkeys(platforms))  # de-dup, preserve order
-
-    for platform in platforms:
-        log_info(f"Enviando imagen a n8n para publicar en: {platform} ...")
-        rc = _run_python(PUBLIC_IMG_PY, "--platform", platform)
-        if rc != 0:
-            log_warn(f"No se pudo enviar la imagen local a n8n para {platform}.")
-            return 1
-        log_ok(f"Imagen enviada a n8n con exito ({platform})")
-
-    # Step 8: Cleanup
-    return _cleanup_and_exit(dev_mode, cdp_port)
+    # La publicación se maneja desde la GUI (chat.js) via Graph API directa.
+    # El pipeline solo genera la imagen + overlay de logo.
+    log_ok("Imagen generada con logo. Lista para publicar desde la GUI.")
+    return _cleanup_and_exit(dev_mode, 0)
 
 
 def _brochure_pipeline(cdp_port: int, dev_mode: bool) -> int:

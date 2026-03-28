@@ -64,7 +64,7 @@ function downloadFile(url, destPath) {
 // ── OAuth providers por plataforma ────────────────────────────────────────
 const OAUTH_PROVIDERS = {
   facebook: () => require('../oauth/facebook-oauth').startFacebookOAuth(),
-  // tiktok: () => require('../oauth/tiktok-oauth').startTikTokOAuth(),
+  tiktok: () => require('../oauth/tiktok-oauth').startTikTokOAuth(),
   // linkedin: () => require('../oauth/linkedin-oauth').startLinkedInOAuth(),
 }
 
@@ -132,6 +132,18 @@ function registerMetaAuthHandlers(ipcMain) {
                 account_label: pageName,
                 token: account.access_token,
                 page_id: account.id,
+              }],
+            }
+          }
+
+          // TikTok account
+          if (account.platform === 'tiktok') {
+            platforms.tiktok = {
+              enabled: true,
+              syncToConfig: true,
+              accounts: [{
+                account_label: pageName,
+                token: account.access_token,
               }],
             }
           }

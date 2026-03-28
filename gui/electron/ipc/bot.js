@@ -11,13 +11,35 @@ const { isPollerAlive } = require('../services/campaign-process')
 const { lookupCompanyData, isCompanyActive, buildCompanyCredentialEnv, buildFullPrompt, buildBrochurePrompt } = require('../data/lookup')
 const { analyzePrePromptServices } = require('../services/service-analyzer')
 const { analyzeVideoScenes } = require('../services/video-scene-analyzer')
+const workerManager = require('../services/worker-manager')
 
 function registerBotHandlers(ipcMain) {
   ipcMain.handle('get-bot-status', async () => {
+    // Check worker manager for active jobs
+    const activeJobs = workerManager.listJobs({ status: ['running', 'claimed', 'queued'] })
+    const runningJobs = activeJobs.filter(j => j.status === 'running' || j.status === 'claimed')
+
+    if (runningJobs.length > 0) {
+      return {
+        status: 'executing',
+        action: runningJobs[0].action || 'run_full_cycle',
+        started_at: runningJobs[0].started_at || 0,
+        host: '',
+        pid: runningJobs[0].worker_pid || null,
+        jobs: activeJobs.map(j => ({
+          jobId: j.job_id,
+          action: j.action,
+          workerType: j.worker_type,
+          status: j.status,
+          startedAt: j.started_at,
+          companyName: j.company_name,
+        })),
+      }
+    }
+
+    // Fallback: check legacy lock file (for external bot_runner invocations)
     const lockPath = path.join(PROJECT_ROOT, '.bot_runner.lock')
     const lockData = readJsonFile(lockPath)
-
-    // Check bot process (lock file or GUI-spawned process)
     if (lockData && lockData.pid) {
       return {
         status: 'executing',
@@ -25,6 +47,7 @@ function registerBotHandlers(ipcMain) {
         started_at: lockData.started_at || 0,
         host: lockData.host || '',
         pid: lockData.pid,
+        jobs: [],
       }
     }
 
@@ -35,10 +58,10 @@ function registerBotHandlers(ipcMain) {
         started_at: null,
         host: null,
         pid: state.botProcess.pid,
+        jobs: [],
       }
     }
 
-    // Check poller ONLY by GUI-spawned process (no PowerShell scan)
     const pollerRunning = state.pollerProcess && state.pollerProcess.exitCode === null
 
     return {
@@ -47,6 +70,14 @@ function registerBotHandlers(ipcMain) {
       started_at: null,
       host: null,
       pid: null,
+      jobs: activeJobs.map(j => ({
+        jobId: j.job_id,
+        action: j.action,
+        workerType: j.worker_type,
+        status: j.status,
+        startedAt: j.started_at,
+        companyName: j.company_name,
+      })),
     }
   })
 
@@ -87,24 +118,6 @@ function registerBotHandlers(ipcMain) {
   })
 
   ipcMain.handle('start-bot', async (_event, payload) => {
-    const lockPath = path.join(PROJECT_ROOT, '.bot_runner.lock')
-    if (fs.existsSync(lockPath)) {
-      const lock = readJsonFile(lockPath)
-      if (lock && lock.pid) {
-        return { success: false, error: 'Bot ya esta ejecutando' }
-      }
-    }
-
-    if (state.botProcess && state.botProcess.exitCode === null) {
-      return { success: false, error: 'Bot ya esta ejecutando (proceso GUI)' }
-    }
-
-    const env = getProjectEnv()
-    env['NO_PAUSE'] = '1'
-    env['PYTHONPATH'] = PROJECT_ROOT
-    // Force UTF-8 output from Python
-    env['PYTHONIOENCODING'] = 'utf-8'
-
     const profileName = typeof payload === 'string'
       ? payload
       : String(payload?.profileName || '').trim()
@@ -142,6 +155,9 @@ function registerBotHandlers(ipcMain) {
       return { success: false, error: `La empresa ${companyName} esta inactiva y no puede generar publicaciones.` }
     }
 
+    // Build environment overrides for the worker
+    const envOverrides = {}
+
     if (companyName) {
       const company = lookupCompanyData(companyName)
       const companyEnv = buildCompanyCredentialEnv(companyName)
@@ -149,38 +165,36 @@ function registerBotHandlers(ipcMain) {
         return { success: false, error: `No pude resolver las credenciales activas para ${companyName}.` }
       }
       persistEnvConfig(companyEnv)
-      Object.assign(env, companyEnv)
-      env.PUBLICIDAD_COMPANY_NAME = companyName
-      env.BOT_COMPANY_NAME = String(company.nombre || '')
-      env.BOT_COMPANY_PHONE = String(company.telefono || '')
-      env.BOT_COMPANY_WEBSITE = String(company.sitio_web || '')
-      env.BOT_COMPANY_EMAIL = String(company.correo || '')
-      env.BOT_COMPANY_ADDRESS = String(company.direccion || '')
+      Object.assign(envOverrides, companyEnv)
+      envOverrides.PUBLICIDAD_COMPANY_NAME = companyName
+      envOverrides.BOT_COMPANY_NAME = String(company.nombre || '')
+      envOverrides.BOT_COMPANY_PHONE = String(company.telefono || '')
+      envOverrides.BOT_COMPANY_WEBSITE = String(company.sitio_web || '')
+      envOverrides.BOT_COMPANY_EMAIL = String(company.correo || '')
+      envOverrides.BOT_COMPANY_ADDRESS = String(company.direccion || '')
       if (company.logo) {
         const resolvedLogoPath = path.isAbsolute(company.logo)
           ? company.logo
           : path.join(PROJECT_ROOT, company.logo)
         if (fs.existsSync(resolvedLogoPath)) {
-          env.BOT_COMPANY_LOGO_PATH = resolvedLogoPath
+          envOverrides.BOT_COMPANY_LOGO_PATH = resolvedLogoPath
         }
       }
     }
 
-    // Pass image dimensions to overlay_logo.py via env
     const botFmt = IMAGE_FORMATS[imageFormat]
     if (botFmt) {
-      env.BOT_IMAGE_WIDTH = String(botFmt.w)
-      env.BOT_IMAGE_HEIGHT = String(botFmt.h)
+      envOverrides.BOT_IMAGE_WIDTH = String(botFmt.w)
+      envOverrides.BOT_IMAGE_HEIGHT = String(botFmt.h)
     }
-    env.PUBLISH_PLATFORMS = publishPlatforms
-    env.BOT_CONTENT_TYPE = contentType
-    if (reelTitle) env.BOT_REEL_TITLE = reelTitle
-    if (reelCaption) env.BOT_REEL_CAPTION = reelCaption
+    envOverrides.PUBLISH_PLATFORMS = publishPlatforms
+    envOverrides.BOT_CONTENT_TYPE = contentType
+    if (reelTitle) envOverrides.BOT_REEL_TITLE = reelTitle
+    if (reelCaption) envOverrides.BOT_REEL_CAPTION = reelCaption
     if (contentType === 'reel' && videoScenePrompts.length > 0) {
-      env.BOT_VIDEO_SCENE_PROMPTS_JSON = JSON.stringify(videoScenePrompts)
+      envOverrides.BOT_VIDEO_SCENE_PROMPTS_JSON = JSON.stringify(videoScenePrompts)
     }
 
-    // Extraer colores custom para brochure (si los hay)
     const brochureCustomColors = typeof payload === 'object' && payload !== null
       ? payload.brochureCustomColors || null
       : null
@@ -190,21 +204,20 @@ function registerBotHandlers(ipcMain) {
 
     let imagePrompt
     if (contentType === 'brochure') {
-      imagePrompt = rawPrompt // Para brochure, el prompt es solo texto descriptivo
-      if (brochureLogoPath) env.BROCHURE_LOGO_PATH = brochureLogoPath
-      // Pasar TODOS los datos de empresa al pipeline de brochure
+      imagePrompt = rawPrompt
+      if (brochureLogoPath) envOverrides.BROCHURE_LOGO_PATH = brochureLogoPath
       const company = lookupCompanyData(companyName)
       if (company) {
-        env.BROCHURE_PHONE = company.telefono || ''
-        env.BROCHURE_EMAIL = company.correo || ''
-        env.BROCHURE_WEBSITE = company.sitio_web || ''
-        env.BROCHURE_ADDRESS = company.direccion || ''
-        env.BROCHURE_DESCRIPTION = company.descripcion || ''
-        env.BROCHURE_COLOR_PRIMARIO = brochureCustomColors?.color_primario || company.color_primario || '#3469ED'
-        env.BROCHURE_COLOR_CTA = brochureCustomColors?.color_cta || company.color_cta || '#fd9102'
-        env.BROCHURE_COLOR_ACENTO = brochureCustomColors?.color_acento || company.color_acento || '#00bcd4'
-        env.BROCHURE_COLOR_CHECKS = brochureCustomColors?.color_checks || company.color_checks || '#28a745'
-        env.BROCHURE_COLOR_FONDO = brochureCustomColors?.color_fondo || company.color_fondo || '#f0f0f5'
+        envOverrides.BROCHURE_PHONE = company.telefono || ''
+        envOverrides.BROCHURE_EMAIL = company.correo || ''
+        envOverrides.BROCHURE_WEBSITE = company.sitio_web || ''
+        envOverrides.BROCHURE_ADDRESS = company.direccion || ''
+        envOverrides.BROCHURE_DESCRIPTION = company.descripcion || ''
+        envOverrides.BROCHURE_COLOR_PRIMARIO = brochureCustomColors?.color_primario || company.color_primario || '#3469ED'
+        envOverrides.BROCHURE_COLOR_CTA = brochureCustomColors?.color_cta || company.color_cta || '#fd9102'
+        envOverrides.BROCHURE_COLOR_ACENTO = brochureCustomColors?.color_acento || company.color_acento || '#00bcd4'
+        envOverrides.BROCHURE_COLOR_CHECKS = brochureCustomColors?.color_checks || company.color_checks || '#28a745'
+        envOverrides.BROCHURE_COLOR_FONDO = brochureCustomColors?.color_fondo || company.color_fondo || '#f0f0f5'
       }
     } else if (contentType === 'reel') {
       imagePrompt = rawPrompt
@@ -212,47 +225,49 @@ function registerBotHandlers(ipcMain) {
       imagePrompt = buildFullPrompt(rawPrompt, companyName, imageService, imageFormat)
     }
 
-    const pythonBin = findPython()
-    if (!pythonBin) {
-      return { success: false, error: 'Python no encontrado en PATH' }
-    }
-
-    const runnerPayload = (profileName || imagePrompt)
-      ? JSON.stringify({
-        ...(profileName ? { profile_name: profileName } : {}),
-        ...(imagePrompt ? { image_prompt: imagePrompt } : {}),
-      })
-      : '{}'
-    const args = ['-m', 'core.server.bot_runner', 'run_full_cycle', runnerPayload]
+    // Determine worker type and resource key
+    const workerType = contentType === 'reel' ? 'video'
+      : contentType === 'brochure' ? 'brochure'
+      : 'cdp'
+    const resourceKey = workerType === 'cdp' ? `cdp:profile:${profileName || 'default'}`
+      : workerType === 'video' ? 'video:slot'
+      : ''
 
     try {
-      state.botProcess = spawn(pythonBin, args, {
-        cwd: PROJECT_ROOT,
-        env,
-        stdio: 'ignore',
+      const jobId = workerManager.enqueueJob({
+        action: 'run_full_cycle',
+        workerType,
+        resourceKey,
+        payload: {
+          ...(profileName ? { profile_name: profileName } : {}),
+          ...(imagePrompt ? { image_prompt: imagePrompt } : {}),
+          env: envOverrides,
+        },
+        priority: 30,
+        source: 'gui',
+        companyName,
       })
-
-      state.botProcess.on('exit', (code) => {
-        if (state.mainWindow) {
-          state.mainWindow.webContents.send('bot-log-lines', [
-            `[INFO] Bot finalizo con codigo: ${code}`
-          ])
-        }
-        state.botProcess = null
-      })
-
-      return { success: true, pid: state.botProcess.pid }
+      return { success: true, jobId }
     } catch (err) {
       return { success: false, error: err.message }
     }
   })
 
   ipcMain.handle('stop-bot', async () => {
-    const lockPath = path.join(PROJECT_ROOT, '.bot_runner.lock')
-    const lockData = readJsonFile(lockPath)
     let killed = false
 
-    // Kill from lock file PID
+    // Cancel all active jobs in worker manager
+    const activeJobs = workerManager.listJobs({ status: ['running', 'claimed', 'queued'] })
+    for (const job of activeJobs) {
+      try {
+        workerManager.cancelJob(job.job_id)
+        killed = true
+      } catch { /* ignore */ }
+    }
+
+    // Fallback: check legacy lock file
+    const lockPath = path.join(PROJECT_ROOT, '.bot_runner.lock')
+    const lockData = readJsonFile(lockPath)
     if (lockData && lockData.pid) {
       try {
         killProcessTree(lockData.pid)
@@ -263,7 +278,7 @@ function registerBotHandlers(ipcMain) {
       } catch { /* ignore */ }
     }
 
-    // Also kill our GUI-spawned bot process
+    // Also kill legacy GUI-spawned bot process
     if (state.botProcess && state.botProcess.exitCode === null) {
       try {
         killProcessTree(state.botProcess.pid)

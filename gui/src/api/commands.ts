@@ -5,6 +5,7 @@ import type {
   AnalyzeVideoScenesResult,
   BotStatus,
   CommandResult,
+  JobDetail,
   CompanyLogoSelectionResult,
   CompanyRecord,
   DeleteCompanyPayload,
@@ -48,6 +49,22 @@ import type {
   OAuthResult,
   MetaUploadAdImagePayload,
   MetaUploadAdImageResult,
+  TikTokCreatorInfo,
+  TikTokPublishVideoPayload,
+  TikTokPublishPhotoPayload,
+  TikTokPublishResult,
+  TikTokPublishStatus,
+  TikTokUserInfo,
+  TikTokRefreshResult,
+  TikTokBizApiResult,
+  TikTokBizTokenResult,
+  TikTokBizAdvertiser,
+  TikTokBizCampaignResult,
+  TikTokBizAdGroupResult,
+  TikTokBizAdResult,
+  TikTokBizImageUploadResult,
+  TikTokBizVideoUploadResult,
+  TikTokBizIdentityResult,
   IgAccountInfo,
   IgApiResult,
   IgCarouselResult,
@@ -88,6 +105,22 @@ export const analyzeVideoScenes = (payload: AnalyzeVideoScenesPayload): Promise<
   api().analyzeVideoScenes(payload)
 export const startBot = (payload?: StartBotPayload): Promise<CommandResult> => api().startBot(payload)
 export const stopBot = (): Promise<CommandResult> => api().stopBot()
+
+// Job Queue
+export const enqueueJob = (payload: {
+  action: string
+  workerType?: string
+  resourceKey?: string
+  payload?: Record<string, unknown>
+  priority?: number
+  source?: string
+  companyName?: string
+}) => api().enqueueJob(payload)
+export const cancelJob = (jobId: string) => api().cancelJob(jobId)
+export const listJobs = (filter?: { status?: string[]; limit?: number }): Promise<JobDetail[]> => api().listJobs(filter)
+export const getJobDetail = (jobId: string): Promise<JobDetail | null> => api().getJobDetail(jobId)
+export const getJobLogLines = (jobId: string, count?: number): Promise<string[]> => api().getJobLogLines(jobId, count)
+export const onJobStatusChange = (callback: (job: JobDetail) => void) => api().onJobStatusChange(callback)
 export const startPoller = (payload?: StartPollerPayload): Promise<CommandResult> => api().startPoller(payload)
 export const stopPoller = (): Promise<CommandResult> => api().stopPoller()
 export const isPollerRunning = (): Promise<boolean> => api().isPollerRunning()
@@ -216,6 +249,61 @@ export const metaPublishPagePhoto = (payload: MetaPublishPagePhotoPayload): Prom
 
 // Pipeline step event listener
 export const onMetaPipelineStep = (cb: (data: MetaPipelineStepEvent) => void) => api().onMetaPipelineStep(cb)
+
+// ── TikTok API ──────────────────────────────────────────────────────────────
+
+export const tiktokQueryCreatorInfo = (payload: { token: string }): Promise<TikTokCreatorInfo> =>
+  api().tiktokQueryCreatorInfo(payload)
+
+export const tiktokPublishVideo = (payload: TikTokPublishVideoPayload): Promise<TikTokPublishResult> =>
+  api().tiktokPublishVideo(payload)
+
+export const tiktokPublishPhoto = (payload: TikTokPublishPhotoPayload): Promise<TikTokPublishResult> =>
+  api().tiktokPublishPhoto(payload)
+
+export const tiktokCheckPublishStatus = (payload: { token: string; publishId: string }): Promise<TikTokPublishStatus> =>
+  api().tiktokCheckPublishStatus(payload)
+
+export const tiktokGetUserInfo = (payload: { token: string }): Promise<TikTokUserInfo> =>
+  api().tiktokGetUserInfo(payload)
+
+export const tiktokRefreshToken = (payload: { refreshToken: string }): Promise<TikTokRefreshResult> =>
+  api().tiktokRefreshToken(payload)
+
+// ── TikTok Business API (Marketing) ─────────────────────────────────────────
+
+export const tiktokBizExchangeToken = (payload: { authCode: string }): Promise<TikTokBizTokenResult> =>
+  api().tiktokBizExchangeToken(payload)
+
+export const tiktokBizGetAdvertisers = (payload?: { accessToken?: string }): Promise<TikTokBizApiResult & { advertisers?: TikTokBizAdvertiser[] }> =>
+  api().tiktokBizGetAdvertisers(payload)
+
+export const tiktokBizCreateCampaign = (payload: Record<string, unknown>): Promise<TikTokBizCampaignResult> =>
+  api().tiktokBizCreateCampaign(payload)
+
+export const tiktokBizGetCampaigns = (payload?: Record<string, unknown>): Promise<TikTokBizApiResult & { campaigns?: unknown[]; total?: number }> =>
+  api().tiktokBizGetCampaigns(payload)
+
+export const tiktokBizCreateAdGroup = (payload: Record<string, unknown>): Promise<TikTokBizAdGroupResult> =>
+  api().tiktokBizCreateAdGroup(payload)
+
+export const tiktokBizCreateAd = (payload: Record<string, unknown>): Promise<TikTokBizAdResult> =>
+  api().tiktokBizCreateAd(payload)
+
+export const tiktokBizUploadImage = (payload: Record<string, unknown>): Promise<TikTokBizImageUploadResult> =>
+  api().tiktokBizUploadImage(payload)
+
+export const tiktokBizUploadVideo = (payload: Record<string, unknown>): Promise<TikTokBizVideoUploadResult> =>
+  api().tiktokBizUploadVideo(payload)
+
+export const tiktokBizCreateIdentity = (payload: Record<string, unknown>): Promise<TikTokBizIdentityResult> =>
+  api().tiktokBizCreateIdentity(payload)
+
+export const tiktokBizGetIdentities = (payload?: Record<string, unknown>): Promise<TikTokBizApiResult & { identities?: unknown[] }> =>
+  api().tiktokBizGetIdentities(payload)
+
+export const tiktokBizUpdateStatus = (payload: Record<string, unknown>): Promise<TikTokBizApiResult> =>
+  api().tiktokBizUpdateStatus(payload)
 
 // ── Instagram API ───────────────────────────────────────────────────────────
 
