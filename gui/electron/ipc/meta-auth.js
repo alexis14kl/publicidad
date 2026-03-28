@@ -247,6 +247,17 @@ function registerMetaAuthHandlers(ipcMain) {
     }
   })
 
+  // ── Check token permissions (scopes) for a specific account ────────────
+  ipcMain.handle('meta-check-token-permissions', async (_event, { token } = {}) => {
+    try {
+      if (!token) return { success: false, error: 'Token requerido.' }
+      const result = await debugToken({ inputToken: token })
+      return { success: true, scopes: result.scopes || [], is_valid: result.is_valid, expires_at: result.expires_at }
+    } catch (err) {
+      return { success: false, error: err.message, scopes: [] }
+    }
+  })
+
   // ── 4. Campaign Pipeline (individual steps) ─────────────────────────────
 
   ipcMain.handle('meta-upload-ad-image', async (_event, payload = {}) => {

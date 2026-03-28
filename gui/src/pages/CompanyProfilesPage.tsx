@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   deleteCompanyRecord,
   listCompanyRecords,
+  metaCheckTokenPermissions,
   oauthAutoCreateAccounts,
   oauthStart,
   saveCompanyRecord,
@@ -280,10 +281,44 @@ interface PageCardProps {
   platformBadge: (platform: string) => string
 }
 
+const ALL_SCOPES: { key: string; label: string }[] = [
+  { key: 'pages_show_list',           label: 'Paginas' },
+  { key: 'pages_manage_posts',        label: 'Publicar' },
+  { key: 'pages_read_engagement',     label: 'Engagement' },
+  { key: 'pages_manage_engagement',   label: 'Gestionar Engagement' },
+  { key: 'pages_manage_ads',          label: 'Ads Pagina' },
+  { key: 'ads_management',            label: 'Campañas' },
+  { key: 'ads_read',                  label: 'Leer Ads' },
+  { key: 'leads_retrieval',           label: 'Leads' },
+  { key: 'instagram_basic',           label: 'IG Basico' },
+  { key: 'instagram_content_publish', label: 'IG Publicar' },
+  { key: 'instagram_manage_comments', label: 'IG Comentarios' },
+  { key: 'instagram_manage_insights', label: 'IG Insights' },
+]
+
 function PageCard({
   record, isEditing, isDeleting, isToggling,
   onEdit, onDelete, onToggle, onSelectAccount, onSave, onReconnect, maskToken, platformBadge,
 }: PageCardProps) {
+  const [scopes, setScopes] = useState<string[]>([])
+  const [scopesLoading, setScopesLoading] = useState(false)
+  const [scopesChecked, setScopesChecked] = useState(false)
+
+  useEffect(() => {
+    const primaryAccount = record.platforms
+      .flatMap(p => p.accounts)
+      .find(a => a.is_primary && a.token)
+    if (primaryAccount?.token && !scopesChecked) {
+      setScopesLoading(true)
+      metaCheckTokenPermissions(primaryAccount.token)
+        .then(res => {
+          if (res.success && res.scopes) setScopes(res.scopes)
+        })
+        .catch(() => {})
+        .finally(() => { setScopesLoading(false); setScopesChecked(true) })
+    }
+  }, [record, scopesChecked])
+
   const [editFields, setEditFields] = useState({
     telefono: record.telefono || '',
     correo: record.correo || '',
@@ -388,6 +423,40 @@ function PageCard({
                 )}
               </div>
             ))}
+            {/* ── Estado de publicidad ─────────────────────────── */}
+            {scopesChecked && (() => {
+              const canPublish = scopes.includes('pages_manage_posts')
+              const canAds = scopes.includes('ads_management')
+              const enabled = canPublish && canAds
+              return (
+                <div className={`company-ad-status ${enabled ? 'company-ad-status--enabled' : 'company-ad-status--disabled'}`}>
+                  <span className="company-ad-status__icon">{enabled ? '✓' : '✕'}</span>
+                  {enabled
+                    ? 'Pagina habilitada para publicidad'
+                    : 'No habilitada para publicidad — faltan permisos'}
+                </div>
+              )
+            })()}
+
+            {/* ── Permisos ────────────────────────────────────── */}
+            {scopesChecked && (
+              <div className="company-scopes">
+                {ALL_SCOPES.map(({ key, label }) => {
+                  const granted = scopes.includes(key)
+                  return (
+                    <span key={key} className={`company-scope-badge ${granted ? 'company-scope-badge--granted' : 'company-scope-badge--denied'}`}>
+                      {granted ? '✓' : '✕'} {label}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+            {scopesLoading && (
+              <div className="company-scopes">
+                <span className="company-scope-badge company-scope-badge--loading">Verificando permisos...</span>
+              </div>
+            )}
+
             {platform.platform === 'facebook' && (
               <button className="btn btn--ghost btn--small" type="button" style={{ marginTop: 8 }}
                 onClick={() => onReconnect('facebook')}>

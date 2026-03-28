@@ -65,6 +65,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   metaExchangeLongLived: (payload) => ipcRenderer.invoke('meta-exchange-long-lived', payload),
   metaGetPageTokens: (payload) => ipcRenderer.invoke('meta-get-page-tokens', payload),
   metaDebugToken: (payload) => ipcRenderer.invoke('meta-debug-token', payload),
+  metaCheckTokenPermissions: (payload) => ipcRenderer.invoke('meta-check-token-permissions', payload),
   metaUploadAdImage: (payload) => ipcRenderer.invoke('meta-upload-ad-image', payload),
   metaCreateLeadgenForm: (payload) => ipcRenderer.invoke('meta-create-leadgen-form', payload),
   metaCreateCampaign: (payload) => ipcRenderer.invoke('meta-create-campaign', payload),

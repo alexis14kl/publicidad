@@ -156,6 +156,10 @@ export const oauthStart = (platform: OAuthPlatform): Promise<OAuthResult> => api
 export const oauthAutoCreateAccounts = (accounts: OAuthAccount[]): Promise<OAuthAutoCreateResult> =>
   api().oauthAutoCreateAccounts({ accounts })
 
+// Check token permissions (scopes)
+export const metaCheckTokenPermissions = (token: string): Promise<{ success: boolean; scopes: string[]; is_valid?: boolean; expires_at?: number; error?: string }> =>
+  api().metaCheckTokenPermissions({ token })
+
 // 0. OAuth Window Flow (backward compat)
 export const metaStartOAuth = (): Promise<MetaStartOAuthResult> => api().metaStartOAuth()
 
