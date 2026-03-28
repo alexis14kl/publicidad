@@ -46,6 +46,8 @@ import type {
   OAuthAutoCreateResult,
   OAuthPlatform,
   OAuthResult,
+  PubListPayload,
+  PublicationRecord,
   MetaUploadAdImagePayload,
   MetaUploadAdImageResult,
   IgAccountInfo,
@@ -155,6 +157,16 @@ export const runAutoCampaign = (payload: AutoCampaignInput): Promise<AutoCampaig
 export const oauthStart = (platform: OAuthPlatform): Promise<OAuthResult> => api().oauthStart(platform)
 export const oauthAutoCreateAccounts = (accounts: OAuthAccount[]): Promise<OAuthAutoCreateResult> =>
   api().oauthAutoCreateAccounts({ accounts })
+
+// ── Publications (historial) ──────────────────────────────────────────────────
+export const pubList = (payload?: PubListPayload): Promise<{ success: boolean; publications: PublicationRecord[] }> =>
+  api().pubList(payload)
+export const pubDelete = (payload: { postId: string; platform: string; token?: string }): Promise<{ success: boolean; error?: string }> =>
+  api().pubDelete(payload)
+export const pubRecord = (payload: Record<string, string>): Promise<{ success: boolean; publication: PublicationRecord }> =>
+  api().pubRecord(payload)
+export const pubDeleteAll = (): Promise<{ success: boolean; deleted?: number; failed?: number; error?: string }> =>
+  api().pubDeleteAll()
 
 // Check token permissions (scopes)
 export const metaCheckTokenPermissions = (token: string): Promise<{ success: boolean; scopes: string[]; is_valid?: boolean; expires_at?: number; error?: string }> =>

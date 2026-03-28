@@ -53,6 +53,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('marketing-run-update', handler)
   },
 
+  // ── Publicaciones (historial) ────────────────────────────────────────────
+  pubList: (payload) => ipcRenderer.invoke('pub-list', payload),
+  pubGet: (payload) => ipcRenderer.invoke('pub-get', payload),
+  pubDelete: (payload) => ipcRenderer.invoke('pub-delete', payload),
+  pubRecord: (payload) => ipcRenderer.invoke('pub-record', payload),
+  pubDeleteAll: () => ipcRenderer.invoke('pub-delete-all'),
+
   // ── OAuth generico ───────────────────────────────────────────────────────
   oauthStart: (platform) => ipcRenderer.invoke('oauth-start', { platform }),
   oauthAutoCreateAccounts: (payload) => ipcRenderer.invoke('oauth-auto-create-accounts', payload),

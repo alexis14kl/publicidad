@@ -82,6 +82,7 @@ app.whenReady().then(() => {
   const { registerChatHandlers } = require('./ipc/chat')
   const { registerMetaAuthHandlers } = require('./ipc/meta-auth')
   const { registerInstagramHandlers } = require('./ipc/instagram')
+  const { registerPublicationHandlers } = require('./ipc/publications')
 
   registerBotHandlers(ipcMain)
   registerPollerHandlers(ipcMain)
@@ -93,6 +94,7 @@ app.whenReady().then(() => {
   registerChatHandlers(ipcMain)
   registerMetaAuthHandlers(ipcMain)
   registerInstagramHandlers(ipcMain)
+  registerPublicationHandlers(ipcMain)
 
   // 2. Create window AFTER handlers are ready
   createWindow()

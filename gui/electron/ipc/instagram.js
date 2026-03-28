@@ -132,6 +132,22 @@ function registerInstagramHandlers(ipcMain) {
           }
         },
       })
+      if (result.media_id) {
+        try {
+          const { insertPublication } = require('../data/publications')
+          insertPublication({
+            postId: result.media_id,
+            platform: 'instagram',
+            pageId: payload.igUserId || payload.accountId || '',
+            pageName: payload.pageName || '',
+            companyName: payload.companyName || '',
+            contentType: 'image',
+            message: payload.caption || '',
+            imageUrl: payload.imageUrl || '',
+            status: 'published',
+          })
+        } catch (err) { console.warn('[Publications] Error recording IG post:', err.message) }
+      }
       return { success: true, ...result }
     } catch (err) {
       return { success: false, error: err.message }
@@ -148,6 +164,22 @@ function registerInstagramHandlers(ipcMain) {
           }
         },
       })
+      if (result.media_id) {
+        try {
+          const { insertPublication } = require('../data/publications')
+          insertPublication({
+            postId: result.media_id,
+            platform: 'instagram',
+            pageId: payload.igUserId || payload.accountId || '',
+            pageName: payload.pageName || '',
+            companyName: payload.companyName || '',
+            contentType: 'reel',
+            message: payload.caption || '',
+            imageUrl: '',
+            status: 'published',
+          })
+        } catch (err) { console.warn('[Publications] Error recording IG post:', err.message) }
+      }
       return { success: true, ...result }
     } catch (err) {
       return { success: false, error: err.message }

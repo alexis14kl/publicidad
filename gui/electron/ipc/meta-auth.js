@@ -349,6 +349,22 @@ function registerMetaAuthHandlers(ipcMain) {
   ipcMain.handle('meta-publish-page-post', async (_event, payload = {}) => {
     try {
       const result = await publishPagePost(payload)
+      if (result.post_id) {
+        try {
+          const { insertPublication } = require('../data/publications')
+          insertPublication({
+            postId: result.post_id,
+            platform: 'facebook',
+            pageId: payload.pageId || '',
+            pageName: payload.pageName || '',
+            companyName: payload.companyName || '',
+            contentType: payload.link ? 'link' : 'text',
+            message: payload.message || '',
+            imageUrl: '',
+            status: 'published',
+          })
+        } catch (err) { console.warn('[Publications] Error recording post:', err.message) }
+      }
       return { success: true, ...result }
     } catch (err) {
       return { success: false, error: err.message }
@@ -358,6 +374,22 @@ function registerMetaAuthHandlers(ipcMain) {
   ipcMain.handle('meta-publish-page-photo', async (_event, payload = {}) => {
     try {
       const result = await publishPagePhoto(payload)
+      if (result.post_id || result.photo_id) {
+        try {
+          const { insertPublication } = require('../data/publications')
+          insertPublication({
+            postId: result.post_id || result.photo_id,
+            platform: 'facebook',
+            pageId: payload.pageId || '',
+            pageName: payload.pageName || '',
+            companyName: payload.companyName || '',
+            contentType: 'image',
+            message: payload.message || '',
+            imageUrl: payload.imageUrl || '',
+            status: 'published',
+          })
+        } catch (err) { console.warn('[Publications] Error recording post:', err.message) }
+      }
       return { success: true, ...result }
     } catch (err) {
       return { success: false, error: err.message }

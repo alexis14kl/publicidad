@@ -3,12 +3,13 @@ import './App.css'
 import { BrochurePage } from '../pages/BrochurePage'
 import { ChatBotPage } from '../pages/ChatBotPage'
 import { CompanyProfilesPage } from '../pages/CompanyProfilesPage'
+import { PublicationsPage } from '../pages/PublicationsPage'
 import { Header } from '../components/Header'
 import { useBranding } from '../features/home/useBranding'
 import { MarketingCampaignModal } from '../features/marketing/MarketingCampaignModal'
 import { useBotStatus } from '../hooks/useBotStatus'
 
-type AppPage = 'assistant' | 'companies' | 'brochure'
+type AppPage = 'assistant' | 'companies' | 'publications' | 'brochure'
 
 export default function App() {
   const [page, setPage] = useState<AppPage>('assistant')
@@ -50,10 +51,14 @@ export default function App() {
         <button className={`app-tab ${page === 'companies' ? 'app-tab--active' : ''}`} onClick={() => handleTabChange('companies')}>
           Empresas
         </button>
+        <button className={`app-tab ${page === 'publications' ? 'app-tab--active' : ''}`} onClick={() => handleTabChange('publications')}>
+          Publicaciones
+        </button>
       </nav>
 
       {page === 'assistant' && <ChatBotPage />}
       {page === 'companies' && <CompanyProfilesPage onCompaniesChanged={() => void refreshBrand()} />}
+      {page === 'publications' && <PublicationsPage />}
       {page === 'brochure' && <BrochurePage onClose={() => setPage('assistant')} />}
 
       <MarketingCampaignModal open={marketingOpen} onClose={() => setMarketingOpen(false)} />

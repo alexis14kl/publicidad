@@ -204,6 +204,33 @@ export const NOYECODE_SERVICES: NoyeCodeService[] = [
   { value: 'trabaja-con-nosotros', label: 'Trabaja con Nosotros', emoji: '\uD83E\uDD1D' },
 ]
 
+// ── Publications ──────────────────────────────────────────────────────────────
+
+export interface PublicationRecord {
+  id: number
+  post_id: string
+  platform: string
+  page_id: string
+  page_name: string
+  company_name: string
+  content_type: string
+  message: string
+  image_url: string
+  status: 'published' | 'deleted' | 'failed'
+  published_at: string
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PubListPayload {
+  companyName?: string
+  platform?: string
+  status?: string
+  limit?: number
+  offset?: number
+}
+
 export interface ImageFormatOption {
   value: string
   label: string

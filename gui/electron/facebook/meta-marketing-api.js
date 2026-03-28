@@ -795,6 +795,25 @@ async function fetchPageDetails({ pageId, pageAccessToken } = {}) {
   }
 }
 
+/**
+ * Eliminar un post de una pagina.
+ * DELETE /{POST_ID}
+ */
+async function deletePagePost({ postId, token } = {}) {
+  const tokens = getConfiguredTokens()
+  const resolvedToken = token || tokens.pageAccessToken || tokens.accessToken
+
+  if (!resolvedToken) throw new Error('Se requiere un Page Token.')
+  if (!postId) throw new Error('Se requiere un post_id.')
+
+  const result = await graphApiRequest('DELETE', postId, {}, resolvedToken)
+
+  return {
+    success: result.success !== false,
+    post_id: postId,
+  }
+}
+
 module.exports = {
   // Config helpers
   getAppCredentials,
@@ -821,6 +840,7 @@ module.exports = {
   // 5. Page Posts
   publishPagePost,
   publishPagePhoto,
+  deletePagePost,
   // 6. Page Details
   fetchPageDetails,
   // Debug
