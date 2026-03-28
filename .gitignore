@@ -67,3 +67,5 @@ gui/release/
 # Packaged desktop binaries
 scripts/build/mac/*.app/
 scripts/build/mac/*.dmg
+
+assets/
