@@ -43,6 +43,9 @@ memory/profile/
 lib/
 facebook-ads-mcp-server.dxt
 
+# Local scripts
+scripts/cdp_port_bridge.js
+
 # Debug assets
 debug/
 _scratch/
@@ -63,6 +66,7 @@ gui/dist/
 gui/dist-electron/
 gui/dist-types/
 gui/release/
+gui/electron/oauth/certs/
 
 # Packaged desktop binaries
 scripts/build/mac/*.app/

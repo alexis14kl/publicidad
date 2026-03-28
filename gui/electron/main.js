@@ -25,11 +25,11 @@ function getKillProcessTree() {
 
 function createWindow() {
   state.mainWindow = new BrowserWindow({
-    width: 960,
-    height: 700,
+    width: 800,
+    height: 1050,
     minWidth: 760,
     minHeight: 500,
-    title: 'Bot Publicitario NoyeCode',
+    title: 'Noyecode Marketing AI',
     backgroundColor: '#f8f9fb',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -39,8 +39,6 @@ function createWindow() {
     autoHideMenuBar: true,
     show: false,
   })
-
-  state.mainWindow.maximize()
 
   if (process.env.VITE_DEV_SERVER_URL) {
     state.mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
