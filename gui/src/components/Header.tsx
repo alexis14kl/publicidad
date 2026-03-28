@@ -18,17 +18,19 @@ export function Header({ status, brandName, brandLogoUrl, onOpenSettings }: Head
   return (
     <header className="header">
       <div className="header-left">
-        <img src={brandLogoUrl || logoSvg} alt={brandName || 'NoyeCode'} className="header-logo" />
+        <img src={brandLogoUrl || logoSvg} alt={brandName || 'Noyecode Marketing AI'} className="header-logo" />
         <div>
-          <h1 className="header-title">Bot Publicitario</h1>
+          <h1 className="header-title">Noyecode Marketing AI</h1>
           <span className="header-subtitle">{brandName || 'NoyeCode'}</span>
         </div>
       </div>
       <div className="header-right">
+        {/* TODO: Rehabilitar el badge de estado cuando definamos el contenido final de este espacio.
         <div className="header-status">
           <span className={`status-dot status-dot--${status.status}`} />
           <span className="status-label">{STATUS_LABELS[status.status]}</span>
         </div>
+        */}
         {onOpenSettings && (
           <button className="btn btn--ghost btn--icon" onClick={onOpenSettings} title="Configuraciones">
             &#9881;
