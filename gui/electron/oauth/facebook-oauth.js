@@ -14,6 +14,7 @@ const {
   getPageAccessTokens,
   getAppCredentials,
   fetchPageDetails,
+  DEFAULT_SCOPES,
 } = require('../facebook/meta-marketing-api')
 const { getProjectEnv } = require('../utils/env')
 
@@ -48,12 +49,13 @@ async function startFacebookOAuth() {
 
   const redirectUri = buildRedirectUri(DEFAULT_PORT, CALLBACK_PATH)
 
-  // Construir URL de OAuth (Facebook Login for Business usa config_id)
+  // Construir URL de OAuth con todos los scopes necesarios
   const url = new URL(`https://www.facebook.com/${GRAPH_API_VERSION}/dialog/oauth`)
   url.searchParams.set('client_id', creds.appId)
   url.searchParams.set('redirect_uri', redirectUri)
   url.searchParams.set('config_id', configId)
   url.searchParams.set('response_type', 'code')
+  url.searchParams.set('scope', DEFAULT_SCOPES.join(','))
   const oauthUrl = url.toString()
 
   console.log('[FacebookOAuth] URL:', oauthUrl)

@@ -10,7 +10,7 @@ const { spawn } = require('child_process')
 const { PROJECT_ROOT } = require('../config/project-paths')
 const { getProjectEnv } = require('../utils/env')
 const { findPython } = require('../utils/process')
-const { lookupCompanyData, isCompanyActive, getDefaultActiveCompany, buildCompanyCredentialEnv, buildFullPrompt } = require('../data/lookup')
+const { lookupCompanyData, isCompanyActive, buildCompanyCredentialEnv } = require('../data/lookup')
 const state = require('../state')
 
 const pendingJobs = new Map()
@@ -51,6 +51,7 @@ const conversationContext = {
   platforms: null,       // ['facebook', 'instagram'] — null = default to both
   publishAs: 'post',    // post | story | reel | campaign
   companyName: '',
+  targetPageName: '',   // Name of the specific FB page to publish to (from prompt)
   budget: '50000',
   messages: [],          // history of user messages
 }
@@ -97,23 +98,24 @@ function updateContext(text) {
   }
   // If type was already set from a previous message and this one doesn't override, keep it
 
-  // Detect platforms — publish to ALL by default, or specific ones if user mentions them
+  // Detect platforms — ONLY publish where the user explicitly says
   const mentionsFb = /facebook|fb\b/.test(lower)
   const mentionsIg = /instagram|ig\b/.test(lower)
   const mentionsTt = /tiktok/.test(lower)
-  if (mentionsFb || mentionsIg || mentionsTt) {
-    // User mentioned specific platforms — only publish to those
+  const mentionsLi = /linkedin/.test(lower)
+  if (mentionsFb || mentionsIg || mentionsTt || mentionsLi) {
     const platforms = []
     if (mentionsFb) platforms.push('facebook')
     if (mentionsIg) platforms.push('instagram')
     if (mentionsTt) platforms.push('tiktok')
+    if (mentionsLi) platforms.push('linkedin')
     conversationContext.platforms = platforms
   } else if (!conversationContext.platforms) {
-    // Default: publish to both Facebook AND Instagram
-    conversationContext.platforms = ['facebook', 'instagram']
+    // No platform mentioned — resolve later from the company's configured platforms
+    conversationContext.platforms = null
   }
   // Keep legacy .platform for backward compat
-  conversationContext.platform = conversationContext.platforms[0] || 'facebook'
+  conversationContext.platform = conversationContext.platforms?.[0] || 'facebook'
 
   // Detect publish type — derived from content type
   if (conversationContext.type === 'video') conversationContext.publishAs = 'reel'
@@ -122,18 +124,25 @@ function updateContext(text) {
   else if (/historia|story|stories/.test(lower)) conversationContext.publishAs = 'story'
   else conversationContext.publishAs = 'post'
 
-  // Detect company
-  const companyMatch = text.match(/para\s+(?:la\s+empresa\s+)?["']?([A-Za-záéíóúñÁÉÍÓÚÑ0-9]+)["']?/i)
+  // Detect company — "para NyGsoft", "para Hell Beers", "para la empresa Limpia Fácil"
+  const companyMatch = text.match(/para\s+(?:la\s+empresa\s+)?["']?([A-Za-záéíóúñÁÉÍÓÚÑ0-9\s]+?)["']?\s*(?:$|[,.]|\s+(?:en|y|con|que)\s)/i)
   if (companyMatch) {
     const candidate = companyMatch[1].trim()
-    if (lookupCompanyData(candidate)) conversationContext.companyName = candidate
-  }
-  if (!conversationContext.companyName) {
-    // Auto-detect: use the first active company from the database
-    const defaultCompany = getDefaultActiveCompany()
-    if (defaultCompany?.nombre) {
-      conversationContext.companyName = defaultCompany.nombre
+    const found = lookupCompanyData(candidate)
+    if (found) {
+      conversationContext.companyName = found.nombre // use the DB canonical name
+      console.log(`[CONTEXT] Empresa detectada: "${found.nombre}" (del prompt: "${candidate}")`)
     }
+  }
+  // NO default fallback — if the user didn't mention a company, don't assume one.
+  // The user must specify which company/page to publish to.
+
+  // Detect target Facebook page — "en la página X", "página de X", "en la fan page X"
+  const pageMatch = text.match(
+    /(?:en\s+la\s+)?(?:pagina|página|page|fan\s*page)\s+(?:de\s+)?["']?([A-Za-záéíóúñÁÉÍÓÚÑ0-9\s]+?)["']?\s*(?:$|[,.]|\s+(?:de|para|en|y|con)\s)/i
+  )
+  if (pageMatch) {
+    conversationContext.targetPageName = pageMatch[1].trim()
   }
 
   // Detect budget
@@ -147,6 +156,8 @@ function resetContext() {
   conversationContext.platform = 'facebook'
   conversationContext.platforms = null
   conversationContext.publishAs = 'post'
+  conversationContext.companyName = ''
+  conversationContext.targetPageName = ''
   conversationContext.budget = '50000'
   conversationContext.messages = []
 }
@@ -205,14 +216,16 @@ async function generateSingleContent(ctx) {
     throw new Error('Los agentes expertos no generaron el prompt de imagen. Verifica la conexión con Claude (ANTHROPIC_API_KEY).')
   }
   console.log('[GENERATE] Using Claude AI prompt:', ctx.aiImagePrompt.slice(0, 100))
+
+  // Detectar idioma del usuario a partir del prompt original
+  const userLang = /[áéíóúñ¿¡]/.test(ctx.description || '') ? 'es' : 'en'
+  const langLabel = userLang === 'es' ? 'Spanish' : 'English'
+
   let imagePrompt
   if (isVideo) {
-    // Video prompt: NO text, NO logos — pure visual scene
-    // Text/logo/contact info are added as overlay AFTER generation
-    imagePrompt = `Generate this video now:\n\n${ctx.aiImagePrompt}\n\nCRITICAL RULES:\n- Do NOT include any text, titles, subtitles, captions, logos, brand names, phone numbers, URLs, or watermarks in the video.\n- Do NOT render any written words on screen.\n- Focus ONLY on: actors, actions, expressions, environments, objects, lighting, camera movement, transitions.\n- The video must be a clean visual scene without any overlaid text.\n- Professional cinematic quality, smooth transitions.`
+    imagePrompt = `Generate this video now:\n\n${ctx.aiImagePrompt}\n\nCRITICAL RULES:\n- Do NOT include any text, titles, subtitles, captions, logos, brand names, phone numbers, URLs, or watermarks in the video.\n- Do NOT render any written words on screen.\n- Focus ONLY on: actors, actions, expressions, environments, objects, lighting, camera movement, transitions.\n- The video must be a clean visual scene without any overlaid text.\n- Professional cinematic quality, smooth transitions.\n- The overall tone, setting, and cultural context of the video must feel ${langLabel}-speaking (Latin American if ${langLabel} is Spanish).`
   } else {
-    // Image prompt: text overlay is fine (AI handles it better for images)
-    imagePrompt = `Generate this image now:\n\n${ctx.aiImagePrompt}\n\nAll visible text in the image MUST be in Spanish. Full-bleed design, no margins. Reserve top 8% for logo. Deliver exactly ONE final image.`
+    imagePrompt = `Generate this image now:\n\n${ctx.aiImagePrompt}\n\nAll visible text in the image MUST be in ${langLabel}. Full-bleed design, no margins. Reserve top 8% for logo. Deliver exactly ONE final image.`
   }
 
   const payload = JSON.stringify({
@@ -315,12 +328,12 @@ async function getCampaignPreview(ctx) {
 
   const env = getProjectEnv()
 
-  // ── Inject company context — Claude MUST know the brand ──
-  const companyName = ctx.companyName || env.PUBLICIDAD_COMPANY_NAME || ''
+  // ── Inject company context — sin defaults hardcodeados ──
+  const companyName = ctx.companyName || ''
   const company = companyName ? lookupCompanyData(companyName) : null
-  const brandName = company?.nombre || companyName || 'NoyeCode'
-  const brandWebsite = company?.sitio_web || env.BUSINESS_WEBSITE || 'noyecode.com'
-  const brandPhone = company?.telefono || env.BUSINESS_WHATSAPP || ''
+  const brandName = company?.nombre || companyName || ''
+  const brandWebsite = company?.sitio_web || ''
+  const brandPhone = company?.telefono || ''
   const brandDescription = company?.descripcion || ''
 
   const companyContext = [
@@ -330,17 +343,31 @@ async function getCampaignPreview(ctx) {
     brandDescription ? `Descripcion: ${brandDescription}` : '',
   ].filter(Boolean).join('. ')
 
+  // Resolver page_id desde la empresa (no desde .env)
+  let companyPageId = ''
+  if (company) {
+    const fbPlatform = (company.platforms || []).find((p) => p.platform === 'facebook')
+    if (fbPlatform) {
+      const primary = (fbPlatform.accounts || []).find((a) => a.is_primary) || fbPlatform.accounts?.[0]
+      if (primary?.page_id) companyPageId = primary.page_id
+    }
+  }
+
+  // Detectar idioma del usuario
+  const userLang = /[áéíóúñ¿¡]/.test(ctx.description || '') ? 'es' : 'en'
+
   const engineInput = {
-    name: `${brandName} - ${ctx.description}`,
-    description: `${companyContext}\n\nSolicitud: ${ctx.description}`,
+    name: brandName ? `${brandName} - ${ctx.description}` : ctx.description,
+    description: (companyContext ? `${companyContext}\n\n` : '') + `Solicitud: ${ctx.description}`,
     budget: ctx.budget,
     content_type: ctx.type === 'video_campaign' ? 'campaign' : ctx.type,
     access_token: env.FB_ACCESS_TOKEN || '',
-    ad_account_id: env.FB_AD_ACCOUNT_ID || 'act_438871067037500',
-    page_id: env.FB_PAGE_ID || '115406607722279',
+    ad_account_id: env.FB_AD_ACCOUNT_ID || '',
+    page_id: companyPageId,
     company_name: brandName,
     company_website: brandWebsite,
     company_phone: brandPhone,
+    user_language: userLang,
   }
 
   try {
@@ -539,37 +566,175 @@ async function publishToInstagram(job) {
   }
 }
 
-async function publishToMeta(job) {
-  const { ctx } = job
-  const platforms = ctx.platforms || [ctx.platform || 'facebook']
+/**
+ * Resuelve el Page ID y Page Token según el contexto del usuario.
+ *
+ * Prioridad:
+ * 1. targetPageName del prompt ("publica en la página Hell Beers")
+ *    → busca en /me/accounts la página cuyo nombre coincida
+ * 2. Empresa seleccionada (companyName) → busca en la DB la page_id/token de facebook
+ *
+ * NO hay fallback a .env — la página DEBE resolverse desde el prompt o la empresa.
+ */
+async function resolveTargetPage(ctx) {
+  const env = getProjectEnv()
+  const userToken = env.FB_ACCESS_TOKEN || ''
+  let pageId = ''
+  let pageToken = ''
+  let pageName = ''
 
-  // Publish to ALL platforms in the list
-  if (platforms.length > 1 || platforms.includes('instagram')) {
-    const results = []
-
-    for (const plat of platforms) {
-      try {
-        if (plat === 'instagram') {
-          const igResult = await publishToInstagram({ ...job, ctx: { ...ctx, platform: 'instagram' } })
-          results.push(igResult.message || 'Publicado en Instagram.')
-        } else {
-          const fbResult = await publishToFacebook({ ...job, ctx: { ...ctx, platform: 'facebook' } })
-          results.push(fbResult.message || 'Publicado en Facebook.')
-        }
-      } catch (err) {
-        results.push(`Error en ${plat}: ${err.message}`)
-      }
+  // ── Obtener todas las páginas del usuario autenticado (una vez) ──
+  let userPages = []
+  if (userToken) {
+    try {
+      const { facebookApiRequest } = require('../facebook/api')
+      const result = await facebookApiRequest('GET', 'me/accounts', {
+        fields: 'id,name,access_token',
+      }, userToken)
+      userPages = Array.isArray(result?.data) ? result.data : []
+    } catch (err) {
+      // El token puede ser Page Token (no soporta me/accounts) — no es error fatal
+      console.log(`[PUBLISH] No se pudo listar páginas (token puede ser Page Token): ${err.message}`)
     }
-
-    return { success: results.length > 0, message: results.join('\n\n') }
   }
 
-  // Single platform: Facebook (default)
-  return publishToFacebook(job)
+  // 1. Si el usuario mencionó una página específica en el prompt
+  if (ctx.targetPageName && userPages.length > 0) {
+    const target = ctx.targetPageName.toLowerCase()
+    const match =
+      userPages.find((p) => String(p.name || '').toLowerCase() === target) ||
+      userPages.find((p) => String(p.name || '').toLowerCase().includes(target)) ||
+      userPages.find((p) => target.includes(String(p.name || '').toLowerCase()))
+
+    if (match) {
+      pageId = String(match.id)
+      pageToken = String(match.access_token || '')
+      pageName = String(match.name || '')
+      console.log(`[PUBLISH] Página detectada del prompt: "${pageName}" (ID: ${pageId})`)
+    } else {
+      const available = userPages.map(p => p.name).join(', ')
+      console.log(`[PUBLISH] No se encontró página "${ctx.targetPageName}". Disponibles: ${available}`)
+    }
+  }
+
+  // 2. Si hay empresa seleccionada con facebook configurado y no se encontró por nombre
+  if (!pageId && ctx.companyName) {
+    const company = lookupCompanyData(ctx.companyName)
+    if (company) {
+      const fbPlatform = (company.platforms || []).find((p) => p.platform === 'facebook')
+      if (fbPlatform) {
+        const primary = (fbPlatform.accounts || []).find((a) => a.is_primary) || fbPlatform.accounts?.[0]
+        if (primary?.page_id) {
+          pageId = primary.page_id
+          pageToken = primary.token || ''
+          console.log(`[PUBLISH] Página de empresa "${ctx.companyName}": page_id=${pageId}`)
+        }
+      }
+    }
+  }
+
+  // 3. Si tenemos pageId pero no pageToken, buscar el Page Token en las páginas del usuario
+  if (pageId && !pageToken && userPages.length > 0) {
+    const pageMatch = userPages.find((p) => String(p.id) === pageId)
+    if (pageMatch?.access_token) {
+      pageToken = String(pageMatch.access_token)
+      console.log(`[PUBLISH] Page Token obtenido de /me/accounts para page_id=${pageId}`)
+    }
+  }
+
+  // 4. Último recurso: si tenemos pageId pero no pageToken, usar el userToken directamente
+  //    (funciona si el FB_ACCESS_TOKEN tiene permisos sobre esa página)
+  if (pageId && !pageToken && userToken) {
+    pageToken = userToken
+    console.log(`[PUBLISH] Usando FB_ACCESS_TOKEN como token para page_id=${pageId}`)
+  }
+
+  return { pageId, pageToken, pageName }
+}
+
+async function publishToMeta(job) {
+  const { ctx } = job
+
+  // Resolver página destino UNA vez
+  const targetPage = await resolveTargetPage(ctx)
+
+  // Resolver plataformas: si el usuario no especificó, usar las que la empresa tiene configuradas
+  let platforms = ctx.platforms
+  if (!platforms || platforms.length === 0) {
+    platforms = []
+    if (ctx.companyName) {
+      const company = lookupCompanyData(ctx.companyName)
+      if (company) {
+        for (const p of company.platforms || []) {
+          if (p.platform === 'facebook' && p.accounts?.some(a => a.page_id || a.token)) {
+            platforms.push('facebook')
+          }
+          if (p.platform === 'instagram' && p.accounts?.some(a => a.account_id || a.token)) {
+            platforms.push('instagram')
+          }
+          if (p.platform === 'tiktok' && p.accounts?.some(a => a.token)) {
+            platforms.push('tiktok')
+          }
+          if (p.platform === 'linkedin' && p.accounts?.some(a => a.token)) {
+            platforms.push('linkedin')
+          }
+        }
+      }
+    }
+    if (platforms.length === 0) {
+      throw new Error(
+        'No se pudo determinar dónde publicar. '
+        + 'Indica la plataforma en tu mensaje (ej: "publica en facebook") '
+        + 'o configura las plataformas de la empresa en la sección de Empresas.'
+      )
+    }
+    console.log(`[PUBLISH] Plataformas resueltas desde empresa "${ctx.companyName}": ${platforms.join(', ')}`)
+  }
+
+  const results = []
+  for (const plat of platforms) {
+    try {
+      if (plat === 'instagram') {
+        const igResult = await publishToInstagram({ ...job, ctx: { ...ctx, platform: 'instagram' }, targetPage })
+        results.push(igResult.message || 'Publicado en Instagram.')
+      } else if (plat === 'facebook') {
+        const fbResult = await publishToFacebook({ ...job, ctx: { ...ctx, platform: 'facebook' }, targetPage })
+        results.push(fbResult.message || 'Publicado en Facebook.')
+      } else {
+        results.push(`Plataforma "${plat}" aún no soportada para publicación directa.`)
+      }
+    } catch (err) {
+      results.push(`Error en ${plat}: ${err.message}`)
+    }
+  }
+
+  return { success: results.some(r => !r.startsWith('Error')), message: results.join('\n\n') }
 }
 
 async function publishToFacebook(job) {
   const { ctx, filePath, videoFilePath, imageFilePath, spec } = job
+
+  // Página resuelta desde el prompt o la empresa — sin fallback a .env
+  const tp = job.targetPage || {}
+  const pageId = tp.pageId || ''
+  const pageToken = tp.pageToken || ''
+
+  if (!pageId) {
+    throw new Error(
+      'No se pudo determinar la página de Facebook destino. '
+      + 'Indica la página en tu mensaje (ej: "publica en la página Mi Negocio") '
+      + 'o configura una página en la sección de Empresas.'
+    )
+  }
+  if (!pageToken) {
+    throw new Error(
+      `Página "${tp.pageName || pageId}" detectada pero sin token de acceso. `
+      + 'Reconecta la cuenta de Facebook en la sección de Empresas.'
+    )
+  }
+  if (tp.pageName) {
+    console.log(`[PUBLISH-FB] Publicando en página: "${tp.pageName}" (${pageId})`)
+  }
 
   if (ctx.type === 'video_campaign') {
     // VIDEO + CAMPAIGN: execute both in sequence
@@ -590,9 +755,6 @@ async function publishToFacebook(job) {
     const reelVideoPath = videoFilePath || (filePath && /\.(mp4|mov|webm)$/i.test(filePath) ? filePath : null)
     if (reelVideoPath) {
       try {
-        const env = getProjectEnv()
-        const pageToken = env.FB_PAGE_ACCESS_TOKEN || env.FB_ACCESS_TOKEN || ''
-        const pageId = env.FB_PAGE_ID || '115406607722279'
         const caption = buildPublishCaption(spec, ctx)
         const reelResult = await publishVideoToMeta(pageId, pageToken, reelVideoPath, caption, { ...ctx, publishAs: 'reel' })
         results.push(reelResult.message || 'Reel publicado.')
@@ -613,10 +775,6 @@ async function publishToFacebook(job) {
 
   // Publish image or video directly via Meta API REST
   if (!filePath) throw new Error('No hay archivo para publicar.')
-
-  const env = getProjectEnv()
-  const pageToken = env.FB_PAGE_ACCESS_TOKEN || env.FB_ACCESS_TOKEN || ''
-  const pageId = env.FB_PAGE_ID || '115406607722279'
   if (!pageToken) throw new Error('No hay FB_ACCESS_TOKEN ni FB_PAGE_ACCESS_TOKEN en .env')
 
   // Build caption from Claude's copywriting skill
