@@ -26,11 +26,7 @@ export function ChatBotPage() {
     {
       id: 'welcome',
       role: 'assistant',
-      content: '¡Hola! Soy tu asistente de publicidad.\n\nCuéntame qué necesitas y yo me encargo de todo:\n\n'
-        + '• **Imagen publicitaria** — Descríbela y la genero\n'
-        + '• **Video / Reel** — Descríbelo y lo creo\n'
-        + '• **Campaña de Meta Ads** — Dame el concepto y armo todo\n\n'
-        + 'Solo escribe lo que quieres. Yo defino la audiencia, segmentación, copy y creativos automáticamente.',
+      content: '__welcome__',
       timestamp: Date.now(),
     },
   ])
@@ -295,6 +291,50 @@ export function ChatBotPage() {
           }
 
           const msg = item.msg
+
+          // Welcome card
+          if (msg.content === '__welcome__') {
+            return (
+              <div key={msg.id} className="chatbot-welcome">
+                <div className="chatbot-welcome__header">
+                  <div className="chatbot-welcome__avatar">
+                    <span>&#10024;</span>
+                  </div>
+                  <div>
+                    <h3 className="chatbot-welcome__title">Hola, soy tu asistente</h3>
+                    <p className="chatbot-welcome__subtitle">Cuéntame qué necesitas y yo me encargo de todo</p>
+                  </div>
+                </div>
+                <div className="chatbot-welcome__cards">
+                  <button className="chatbot-welcome__card" onClick={() => { setInput('Genera una imagen publicitaria para '); inputRef.current?.focus() }}>
+                    <span className="chatbot-welcome__card-icon">&#127912;</span>
+                    <div>
+                      <strong>Imagen publicitaria</strong>
+                      <span>Descríbela y la genero</span>
+                    </div>
+                  </button>
+                  <button className="chatbot-welcome__card" onClick={() => { setInput('Crea un video/reel sobre '); inputRef.current?.focus() }}>
+                    <span className="chatbot-welcome__card-icon">&#127916;</span>
+                    <div>
+                      <strong>Video / Reel</strong>
+                      <span>Descríbelo y lo creo</span>
+                    </div>
+                  </button>
+                  <button className="chatbot-welcome__card" onClick={() => { setInput('Arma una campaña de Meta Ads para '); inputRef.current?.focus() }}>
+                    <span className="chatbot-welcome__card-icon">&#128640;</span>
+                    <div>
+                      <strong>Campaña de Meta Ads</strong>
+                      <span>Dame el concepto y armo todo</span>
+                    </div>
+                  </button>
+                </div>
+                <p className="chatbot-welcome__footer">
+                  Solo escribe lo que quieres. Yo defino la audiencia, segmentación, copy y creativos automáticamente.
+                </p>
+              </div>
+            )
+          }
+
           return (
             <div key={msg.id} className={`chatbot-msg chatbot-msg--${msg.role} ${msg.status ? `chatbot-msg--${msg.status}` : ''}`}>
               <div className="chatbot-msg__bubble">

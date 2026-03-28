@@ -19,10 +19,7 @@ export function Header({ status, brandName, brandLogoUrl, onOpenSettings }: Head
     <header className="header">
       <div className="header-left">
         <img src={brandLogoUrl || logoSvg} alt={brandName || 'Noyecode Marketing AI'} className="header-logo" />
-        <div>
-          <h1 className="header-title">Noyecode Marketing AI</h1>
-          <span className="header-subtitle">{brandName || 'NoyeCode'}</span>
-        </div>
+        <span className="header-subtitle">{brandName || 'NoyeCode'}</span>
       </div>
       <div className="header-right">
         {/* TODO: Rehabilitar el badge de estado cuando definamos el contenido final de este espacio.
