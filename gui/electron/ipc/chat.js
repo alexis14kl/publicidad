@@ -226,7 +226,7 @@ async function generateSingleContent(ctx) {
   if (isVideo) {
     imagePrompt = `Generate this video now:\n\n${ctx.aiImagePrompt}\n\nCRITICAL RULES:\n- Do NOT include any text, titles, subtitles, captions, logos, brand names, phone numbers, URLs, or watermarks in the video.\n- Do NOT render any written words on screen.\n- Focus ONLY on: actors, actions, expressions, environments, objects, lighting, camera movement, transitions.\n- The video must be a clean visual scene without any overlaid text.\n- Professional cinematic quality, smooth transitions.\n- The overall tone, setting, and cultural context of the video must feel ${langLabel}-speaking (Latin American if ${langLabel} is Spanish).`
   } else {
-    imagePrompt = `Generate this image now:\n\n${ctx.aiImagePrompt}\n\nAll visible text in the image MUST be in ${langLabel}. Full-bleed design, no margins. Reserve top 8% for logo. Deliver exactly ONE final image.`
+    imagePrompt = `Generate this image now:\n\n${ctx.aiImagePrompt}\n\nCRITICAL RULES:\n- All visible text in the image MUST be in ${langLabel}.\n- Full-bleed design, no margins.\n- The TOP 8% of the image MUST be completely EMPTY (solid background color, no text, no logos, no graphics). This blank area will be used later to overlay a real logo externally. Do NOT generate any logo, brand mark, or company name in this area.\n- Do NOT generate any fake or AI-created logos anywhere in the image. The real logo will be added in post-processing.\n- Deliver exactly ONE final image.`
   }
 
   const payload = JSON.stringify({

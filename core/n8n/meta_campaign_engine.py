@@ -211,7 +211,8 @@ REGLAS CRÍTICAS:
    - Ejemplo CORRECTO: "Frustrated office worker slamming old CRT computer, papers flying. Cut to: modern professional smiling at sleek laptop with colorful abstract dashboard. Split screen transition, cinematic lighting, 7 seconds. No text, no logos, no brand names, no written words visible anywhere."
    - Ejemplo INCORRECTO: "Video with text 'Automatiza con NoyeCode' and company logo at top..." (esto genera texto ilegible)
    - Ejemplo INCORRECTO: "Computer screen showing 'ProductivityPro' dashboard..." (Veo 3 inventara un nombre diferente con errores)
-10. Para tipo "image": el image_prompt SI debe incluir texto visible (slogan, headline, branding) porque la IA de imagenes maneja texto mejor."""
+10. Para tipo "image": el image_prompt SI debe incluir texto visible (slogan, headline, branding) porque la IA de imagenes maneja texto mejor.
+11. PROHIBIDO generar logos en la imagen. El logo REAL de la empresa se agrega en post-procesamiento. La parte superior (top 8%) de la imagen debe quedar VACIA (solo color de fondo) para colocar el logo real despues. NO incluir ningun logo, marca o isotipo generado por IA."""
 
     lang_label = "español" if user_language == "es" else "inglés"
     lang_instruction = (
