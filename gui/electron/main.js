@@ -100,7 +100,6 @@ app.whenReady().then(() => {
   registerPublicationHandlers(ipcMain)
   registerTikTokHandlers(ipcMain)
   registerTikTokBusinessHandlers(ipcMain)
-  registerJobHandlers(ipcMain)
 
   // 2. Create window AFTER handlers are ready
   createWindow()
@@ -109,10 +108,6 @@ app.whenReady().then(() => {
   const { startLogWatcher, startBotLogWatcher } = require('./log-watcher')
   startLogWatcher()
   startBotLogWatcher()
-
-  // 4b. Start worker manager (job queue scheduler)
-  const workerManager = require('./services/worker-manager')
-  workerManager.start()
 
   // 4. Pre-warm SQLite schemas in background (non-blocking)
   setImmediate(() => {
@@ -130,8 +125,6 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  // Shutdown worker manager — kills active workers, cleans locks
-  try { require('./services/worker-manager').shutdown() } catch { /* ignore */ }
 
   if (state.logWatcherInterval) clearInterval(state.logWatcherInterval)
   if (state.botLogWatcherInterval) clearInterval(state.botLogWatcherInterval)
