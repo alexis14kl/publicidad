@@ -129,10 +129,19 @@ function normalizeCompanyKey(name) {
 function resolveCompanyLogoUrl(logoPath) {
   const raw = String(logoPath || '').trim()
   if (!raw) return null
-  if (/^https?:\/\//i.test(raw) || raw.startsWith('file://')) return raw
+  if (/^https?:\/\//i.test(raw)) return raw
+  if (raw.startsWith('data:')) return raw
   const absolutePath = path.isAbsolute(raw) ? raw : path.join(PROJECT_ROOT, raw)
   if (!fs.existsSync(absolutePath)) return null
-  return `file://${absolutePath.replace(/\\/g, '/')}?t=${Date.now()}`
+  // Convertir a data URL base64 para que funcione con Electron CSP
+  try {
+    const ext = path.extname(absolutePath).toLowerCase().replace('.', '')
+    const mime = ext === 'png' ? 'image/png' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'svg' ? 'image/svg+xml' : 'image/png'
+    const base64 = fs.readFileSync(absolutePath).toString('base64')
+    return `data:${mime};base64,${base64}`
+  } catch {
+    return null
+  }
 }
 
 function persistEnvConfig(config = {}) {
