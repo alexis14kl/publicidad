@@ -343,7 +343,117 @@ function findFileNewerThan(dir, afterMs) {
   return files[0]?.full || null
 }
 
-// ─── Campaign Spec (dry-run) ────────────────────────────────────────────────
+// ─── Quick AI Spec (image/video — fast, no campaign engine) ─────────────────
+
+async function getQuickAISpec(ctx) {
+  const env = getProjectEnv()
+  const apiKey = (env.ANTHROPIC_API_KEY || '').trim()
+  if (!apiKey) return null
+
+  const companyName = ctx.companyName || ''
+  const company = companyName ? lookupCompanyData(companyName) : null
+  const brandName = company?.nombre || companyName || ''
+  const brandWebsite = company?.sitio_web || ''
+  const brandPhone = company?.telefono || ''
+  const brandDescription = company?.descripcion || ''
+
+  const userLang = /[áéíóúñ¿¡]/.test(ctx.description || '') ? 'es' : 'en'
+  const langLabel = userLang === 'es' ? 'español' : 'inglés'
+  const isVideo = ctx.type === 'video'
+
+  const companyInfo = [
+    brandName ? `Empresa: ${brandName}` : '',
+    brandWebsite ? `Web: ${brandWebsite}` : '',
+    brandPhone ? `WhatsApp: ${brandPhone}` : '',
+    brandDescription ? `Descripción: ${brandDescription}` : '',
+  ].filter(Boolean).join('. ')
+
+  const systemPrompt = 'Experto en marketing. Responde SOLO JSON válido, sin markdown.'
+
+  const contactInfo = [brandName, brandWebsite, brandPhone].filter(Boolean).join(' | ')
+
+  const userPrompt = isVideo
+    ? `Video publicitario. ${ctx.description}. ${companyInfo}. Idioma: ${langLabel}.
+JSON: {"image_prompt":"prompt EN INGLÉS: escenas visuales, actores, acciones, ambiente, cámara. SIN texto/logos en pantalla. Terminar con: No text, no logos visible.","post_caption":"copy ${langLabel} max 100 palabras: Hook→CTA. Empresa: ${brandName}","post_hashtags":["8 hashtags"]}`
+    : `Imagen publicitaria. ${ctx.description}. ${companyInfo}. Idioma: ${langLabel}.
+JSON: {"image_prompt":"prompt EN INGLÉS: anuncio profesional 1080x1350. Texto visible en ${langLabel}: slogan+headline+CTA. Contacto: ${contactInfo}. Top 15% limpio para logo. Estilo: professional advertising.","post_caption":"copy ${langLabel} max 100 palabras: Hook→CTA. Empresa: ${brandName}","post_hashtags":["8 hashtags"]}`
+
+  const https = require('https')
+  const body = JSON.stringify({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 600,
+    messages: [
+      { role: 'user', content: userPrompt },
+    ],
+    system: systemPrompt,
+  })
+
+  console.log('[QUICK-AI] Calling Claude Haiku (fast)...')
+  const startMs = Date.now()
+
+  try {
+    const response = await new Promise((resolve, reject) => {
+      const req = https.request({
+        hostname: 'api.anthropic.com',
+        path: '/v1/messages',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+      }, (res) => {
+        let data = ''
+        res.on('data', c => data += c)
+        res.on('end', () => {
+          try { resolve(JSON.parse(data)) }
+          catch { reject(new Error('Claude response parse error')) }
+        })
+      })
+      req.on('error', reject)
+      req.write(body)
+      req.end()
+    })
+
+    if (response.error) {
+      console.error('[QUICK-AI] Claude error:', response.error.message)
+      return null
+    }
+
+    const text = response.content?.[0]?.text || ''
+    const elapsed = ((Date.now() - startMs) / 1000).toFixed(1)
+    console.log(`[QUICK-AI] Claude responded in ${elapsed}s`)
+
+    // Parse JSON — Claude might wrap in ```json```
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      console.error('[QUICK-AI] No JSON found in response')
+      return null
+    }
+
+    const spec = JSON.parse(jsonMatch[0])
+    console.log('[QUICK-AI] image_prompt:', (spec.image_prompt || '').slice(0, 80))
+
+    // Wrap in the same format as campaign engine
+    return {
+      campaign: { name: spec.campaign_name || ctx.description || '' },
+      adsets: [],
+      meta: {
+        ai_analysis: spec.analysis || spec.post_caption || '',
+        ai_warnings: spec.warnings || [],
+        image_prompt: spec.image_prompt || '',
+        post_caption: spec.post_caption || '',
+        post_hashtags: spec.post_hashtags || [],
+        video_scenes: spec.video_scenes || [],
+      },
+    }
+  } catch (err) {
+    console.error('[QUICK-AI] Error:', err.message)
+    return null
+  }
+}
+
+// ─── Campaign Spec (dry-run) — full analysis for campaigns ──────────────────
 
 async function getCampaignPreview(ctx) {
   const pythonBin = findPython()
@@ -1307,11 +1417,15 @@ async function handleChatCommand(text) {
     : 'imagen'
 
   // ══════════════════════════════════════════════════════════════════════
-  // STEP 1: MANDATORY — Claude analyzes via skills/agents
-  // Sin respuesta de Claude = no continuar. NADA se genera sin análisis.
+  // STEP 1: Claude analyzes
+  // Imagen/Video → flujo rápido (API directa, ~3-5s)
+  // Campaña → flujo completo (Python engine, ~10-15s)
   // ══════════════════════════════════════════════════════════════════════
-  console.log('[CHAT] Step 1: Sending to Claude for analysis...')
-  const spec = await getCampaignPreview(ctx)
+  const useFastPath = ctx.type === 'image' || ctx.type === 'video'
+  console.log(`[CHAT] Step 1: ${useFastPath ? 'Quick AI (fast)' : 'Campaign engine (full)'}...`)
+  const spec = useFastPath
+    ? await getQuickAISpec(ctx)
+    : await getCampaignPreview(ctx)
 
   if (!spec || !spec.meta || spec.meta.error) {
     const reason = spec?.meta?.error || 'Claude no respondió'
