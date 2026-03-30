@@ -126,12 +126,14 @@ function updateContext(text) {
   else conversationContext.publishAs = 'post'
 
   // Detect company — "para NyGsoft", "para Hell Beers", "para la empresa Limpia Fácil"
-  const companyMatch = text.match(/para\s+(?:la\s+empresa\s+)?["']?([A-Za-záéíóúñÁÉÍÓÚÑ0-9\s]+?)["']?\s*(?:$|[,.]|\s+(?:en|y|con|que)\s)/i)
+  // Limpiar bullets, puntos extras, y caracteres especiales del texto antes del regex
+  const cleanedText = text.replace(/[•·\-–—]/g, ' ').replace(/\.{2,}/g, ' ').replace(/\s+/g, ' ')
+  const companyMatch = cleanedText.match(/para\s+(?:la\s+empresa\s+)?["']?([A-Za-záéíóúñÁÉÍÓÚÑ0-9\s&.]+?)["']?\s*(?:$|[,]|\s+(?:en|y|con|que)\s)/i)
   if (companyMatch) {
-    const candidate = companyMatch[1].trim()
+    const candidate = companyMatch[1].trim().replace(/\.$/, '')
     const found = lookupCompanyData(candidate)
     if (found) {
-      conversationContext.companyName = found.nombre // use the DB canonical name
+      conversationContext.companyName = found.nombre
       console.log(`[CONTEXT] Empresa detectada: "${found.nombre}" (del prompt: "${candidate}")`)
     }
   }
@@ -690,6 +692,24 @@ async function resolveTargetPage(ctx) {
 async function publishToMeta(job) {
   const { ctx } = job
 
+  // Si no hay empresa en el contexto, pedir al usuario que especifique
+  if (!ctx.companyName) {
+    let names = ''
+    try {
+      const { aggregateCompanyRows, fetchCompanyRowsForPlatform } = require('../data/db')
+      const { COMPANY_PLATFORMS } = require('../config/company-platforms')
+      const records = aggregateCompanyRows(
+        Object.fromEntries([...COMPANY_PLATFORMS].map(p => [p, fetchCompanyRowsForPlatform(p)]))
+      ).filter(c => c.activo)
+      names = records.map(c => `• ${c.nombre}`).join('\n')
+    } catch { /* ignore */ }
+    throw new Error(
+      'No se detectó la empresa destino en tu mensaje.\n\n'
+      + 'Indica la empresa en tu prompt, por ejemplo:\n"Genera una imagen **para Nygsoft** en facebook"\n\n'
+      + (names ? `Empresas disponibles:\n${names}` : 'No hay empresas configuradas. Conecta una en la sección de Empresas.')
+    )
+  }
+
   // Resolver página destino UNA vez
   const targetPage = await resolveTargetPage(ctx)
 
@@ -698,15 +718,7 @@ async function publishToMeta(job) {
   let platforms = ctx.platforms
   if (!platforms || platforms.length === 0) {
     platforms = []
-    // Si no hay empresa en el contexto, intentar detectarla de nuevo
-    let companyName = ctx.companyName
-    if (!companyName) {
-      const defaultCompany = require('../data/lookup').getDefaultActiveCompany()
-      if (defaultCompany) {
-        companyName = defaultCompany.nombre
-        console.log(`[PUBLISH] Sin empresa en contexto, usando empresa activa por defecto: "${companyName}"`)
-      }
-    }
+    const companyName = ctx.companyName
     if (companyName) {
       const company = lookupCompanyData(companyName)
       if (company) {
