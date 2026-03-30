@@ -83,15 +83,33 @@ function registerMetaAuthHandlers(ipcMain) {
   })
 
   // ── 0b. Auto-crear empresas desde resultado OAuth ──────────────────────
-  ipcMain.handle('oauth-auto-create-accounts', async (_event, { accounts } = {}) => {
+  ipcMain.handle('oauth-auto-create-accounts', async (_event, { accounts, user_token } = {}) => {
     try {
       const { saveCompanyInternal } = require('./company')
+      const { facebookApiRequest } = require('../facebook/api')
       const fs = require('fs')
       const path = require('path')
 
       if (!Array.isArray(accounts) || accounts.length === 0) {
         return { success: false, error: 'No se recibieron cuentas para crear.' }
       }
+
+      // Auto-detectar ad accounts del usuario (para campañas de ads)
+      let userAdAccounts = []
+      if (user_token) {
+        try {
+          const adResult = await facebookApiRequest('GET', 'me/adaccounts', {
+            fields: 'id,account_id,name,account_status,currency',
+            limit: '25',
+          }, user_token)
+          userAdAccounts = Array.isArray(adResult?.data) ? adResult.data : []
+          console.log(`[OAuth] Ad accounts detectados: ${userAdAccounts.map(a => a.name || a.id).join(', ') || 'ninguno'}`)
+        } catch (err) {
+          console.log(`[OAuth] No se pudieron obtener ad accounts: ${err.message}`)
+        }
+      }
+      // Primer ad account activo del usuario
+      const primaryAdAccount = userAdAccounts.find(a => a.account_status === 1) || userAdAccounts[0] || null
 
       const created = []
       const errors = []
@@ -123,7 +141,7 @@ function registerMetaAuthHandlers(ipcMain) {
             googleads: { enabled: false, syncToConfig: true, accounts: [] },
           }
 
-          // Facebook account
+          // Facebook account + ad_account_id del usuario
           if (account.platform === 'facebook') {
             platforms.facebook = {
               enabled: true,
@@ -171,6 +189,23 @@ function registerMetaAuthHandlers(ipcMain) {
             activo: true,
             platforms,
           })
+
+          // Guardar datos extra de OAuth (ad_account, user_token) en archivo JSON
+          try {
+            const metaDir = path.join(require('../config/project-paths').PROJECT_ROOT, 'memory', 'companies')
+            if (!fs.existsSync(metaDir)) fs.mkdirSync(metaDir, { recursive: true })
+            const metaFile = path.join(metaDir, `${pageName.replace(/[^a-zA-Z0-9áéíóúñ ]/g, '_')}.json`)
+            const metaData = {
+              page_id: account.id,
+              page_name: pageName,
+              ad_account_id: primaryAdAccount?.id || '',
+              ad_account_name: primaryAdAccount?.name || '',
+              user_token: user_token || '',
+              updated_at: new Date().toISOString(),
+            }
+            fs.writeFileSync(metaFile, JSON.stringify(metaData, null, 2))
+            console.log(`[OAuth] Datos extra guardados para "${pageName}": ad_account=${primaryAdAccount?.id || 'none'}`)
+          } catch { /* non-critical */ }
 
           created.push(savedCompany)
         } catch (err) {

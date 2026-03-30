@@ -1184,7 +1184,7 @@ export interface ElectronAPI {
   onMarketingRunUpdate: (callback: (update: MarketingRunUpdate) => void) => () => void
   // OAuth generico
   oauthStart: (platform: OAuthPlatform) => Promise<OAuthResult>
-  oauthAutoCreateAccounts: (payload: { accounts: OAuthAccount[] }) => Promise<OAuthAutoCreateResult>
+  oauthAutoCreateAccounts: (payload: { accounts: OAuthAccount[]; user_token?: string }) => Promise<OAuthAutoCreateResult>
   // Meta Marketing API
   metaStartOAuth: () => Promise<MetaStartOAuthResult>
   metaGetAppToken: (payload?: Record<string, string>) => Promise<MetaAppTokenResult>

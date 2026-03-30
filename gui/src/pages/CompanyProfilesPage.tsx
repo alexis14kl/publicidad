@@ -65,7 +65,7 @@ export function CompanyProfilesPage({ onCompaniesChanged }: CompanyProfilesPageP
         throw new Error(result.error || 'No se obtuvieron cuentas.')
       }
 
-      const createResult = await oauthAutoCreateAccounts(result.accounts as OAuthAccount[])
+      const createResult = await oauthAutoCreateAccounts(result.accounts as OAuthAccount[], result.user_token || '')
       if (!createResult.success) {
         throw new Error(createResult.error || 'No se pudieron crear las cuentas.')
       }

@@ -10,7 +10,7 @@ const { spawn } = require('child_process')
 const { PROJECT_ROOT } = require('../config/project-paths')
 const { getProjectEnv } = require('../utils/env')
 const { findPython } = require('../utils/process')
-const { lookupCompanyData, isCompanyActive, listActiveCompanies, buildCompanyCredentialEnv } = require('../data/lookup')
+const { lookupCompanyData, isCompanyActive, listActiveCompanies, getCompanyOAuthMeta, buildCompanyCredentialEnv } = require('../data/lookup')
 const state = require('../state')
 
 const pendingJobs = new Map()
@@ -355,8 +355,9 @@ async function getCampaignPreview(ctx) {
     brandDescription ? `Descripcion: ${brandDescription}` : '',
   ].filter(Boolean).join('. ')
 
-  // Resolver page_id desde la empresa (no desde .env)
+  // Resolver page_id y ad_account_id desde la empresa
   let companyPageId = ''
+  let companyAdAccountId = ''
   if (company) {
     const fbPlatform = (company.platforms || []).find((p) => p.platform === 'facebook')
     if (fbPlatform) {
@@ -364,6 +365,9 @@ async function getCampaignPreview(ctx) {
       if (primary?.page_id) companyPageId = primary.page_id
     }
   }
+  // Datos extra de OAuth (ad_account, user_token)
+  const oauthMeta = getCompanyOAuthMeta(companyName) || {}
+  if (oauthMeta.ad_account_id) companyAdAccountId = oauthMeta.ad_account_id
 
   // Detectar idioma del usuario
   const userLang = _detectLanguage(ctx.description || '')
@@ -373,8 +377,8 @@ async function getCampaignPreview(ctx) {
     description: (companyContext ? `${companyContext}\n\n` : '') + `Solicitud: ${ctx.description}`,
     budget: ctx.budget,
     content_type: ctx.type === 'video_campaign' ? 'campaign' : ctx.type,
-    access_token: env.FB_ACCESS_TOKEN || '',
-    ad_account_id: env.FB_AD_ACCOUNT_ID || '',
+    access_token: oauthMeta.user_token || env.FB_ACCESS_TOKEN || '',
+    ad_account_id: companyAdAccountId || '',
     page_id: companyPageId,
     company_name: brandName,
     company_website: brandWebsite,
@@ -709,8 +713,10 @@ async function publishToMeta(job) {
   }
 
   const results = []
+  const errors = []
   for (const plat of platforms) {
     try {
+      console.log(`[PUBLISH] Publicando en ${plat}... (pageId=${targetPage.pageId}, token_len=${(targetPage.pageToken||'').length}, filePath=${job.filePath || 'none'})`)
       if (plat === 'instagram') {
         const igResult = await publishToInstagram({ ...job, ctx: { ...ctx, platform: 'instagram' }, targetPage })
         results.push(igResult.message || 'Publicado en Instagram.')
@@ -718,14 +724,22 @@ async function publishToMeta(job) {
         const fbResult = await publishToFacebook({ ...job, ctx: { ...ctx, platform: 'facebook' }, targetPage })
         results.push(fbResult.message || 'Publicado en Facebook.')
       } else {
-        results.push(`Plataforma "${plat}" aún no soportada para publicación directa.`)
+        console.log(`[PUBLISH] ${plat}: plataforma pendiente de implementación.`)
+        continue
       }
+      console.log(`[PUBLISH] ${plat} OK: ${results[results.length - 1].slice(0, 80)}`)
     } catch (err) {
-      results.push(`Error en ${plat}: ${err.message}`)
+      console.error(`[PUBLISH] ${plat} ERROR: ${err.message}`)
+      errors.push(`${plat}: ${err.message}`)
     }
   }
 
-  return { success: results.some(r => !r.startsWith('Error')), message: results.join('\n\n') }
+  // Si al menos una plataforma publicó, es éxito. Los errores secundarios se muestran como info.
+  if (results.length > 0) {
+    const msg = results.join('\n\n') + (errors.length ? `\n\n_Nota: ${errors.join('; ')}_` : '')
+    return { success: true, message: msg }
+  }
+  return { success: false, message: errors.join('\n\n') || 'No se pudo publicar en ninguna plataforma.' }
 }
 
 async function publishToFacebook(job) {
@@ -845,7 +859,6 @@ async function publishToFacebook(job) {
 
   // Publish image or video directly via Meta API REST
   if (!filePath) throw new Error('No hay archivo para publicar.')
-  if (!pageToken) throw new Error('No hay FB_ACCESS_TOKEN ni FB_PAGE_ACCESS_TOKEN en .env')
 
   // Build caption from Claude's copywriting skill
   const caption = buildPublishCaption(spec, ctx)
@@ -1517,19 +1530,20 @@ async function handleChatApprove(jobId, platform) {
   const job = pendingJobs.get(jobId)
   if (!job) return { success: false, error: 'No hay contenido pendiente.' }
 
-  // Use the platform selected by the user in the UI
   if (platform === 'instagram' || platform === 'facebook') {
     job.ctx.platform = platform
   }
 
+  console.log(`[APPROVE] Job ${jobId}: type=${job.ctx.type} company=${job.ctx.companyName} file=${job.filePath || 'none'} spec_has_campaign=${!!(job.spec?.campaign)}`)
+
   try {
     const result = await publishToMeta(job)
+    console.log(`[APPROVE] Success: ${(result.message || '').slice(0, 100)}`)
     pendingJobs.delete(jobId)
     resetContext()
     return result
   } catch (err) {
-    // NO borrar el pendingJob — el usuario puede corregir (ej: dar empresa) y reintentar
-    console.log(`[CHAT] Publish failed for job ${jobId}: ${err.message}. Job preserved for retry.`)
+    console.error(`[APPROVE] Failed: ${err.message}`)
     return { success: false, error: err.message || String(err) }
   }
 }

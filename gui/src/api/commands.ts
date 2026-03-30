@@ -186,8 +186,8 @@ export const runAutoCampaign = (payload: AutoCampaignInput): Promise<AutoCampaig
 
 // ── OAuth generico (multi-plataforma) ──────────────────────────────────────
 export const oauthStart = (platform: OAuthPlatform): Promise<OAuthResult> => api().oauthStart(platform)
-export const oauthAutoCreateAccounts = (accounts: OAuthAccount[]): Promise<OAuthAutoCreateResult> =>
-  api().oauthAutoCreateAccounts({ accounts })
+export const oauthAutoCreateAccounts = (accounts: OAuthAccount[], user_token: string = ''): Promise<OAuthAutoCreateResult> =>
+  api().oauthAutoCreateAccounts({ accounts, user_token })
 
 // 0. OAuth Window Flow (backward compat)
 export const metaStartOAuth = (): Promise<MetaStartOAuthResult> => api().metaStartOAuth()
