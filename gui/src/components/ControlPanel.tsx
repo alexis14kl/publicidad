@@ -8,6 +8,8 @@ interface ControlPanelProps {
   hasCompany: boolean
   pollerRunning: boolean
   pollerLoading: boolean
+  activeJobCount?: number
+  queuedJobCount?: number
   onStartPoller: () => void
   onStopPoller: () => void
   onStartBot: () => void
@@ -21,15 +23,18 @@ export function ControlPanel({
   hasCompany,
   pollerRunning,
   pollerLoading,
+  activeJobCount = 0,
+  queuedJobCount = 0,
   onStartPoller,
   onStopPoller,
   onStartBot,
   onStopBot,
 }: ControlPanelProps) {
-  const isExecuting = botStatus.status === 'executing'
   const hasPrompt = !!imagePrompt.trim()
-  const canStartBot = !isExecuting && !botLoading && hasCompany && hasPrompt
+  // UI is always interactive — user can always enqueue new jobs
+  const canStartBot = !botLoading && hasCompany && hasPrompt
   const canStartPoller = !pollerRunning && !pollerLoading && hasCompany && hasPrompt
+  const hasActiveJobs = activeJobCount > 0
 
   return (
     <GlassCard className="control-panel">
@@ -46,14 +51,14 @@ export function ControlPanel({
               onClick={onStartBot}
               disabled={!canStartBot}
             >
-              {botLoading ? 'Iniciando...' : 'Iniciar Bot'}
+              {botLoading ? 'Encolando...' : hasActiveJobs ? `Encolar (+${activeJobCount})` : 'Encolar Job'}
             </button>
             <button
               className="btn btn--stop"
               onClick={onStopBot}
-              disabled={!isExecuting || botLoading}
+              disabled={!hasActiveJobs || botLoading}
             >
-              Detener Bot
+              Detener{hasActiveJobs ? ` (${activeJobCount})` : ''}
             </button>
           </div>
           <span className="control-prompt__hint">
@@ -61,6 +66,8 @@ export function ControlPanel({
               ? 'Debes registrar al menos una empresa antes de iniciar el bot.'
               : !hasPrompt
               ? 'Escribe un prompt en el tab activo para habilitar el bot.'
+              : queuedJobCount > 0
+              ? `${queuedJobCount} job(s) en cola esperando`
               : ''}
           </span>
         </div>

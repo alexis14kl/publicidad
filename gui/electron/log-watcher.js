@@ -89,7 +89,62 @@ function startBotLogWatcher() {
   }, 500)
 }
 
+// ─── Per-job log watchers ─────────────────────────────────────────────────────
+
+const jobLogWatchers = new Map() // jobId -> { interval, lastSize }
+
+function watchJobLog(jobId, logPath) {
+  if (jobLogWatchers.has(jobId)) return
+  let lastSize = 0
+  try { lastSize = fs.statSync(logPath).size } catch { /* ignore */ }
+
+  const interval = setInterval(() => {
+    if (!state.mainWindow) return
+    try {
+      const stat = fs.statSync(logPath)
+      if (stat.size < lastSize) lastSize = 0
+      if (stat.size > lastSize) {
+        const bytesToRead = stat.size - lastSize
+        let fd
+        try {
+          fd = fs.openSync(logPath, fs.constants.O_RDONLY | 0, 0o444)
+          const buffer = Buffer.alloc(bytesToRead)
+          fs.readSync(fd, buffer, 0, bytesToRead, lastSize)
+          fs.closeSync(fd)
+          fd = null
+          const newLines = buffer.toString('utf-8').split('\n').filter(l => l.trim())
+          if (newLines.length > 0) {
+            state.mainWindow.webContents.send('job-log-lines', { jobId, lines: newLines })
+          }
+          lastSize = stat.size
+        } catch {
+          if (fd) try { fs.closeSync(fd) } catch { /* ignore */ }
+        }
+      }
+    } catch { /* file may not exist yet */ }
+  }, 500)
+
+  jobLogWatchers.set(jobId, { interval, lastSize })
+}
+
+function unwatchJobLog(jobId) {
+  const watcher = jobLogWatchers.get(jobId)
+  if (watcher) {
+    clearInterval(watcher.interval)
+    jobLogWatchers.delete(jobId)
+  }
+}
+
+function unwatchAllJobLogs() {
+  for (const [jobId] of jobLogWatchers) {
+    unwatchJobLog(jobId)
+  }
+}
+
 module.exports = {
   startLogWatcher,
   startBotLogWatcher,
+  watchJobLog,
+  unwatchJobLog,
+  unwatchAllJobLogs,
 }

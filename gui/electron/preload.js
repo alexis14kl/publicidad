@@ -37,6 +37,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chatApprove: (jobId, platform) => ipcRenderer.invoke('chat-approve', jobId, platform),
   chatExtendVideo: (jobId, extendPrompt) => ipcRenderer.invoke('chat-extend-video', jobId, extendPrompt),
   chatReset: () => ipcRenderer.invoke('chat-reset'),
+  // ── Job Queue ────────────────────────────────────────────────────────────
+  enqueueJob: (payload) => ipcRenderer.invoke('enqueue-job', payload),
+  cancelJob: (jobId) => ipcRenderer.invoke('cancel-job', jobId),
+  listJobs: (filter) => ipcRenderer.invoke('list-jobs', filter),
+  getJobDetail: (jobId) => ipcRenderer.invoke('get-job-detail', jobId),
+  getJobLogLines: (jobId, count) => ipcRenderer.invoke('get-job-log-lines', jobId, count),
+  onJobStatusChange: (callback) => {
+    const handler = (_event, data) => callback(data)
+    ipcRenderer.on('job-status-change', handler)
+    return () => ipcRenderer.removeListener('job-status-change', handler)
+  },
+
   onLogNewLines: (callback) => {
     const handler = (_event, lines) => callback(lines)
     ipcRenderer.on('log-new-lines', handler)
@@ -88,6 +100,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('meta-pipeline-step', handler)
     return () => ipcRenderer.removeListener('meta-pipeline-step', handler)
   },
+
+  // ── TikTok API ─────────────────────────────────────────────────────────
+  tiktokQueryCreatorInfo: (payload) => ipcRenderer.invoke('tiktok-query-creator-info', payload),
+  tiktokPublishVideo: (payload) => ipcRenderer.invoke('tiktok-publish-video', payload),
+  tiktokPublishPhoto: (payload) => ipcRenderer.invoke('tiktok-publish-photo', payload),
+  tiktokCheckPublishStatus: (payload) => ipcRenderer.invoke('tiktok-check-publish-status', payload),
+  tiktokGetUserInfo: (payload) => ipcRenderer.invoke('tiktok-get-user-info', payload),
+  tiktokRefreshToken: (payload) => ipcRenderer.invoke('tiktok-refresh-token', payload),
+
+  // ── TikTok Business API (Marketing) ───────────────────────────────────
+  tiktokBizExchangeToken: (payload) => ipcRenderer.invoke('tiktok-biz-exchange-token', payload),
+  tiktokBizGetAdvertisers: (payload) => ipcRenderer.invoke('tiktok-biz-get-advertisers', payload),
+  tiktokBizCreateCampaign: (payload) => ipcRenderer.invoke('tiktok-biz-create-campaign', payload),
+  tiktokBizGetCampaigns: (payload) => ipcRenderer.invoke('tiktok-biz-get-campaigns', payload),
+  tiktokBizCreateAdGroup: (payload) => ipcRenderer.invoke('tiktok-biz-create-adgroup', payload),
+  tiktokBizCreateAd: (payload) => ipcRenderer.invoke('tiktok-biz-create-ad', payload),
+  tiktokBizUploadImage: (payload) => ipcRenderer.invoke('tiktok-biz-upload-image', payload),
+  tiktokBizUploadVideo: (payload) => ipcRenderer.invoke('tiktok-biz-upload-video', payload),
+  tiktokBizCreateIdentity: (payload) => ipcRenderer.invoke('tiktok-biz-create-identity', payload),
+  tiktokBizGetIdentities: (payload) => ipcRenderer.invoke('tiktok-biz-get-identities', payload),
+  tiktokBizUpdateStatus: (payload) => ipcRenderer.invoke('tiktok-biz-update-status', payload),
 
   // ── Instagram API ───────────────────────────────────────────────────────
   igGetUserId: (payload) => ipcRenderer.invoke('ig-get-user-id', payload),

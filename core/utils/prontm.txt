@@ -1,10 +1,11 @@
-Generate this image now:
+Generate this video now:
 
-Professional Colombian business office setting with safety compliance theme. Split composition: left side shows worried business executive reviewing safety violation documents and penalty notices, right side shows confident manager using modern computer with clean safety dashboard displaying compliance metrics. Text overlay in Spanish: 'CUMPLE 100% CON OSHAS 18001, GTC45 Y DECRETO 1072' as main headline, 'Software Profesional de SST' as subheadline, '+573013859952' and 'www.nygsst.com' contact info. Color scheme: professional blue and white with safety orange accents. Top 15% space reserved clean for logo overlay. High-quality, professional advertising photography style, 1080x1350 vertical format.
+Professional tortoise character wearing business suit and glasses, sitting at modern computer workstation, typing code on screen with focused expression. Split screen showing rabbit character running fast but stumbling and giving up halfway. Office environment, Colombian business setting, motivational poster on wall, clean modern workspace. Text overlay in Spanish: 'La Constancia Gana - Desarrollo que No Se Rinde' and 'NOYECODE - Desarrollo a la Medida' with phone number +573013859952. Professional advertising style, vibrant colors, 1080x1350 vertical format.
 
 CRITICAL RULES:
-- All visible text in the image MUST be in English.
-- Full-bleed design, no margins.
-- The TOP 8% of the image MUST be completely EMPTY (solid background color, no text, no logos, no graphics). This blank area will be used later to overlay a real logo externally. Do NOT generate any logo, brand mark, or company name in this area.
-- Do NOT generate any fake or AI-created logos anywhere in the image. The real logo will be added in post-processing.
-- Deliver exactly ONE final image.
+- Do NOT include any text, titles, subtitles, captions, logos, brand names, phone numbers, URLs, or watermarks in the video.
+- Do NOT render any written words on screen.
+- Focus ONLY on: actors, actions, expressions, environments, objects, lighting, camera movement, transitions.
+- The video must be a clean visual scene without any overlaid text.
+- Professional cinematic quality, smooth transitions.
+- The overall tone, setting, and cultural context of the video must feel Spanish-speaking (Latin American if Spanish is Spanish).

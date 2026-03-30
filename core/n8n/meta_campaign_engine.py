@@ -63,9 +63,6 @@ GRAPH_API_BASE = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 DEFAULT_AD_ACCOUNT = "act_438871067037500"
 DEFAULT_PAGE_ID = "115406607722279"
 DEFAULT_LOCALE = "es_LA"
-WHATSAPP_NUMBER = "+573013859952"
-WEBSITE = "https://www.noyecode.com"
-PRIVACY_URL = "https://www.noyecode.com/privacidad"
 
 # ---------------------------------------------------------------------------
 # Anthropic Claude — importado de core.utils.claude_client
@@ -167,7 +164,7 @@ Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
     }}
   ],
   "post_caption": "OBLIGATORIO. Texto completo para la publicación en redes sociales (en español colombiano). Aplica el framework del agente copywriting: Hook (primera línea impactante que detenga el scroll) → Contexto (por qué importa ahora) → Valor (qué ofrece la empresa) → Prueba (dato, testimonio o credibilidad) → CTA (acción clara: visita la web, escríbenos, agenda). Usa emojis estratégicamente. Menciona el nombre de la empresa. Máximo 300 palabras. NO repetir la solicitud del usuario literalmente — transforma la idea en copy profesional que venda.",
-  "post_hashtags": "OBLIGATORIO. Array de 8-15 hashtags relevantes en español. Mezclar: 3-4 hashtags de nicho específico del servicio/producto, 3-4 hashtags de la industria o sector, 2-3 hashtags de ubicación (Colombia, ciudad si aplica), 1-2 hashtags de marca si se menciona empresa. Sin # en el valor. Ejemplo: ['AutomatizacionEmpresarial', 'TransformacionDigital', 'NoyeCode', 'SoftwareColombia', 'Bogota', 'EmpresariosDigitales']",
+  "post_hashtags": "OBLIGATORIO. Array de 8-15 hashtags relevantes. Mezclar: 3-4 hashtags de nicho específico del servicio/producto, 3-4 hashtags de la industria o sector, 2-3 hashtags de ubicación, 1-2 hashtags de la marca del usuario. Sin # en el valor.",
   "image_prompt": "prompt EN INGLÉS para generar la imagen publicitaria con IA. IMPORTANTE: (1) Debe reflejar LITERALMENTE lo que el usuario pidió — si pidió una vaca con un PC, genera una vaca con un PC. (2) SIEMPRE incluir elementos publicitarios: slogan visible en español, headline text, branding de la empresa, call-to-action visual, información de contacto. (3) Debe parecer un anuncio profesional de redes sociales, no una foto cualquiera. (4) Formato: 1080x1350 vertical, zona superior 15% limpia para logo overlay posterior. (5) Estilo: high-quality, professional advertising photography, vibrant colors.",
   "video_scenes": [
     {{
@@ -209,18 +206,19 @@ REGLAS CRÍTICAS:
    - Enfocarse en: actores, expresiones, objetos, ambientes, iluminacion, movimiento de camara, transiciones.
    - CADA prompt de video DEBE terminar con: "No text, no logos, no brand names, no written words visible anywhere."
    - Ejemplo CORRECTO: "Frustrated office worker slamming old CRT computer, papers flying. Cut to: modern professional smiling at sleek laptop with colorful abstract dashboard. Split screen transition, cinematic lighting, 7 seconds. No text, no logos, no brand names, no written words visible anywhere."
-   - Ejemplo INCORRECTO: "Video with text 'Automatiza con NoyeCode' and company logo at top..." (esto genera texto ilegible)
+   - Ejemplo INCORRECTO: "Video with text 'company slogan' and company logo at top..." (esto genera texto ilegible)
    - Ejemplo INCORRECTO: "Computer screen showing 'ProductivityPro' dashboard..." (Veo 3 inventara un nombre diferente con errores)
 10. Para tipo "image": el image_prompt SI debe incluir texto visible (slogan, headline, branding) porque la IA de imagenes maneja texto mejor.
 11. PROHIBIDO generar logos en la imagen. El logo REAL de la empresa se agrega en post-procesamiento. La parte superior (top 8%) de la imagen debe quedar VACIA (solo color de fondo) para colocar el logo real despues. NO incluir ningun logo, marca o isotipo generado por IA."""
 
-    lang_label = "español" if user_language == "es" else "inglés"
+    lang_label = "español" if user_language == "es" else "English"
     lang_instruction = (
-        f"\nIDIOMA DEL USUARIO: {lang_label}. "
-        f"TODOS los copies (post_caption, primary_text, headline, description, voiceover) "
-        f"DEBEN estar en {lang_label}. "
-        f"El image_prompt puede estar en inglés (es para el generador de IA), "
-        f"pero el tono y contexto cultural deben reflejar {'Latinoamérica' if user_language == 'es' else 'el mercado del usuario'}."
+        f"\nIDIOMA OBLIGATORIO: {lang_label}.\n"
+        f"TODOS los campos de texto en el JSON DEBEN estar en {lang_label}: "
+        f"campaign_name, analysis, reasoning, primary_text, headline, description, "
+        f"post_caption, post_hashtags, voiceover, warnings — TODO en {lang_label}.\n"
+        f"La UNICA excepcion es image_prompt que puede estar en inglés (es para el generador de IA).\n"
+        f"{'El contexto cultural debe ser Latinoamérica/Colombia.' if user_language == 'es' else ''}"
     )
 
     user_prompt = (
@@ -228,7 +226,7 @@ REGLAS CRÍTICAS:
         f'TIPO DE CONTENIDO: {content_type}\n'
         f'PRESUPUESTO DIARIO: ${budget} COP (mercado colombiano)\n'
         f'{lang_instruction}\n\n'
-        f'Genera la estrategia completa en JSON.'
+        f'Genera la estrategia completa en JSON. Recuerda: TODOS los campos en {lang_label} excepto image_prompt.'
     )
 
     response = ask_claude(system_prompt, user_prompt)
@@ -343,7 +341,7 @@ def build_spec_from_strategy(
     raw_account = user_input.get("ad_account_id", DEFAULT_AD_ACCOUNT)
     ad_account_id = raw_account if raw_account.startswith("act_") else f"act_{raw_account}"
     page_id = user_input.get("page_id", DEFAULT_PAGE_ID)
-    website = user_input.get("website", user_input.get("company_website", WEBSITE))
+    website = user_input.get("website", user_input.get("company_website", ""))
     company_name = user_input.get("company_name", "")
     company_phone = user_input.get("company_phone", "")
     calendar = strategy.get("calendar", {})
@@ -441,7 +439,7 @@ def build_spec_from_strategy(
                 {"type": "EMAIL", "key": "email"},
                 {"type": "PHONE", "key": "phone_number"},
             ],
-            "privacy_policy": {"url": PRIVACY_URL, "link_text": "Política de privacidad"},
+            "privacy_policy": {"url": website or "https://facebook.com/privacy", "link_text": "Política de privacidad"},
             "thank_you_page": {
                 "title": "¡Gracias por tu interés!",
                 "body": "Te contactaremos pronto.",
@@ -516,7 +514,7 @@ def build_spec_from_strategy(
             }
             if dest == "whatsapp":
                 ad_spec["creative"]["object_story_spec"]["link_data"]["call_to_action"]["value"] = {
-                    "whatsapp_number": WHATSAPP_NUMBER
+                    "whatsapp_number": company_phone or ""
                 }
             elif dest == "lead_form":
                 ad_spec["creative"]["object_story_spec"]["link_data"]["call_to_action"]["value"] = {

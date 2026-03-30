@@ -10,11 +10,19 @@ const { spawn } = require('child_process')
 const { PROJECT_ROOT } = require('../config/project-paths')
 const { getProjectEnv } = require('../utils/env')
 const { findPython } = require('../utils/process')
-const { lookupCompanyData, isCompanyActive, buildCompanyCredentialEnv } = require('../data/lookup')
+const { lookupCompanyData, isCompanyActive, listActiveCompanies, getCompanyOAuthMeta, buildCompanyCredentialEnv } = require('../data/lookup')
 const state = require('../state')
 const { insertPublication } = require('../data/publications')
 
 const pendingJobs = new Map()
+
+function _detectLanguage(text) {
+  if (/[áéíóúñ¿¡]/.test(text)) return 'es'
+  const lower = text.toLowerCase()
+  const esWords = /\b(crea|genera|publica|imagen|video|para|con|una|uno|empresa|campaña|campana|quiero|haz|necesito|diseña|vaca|automatico|software|cerveza)\b/
+  if (esWords.test(lower)) return 'es'
+  return 'en'
+}
 
 /** Simple POST to Meta Graph API (JSON body, returns parsed JSON). */
 function metaApiPost(endpoint, params) {
@@ -61,16 +69,26 @@ function updateContext(text) {
   conversationContext.messages.push(text)
   const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
+  // Si hay contenido pendiente (publicación falló), o si ya hay descripción
+  // pero falta empresa, tratar el mensaje como nombre de empresa sin sobreescribir nada
+  const hasPendingContent = pendingJobs.size > 0
+  const isAnsweringCompany = conversationContext.description && !conversationContext.companyName
+  if (hasPendingContent || isAnsweringCompany) {
+    const found = lookupCompanyData(text.trim())
+    if (found) {
+      conversationContext.companyName = found.nombre
+      console.log(`[CONTEXT] Empresa detectada (respuesta): "${found.nombre}"`)
+      return // No sobreescribir descripción ni tipo — continuar con contexto existente
+    }
+  }
+
   // Set description — use the LATEST message as the full description, don't accumulate
-  // The user's request should be self-contained, not a concatenation of all messages
   const cleaned = text
     .replace(/^(genera|crea|publica|haz|diseña|lanza|quiero)\s+(una?\s+)?(imagen|foto|video|reel|campana|campaña|anuncio|publicacion)\s*(de|sobre|para|con)?\s*/i, '')
     .trim()
   if (cleaned.length > 10) {
-    // If the new message is substantial (>10 chars), use it as THE description
     conversationContext.description = cleaned
   } else if (cleaned.length > 3 && !conversationContext.description) {
-    // Short addition only if we don't have a description yet
     conversationContext.description = cleaned
   }
 
@@ -125,8 +143,7 @@ function updateContext(text) {
   else if (/historia|story|stories/.test(lower)) conversationContext.publishAs = 'story'
   else conversationContext.publishAs = 'post'
 
-  // Detect company — "para NyGsoft", "para Hell Beers", "para la empresa Limpia Fácil"
-  // Limpiar bullets, puntos extras, y caracteres especiales del texto antes del regex
+  // Detect company — 1) regex "para X", 2) nombre directo en texto, 3) fuzzy match
   const cleanedText = text.replace(/[•·\-–—]/g, ' ').replace(/\.{2,}/g, ' ').replace(/\s+/g, ' ')
   const companyMatch = cleanedText.match(/para\s+(?:la\s+empresa\s+)?["']?([A-Za-záéíóúñÁÉÍÓÚÑ0-9\s&.]+?)["']?\s*(?:$|[,]|\s+(?:en|y|con|que)\s)/i)
   if (companyMatch) {
@@ -134,18 +151,21 @@ function updateContext(text) {
     const found = lookupCompanyData(candidate)
     if (found) {
       conversationContext.companyName = found.nombre
-      console.log(`[CONTEXT] Empresa detectada: "${found.nombre}" (del prompt: "${candidate}")`)
+      console.log(`[CONTEXT] Empresa detectada (regex): "${found.nombre}" (del prompt: "${candidate}")`)
     }
   }
-  // NO default fallback — if the user didn't mention a company, don't assume one.
-  // The user must specify which company/page to publish to.
-
-  // Detect target Facebook page — "en la página X", "página de X", "en la fan page X"
-  const pageMatch = text.match(
-    /(?:en\s+la\s+)?(?:pagina|página|page|fan\s*page)\s+(?:de\s+)?["']?([A-Za-záéíóúñÁÉÍÓÚÑ0-9\s]+?)["']?\s*(?:$|[,.]|\s+(?:de|para|en|y|con)\s)/i
-  )
-  if (pageMatch) {
-    conversationContext.targetPageName = pageMatch[1].trim()
+  // Fallback: buscar si alguna empresa aparece mencionada directamente en el texto
+  if (!conversationContext.companyName) {
+    const companies = listActiveCompanies()
+    const lowerText = text.toLowerCase()
+    const sorted = [...companies].sort((a, b) => (b.nombre || '').length - (a.nombre || '').length)
+    for (const c of sorted) {
+      if (c.nombre && lowerText.includes(c.nombre.toLowerCase())) {
+        conversationContext.companyName = c.nombre
+        console.log(`[CONTEXT] Empresa detectada (texto directo): "${c.nombre}"`)
+        break
+      }
+    }
   }
 
   // Detect budget
@@ -199,8 +219,8 @@ async function generateSingleContent(ctx) {
     botEnv.BOT_COMPANY_PHONE = company?.telefono || ''
     botEnv.BOT_COMPANY_WEBSITE = company?.sitio_web || ''
     // For video overlay (ffmpeg branding)
-    botEnv.BUSINESS_WEBSITE = company?.sitio_web || env.BUSINESS_WEBSITE || ''
-    botEnv.BUSINESS_WHATSAPP = company?.telefono || env.BUSINESS_WHATSAPP || ''
+    botEnv.BUSINESS_WEBSITE = company?.sitio_web || ''
+    botEnv.BUSINESS_WHATSAPP = company?.telefono || ''
     // Logo for video overlay
     if (company?.logo) {
       const logoDir = path.join(PROJECT_ROOT, 'assets', 'logos', 'companies')
@@ -221,7 +241,7 @@ async function generateSingleContent(ctx) {
   console.log('[GENERATE] Using Claude AI prompt:', ctx.aiImagePrompt.slice(0, 100))
 
   // Detectar idioma del usuario a partir del prompt original
-  const userLang = /[áéíóúñ¿¡]/.test(ctx.description || '') ? 'es' : 'en'
+  const userLang = _detectLanguage(ctx.description || '')
   const langLabel = userLang === 'es' ? 'Spanish' : 'English'
 
   let imagePrompt
@@ -346,8 +366,9 @@ async function getCampaignPreview(ctx) {
     brandDescription ? `Descripcion: ${brandDescription}` : '',
   ].filter(Boolean).join('. ')
 
-  // Resolver page_id desde la empresa (no desde .env)
+  // Resolver page_id y ad_account_id desde la empresa
   let companyPageId = ''
+  let companyAdAccountId = ''
   if (company) {
     const fbPlatform = (company.platforms || []).find((p) => p.platform === 'facebook')
     if (fbPlatform) {
@@ -355,17 +376,20 @@ async function getCampaignPreview(ctx) {
       if (primary?.page_id) companyPageId = primary.page_id
     }
   }
+  // Datos extra de OAuth (ad_account, user_token)
+  const oauthMeta = getCompanyOAuthMeta(companyName) || {}
+  if (oauthMeta.ad_account_id) companyAdAccountId = oauthMeta.ad_account_id
 
   // Detectar idioma del usuario
-  const userLang = /[áéíóúñ¿¡]/.test(ctx.description || '') ? 'es' : 'en'
+  const userLang = _detectLanguage(ctx.description || '')
 
   const engineInput = {
     name: brandName ? `${brandName} - ${ctx.description}` : ctx.description,
     description: (companyContext ? `${companyContext}\n\n` : '') + `Solicitud: ${ctx.description}`,
     budget: ctx.budget,
     content_type: ctx.type === 'video_campaign' ? 'campaign' : ctx.type,
-    access_token: env.FB_ACCESS_TOKEN || '',
-    ad_account_id: env.FB_AD_ACCOUNT_ID || '',
+    access_token: oauthMeta.user_token || env.FB_ACCESS_TOKEN || '',
+    ad_account_id: companyAdAccountId || '',
     page_id: companyPageId,
     company_name: brandName,
     company_website: brandWebsite,
@@ -432,8 +456,6 @@ function buildPublishCaption(spec, _ctx) {
    *   4. Minimo: website de la empresa
    */
   const meta = spec?.meta || {}
-  const env = getProjectEnv()
-  const website = env.BUSINESS_WEBSITE || 'noyecode.com'
 
   // Parse hashtags — Claude may return array or string
   let rawHashtags = meta.post_hashtags || []
@@ -461,14 +483,14 @@ function buildPublishCaption(spec, _ctx) {
     return firstAd.primary_text.trim() + hashtags
   }
 
-  // 3. ai_analysis como caption (mejor que nada, pero profesional)
+  // 3. ai_analysis como caption
   const analysis = (meta.ai_analysis || '').trim()
   if (analysis) {
-    return analysis.slice(0, 400) + `\n\n${website}` + hashtags
+    return analysis.slice(0, 400) + hashtags
   }
 
-  // 4. Solo website — NUNCA la descripcion cruda del usuario
-  return website
+  // 4. Sin caption disponible
+  return 'Publicación generada con IA' + hashtags
 }
 
 // ─── Publishing ─────────────────────────────────────────────────────────────
@@ -650,7 +672,7 @@ async function resolveTargetPage(ctx) {
         if (primary?.page_id) {
           pageId = primary.page_id
           pageToken = primary.token || ''
-          console.log(`[PUBLISH] Página de empresa "${ctx.companyName}": page_id=${pageId}`)
+          console.log(`[PUBLISH] Página de empresa "${ctx.companyName}": page_id=${pageId} token_len=${pageToken.length}`)
         }
       }
     }
@@ -739,19 +761,22 @@ async function publishToMeta(job) {
       }
     }
     if (platforms.length === 0) {
-      console.error(`[PUBLISH] No platforms found. companyName="${companyName}", ctx.companyName="${ctx.companyName}"`)
+      console.error(`[PUBLISH] No platforms found. companyName="${ctx.companyName}"`)
+      const companies = listActiveCompanies()
+      const names = companies.map(c => `• ${c.nombre}`).join('\n')
       throw new Error(
-        'No se pudo determinar dónde publicar. '
-        + 'Indica la plataforma en tu mensaje (ej: "publica en facebook") '
-        + 'o configura las plataformas de la empresa en la sección de Empresas.'
+        'No se pudo determinar dónde publicar. Escribe el nombre de la empresa para publicar el contenido ya generado:\n\n'
+        + names
       )
     }
     console.log(`[PUBLISH] Plataformas resueltas desde empresa "${ctx.companyName}": ${platforms.join(', ')}`)
   }
 
   const results = []
+  const errors = []
   for (const plat of platforms) {
     try {
+      console.log(`[PUBLISH] Publicando en ${plat}... (pageId=${targetPage.pageId}, token_len=${(targetPage.pageToken||'').length}, filePath=${job.filePath || 'none'})`)
       if (plat === 'instagram') {
         const igResult = await publishToInstagram({ ...job, ctx: { ...ctx, platform: 'instagram' }, targetPage })
         results.push(igResult.message || 'Publicado en Instagram.')
@@ -759,14 +784,22 @@ async function publishToMeta(job) {
         const fbResult = await publishToFacebook({ ...job, ctx: { ...ctx, platform: 'facebook' }, targetPage })
         results.push(fbResult.message || 'Publicado en Facebook.')
       } else {
-        results.push(`Plataforma "${plat}" aún no soportada para publicación directa.`)
+        console.log(`[PUBLISH] ${plat}: plataforma pendiente de implementación.`)
+        continue
       }
+      console.log(`[PUBLISH] ${plat} OK: ${results[results.length - 1].slice(0, 80)}`)
     } catch (err) {
-      results.push(`Error en ${plat}: ${err.message}`)
+      console.error(`[PUBLISH] ${plat} ERROR: ${err.message}`)
+      errors.push(`${plat}: ${err.message}`)
     }
   }
 
-  return { success: results.some(r => !r.startsWith('Error')), message: results.join('\n\n') }
+  // Si al menos una plataforma publicó, es éxito. Los errores secundarios se muestran como info.
+  if (results.length > 0) {
+    const msg = results.join('\n\n') + (errors.length ? `\n\n_Nota: ${errors.join('; ')}_` : '')
+    return { success: true, message: msg }
+  }
+  return { success: false, message: errors.join('\n\n') || 'No se pudo publicar en ninguna plataforma.' }
 }
 
 async function publishToFacebook(job) {
@@ -781,10 +814,10 @@ async function publishToFacebook(job) {
   console.log(`[PUBLISH-FB] pageId=${pageId}, pageName=${tp.pageName}, token_start=${pageToken.slice(0,15)}...`)
 
   if (!pageId) {
+    const companies = listActiveCompanies()
+    const names = companies.map(c => `• ${c.nombre}`).join('\n')
     throw new Error(
-      'No se pudo determinar la página de Facebook destino. '
-      + 'Indica la página en tu mensaje (ej: "publica en la página Mi Negocio") '
-      + 'o configura una página en la sección de Empresas.'
+      'No se pudo determinar la página destino. Escribe el nombre de la empresa:\n\n' + names
     )
   }
   if (!pageToken) {
@@ -806,7 +839,7 @@ async function publishToFacebook(job) {
     const campaignImagePath = imageFilePath || filePath
     if (spec && spec.campaign) {
       try {
-        const campaignResult = await executeCampaignSpec(spec, campaignImagePath)
+        const campaignResult = await executeCampaignSpec(spec, campaignImagePath, pageToken)
         results.push(campaignResult.message || 'Campaña creada.')
       } catch (err) {
         results.push(`Error creando campaña: ${err.message}`)
@@ -831,7 +864,60 @@ async function publishToFacebook(job) {
   }
 
   if (ctx.publishAs === 'campaign' || ctx.type === 'campaign') {
-    return executeCampaignSpec(spec, filePath)
+    // Campaña: primero publicar la imagen como post, luego crear campaña de ads
+    const results = []
+
+    // 1. Publicar imagen como post orgánico
+    if (filePath && fs.existsSync(filePath)) {
+      try {
+        const caption = buildPublishCaption(spec, ctx)
+        const imageBuffer = fs.readFileSync(filePath)
+        const boundary = '----FormBoundary' + Date.now().toString(36)
+        const body = Buffer.concat([
+          Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="source"; filename="image.png"\r\nContent-Type: image/png\r\n\r\n`),
+          imageBuffer,
+          Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="message"\r\n\r\n${caption}\r\n--${boundary}\r\nContent-Disposition: form-data; name="access_token"\r\n\r\n${pageToken}\r\n--${boundary}\r\nContent-Disposition: form-data; name="published"\r\n\r\ntrue\r\n--${boundary}--\r\n`),
+        ])
+        const https = require('https')
+        const postResult = await new Promise((resolve, reject) => {
+          const req = https.request({
+            hostname: 'graph.facebook.com',
+            path: `/v25.0/${pageId}/photos`,
+            method: 'POST',
+            headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length },
+          }, (res) => {
+            let data = ''
+            res.on('data', chunk => { data += chunk })
+            res.on('end', () => {
+              try {
+                const r = JSON.parse(data)
+                if (r.id || r.post_id) resolve(r)
+                else if (r.error) reject(new Error(r.error.message))
+                else resolve(r)
+              } catch { reject(new Error(data.slice(0, 200))) }
+            })
+          })
+          req.on('error', reject)
+          req.write(body)
+          req.end()
+        })
+        results.push(`Imagen publicada en Facebook. Post ID: ${postResult.post_id || postResult.id}`)
+      } catch (err) {
+        results.push(`Error publicando imagen: ${err.message}`)
+      }
+    }
+
+    // 2. Crear campaña de ads (si hay spec de campaña)
+    if (spec && spec.campaign) {
+      try {
+        const campaignResult = await executeCampaignSpec(spec, filePath, pageToken)
+        results.push(campaignResult.message || 'Campaña creada.')
+      } catch (err) {
+        results.push(`Error creando campaña de ads: ${err.message}`)
+      }
+    }
+
+    return { success: results.some(r => !r.startsWith('Error')), message: results.join('\n\n') }
   }
 
   // Publish image or video directly via Meta API REST
@@ -1085,7 +1171,7 @@ async function publishVideoToMeta(pageId, pageToken, filePath, caption, ctx) {
   })
 }
 
-async function executeCampaignSpec(spec, imagePath) {
+async function executeCampaignSpec(spec, imagePath, pageToken = '') {
   /**
    * Ejecuta el spec que el AI ya generó — NO vuelve a analizar.
    * Pasa la imagen generada por DiCloak al spec para que los creativos la usen.
@@ -1094,8 +1180,8 @@ async function executeCampaignSpec(spec, imagePath) {
   if (!pythonBin) throw new Error('Python no encontrado')
 
   const env = getProjectEnv()
-  const token = env.FB_ACCESS_TOKEN || ''
-  if (!token) throw new Error('No hay FB_ACCESS_TOKEN en .env')
+  const token = pageToken || env.FB_ACCESS_TOKEN || ''
+  if (!token) throw new Error('No hay token de acceso para crear la campaña. Reconecta Facebook en Empresas.')
 
   if (!spec || !spec.campaign) {
     throw new Error('No hay spec de campaña para ejecutar.')
@@ -1157,6 +1243,32 @@ async function handleChatCommand(text) {
   updateContext(text)
   const ctx = { ...conversationContext }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // RETRY: si hay contenido pendiente (publicación falló), el usuario puede
+  // dar el nombre de la empresa/página para reintentar sin regenerar.
+  // ══════════════════════════════════════════════════════════════════════
+  if (pendingJobs.size > 0) {
+    const [lastJobId, lastJob] = [...pendingJobs.entries()].pop()
+    if (lastJob) {
+      // Detectar si el usuario está dando una empresa o página para el job pendiente
+      const userText = text.trim()
+      const foundCompany = lookupCompanyData(userText)
+
+      if (foundCompany) {
+        lastJob.ctx.companyName = foundCompany.nombre
+        // Restaurar la descripción original del job (no la que updateContext sobreescribió)
+        conversationContext.description = lastJob.ctx.description
+        conversationContext.companyName = foundCompany.nombre
+        console.log(`[CHAT] Retry: empresa "${foundCompany.nombre}" asignada al job pendiente ${lastJobId}. Publicando contenido existente.`)
+        try {
+          return await handleChatApprove(lastJobId, '')
+        } catch (err) {
+          return { success: false, error: err.message || String(err) }
+        }
+      }
+    }
+  }
+
   if (ctx.companyName && !isCompanyActive(ctx.companyName)) {
     return { success: false, error: `La empresa "${ctx.companyName}" está inactiva.` }
   }
@@ -1166,6 +1278,25 @@ async function handleChatCommand(text) {
       success: true,
       message: 'Entendido. ¿Puedes darme más detalles sobre lo que quieres crear? '
         + 'Describe la imagen, video o campaña que necesitas.',
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // EMPRESA OBLIGATORIA — si no se detectó, preguntar antes de continuar
+  // ══════════════════════════════════════════════════════════════════════
+  if (!ctx.companyName) {
+    const companies = listActiveCompanies()
+    if (companies.length === 0) {
+      return {
+        success: false,
+        error: 'No hay empresas configuradas. Ve a la sección de Empresas para crear una y conectar su cuenta de Facebook.',
+      }
+    }
+    const names = companies.map(c => `• ${c.nombre}`).join('\n')
+    return {
+      success: true,
+      message: `¿Para qué empresa quieres crear esto?\n\n${names}\n\nEscribe el nombre de la empresa y continuaré con tu solicitud.`,
+      _waitingForCompany: true,
     }
   }
 
@@ -1502,18 +1633,21 @@ async function handleChatExtendVideo(jobId, extendPrompt) {
 async function handleChatApprove(jobId, platform) {
   const job = pendingJobs.get(jobId)
   if (!job) return { success: false, error: 'No hay contenido pendiente.' }
-  pendingJobs.delete(jobId)
 
-  // Use the platform selected by the user in the UI
   if (platform === 'instagram' || platform === 'facebook') {
     job.ctx.platform = platform
   }
 
+  console.log(`[APPROVE] Job ${jobId}: type=${job.ctx.type} company=${job.ctx.companyName} file=${job.filePath || 'none'} spec_has_campaign=${!!(job.spec?.campaign)}`)
+
   try {
     const result = await publishToMeta(job)
+    console.log(`[APPROVE] Success: ${(result.message || '').slice(0, 100)}`)
+    pendingJobs.delete(jobId)
     resetContext()
     return result
   } catch (err) {
+    console.error(`[APPROVE] Failed: ${err.message}`)
     return { success: false, error: err.message || String(err) }
   }
 }

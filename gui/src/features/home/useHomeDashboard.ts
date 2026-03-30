@@ -237,7 +237,7 @@ export function useHomeDashboard(botStatus: BotStatus) {
   }
 
   const handleStartBot = async () => {
-    if (isExecuting || botLoading) return
+    if (botLoading) return
     const prompt = imagePrompt.trim()
     if (!prompt) return
     setBotLoading(true)
@@ -285,7 +285,7 @@ export function useHomeDashboard(botStatus: BotStatus) {
     lastJob,
     lastUsedService,
     poller,
-    promptDisabled: isExecuting || botLoading,
+    promptDisabled: botLoading,
     publishPlatforms,
     selectedCompany,
     serviceSuggestions,

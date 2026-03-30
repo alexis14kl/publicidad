@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guia TikTok Developer y TikTok Business</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(17, 24, 39, 0.9);
+      --panel-2: rgba(15, 23, 42, 0.92);
+      --text: #edf2f7;
+      --muted: #a0aec0;
+      --line: rgba(148, 163, 184, 0.25);
+      --accent: #25f4ee;
+      --accent-2: #fe2c55;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --info: #60a5fa;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+      --radius: 20px;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background:
+        radial-gradient(circle at top left, rgba(37, 244, 238, 0.16), transparent 28%),
+        radial-gradient(circle at top right, rgba(254, 44, 85, 0.18), transparent 30%),
+        linear-gradient(180deg, #020617 0%, #0f172a 50%, #020617 100%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .wrap {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 40px 0 72px;
+    }
+
+    .hero {
+      padding: 36px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background:
+        linear-gradient(135deg, rgba(37, 244, 238, 0.09), rgba(254, 44, 85, 0.09)),
+        var(--panel);
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--line);
+      color: var(--accent);
+      font-size: 0.86rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3 {
+      line-height: 1.15;
+      margin: 0 0 14px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      margin-top: 16px;
+      max-width: 12ch;
+    }
+
+    h2 {
+      font-size: clamp(1.5rem, 2.6vw, 2.1rem);
+    }
+
+    h3 {
+      font-size: 1.18rem;
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: #dbe4ee;
+    }
+
+    .lead {
+      max-width: 880px;
+      font-size: 1.04rem;
+      color: #cbd5e1;
+    }
+
+    .grid {
+      display: grid;
+      gap: 20px;
+    }
+
+    .grid.two {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+
+    .grid.three {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .card, .section {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .card {
+      padding: 22px;
+    }
+
+    .section {
+      padding: 30px;
+      margin-top: 24px;
+    }
+
+    .kpi {
+      font-size: 0.92rem;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    .tag {
+      display: inline-block;
+      margin: 0 8px 8px 0;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--line);
+      color: #d9e3ee;
+      font-size: 0.88rem;
+    }
+
+    .tag.ok { color: var(--ok); }
+    .tag.warn { color: var(--warn); }
+    .tag.info { color: var(--info); }
+
+    .callout {
+      padding: 16px 18px;
+      border-radius: 16px;
+      margin: 16px 0;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .callout.info {
+      background: rgba(96, 165, 250, 0.09);
+      border-color: rgba(96, 165, 250, 0.3);
+    }
+
+    .callout.warn {
+      background: rgba(251, 191, 36, 0.08);
+      border-color: rgba(251, 191, 36, 0.28);
+    }
+
+    .callout.ok {
+      background: rgba(52, 211, 153, 0.08);
+      border-color: rgba(52, 211, 153, 0.28);
+    }
+
+    ul, ol {
+      margin: 0 0 14px 20px;
+      color: #dbe4ee;
+    }
+
+    li {
+      margin-bottom: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      overflow: hidden;
+      border-radius: 14px;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      color: #f8fafc;
+      background: rgba(255, 255, 255, 0.04);
+      font-weight: 700;
+    }
+
+    td {
+      color: #d7e2ee;
+    }
+
+    code, pre {
+      font-family: var(--mono);
+    }
+
+    code {
+      padding: 0.18rem 0.36rem;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #f8fafc;
+    }
+
+    pre {
+      padding: 16px;
+      border-radius: 16px;
+      overflow-x: auto;
+      background: #020617;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      color: #cfe8ff;
+      line-height: 1.5;
+      margin: 14px 0 18px;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .small {
+      font-size: 0.92rem;
+    }
+
+    .sources a {
+      word-break: break-word;
+    }
+
+    .footer {
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    @media (max-width: 720px) {
+      .hero, .section {
+        padding: 22px;
+      }
+
+      table, thead, tbody, th, td, tr {
+        display: block;
+      }
+
+      thead {
+        display: none;
+      }
+
+      tr {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        margin-bottom: 12px;
+        overflow: hidden;
+      }
+
+      td {
+        border-bottom: 1px solid var(--line);
+      }
+
+      td:last-child {
+        border-bottom: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <span class="eyebrow">Guia tecnica y operativa</span>
+      <h1>TikTok Developer + TikTok Business</h1>
+      <p class="lead">
+        Esta guia explica qué necesitas para integrar <strong>TikTok Developer</strong> y <strong>TikTok Business</strong>,
+        cómo se diferencian, qué permisos pide cada uno, cuáles son los <em>scopes</em> relevantes, qué cuentas deben existir,
+        qué configuraciones son obligatorias y qué <code>curl</code> usar para empezar.
+      </p>
+      <div class="callout info">
+        <strong>Resumen rapido:</strong> TikTok Developer se basa en OAuth 2.0 con <em>scopes</em> claros por usuario
+        como <code>user.info.basic</code> y <code>video.list</code>. TikTok Business también usa OAuth, pero su modelo real
+        de acceso depende mucho de la aprobación del producto, del <strong>Business Center</strong>, de la relación con las
+        <strong>advertiser accounts</strong> y de permisos de activos como <code>Deliver ads</code> o <code>Manage account</code>.
+      </div>
+    </header>
+
+    <section class="grid two">
+      <article class="card">
+        <h3>TikTok Developer</h3>
+        <p>Ideal para login social, perfil del usuario, videos públicos y flujos tipo creator/app.</p>
+        <span class="tag ok">OAuth 2.0</span>
+        <span class="tag ok">Scopes por usuario</span>
+        <span class="tag ok">Client key / secret</span>
+        <p class="kpi">Portal: <code>developers.tiktok.com</code></p>
+      </article>
+      <article class="card">
+        <h3>TikTok Business</h3>
+        <p>Ideal para Ads Manager, cuentas de negocio, assets, Spark Ads, organic management y automatización comercial.</p>
+        <span class="tag warn">Aprobacion del producto</span>
+        <span class="tag warn">Business Center</span>
+        <span class="tag warn">Advertiser / TikTok accounts</span>
+        <p class="kpi">Portal: <code>business-api.tiktok.com</code> y <code>business.tiktok.com</code></p>
+      </article>
+    </section>
+
+    <section class="section">
+      <h2>Diferencia clave</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Aspecto</th>
+            <th>TikTok Developer</th>
+            <th>TikTok Business</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Objetivo principal</td>
+            <td>Login, identidad del usuario, Display API, videos públicos y permisos directos del usuario TikTok.</td>
+            <td>Publicidad, gestión de cuentas de negocio, activos, Spark Ads, Organic API y mensajería comercial.</td>
+          </tr>
+          <tr>
+            <td>Modelo de acceso</td>
+            <td><em>Scopes</em> OAuth explícitos autorizados por el usuario.</td>
+            <td>OAuth + aprobación del producto + acceso a ad accounts/Business Center + permisos por asset/miembro.</td>
+          </tr>
+          <tr>
+            <td>Credenciales</td>
+            <td><code>client_key</code> y <code>client_secret</code></td>
+            <td><code>app_id</code>, <code>secret</code>, <code>access_token</code>, <code>advertiser_id</code></td>
+          </tr>
+          <tr>
+            <td>Cuenta que debe autorizar</td>
+            <td>Usuario final con cuenta TikTok.</td>
+            <td>Administrador/propietario de negocio o anunciante con assets en Business Center.</td>
+          </tr>
+          <tr>
+            <td>Lo más importante para que funcione</td>
+            <td>App registrada, redirect URI válida, scopes aprobados y usuario que otorgue consentimiento.</td>
+            <td>App de negocio aprobada, Business Center, advertiser account aprobada, permisos sobre activos y cuenta TikTok bien vinculada.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>1. Lo que necesitas para TikTok Developer</h2>
+      <div class="grid two">
+        <div>
+          <h3>Prerequisitos obligatorios</h3>
+          <ul>
+            <li>Cuenta en <a href="https://developers.tiktok.com/doc/login-kit-overview?enter_method=left_navigation" target="_blank" rel="noopener noreferrer">TikTok for Developers</a>.</li>
+            <li>App registrada en el portal y acceso a <code>client_key</code> y <code>client_secret</code>.</li>
+            <li>Producto <strong>Login Kit</strong> habilitado.</li>
+            <li>Si vas a leer perfil o videos, también necesitas el producto/API correspondiente, por ejemplo <strong>Display API</strong>.</li>
+            <li><code>redirect_uri</code> registrada en la configuración del producto.</li>
+            <li>Los <em>scopes</em> deben estar aprobados en tu app.</li>
+            <li>El usuario TikTok debe consentir esos <em>scopes</em>.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Reglas importantes de redirect URI</h3>
+          <ul>
+            <li>Máximo 10 URIs registradas.</li>
+            <li>Cada URI debe medir menos de 512 caracteres.</li>
+            <li>Debe ser absoluta y comenzar con <code>https</code>.</li>
+            <li>Debe ser estática; TikTok rechaza parámetros dinámicos en la URI registrada.</li>
+            <li>No puede incluir fragmentos con <code>#</code>.</li>
+          </ul>
+          <div class="callout warn">
+            <strong>Seguridad:</strong> el backend debe guardar de forma segura el <code>client_secret</code>, el <code>refresh_token</code>
+            y validar <code>state</code> para evitar CSRF.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Scopes de TikTok Developer que más se usan</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Scope</th>
+            <th>Para qué sirve</th>
+            <th>Comentarios</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>user.info.basic</code></td>
+            <td>Leer <code>open_id</code>, avatar y nombre visible del usuario.</td>
+            <td>Es el scope básico que TikTok agrega por defecto a apps con Login Kit.</td>
+          </tr>
+          <tr>
+            <td><code>user.info.profile</code></td>
+            <td>Leer bio, username, verificación y perfil profundo.</td>
+            <td>Necesita aprobación y consentimiento del usuario.</td>
+          </tr>
+          <tr>
+            <td><code>user.info.stats</code></td>
+            <td>Leer seguidores, likes, videos y métricas públicas del perfil.</td>
+            <td>Útil para dashboards o integraciones creator tools.</td>
+          </tr>
+          <tr>
+            <td><code>video.list</code></td>
+            <td>Leer los videos públicos del usuario.</td>
+            <td>Muy común cuando además del login quieres listar contenido.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout info">
+        TikTok aclara que tener un <em>scope</em> aprobado en la app <strong>no</strong> basta por sí solo:
+        además cada usuario debe autorizarlo en el flujo OAuth.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Flujo de funcionamiento en TikTok Developer</h2>
+      <ol>
+        <li>Creas la app en TikTok Developer y habilitas Login Kit.</li>
+        <li>Registras la <code>redirect_uri</code>.</li>
+        <li>Solicitas scopes como <code>user.info.basic</code> o <code>video.list</code>.</li>
+        <li>Envías al usuario a <code>https://www.tiktok.com/v2/auth/authorize/</code>.</li>
+        <li>El usuario inicia sesión y acepta permisos.</li>
+        <li>TikTok regresa un <code>code</code> a tu callback.</li>
+        <li>Tu backend cambia ese <code>code</code> por <code>access_token</code> y <code>refresh_token</code>.</li>
+        <li>Con el token llamas Display API u otros endpoints autorizados.</li>
+        <li>Renuevas el token antes de que expire.</li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <h2>cURL para TikTok Developer</h2>
+      <h3>1. URL de autorización</h3>
+      <pre><code>https://www.tiktok.com/v2/auth/authorize/?client_key=CLIENT_KEY&amp;response_type=code&amp;scope=user.info.basic,video.list&amp;redirect_uri=https%3A%2F%2Ftuapp.com%2Fauth%2Ftiktok%2Fcallback&amp;state=CSRF_TOKEN</code></pre>
+
+      <h3>2. Cambiar authorization code por access token</h3>
+      <pre><code>curl --location --request POST 'https://open.tiktokapis.com/v2/oauth/token/' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--header 'Cache-Control: no-cache' \
+--data-urlencode 'client_key=CLIENT_KEY' \
+--data-urlencode 'client_secret=CLIENT_SECRET' \
+--data-urlencode 'code=CODE' \
+--data-urlencode 'grant_type=authorization_code' \
+--data-urlencode 'redirect_uri=https://tuapp.com/auth/tiktok/callback'</code></pre>
+
+      <h3>3. Refrescar access token</h3>
+      <pre><code>curl --location --request POST 'https://open.tiktokapis.com/v2/oauth/token/' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--header 'Cache-Control: no-cache' \
+--data-urlencode 'client_key=CLIENT_KEY' \
+--data-urlencode 'client_secret=CLIENT_SECRET' \
+--data-urlencode 'grant_type=refresh_token' \
+--data-urlencode 'refresh_token=REFRESH_TOKEN'</code></pre>
+
+      <h3>4. Revocar acceso</h3>
+      <pre><code>curl --location --request POST 'https://open.tiktokapis.com/v2/oauth/revoke/' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--header 'Cache-Control: no-cache' \
+--data-urlencode 'client_key=CLIENT_KEY' \
+--data-urlencode 'client_secret=CLIENT_SECRET' \
+--data-urlencode 'token=ACCESS_TOKEN'</code></pre>
+
+      <h3>5. Leer perfil del usuario</h3>
+      <pre><code>curl -L -X GET 'https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name' \
+-H 'Authorization: Bearer ACCESS_TOKEN'</code></pre>
+
+      <div class="callout ok">
+        En TikTok Developer, el <code>access_token</code> dura 24 horas y el <code>refresh_token</code> dura 365 días
+        según la guía oficial de manejo de tokens.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>2. Lo que necesitas para TikTok Business</h2>
+      <div class="grid two">
+        <div>
+          <h3>Componentes que normalmente debes tener</h3>
+          <ul>
+            <li>Acceso a <strong>TikTok API for Business</strong>.</li>
+            <li>App de negocio creada/aprobada en el portal de Business API.</li>
+            <li><strong>Business Center</strong> activo.</li>
+            <li>Una o más <strong>advertiser accounts</strong> creadas o compartidas con tu Business Center.</li>
+            <li>Usuarios con rol de <strong>admin</strong> en Business Center para conectar assets y permisos.</li>
+            <li>Si harás Spark Ads o gestión de cuenta: cuenta TikTok vinculada al Business Center.</li>
+            <li>Si vas a correr campañas: configuración de pagos/facturación en la ad account.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Qué tipo de APIs incluye</h3>
+          <ul>
+            <li><strong>Marketing API:</strong> campañas, anuncios, reporting, audiencias, catálogos.</li>
+            <li><strong>Organic API:</strong> cuentas orgánicas, menciones, discovery, TikTok One y recomendación de Spark Ads.</li>
+            <li><strong>Business Messaging API:</strong> mensajes, respuestas automáticas e interacción en tiempo real.</li>
+          </ul>
+          <div class="callout warn">
+            En TikTok Business, hablar de “scopes” no siempre describe bien el acceso real. Muchas veces el acceso efectivo
+            depende más de <strong>roles del Business Center</strong>, <strong>permisos del asset</strong>,
+            <strong>relación con la ad account</strong> y <strong>aprobación del producto</strong>.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Permisos y roles importantes en TikTok Business</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Permiso / Rol</th>
+            <th>Qué habilita</th>
+            <th>Cuándo lo necesitas</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>Admin</code></td>
+            <td>Control total de cuentas y activos.</td>
+            <td>Cuando vas a conectar ad accounts, compartir assets, asignar usuarios o configurar el Business Center.</td>
+          </tr>
+          <tr>
+            <td><code>Operator</code></td>
+            <td>Puede ver rendimiento, crear/editar ads, manejar audiencias y finanzas.</td>
+            <td>Equipo operativo que ejecuta campañas.</td>
+          </tr>
+          <tr>
+            <td><code>Analyst</code></td>
+            <td>Ver anuncios y reportes, pero no editar campañas.</td>
+            <td>BI, reporting o clientes que solo leen resultados.</td>
+          </tr>
+          <tr>
+            <td><code>Deliver ads</code></td>
+            <td>Usar una cuenta TikTok como identidad/publicación para campañas pagas.</td>
+            <td>Spark Ads y escenarios donde solo quieres entregar anuncios.</td>
+          </tr>
+          <tr>
+            <td><code>Manage account</code></td>
+            <td>Incluye lo anterior y además gestión orgánica: perfil, comentarios, mensajes y detalles de la cuenta.</td>
+            <td>Cuando quieres paid + organic desde Business Center.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Qué necesitan las cuentas de TikTok para funcionar en Business</h2>
+      <div class="grid two">
+        <div>
+          <h3>Si la integración es para anuncios</h3>
+          <ul>
+            <li>Business Center activo.</li>
+            <li>Advertiser account aprobada, creada o compartida con tu BC.</li>
+            <li>Admin del BC para solicitar acceso o crear cuentas.</li>
+            <li>Facturación configurada si vas a lanzar campañas.</li>
+            <li>Si usarás Spark Ads, la cuenta TikTok debe estar vinculada para <code>ad delivery</code>.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Si la integración es para orgánico + gestión</h3>
+          <ul>
+            <li>Cuenta TikTok Business o Business Account.</li>
+            <li>Integración de la cuenta con Business Center.</li>
+            <li>Permisos <code>Manage account</code> para los miembros correctos.</li>
+            <li>Si tu Business Center está en US, EU o UK, TikTok indica que necesitas una <strong>Verified Business Account</strong> para esa integración.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout info">
+        <strong>Verificación:</strong> TikTok indica que la verificación de Business Account requiere documentos válidos de la empresa,
+        puede tomar típicamente de 1 a 5 días hábiles y está disponible para usuarios de 18+.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Flujo funcional de TikTok Business</h2>
+      <ol>
+        <li>Creas o habilitas tu app en TikTok Business API.</li>
+        <li>Obtienes <code>app_id</code> y <code>secret</code>.</li>
+        <li>El negocio/anunciante autoriza tu app desde el portal de TikTok Business.</li>
+        <li>Recibes un <code>auth_code</code>.</li>
+        <li>Intercambias ese <code>auth_code</code> por <code>access_token</code> y <code>refresh_token</code>.</li>
+        <li>Consultas qué advertiser accounts te autorizaron usando <code>/oauth2/advertiser/get/</code>.</li>
+        <li>Guardas <code>advertiser_id</code> y empiezas a llamar endpoints de campañas, ads, assets o cuentas.</li>
+        <li>Si el caso incluye Spark Ads u orgánico, conectas la cuenta TikTok correcta al Business Center y asignas permisos.</li>
+      </ol>
+      <div class="callout warn">
+        <strong>Inferencia importante:</strong> el inicio exacto del flujo de autorización en Business puede variar según el producto y la UI
+        del portal. Lo estable en la documentación oficial accesible hoy son el intercambio de token, el listado de advertisers,
+        el modelo de permisos y los requisitos operativos de Business Center.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>cURL para TikTok Business</h2>
+      <h3>1. Cambiar <code>auth_code</code> por token</h3>
+      <pre><code>curl --location 'https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/' \
+--header 'Content-Type: application/json' \
+--data '{
+  "app_id": "APP_ID",
+  "secret": "APP_SECRET",
+  "auth_code": "AUTH_CODE"
+}'</code></pre>
+
+      <h3>2. Listar advertiser accounts autorizadas</h3>
+      <pre><code>curl --location --globoff 'https://business-api.tiktok.com/open_api/v1.3/oauth2/advertiser/get/?app_id=APP_ID&amp;secret=APP_SECRET' \
+--header 'Access-Token: ACCESS_TOKEN'</code></pre>
+
+      <h3>3. Patrón general para llamadas de Marketing API</h3>
+      <pre><code>curl --location --globoff 'https://business-api.tiktok.com/open_api/v1.3/ad/get/?advertiser_id=ADVERTISER_ID&amp;filtering=%7B%22ad_ids%22%3A%5B%22123456789%22%5D%7D' \
+--header 'Access-Token: ACCESS_TOKEN'</code></pre>
+
+      <div class="callout ok">
+        El SDK oficial publicado por TikTok indica que el <code>access_token</code> de creador/negocio dura 24 horas y
+        el <code>refresh_token</code> dura un año, por lo que conviene automatizar el refresh diario en backend.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Endpoints necesarios por tipo de publicación</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Producto</th>
+            <th>Endpoint</th>
+            <th>Uso</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Login del usuario</td>
+            <td>Developer</td>
+            <td><code>GET https://www.tiktok.com/v2/auth/authorize/</code></td>
+            <td>Inicia OAuth y devuelve <code>code</code>.</td>
+          </tr>
+          <tr>
+            <td>Token de usuario</td>
+            <td>Developer</td>
+            <td><code>POST https://open.tiktokapis.com/v2/oauth/token/</code></td>
+            <td>Obtiene o refresca <code>access_token</code>.</td>
+          </tr>
+          <tr>
+            <td>Info del creador</td>
+            <td>Developer</td>
+            <td><code>POST https://open.tiktokapis.com/v2/post/publish/creator_info/query/</code></td>
+            <td>Trae privacidad, duet, stitch, comentarios y duración máxima antes de publicar.</td>
+          </tr>
+          <tr>
+            <td>Post directo de video</td>
+            <td>Developer</td>
+            <td><code>POST https://open.tiktokapis.com/v2/post/publish/video/init/</code></td>
+            <td>Inicializa publicación orgánica directa de video.</td>
+          </tr>
+          <tr>
+            <td>Upload draft de video</td>
+            <td>Developer</td>
+            <td><code>POST https://open.tiktokapis.com/v2/post/publish/inbox/video/init/</code></td>
+            <td>Sube video para que el usuario termine el post desde TikTok.</td>
+          </tr>
+          <tr>
+            <td>Post o upload de fotos</td>
+            <td>Developer</td>
+            <td><code>POST https://open.tiktokapis.com/v2/post/publish/content/init/</code></td>
+            <td>Sirve para foto directa y para upload de fotos.</td>
+          </tr>
+          <tr>
+            <td>Estado del post</td>
+            <td>Developer</td>
+            <td><code>POST https://open.tiktokapis.com/v2/post/publish/status/fetch/</code></td>
+            <td>Consulta el estado por <code>publish_id</code>.</td>
+          </tr>
+          <tr>
+            <td>Auth negocio</td>
+            <td>Business</td>
+            <td><code>POST https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/</code></td>
+            <td>Intercambia <code>auth_code</code> por token de Business.</td>
+          </tr>
+          <tr>
+            <td>Advertisers autorizados</td>
+            <td>Business</td>
+            <td><code>GET https://business-api.tiktok.com/open_api/v1.3/oauth2/advertiser/get/</code></td>
+            <td>Lista las ad accounts autorizadas para tu app.</td>
+          </tr>
+          <tr>
+            <td>Crear campaña</td>
+            <td>Business</td>
+            <td><code>POST https://business-api.tiktok.com/open_api/v1.3/campaign/create/</code></td>
+            <td>Crea el nivel campaña.</td>
+          </tr>
+          <tr>
+            <td>Crear ad group</td>
+            <td>Business</td>
+            <td><code>POST https://business-api.tiktok.com/open_api/v1.3/adgroup/create/</code></td>
+            <td>Define targeting, presupuesto, schedule, placement y optimización.</td>
+          </tr>
+          <tr>
+            <td>Crear ad</td>
+            <td>Business</td>
+            <td><code>POST https://business-api.tiktok.com/open_api/v1.3/ad/create/</code></td>
+            <td>Crea el anuncio con el creativo final.</td>
+          </tr>
+          <tr>
+            <td>Subir imagen creativa</td>
+            <td>Business</td>
+            <td><code>POST https://business-api.tiktok.com/open_api/v1.3/file/image/ad/upload/</code></td>
+            <td>Sube imágenes y devuelve <code>image_id</code>.</td>
+          </tr>
+          <tr>
+            <td>Subir video creativo</td>
+            <td>Business</td>
+            <td><code>POST https://business-api.tiktok.com/open_api/v1.3/file/video/ad/upload/</code></td>
+            <td>Sube videos y devuelve <code>video_id</code>.</td>
+          </tr>
+          <tr>
+            <td>Crear identidad</td>
+            <td>Business</td>
+            <td><code>POST https://business-api.tiktok.com/open_api/v1.3/identity/create/</code></td>
+            <td>Crea una identidad personalizada para anuncios.</td>
+          </tr>
+          <tr>
+            <td>Consultar identidades</td>
+            <td>Business</td>
+            <td><code>GET https://business-api.tiktok.com/open_api/v1.3/identity/get/</code></td>
+            <td>Lista identidades disponibles del ad account.</td>
+          </tr>
+          <tr>
+            <td>Info de post TikTok para ads</td>
+            <td>Business</td>
+            <td><code>GET https://business-api.tiktok.com/open_api/v1.3/identity/video/info/</code></td>
+            <td>Consulta información de un post TikTok que puede usarse en ads.</td>
+          </tr>
+          <tr>
+            <td>Spark / ACO ad</td>
+            <td>Business</td>
+            <td><code>POST https://business-api.tiktok.com/open_api/v1.3/ad/aco/create/</code></td>
+            <td>Crea anuncios usando posts o materiales TikTok existentes.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout warn">
+        <strong>Límite importante:</strong> con las fuentes oficiales accesibles para esta guía pude verificar
+        <strong>video</strong>, <strong>foto</strong>, <strong>upload draft</strong>, <strong>campañas</strong>,
+        <strong>ad groups</strong>, <strong>ads</strong> y <strong>Spark/ACO</strong>. No encontré en la documentación pública usada aquí
+        un endpoint equivalente y estable para Story, LIVE o texto puro dentro de estos productos.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Estructura para crear posts orgánicos en TikTok Developer</h2>
+      <h3>Flujo recomendado</h3>
+      <ol>
+        <li>OAuth del usuario y obtención de <code>access_token</code>.</li>
+        <li>Llamar <code>/v2/post/publish/creator_info/query/</code>.</li>
+        <li>Leer <code>privacy_level_options</code>, <code>comment_disabled</code>, <code>duet_disabled</code>, <code>stitch_disabled</code> y <code>max_video_post_duration_sec</code>.</li>
+        <li>Construir el payload respetando esas capacidades.</li>
+        <li>Inicializar publicación o upload.</li>
+        <li>Si usas <code>FILE_UPLOAD</code>, subir el binario al <code>upload_url</code>.</li>
+        <li>Consultar el estado con <code>publish_id</code>.</li>
+      </ol>
+
+      <h3>1. Query Creator Info</h3>
+      <pre><code>curl --location --request POST 'https://open.tiktokapis.com/v2/post/publish/creator_info/query/' \
+--header 'Authorization: Bearer ACCESS_TOKEN' \
+--header 'Content-Type: application/json; charset=UTF-8'</code></pre>
+
+      <h3>2. Video: post directo</h3>
+      <p>Scope requerido: <code>video.publish</code></p>
+      <pre><code>{
+  "post_info": {
+    "title": "Mi video para TikTok #tutorial @marca",
+    "privacy_level": "MUTUAL_FOLLOW_FRIENDS",
+    "disable_duet": false,
+    "disable_comment": false,
+    "disable_stitch": false,
+    "video_cover_timestamp_ms": 1000
+  },
+  "source_info": {
+    "source": "PULL_FROM_URL",
+    "video_url": "https://tu-dominio-verificado.com/video.mp4"
+  }
+}</code></pre>
+
+      <pre><code>curl --location 'https://open.tiktokapis.com/v2/post/publish/video/init/' \
+--header 'Authorization: Bearer ACCESS_TOKEN' \
+--header 'Content-Type: application/json; charset=UTF-8' \
+--data-raw '{
+  "post_info": {
+    "title": "Mi video para TikTok #tutorial @marca",
+    "privacy_level": "MUTUAL_FOLLOW_FRIENDS",
+    "disable_duet": false,
+    "disable_comment": false,
+    "disable_stitch": false,
+    "video_cover_timestamp_ms": 1000
+  },
+  "source_info": {
+    "source": "PULL_FROM_URL",
+    "video_url": "https://tu-dominio-verificado.com/video.mp4"
+  }
+}'</code></pre>
+
+      <h3>3. Video: upload a borrador</h3>
+      <p>Scope requerido: <code>video.upload</code></p>
+      <pre><code>{
+  "source_info": {
+    "source": "PULL_FROM_URL",
+    "video_url": "https://tu-dominio-verificado.com/video.mp4"
+  }
+}</code></pre>
+
+      <pre><code>curl --location 'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/' \
+--header 'Authorization: Bearer ACCESS_TOKEN' \
+--header 'Content-Type: application/json; charset=UTF-8' \
+--data '{
+  "source_info": {
+    "source": "PULL_FROM_URL",
+    "video_url": "https://tu-dominio-verificado.com/video.mp4"
+  }
+}'</code></pre>
+
+      <h3>4. Foto: post directo</h3>
+      <p>Scope requerido: <code>video.publish</code></p>
+      <pre><code>{
+  "media_type": "PHOTO",
+  "post_mode": "DIRECT_POST",
+  "post_info": {
+    "title": "Coleccion primavera",
+    "description": "Estas fotos van para TikTok #lookbook @marca",
+    "privacy_level": "PUBLIC_TO_EVERYONE",
+    "disable_comment": false,
+    "auto_add_music": true
+  },
+  "source_info": {
+    "source": "PULL_FROM_URL",
+    "photo_cover_index": 0,
+    "photo_images": [
+      "https://tu-dominio-verificado.com/foto-01.webp",
+      "https://tu-dominio-verificado.com/foto-02.webp"
+    ]
+  }
+}</code></pre>
+
+      <h3>5. Foto: upload para edición en TikTok</h3>
+      <p>Scope requerido: <code>video.upload</code></p>
+      <pre><code>{
+  "media_type": "PHOTO",
+  "post_mode": "MEDIA_UPLOAD",
+  "post_info": {
+    "title": "Coleccion primavera",
+    "description": "El usuario terminará la edición dentro de TikTok"
+  },
+  "source_info": {
+    "source": "PULL_FROM_URL",
+    "photo_cover_index": 0,
+    "photo_images": [
+      "https://tu-dominio-verificado.com/foto-01.webp",
+      "https://tu-dominio-verificado.com/foto-02.webp"
+    ]
+  }
+}</code></pre>
+
+      <h3>6. Consultar estado del post</h3>
+      <pre><code>curl --location 'https://open.tiktokapis.com/v2/post/publish/status/fetch/' \
+--header 'Authorization: Bearer ACCESS_TOKEN' \
+--header 'Content-Type: application/json; charset=UTF-8' \
+--data '{
+  "publish_id": "p_pub_url~v2.123456789"
+}'</code></pre>
+
+      <div class="callout info">
+        Para publicación orgánica vía Developer, los tipos verificados oficialmente en esta guía son:
+        <strong>video directo</strong>, <strong>video draft upload</strong>, <strong>foto directa</strong> y <strong>foto upload</strong>.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Estructura para campañas en TikTok Business</h2>
+      <div class="callout warn">
+        Los campos exactos requeridos en Business cambian según <code>objective_type</code>, <code>promotion_type</code>,
+        país, placement, pixel/app, identidad autorizada y tipo de cuenta. Los ejemplos de abajo son <strong>payloads base</strong>
+        verificados contra la colección oficial/publicada y sirven como plantilla inicial.
+      </div>
+
+      <h3>1. Crear campaña</h3>
+      <pre><code>{
+  "advertiser_id": "ADVERTISER_ID",
+  "campaign_name": "Campana trafico marzo",
+  "objective_type": "TRAFFIC",
+  "budget_mode": "BUDGET_MODE_TOTAL",
+  "budget": 50
+}</code></pre>
+
+      <pre><code>curl --location 'https://business-api.tiktok.com/open_api/v1.3/campaign/create/' \
+--header 'Access-Token: ACCESS_TOKEN' \
+--header 'Content-Type: application/json' \
+--data '{
+  "advertiser_id": "ADVERTISER_ID",
+  "campaign_name": "Campana trafico marzo",
+  "objective_type": "TRAFFIC",
+  "budget_mode": "BUDGET_MODE_TOTAL",
+  "budget": 50
+}'</code></pre>
+
+      <h3>2. Crear ad group</h3>
+      <pre><code>{
+  "advertiser_id": "ADVERTISER_ID",
+  "campaign_id": "CAMPAIGN_ID",
+  "adgroup_name": "Grupo web conversion",
+  "budget": 100,
+  "budget_mode": "BUDGET_MODE_TOTAL",
+  "schedule_type": "SCHEDULE_START_END",
+  "schedule_start_time": "2026-04-01 00:00:00",
+  "schedule_end_time": "2026-04-10 23:59:59",
+  "pacing": "PACING_MODE_SMOOTH",
+  "billing_event": "OCPM",
+  "location_ids": ["6252001"],
+  "promotion_type": "WEBSITE",
+  "optimization_goal": "CONVERT",
+  "placement_type": "PLACEMENT_TYPE_AUTOMATIC",
+  "promotion_website_type": "UNSET",
+  "app_id": "APP_ID",
+  "pixel_id": "PIXEL_ID",
+  "optimization_event": "FORM",
+  "click_attribution_window": "TWENTY_EIGHT_DAYS",
+  "view_attribution_window": "ONE_DAY",
+  "attribution_event_count": "EVERY"
+}</code></pre>
+
+      <pre><code>curl --location 'https://business-api.tiktok.com/open_api/v1.3/adgroup/create/' \
+--header 'Access-Token: ACCESS_TOKEN' \
+--header 'Content-Type: application/json' \
+--data '{
+  "advertiser_id": "ADVERTISER_ID",
+  "campaign_id": "CAMPAIGN_ID",
+  "adgroup_name": "Grupo web conversion",
+  "budget": 100,
+  "budget_mode": "BUDGET_MODE_TOTAL",
+  "schedule_type": "SCHEDULE_START_END",
+  "schedule_start_time": "2026-04-01 00:00:00",
+  "schedule_end_time": "2026-04-10 23:59:59",
+  "pacing": "PACING_MODE_SMOOTH",
+  "billing_event": "OCPM",
+  "location_ids": ["6252001"],
+  "promotion_type": "WEBSITE",
+  "optimization_goal": "CONVERT",
+  "placement_type": "PLACEMENT_TYPE_AUTOMATIC",
+  "promotion_website_type": "UNSET",
+  "app_id": "APP_ID",
+  "pixel_id": "PIXEL_ID",
+  "optimization_event": "FORM",
+  "click_attribution_window": "TWENTY_EIGHT_DAYS",
+  "view_attribution_window": "ONE_DAY",
+  "attribution_event_count": "EVERY"
+}'</code></pre>
+
+      <h3>3. Crear ad estándar</h3>
+      <pre><code>{
+  "advertiser_id": "ADVERTISER_ID",
+  "adgroup_id": "ADGROUP_ID",
+  "creatives": [
+    {
+      "call_to_action": "CONTACT_US",
+      "ad_name": "Anuncio principal abril",
+      "ad_text": "Descubre nuestro servicio hoy",
+      "ad_format": "SINGLE_VIDEO",
+      "video_id": "VIDEO_ID",
+      "app_name": "Mi App",
+      "display_name": "Mi Marca",
+      "avatar_icon_web_uri": "https://cdn.tudominio.com/avatar.png",
+      "landing_page_url": "https://tudominio.com/landing",
+      "identity_id": "IDENTITY_ID",
+      "identity_type": "CUSTOMIZED_USER"
+    }
+  ]
+}</code></pre>
+
+      <pre><code>curl --location 'https://business-api.tiktok.com/open_api/v1.3/ad/create/' \
+--header 'Access-Token: ACCESS_TOKEN' \
+--header 'Content-Type: application/json' \
+--data '{
+  "advertiser_id": "ADVERTISER_ID",
+  "adgroup_id": "ADGROUP_ID",
+  "creatives": [
+    {
+      "call_to_action": "CONTACT_US",
+      "ad_name": "Anuncio principal abril",
+      "ad_text": "Descubre nuestro servicio hoy",
+      "ad_format": "SINGLE_VIDEO",
+      "video_id": "VIDEO_ID",
+      "app_name": "Mi App",
+      "display_name": "Mi Marca",
+      "avatar_icon_web_uri": "https://cdn.tudominio.com/avatar.png",
+      "landing_page_url": "https://tudominio.com/landing",
+      "identity_id": "IDENTITY_ID",
+      "identity_type": "CUSTOMIZED_USER"
+    }
+  ]
+}'</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>Estructura para Spark Ads o anuncios con post existente</h2>
+      <p>
+        Si quieres convertir un post ya existente de TikTok en material publicitario, la ruta pública que pude verificar es
+        <code>/ad/aco/create/</code>. Este flujo suele requerir una identidad válida, permisos sobre la cuenta TikTok y el
+        <code>tiktok_item_id</code> del contenido.
+      </p>
+
+      <pre><code>{
+  "title_list": [
+    {
+      "title": "Spark Ad principal",
+      "material_id": 1234567890,
+      "material_operation_status": "ENABLE"
+    }
+  ],
+  "media_info_list": [
+    {
+      "media_info": {
+        "identity_type": "TT_USER",
+        "identity_id": 99887766,
+        "tiktok_item_id": 7123456789012345678
+      },
+      "material_id": 1234567890,
+      "material_operation_status": "ENABLE"
+    }
+  ],
+  "advertiser_id": 1122334455,
+  "common_material": {
+    "creative_authorized": true,
+    "playable_url": "",
+    "ad_name": "Spark Ad principal",
+    "identity_type": "CUSTOMIZED_USER",
+    "identity_id": 99887766
+  },
+  "adgroup_id": 6677889900
+}</code></pre>
+
+      <pre><code>curl --location 'https://business-api.tiktok.com/open_api/v1.3/ad/aco/create/' \
+--header 'Access-Token: ACCESS_TOKEN' \
+--header 'Content-Type: application/json' \
+--data '{
+  "title_list": [
+    {
+      "title": "Spark Ad principal",
+      "material_id": 1234567890,
+      "material_operation_status": "ENABLE"
+    }
+  ],
+  "media_info_list": [
+    {
+      "media_info": {
+        "identity_type": "TT_USER",
+        "identity_id": 99887766,
+        "tiktok_item_id": 7123456789012345678
+      },
+      "material_id": 1234567890,
+      "material_operation_status": "ENABLE"
+    }
+  ],
+  "advertiser_id": 1122334455,
+  "common_material": {
+    "creative_authorized": true,
+    "playable_url": "",
+    "ad_name": "Spark Ad principal",
+    "identity_type": "CUSTOMIZED_USER",
+    "identity_id": 99887766
+  },
+  "adgroup_id": 6677889900
+}'</code></pre>
+
+      <div class="callout info">
+        Para este flujo normalmente necesitas:
+        <code>identity_id</code>, <code>identity_type</code>, <code>tiktok_item_id</code>, permisos de asset sobre la cuenta TikTok
+        y una relación válida entre la ad account y esa identidad.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Activos y datos previos que suele necesitar cada endpoint</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Endpoint</th>
+            <th>Necesita antes</th>
+            <th>Devuelve</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>/v2/post/publish/creator_info/query/</code></td>
+            <td><code>access_token</code> con <code>video.publish</code></td>
+            <td>Privacidades válidas y switches permitidos.</td>
+          </tr>
+          <tr>
+            <td><code>/v2/post/publish/video/init/</code></td>
+            <td><code>access_token</code>, payload de video, decisión de <code>FILE_UPLOAD</code> o <code>PULL_FROM_URL</code></td>
+            <td><code>publish_id</code> y opcionalmente <code>upload_url</code>.</td>
+          </tr>
+          <tr>
+            <td><code>/v2/post/publish/content/init/</code></td>
+            <td>Fotos públicas en dominio verificado</td>
+            <td><code>publish_id</code>.</td>
+          </tr>
+          <tr>
+            <td><code>/campaign/create/</code></td>
+            <td><code>advertiser_id</code>, objetivo, presupuesto</td>
+            <td><code>campaign_id</code>.</td>
+          </tr>
+          <tr>
+            <td><code>/adgroup/create/</code></td>
+            <td><code>campaign_id</code>, targeting, optimization, fechas, pixel/app según el caso</td>
+            <td><code>adgroup_id</code>.</td>
+          </tr>
+          <tr>
+            <td><code>/file/image/ad/upload/</code></td>
+            <td>Imagen creativa válida</td>
+            <td><code>image_id</code>.</td>
+          </tr>
+          <tr>
+            <td><code>/file/video/ad/upload/</code></td>
+            <td>Video creativo válido</td>
+            <td><code>video_id</code>.</td>
+          </tr>
+          <tr>
+            <td><code>/identity/get/</code> o <code>/identity/create/</code></td>
+            <td>Ad account con identidades configuradas o posibilidad de crearlas</td>
+            <td><code>identity_id</code>.</td>
+          </tr>
+          <tr>
+            <td><code>/ad/create/</code></td>
+            <td><code>adgroup_id</code>, identidad, asset creativo y landing/app</td>
+            <td><code>ad_id</code>.</td>
+          </tr>
+          <tr>
+            <td><code>/ad/aco/create/</code></td>
+            <td><code>adgroup_id</code>, identidad, <code>tiktok_item_id</code> o material ya autorizado</td>
+            <td>Creativo ACO/Spark listo para usarse en delivery.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Qué tipos de post sí pude verificar oficialmente</h2>
+      <ul>
+        <li><strong>Post orgánico de video:</strong> sí, vía <code>/v2/post/publish/video/init/</code>.</li>
+        <li><strong>Upload de video a borrador/inbox:</strong> sí, vía <code>/v2/post/publish/inbox/video/init/</code>.</li>
+        <li><strong>Post orgánico de fotos:</strong> sí, vía <code>/v2/post/publish/content/init/</code> con <code>media_type=PHOTO</code> y <code>post_mode=DIRECT_POST</code>.</li>
+        <li><strong>Upload de fotos para edición dentro de TikTok:</strong> sí, vía <code>/v2/post/publish/content/init/</code> con <code>post_mode=MEDIA_UPLOAD</code>.</li>
+        <li><strong>Anuncios pagados estándar:</strong> sí, con <code>/campaign/create/</code>, <code>/adgroup/create/</code> y <code>/ad/create/</code>.</li>
+        <li><strong>Spark Ads / ads con post existente:</strong> sí, mediante <code>/ad/aco/create/</code> y entidades relacionadas.</li>
+      </ul>
+      <div class="callout warn">
+        No afirmo aquí soporte oficial para LIVE, Stories u otros formatos no visibles en las fuentes revisadas.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Checklist completo para que todo funcione</h2>
+      <div class="grid three">
+        <div class="card">
+          <h3>App y credenciales</h3>
+          <ul>
+            <li>App creada</li>
+            <li>Secret guardado en backend</li>
+            <li>Ambiente sandbox/producción identificado</li>
+            <li>Redirect/callback correctos</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Permisos</h3>
+          <ul>
+            <li>Scopes aprobados en Developer</li>
+            <li>Consentimiento del usuario</li>
+            <li>Roles correctos en Business Center</li>
+            <li>Assets compartidos con el equipo correcto</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Cuentas</h3>
+          <ul>
+            <li>Cuenta TikTok válida</li>
+            <li>Business Center operativo</li>
+            <li>Advertiser account aprobada</li>
+            <li>Cuenta TikTok vinculada para ad delivery o account management</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Errores comunes</h2>
+      <ul>
+        <li><strong>Redirect URI mismatch:</strong> el callback usado al pedir el <code>code</code> no coincide exactamente con el usado al pedir el token.</li>
+        <li><strong>Scopes insuficientes:</strong> la app no tiene el scope aprobado o el usuario no lo concedió.</li>
+        <li><strong>Token expirado:</strong> faltó refresh programado.</li>
+        <li><strong>Sin advertiser access:</strong> el negocio no autorizó la app o tu token no tiene acceso a esa ad account.</li>
+        <li><strong>Sin permisos de asset:</strong> el usuario o partner no tiene <code>Deliver ads</code>, <code>Manage account</code> o rol suficiente en el BC.</li>
+        <li><strong>Spark Ads no funciona:</strong> la cuenta TikTok no está correctamente vinculada a la ad account/Business Center.</li>
+      </ul>
+    </section>
+
+    <section class="section sources">
+      <h2>Fuentes oficiales usadas</h2>
+      <ol>
+        <li><a href="https://developers.tiktok.com/doc/login-kit-overview?enter_method=left_navigation" target="_blank" rel="noopener noreferrer">TikTok for Developers: Login Kit Overview</a></li>
+        <li><a href="https://developers.tiktok.com/doc/login-kit-web?enter_method=left_navigation&amp;from_seo_redirect=1" target="_blank" rel="noopener noreferrer">TikTok for Developers: Login Kit for Web</a></li>
+        <li><a href="https://developers.tiktok.com/doc/scopes-overview/" target="_blank" rel="noopener noreferrer">TikTok for Developers: Scopes Overview</a></li>
+        <li><a href="https://developers.tiktok.com/doc/oauth-user-access-token-management" target="_blank" rel="noopener noreferrer">TikTok for Developers: OAuth User Access Token Management</a></li>
+        <li><a href="https://developers.tiktok.com/doc/content-posting-api-get-started//" target="_blank" rel="noopener noreferrer">TikTok for Developers: Content Posting API Get Started - Direct Post</a></li>
+        <li><a href="https://developers.tiktok.com/doc/content-posting-api-get-started-upload-content?enter_method=left_navigation" target="_blank" rel="noopener noreferrer">TikTok for Developers: Content Posting API Get Started - Upload Content</a></li>
+        <li><a href="https://developers.tiktok.com/doc/tiktok-api-v2-get-user-info/" target="_blank" rel="noopener noreferrer">TikTok for Developers: Get User Info</a></li>
+        <li><a href="https://developers.tiktok.com/doc/display-api-get-started//" target="_blank" rel="noopener noreferrer">TikTok for Developers: Display API Get Started</a></li>
+        <li><a href="https://ads.tiktok.com/help/article/marketing-api?lang=en" target="_blank" rel="noopener noreferrer">TikTok for Business Help Center: About API for Business</a></li>
+        <li><a href="https://ads.tiktok.com/help/article/manage-ad-accounts-business-center?lang=en" target="_blank" rel="noopener noreferrer">TikTok for Business Help Center: About ad accounts in Business Center</a></li>
+        <li><a href="https://ads.tiktok.com/help/article/business-account-integration-with-business-center?lang=en" target="_blank" rel="noopener noreferrer">TikTok for Business Help Center: Business Account integration with Business Center</a></li>
+        <li><a href="https://ads.tiktok.com/help/article/how-to-link-a-tiktok-account-for-ad-delivery-to-ad-accounts-in-tiktok?lang=en&amp;redirected=2" target="_blank" rel="noopener noreferrer">TikTok for Business Help Center: Link a TikTok account to ad accounts</a></li>
+        <li><a href="https://ads.tiktok.com/help/article/how-to-assign-asset-level-permissions?lang=en" target="_blank" rel="noopener noreferrer">TikTok for Business Help Center: Assign account and asset permissions</a></li>
+        <li><a href="https://ads.tiktok.com/help/article/about-assets-and-asset-level-permissions" target="_blank" rel="noopener noreferrer">TikTok for Business Help Center: Account and asset level permissions</a></li>
+        <li><a href="https://ads.tiktok.com/help/article/about-managing-tiktok-accounts-in-business-center?lang=en&amp;redirected=2" target="_blank" rel="noopener noreferrer">TikTok for Business Help Center: About managing TikTok accounts in Business Center</a></li>
+        <li><a href="https://ads.tiktok.com/help/article/how-to-register-a-business-account" target="_blank" rel="noopener noreferrer">TikTok for Business Help Center: How to verify a Business Account</a></li>
+        <li><a href="https://www.postman.com/tiktok/tiktok-api-for-business/request/66a91tm/oauth2-access-token" target="_blank" rel="noopener noreferrer">Colección oficial de TikTok en Postman: /oauth2/access_token/</a></li>
+        <li><a href="https://www.postman.com/tiktok/tiktok-api-for-business/request/3yu8g8t/oauth2-advertiser-get" target="_blank" rel="noopener noreferrer">Colección oficial de TikTok en Postman: /oauth2/advertiser/get/</a></li>
+        <li><a href="https://pypi.org/project/tiktok-business-api-sdk-official/" target="_blank" rel="noopener noreferrer">TikTok Business API SDK Official (PyPI)</a></li>
+      </ol>
+      <p class="small muted">
+        Nota: donde el portal de TikTok Business no expone públicamente los mismos “scopes” detallados que TikTok Developer,
+        esta guia prioriza el modelo oficial visible hoy: endpoints OAuth, permisos por asset, roles del Business Center y requisitos operativos.
+      </p>
+    </section>
+
+    <p class="footer">
+      Documento generado el 28 de marzo de 2026 para uso operativo y técnico. Recomendación: validar en producción
+      los endpoints exactos visibles en tu app de TikTok Business porque la UI y el onboarding pueden variar por producto y aprobación.
+    </p>
+  </div>
+</body>
+</html>

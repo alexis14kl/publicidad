@@ -61,6 +61,31 @@ function getDefaultActiveCompany() {
   } catch { return null }
 }
 
+function listActiveCompanies() {
+  /** Returns all active companies from the database. */
+  try {
+    const records = aggregateCompanyRows(
+      Object.fromEntries([...COMPANY_PLATFORMS].map(p => [p, fetchCompanyRowsForPlatform(p)]))
+    )
+    return records.filter(c => !!c.activo)
+  } catch { return [] }
+}
+
+function getCompanyOAuthMeta(companyName) {
+  /** Lee datos extra de OAuth guardados durante la autenticación (ad_account, user_token). */
+  if (!companyName) return null
+  const fs = require('fs')
+  const path = require('path')
+  const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..')
+  const metaFile = path.join(PROJECT_ROOT, 'memory', 'companies', `${companyName.replace(/[^a-zA-Z0-9áéíóúñ ]/g, '_')}.json`)
+  try {
+    if (fs.existsSync(metaFile)) {
+      return JSON.parse(fs.readFileSync(metaFile, 'utf-8'))
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
 function buildCompanyCredentialEnv(companyName) {
   const company = lookupCompanyData(companyName)
   if (!company || !company.activo) {
@@ -271,6 +296,8 @@ module.exports = {
   lookupCompanyData,
   isCompanyActive,
   getDefaultActiveCompany,
+  listActiveCompanies,
+  getCompanyOAuthMeta,
   buildCompanyCredentialEnv,
   buildCompanyRule,
   buildColorRule,

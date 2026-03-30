@@ -1,9 +1,46 @@
+export type WorkerType = 'cdp' | 'api' | 'publish' | 'video' | 'brochure'
+export type JobStatus = 'queued' | 'claimed' | 'running' | 'success' | 'error' | 'cancelled'
+
+export interface QueuedJob {
+  jobId: string
+  action: string
+  workerType: WorkerType
+  status: JobStatus
+  startedAt: string | null
+  companyName: string
+}
+
+export interface JobDetail {
+  job_id: string
+  created_at: string
+  updated_at: string
+  action: string
+  worker_type: string
+  priority: number
+  status: string
+  resource_key: string
+  payload_json: string
+  run_id: string | null
+  worker_pid: number | null
+  claimed_at: string | null
+  started_at: string | null
+  finished_at: string | null
+  result_json: string
+  error_text: string
+  retry_count: number
+  max_retries: number
+  source: string
+  company_name: string
+  log_file: string
+}
+
 export interface BotStatus {
   status: 'online' | 'offline' | 'executing'
   action: string | null
   started_at: number | null
   host: string | null
   pid: number | null
+  jobs?: QueuedJob[]
 }
 
 export interface LastJob {
@@ -900,6 +937,115 @@ export interface IgMediaDetail extends IgApiResult {
   username?: string
 }
 
+// ── TikTok API Types ────────────────────────────────────────────────────────
+
+export interface TikTokApiResult {
+  success: boolean
+  error?: string
+}
+
+export interface TikTokCreatorInfo extends TikTokApiResult {
+  creator_avatar_url?: string
+  creator_username?: string
+  creator_nickname?: string
+  privacy_level_options?: string[]
+  comment_disabled?: boolean
+  duet_disabled?: boolean
+  stitch_disabled?: boolean
+  max_video_post_duration_sec?: number
+}
+
+export interface TikTokPublishResult extends TikTokApiResult {
+  publish_id?: string
+  upload_url?: string
+}
+
+export interface TikTokPublishStatus extends TikTokApiResult {
+  status?: string
+  publish_id?: string
+  uploaded_bytes?: number
+  error_code?: string
+}
+
+export interface TikTokUserInfo extends TikTokApiResult {
+  open_id?: string
+  username?: string
+  display_name?: string
+  avatar_url?: string
+}
+
+export interface TikTokPublishVideoPayload {
+  token: string
+  title?: string
+  videoUrl?: string
+  videoSize?: number
+  privacyLevel?: string
+  isAigc?: boolean
+  coverTimestampMs?: number
+}
+
+export interface TikTokPublishPhotoPayload {
+  token: string
+  title?: string
+  photoUrls: string[]
+  description?: string
+  privacyLevel?: string
+  isAigc?: boolean
+  photoCoverIndex?: number
+}
+
+export interface TikTokRefreshResult extends TikTokApiResult {
+  access_token?: string
+  refresh_token?: string
+  open_id?: string
+  scope?: string
+  expires_in?: number
+  refresh_expires_in?: number
+}
+
+// ── TikTok Business API Types ────────────────────────────────────────────────
+
+export interface TikTokBizApiResult {
+  success: boolean
+  error?: string
+}
+
+export interface TikTokBizTokenResult extends TikTokBizApiResult {
+  access_token?: string
+  advertiser_ids?: string[]
+  scope?: string[]
+}
+
+export interface TikTokBizAdvertiser {
+  advertiser_id: string
+  advertiser_name: string
+}
+
+export interface TikTokBizCampaignResult extends TikTokBizApiResult {
+  campaign_id?: string
+}
+
+export interface TikTokBizAdGroupResult extends TikTokBizApiResult {
+  adgroup_id?: string
+}
+
+export interface TikTokBizAdResult extends TikTokBizApiResult {
+  ad_id?: string
+}
+
+export interface TikTokBizImageUploadResult extends TikTokBizApiResult {
+  image_id?: string
+  image_url?: string
+}
+
+export interface TikTokBizVideoUploadResult extends TikTokBizApiResult {
+  video_id?: string
+}
+
+export interface TikTokBizIdentityResult extends TikTokBizApiResult {
+  identity_id?: string
+}
+
 export interface IgPublishingLimit extends IgApiResult {
   config?: { quota_total?: number }
   quota_usage?: number
@@ -1044,12 +1190,28 @@ export interface ElectronAPI {
   getLogoPath: () => Promise<string | null>
   listLogos: () => Promise<{ filename: string; url: string }[]>
   setActiveLogo: (filename: string) => Promise<{ success: boolean; logoUrl?: string }>
+  // Job Queue
+  enqueueJob: (payload: {
+    action: string
+    workerType?: string
+    resourceKey?: string
+    payload?: Record<string, unknown>
+    priority?: number
+    source?: string
+    companyName?: string
+  }) => Promise<{ success: boolean; jobId?: string; error?: string }>
+  cancelJob: (jobId: string) => Promise<{ success: boolean; error?: string }>
+  listJobs: (filter?: { status?: string[]; limit?: number }) => Promise<JobDetail[]>
+  getJobDetail: (jobId: string) => Promise<JobDetail | null>
+  getJobLogLines: (jobId: string, count?: number) => Promise<string[]>
+  onJobStatusChange: (callback: (job: JobDetail) => void) => () => void
+
   onLogNewLines: (callback: (lines: string[]) => void) => () => void
   onBotLogLines: (callback: (lines: string[]) => void) => () => void
   onMarketingRunUpdate: (callback: (update: MarketingRunUpdate) => void) => () => void
   // OAuth generico
   oauthStart: (platform: OAuthPlatform) => Promise<OAuthResult>
-  oauthAutoCreateAccounts: (payload: { accounts: OAuthAccount[] }) => Promise<OAuthAutoCreateResult>
+  oauthAutoCreateAccounts: (payload: { accounts: OAuthAccount[]; user_token?: string }) => Promise<OAuthAutoCreateResult>
   // Meta Marketing API
   metaStartOAuth: () => Promise<MetaStartOAuthResult>
   metaGetAppToken: (payload?: Record<string, string>) => Promise<MetaAppTokenResult>
@@ -1069,6 +1231,25 @@ export interface ElectronAPI {
   metaPublishPagePost: (payload?: MetaPublishPagePostPayload) => Promise<MetaPublishPagePostResult>
   metaPublishPagePhoto: (payload: MetaPublishPagePhotoPayload) => Promise<MetaPublishPagePhotoResult>
   onMetaPipelineStep: (callback: (data: MetaPipelineStepEvent) => void) => () => void
+  // TikTok API
+  tiktokQueryCreatorInfo: (payload: { token: string }) => Promise<TikTokCreatorInfo>
+  tiktokPublishVideo: (payload: TikTokPublishVideoPayload) => Promise<TikTokPublishResult>
+  tiktokPublishPhoto: (payload: TikTokPublishPhotoPayload) => Promise<TikTokPublishResult>
+  tiktokCheckPublishStatus: (payload: { token: string; publishId: string }) => Promise<TikTokPublishStatus>
+  tiktokGetUserInfo: (payload: { token: string }) => Promise<TikTokUserInfo>
+  tiktokRefreshToken: (payload: { refreshToken: string }) => Promise<TikTokRefreshResult>
+  // TikTok Business API
+  tiktokBizExchangeToken: (payload: { authCode: string }) => Promise<TikTokBizTokenResult>
+  tiktokBizGetAdvertisers: (payload?: { accessToken?: string }) => Promise<TikTokBizApiResult & { advertisers?: TikTokBizAdvertiser[] }>
+  tiktokBizCreateCampaign: (payload: Record<string, unknown>) => Promise<TikTokBizCampaignResult>
+  tiktokBizGetCampaigns: (payload?: Record<string, unknown>) => Promise<TikTokBizApiResult & { campaigns?: unknown[]; total?: number }>
+  tiktokBizCreateAdGroup: (payload: Record<string, unknown>) => Promise<TikTokBizAdGroupResult>
+  tiktokBizCreateAd: (payload: Record<string, unknown>) => Promise<TikTokBizAdResult>
+  tiktokBizUploadImage: (payload: Record<string, unknown>) => Promise<TikTokBizImageUploadResult>
+  tiktokBizUploadVideo: (payload: Record<string, unknown>) => Promise<TikTokBizVideoUploadResult>
+  tiktokBizCreateIdentity: (payload: Record<string, unknown>) => Promise<TikTokBizIdentityResult>
+  tiktokBizGetIdentities: (payload?: Record<string, unknown>) => Promise<TikTokBizApiResult & { identities?: unknown[] }>
+  tiktokBizUpdateStatus: (payload: Record<string, unknown>) => Promise<TikTokBizApiResult>
   // Instagram API
   igGetUserId: (payload?: { token?: string }) => Promise<IgGetUserIdResult>
   igGetAccountInfo: (payload?: { igUserId?: string; token?: string }) => Promise<IgAccountInfo>

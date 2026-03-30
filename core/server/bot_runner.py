@@ -120,6 +120,12 @@ def _get_valid_lock() -> dict[str, Any]:
 
 @contextmanager
 def bot_execution_lock(action: str) -> Any:
+    # When launched by the worker manager, skip the file-based lock entirely.
+    # Concurrency is managed via the job_queue/resource_locks SQLite tables.
+    if os.environ.get("BOT_RUNNER_SKIP_LOCK") == "1":
+        yield {"pid": os.getpid(), "action": action, "started_at": int(time.time())}
+        return
+
     current = _get_valid_lock()
     if current:
         owner = current.get("host") or "unknown"
@@ -421,6 +427,20 @@ def execute_action(action: str, payload: dict[str, Any] | None = None, timeout_s
         raise BotRunnerError(f"Accion no soportada todavia: {normalized}")
 
 
+def _parse_extra_flags(argv: list[str]) -> dict[str, str]:
+    """Parse --key value pairs from argv (after action and payload)."""
+    flags: dict[str, str] = {}
+    i = 0
+    while i < len(argv):
+        if argv[i].startswith("--") and i + 1 < len(argv):
+            key = argv[i].lstrip("-").replace("-", "_")
+            flags[key] = argv[i + 1]
+            i += 2
+        else:
+            i += 1
+    return flags
+
+
 def main() -> int:
     action = sys.argv[1] if len(sys.argv) > 1 else "status"
     payload: dict[str, Any] = {}
@@ -430,6 +450,22 @@ def main() -> int:
         except json.JSONDecodeError as exc:
             log_error(f"Payload JSON invalido: {exc}")
             return 1
+
+    # Parse extra flags: --job-id, --log-file
+    flags = _parse_extra_flags(sys.argv[3:] if len(sys.argv) > 3 else [])
+    job_id = flags.get("job_id") or os.environ.get("PUBLICIDAD_JOB_ID", "")
+    log_file = flags.get("log_file") or os.environ.get("PUBLICIDAD_LOG_FILE", "")
+
+    if job_id:
+        os.environ["PUBLICIDAD_JOB_ID"] = job_id
+    if log_file:
+        os.environ["PUBLICIDAD_LOG_FILE"] = log_file
+
+    # If launched by worker manager (job_id present), skip the global lock
+    # since the worker manager handles concurrency via resource_locks table
+    skip_lock = bool(job_id)
+    if skip_lock:
+        os.environ["BOT_RUNNER_SKIP_LOCK"] = "1"
 
     # --- Preflight: verificar dependencias antes de cualquier accion ---
     if action != "status":
@@ -445,7 +481,7 @@ def main() -> int:
             log_warn(f"No se pudo ejecutar preflight: {e}")
 
     try:
-        log_info(f"Ejecutando accion: {action}")
+        log_info(f"Ejecutando accion: {action}" + (f" [job={job_id}]" if job_id else ""))
         result = execute_action(action, payload=payload)
         if result.success:
             log_ok(f"Accion '{action}' completada en {round(result.finished_at - result.started_at, 1)}s")

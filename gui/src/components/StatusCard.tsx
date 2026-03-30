@@ -3,6 +3,8 @@ import type { BotStatus } from '../api/types'
 
 interface StatusCardProps {
   status: BotStatus
+  activeJobCount?: number
+  queuedJobCount?: number
 }
 
 function formatElapsed(startedAt: number | null): string {
@@ -14,8 +16,15 @@ function formatElapsed(startedAt: number | null): string {
   return `${mins}m ${secs}s`
 }
 
-export function StatusCard({ status }: StatusCardProps) {
+export function StatusCard({ status, activeJobCount = 0, queuedJobCount = 0 }: StatusCardProps) {
   const isExecuting = status.status === 'executing'
+  const hasJobs = activeJobCount > 0 || queuedJobCount > 0
+
+  const statusLabel = hasJobs
+    ? `${activeJobCount} activo(s)${queuedJobCount > 0 ? ` + ${queuedJobCount} en cola` : ''}`
+    : status.status === 'online' ? 'Idle'
+    : status.status === 'executing' ? 'Ejecutando'
+    : 'Offline'
 
   return (
     <GlassCard className="status-card">
@@ -26,11 +35,11 @@ export function StatusCard({ status }: StatusCardProps) {
       <div className="status-grid">
         <div className="status-item">
           <span className="status-item-label">Estado</span>
-          <span className={`status-badge status-badge--${status.status}`}>
-            {status.status === 'online' ? 'Idle' : status.status === 'executing' ? 'Ejecutando' : 'Offline'}
+          <span className={`status-badge status-badge--${hasJobs ? 'executing' : status.status}`}>
+            {statusLabel}
           </span>
         </div>
-        {isExecuting && (
+        {isExecuting && !hasJobs && (
           <>
             <div className="status-item">
               <span className="status-item-label">Accion</span>
