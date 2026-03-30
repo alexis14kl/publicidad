@@ -37,6 +37,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chatApprove: (jobId, platform) => ipcRenderer.invoke('chat-approve', jobId, platform),
   chatExtendVideo: (jobId, extendPrompt) => ipcRenderer.invoke('chat-extend-video', jobId, extendPrompt),
   chatReset: () => ipcRenderer.invoke('chat-reset'),
+  onChatStep: (callback) => {
+    const handler = (_event, step) => callback(step)
+    ipcRenderer.on('chat-step', handler)
+    return () => ipcRenderer.removeListener('chat-step', handler)
+  },
   // ── Job Queue ────────────────────────────────────────────────────────────
   enqueueJob: (payload) => ipcRenderer.invoke('enqueue-job', payload),
   cancelJob: (jobId) => ipcRenderer.invoke('cancel-job', jobId),

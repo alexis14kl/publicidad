@@ -1357,7 +1357,7 @@ async function executeCampaignSpec(spec, imagePath, pageToken = '') {
 
 // ─── Main Handler ───────────────────────────────────────────────────────────
 
-async function handleChatCommand(text) {
+async function handleChatCommand(text, sendStep = () => {}) {
   // Update context with new info from user
   updateContext(text)
   const ctx = { ...conversationContext }
@@ -1430,6 +1430,7 @@ async function handleChatCommand(text) {
   // Campaña → flujo completo (Python engine, ~10-15s)
   // ══════════════════════════════════════════════════════════════════════
   const useFastPath = ctx.type === 'image' || ctx.type === 'video'
+  sendStep(`Analizando tu solicitud con IA...`)
   console.log(`[CHAT] Step 1: ${useFastPath ? 'Quick AI (fast)' : 'Campaign engine (full)'}...`)
   const spec = useFastPath
     ? await getQuickAISpec(ctx)
@@ -1458,6 +1459,7 @@ async function handleChatCommand(text) {
   // ══════════════════════════════════════════════════════════════════════
   // STEP 2: Generate visual content via DiCloak using Claude's prompt
   // ══════════════════════════════════════════════════════════════════════
+  sendStep(`Generando ${typeLabel} con IA...`)
   console.log('[CHAT] Step 2: Generating visual content with DiCloak...')
   let filePath = null       // Primary file (image for campaign/image, video for video)
   let videoFilePath = null  // Video file (only for video_campaign)
@@ -1490,6 +1492,7 @@ async function handleChatCommand(text) {
   // ══════════════════════════════════════════════════════════════════════
   // STEP 3: Build the full message with ALL info from Claude's analysis
   // ══════════════════════════════════════════════════════════════════════
+  sendStep('Preparando vista previa...')
   console.log('[CHAT] Step 3: Building message...')
   const meta = spec.meta
   const adsets = spec.adsets || []
@@ -1778,9 +1781,12 @@ async function handleChatApprove(jobId, platform) {
 // ─── IPC ────────────────────────────────────────────────────────────────────
 
 function registerChatHandlers(ipcMain) {
-  ipcMain.handle('chat-command', async (_event, text) => {
+  ipcMain.handle('chat-command', async (event, text) => {
     try {
-      return await handleChatCommand(String(text || '').trim())
+      const sendStep = (step) => {
+        try { if (event.sender && !event.sender.isDestroyed()) event.sender.send('chat-step', step) } catch {}
+      }
+      return await handleChatCommand(String(text || '').trim(), sendStep)
     } catch (err) {
       return { success: false, error: err.message || String(err) }
     }

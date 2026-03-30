@@ -63,6 +63,16 @@ export function ChatBotPage() {
   }, [messages])
 
   useEffect(() => {
+    const unsub = (api() as any).onChatStep?.((step: string) => {
+      if (!isProcessing) return
+      updateMessages(prev => prev.map(m =>
+        m.status === 'pending' ? { ...m, content: step } : m
+      ))
+    })
+    return unsub || (() => {})
+  }, [isProcessing])
+
+  useEffect(() => {
     const unsub = api().onBotLogLines((lines: string[]) => {
       if (!isProcessing) return
       for (const line of lines) {
