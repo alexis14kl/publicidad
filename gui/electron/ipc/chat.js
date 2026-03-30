@@ -19,9 +19,10 @@ const pendingJobs = new Map()
 function _detectLanguage(text) {
   if (/[áéíóúñ¿¡]/.test(text)) return 'es'
   const lower = text.toLowerCase()
-  const esWords = /\b(crea|genera|publica|imagen|video|para|con|una|uno|empresa|campaña|campana|quiero|haz|necesito|diseña|vaca|automatico|software|cerveza)\b/
+  const esWords = /\b(crea|genera|publica|imagen|video|para|con|una|uno|empresa|campaña|campana|quiero|haz|necesito|diseña|vaca|automatico|software|cerveza|desarrollo|android|publicidad|pagina|facebook|instagram|lanza|crear|diseño|web|sitio|negocio|servicio|producto|marca|digital|tecnologia|app|aplicacion)\b/
   if (esWords.test(lower)) return 'es'
-  return 'en'
+  // Default español — la mayoría de usuarios del bot hablan español
+  return 'es'
 }
 
 /** Simple POST to Meta Graph API (JSON body, returns parsed JSON). */
@@ -368,15 +369,22 @@ async function getQuickAISpec(ctx) {
     brandDescription ? `Descripción: ${brandDescription}` : '',
   ].filter(Boolean).join('. ')
 
-  const systemPrompt = 'Experto en marketing. Responde SOLO JSON válido, sin markdown.'
-
-  const contactInfo = [brandName, brandWebsite, brandPhone].filter(Boolean).join(' | ')
+  const systemPrompt = `Eres un director creativo publicitario. Generas prompts para IA de imágenes/video.
+Responde SOLO JSON válido. Sin markdown. Sin backticks.`
 
   const userPrompt = isVideo
-    ? `Video publicitario. ${ctx.description}. ${companyInfo}. Idioma: ${langLabel}.
-JSON: {"image_prompt":"prompt EN INGLÉS: escenas visuales, actores, acciones, ambiente, cámara. SIN texto/logos en pantalla. Terminar con: No text, no logos visible.","post_caption":"copy ${langLabel} max 100 palabras: Hook→CTA. Empresa: ${brandName}","post_hashtags":["8 hashtags"]}`
-    : `Imagen publicitaria. ${ctx.description}. ${companyInfo}. Idioma: ${langLabel}.
-JSON: {"image_prompt":"prompt EN INGLÉS: anuncio profesional 1080x1350. Texto visible en ${langLabel}: slogan+headline+CTA. Contacto: ${contactInfo}. Top 15% limpio para logo. Estilo: professional advertising.","post_caption":"copy ${langLabel} max 100 palabras: Hook→CTA. Empresa: ${brandName}","post_hashtags":["8 hashtags"]}`
+    ? `Genera un prompt para un VIDEO/REEL publicitario.
+
+Solicitud: ${ctx.description}
+${companyInfo || ''}
+
+JSON: {"image_prompt":"(EN INGLÉS) prompt cinematográfico para video. Solo escenas visuales, actores, acciones, ambiente, cámara. SIN texto ni logos en pantalla.","post_caption":"(EN ESPAÑOL) caption para redes, max 100 palabras","post_hashtags":["8 hashtags"]}`
+    : `Genera un prompt para una IMAGEN PUBLICITARIA.
+
+Solicitud: ${ctx.description}
+${companyInfo || ''}
+
+JSON: {"image_prompt":"(EN INGLÉS) prompt para imagen publicitaria profesional 1080x1350. El texto visible en la imagen DEBE ser en español. Incluir los datos reales de la empresa si se proporcionaron. Top 15% limpio para logo.","post_caption":"(EN ESPAÑOL) caption para redes, max 100 palabras","post_hashtags":["8 hashtags"]}`
 
   const https = require('https')
   const body = JSON.stringify({
