@@ -123,96 +123,78 @@ def _find_followup_field_and_paste(page, prompt_text: str) -> bool:
     """
     modifier = "Meta" if sys.platform == "darwin" else "Control"
 
-    # ── Step 1: Find the field using wait_for_selector (same as initial) ──
-    # Priority: role=textbox > contenteditable > textarea
-    selectors_priority = [
-        "[role='textbox']",
-        "[contenteditable='true']",
-        "[contenteditable='plaintext-only']",
-        "textarea",
-    ]
-
-    textarea = None
-    for selector in selectors_priority:
-        try:
-            elements = page.query_selector_all(selector)
-            for el in elements:
-                if not el.is_visible():
-                    continue
-                box = el.bounding_box()
-                if not box:
-                    continue
-                # Must be wide enough (not the title input at ~199px)
-                if box["width"] < 200:
-                    continue
-                # Must be below video (y > 50% of viewport height)
-                viewport = page.viewport_size or {"height": 900}
-                if box["y"] < viewport["height"] * 0.5:
-                    continue
-                textarea = el
-                log_info(f"Campo encontrado: {selector} en ({box['x']:.0f},{box['y']:.0f}) {box['width']:.0f}x{box['height']:.0f}")
-                break
-            if textarea:
-                break
-        except Exception:
-            continue
-
-    if not textarea:
-        # Fallback: find any wide editable field below video via JS
-        log_info("Selectores directos no encontraron campo. Buscando via JS...")
-        found_js = page.evaluate("""() => {
-            const candidates = Array.from(document.querySelectorAll(
-                '[contenteditable="true"], [role="textbox"], textarea'
-            ));
-            for (const el of candidates) {
-                if (!el.offsetParent) continue;
-                const rect = el.getBoundingClientRect();
-                // Wide enough (not title field) AND below video
-                if (rect.width > 200 && rect.y > window.innerHeight * 0.5) {
-                    el.scrollIntoView({block: 'center'});
-                    el.focus();
-                    el.click();
-                    return true;
-                }
+    # Helper JS: busca el campo fresco del DOM y lo enfoca (sin guardar referencia)
+    FIND_AND_FOCUS_JS = """() => {
+        const candidates = Array.from(document.querySelectorAll(
+            '[contenteditable="true"], [role="textbox"], textarea'
+        ));
+        for (const el of candidates) {
+            if (!el.offsetParent) continue;
+            const rect = el.getBoundingClientRect();
+            if (rect.width > 200 && rect.y > window.innerHeight * 0.5) {
+                el.scrollIntoView({block: 'center'});
+                el.focus();
+                el.click();
+                return { found: true, x: rect.x, y: rect.y, w: rect.width, h: rect.height };
             }
-            return false;
-        }""")
-        if found_js:
-            for sel in ["[role='textbox']", "[contenteditable='true']"]:
-                try:
-                    textarea = page.wait_for_selector(sel, timeout=3000, state="visible")
-                    if textarea:
-                        box = textarea.bounding_box()
-                        if box and box["width"] > 200:
-                            break
-                        textarea = None
-                except Exception:
-                    continue
+        }
+        return { found: false };
+    }"""
 
-    if not textarea:
+    # ── Step 1: Encontrar y enfocar el campo ──
+    field_info = page.evaluate(FIND_AND_FOCUS_JS)
+    if not field_info.get("found"):
         log_error("No se encontró el campo 'What happens next?' en Flow.")
         return False
 
-    log_ok("Campo de continuación encontrado y enfocado.")
-
-    # ── Step 2: Click to focus (same as _paste_prompt_in_flow) ──
-    textarea.click()
+    log_ok(f"Campo encontrado en ({field_info['x']:.0f},{field_info['y']:.0f}) {field_info['w']:.0f}x{field_info['h']:.0f}")
     page.wait_for_timeout(1000)
 
-    # ── Step 3: Select all + delete (clear "What happens next?" placeholder text) ──
-    page.keyboard.press(f"{modifier}+a")
-    page.wait_for_timeout(300)
-    page.keyboard.press("Backspace")
+    # ── Step 2: Limpiar campo completamente antes de escribir ──
+    log_info("Limpiando campo de texto...")
+
+    # Hacer click directo en las coordenadas del campo para activar el cursor
+    page.mouse.click(
+        field_info['x'] + field_info['w'] / 2,
+        field_info['y'] + field_info['h'] / 2
+    )
     page.wait_for_timeout(500)
 
-    # ── Step 4: Paste via clipboard (same as _paste_prompt_in_flow) ──
-    page.evaluate("(text) => navigator.clipboard.writeText(text)", prompt_text)
-    page.wait_for_timeout(300)
-    page.keyboard.press(f"{modifier}+v")
-    page.wait_for_timeout(2000)
+    # Intentar limpiar múltiples veces hasta que el campo quede vacío
+    for _clear_attempt in range(5):
+        page.keyboard.press(f"{modifier}+a")
+        page.wait_for_timeout(200)
+        page.keyboard.press("Backspace")
+        page.wait_for_timeout(300)
+        page.keyboard.press("Delete")
+        page.wait_for_timeout(300)
 
-    # ── Step 5: Verify paste ──
-    pasted = page.evaluate("""() => {
+        # Verificar si el campo quedó vacío
+        remaining = page.evaluate("""() => {
+            const candidates = Array.from(document.querySelectorAll(
+                '[contenteditable="true"], [role="textbox"]'
+            ));
+            for (const el of candidates) {
+                const rect = el.getBoundingClientRect();
+                if (rect.width > 200 && rect.y > window.innerHeight * 0.5) {
+                    return (el.innerText || el.textContent || '').trim();
+                }
+            }
+            return '';
+        }""")
+        if not remaining or len(remaining) < 5 or "what happens" in remaining.lower() or "que pasa" in remaining.lower():
+            break
+        log_info(f"  Campo aún tiene texto ({len(remaining)} chars). Reintentando limpieza...")
+
+    page.wait_for_timeout(500)
+
+    # ── Step 3: Escribir carácter por carácter ──
+    log_info("Escribiendo prompt carácter por carácter...")
+    page.keyboard.type(prompt_text, delay=50)
+    page.wait_for_timeout(20000)
+
+    # ── Verificar ──
+    result = page.evaluate("""() => {
         const candidates = Array.from(document.querySelectorAll(
             '[contenteditable="true"], [role="textbox"]'
         ));
@@ -225,11 +207,11 @@ def _find_followup_field_and_paste(page, prompt_text: str) -> bool:
         return '';
     }""")
 
-    if pasted and len(pasted) > 5 and "what happens" not in pasted.lower():
-        log_ok(f"Prompt de extensión pegado ({len(pasted)} chars).")
+    if result and len(result) > 5 and "what happens" not in result.lower() and "que pasa" not in result.lower():
+        log_ok(f"Prompt escrito ({len(result)} chars).")
         return True
 
-    # ── Fallback: insert_text (same as _paste_prompt_in_flow) ──
+    # ── Fallback: insert_text con chunks ──
     log_warn("Clipboard no pegó correctamente. Usando insert_text...")
     textarea.click()
     page.wait_for_timeout(500)
@@ -240,7 +222,7 @@ def _find_followup_field_and_paste(page, prompt_text: str) -> bool:
     page.keyboard.insert_text(prompt_text)
     page.wait_for_timeout(1000)
 
-    # ── Fallback 2: force DOM (same as _paste_prompt_in_flow) ──
+    # ── Fallback 2: force DOM con chunks ──
     typed = page.evaluate("""() => {
         const candidates = Array.from(document.querySelectorAll(
             '[contenteditable="true"], [role="textbox"]'
@@ -258,7 +240,7 @@ def _find_followup_field_and_paste(page, prompt_text: str) -> bool:
         log_ok(f"Prompt de extensión escrito ({len(typed)} chars).")
         return True
 
-    log_warn("Insertando por DOM directo...")
+    log_warn("Insertando por DOM directo con chunks...")
     page.evaluate("""(text) => {
         const candidates = Array.from(document.querySelectorAll(
             '[contenteditable="true"], [role="textbox"]'
@@ -527,13 +509,139 @@ def _poll_for_combined_video(page, timeout_sec: int = 540) -> dict | None:
     return None
 
 
+def _download_via_ui_menu(page) -> Path | None:
+    """
+    Descarga el video usando la UI de Google Flow:
+    1. Click en botón "Descargar" / "Download"
+    2. Click en "Full Video"
+    3. Click en "720p"
+    Espera la descarga del navegador y mueve el archivo a output/videos/.
+    """
+    from datetime import datetime
+
+    log_info("Descargando video via menú UI: Descargar → Full Video → 720p...")
+
+    # Paso 1: Click en "Descargar" / "Download"
+    for attempt in range(3):
+        try:
+            download_btn = page.locator('button, [role="button"]').filter(
+                has_text=lambda t: any(k in (t or "").lower() for k in ["descargar", "download"])
+            ).first
+            if download_btn.is_visible(timeout=5000):
+                download_btn.click()
+                log_ok("Click en botón Descargar.")
+                page.wait_for_timeout(1500)
+                break
+        except Exception:
+            pass
+        # Fallback: buscar por texto directo
+        try:
+            btns = page.query_selector_all('button, [role="button"], [role="menuitem"]')
+            for btn in btns:
+                text = (btn.text_content() or "").lower().strip()
+                if "descargar" in text or "download" in text:
+                    btn.click()
+                    log_ok("Click en botón Descargar (fallback).")
+                    page.wait_for_timeout(1500)
+                    break
+            else:
+                continue
+            break
+        except Exception:
+            page.wait_for_timeout(2000)
+    else:
+        log_warn("No se encontró botón Descargar.")
+        return None
+
+    # Paso 2: Click en "Full Video"
+    for attempt in range(3):
+        try:
+            items = page.query_selector_all(
+                'button, [role="button"], [role="menuitem"], [role="option"], li, a, div[class*="menu"], div[class*="item"]'
+            )
+            clicked = False
+            for item in items:
+                text = (item.text_content() or "").strip().lower()
+                if "full video" in text:
+                    item.click()
+                    log_ok("Click en Full Video.")
+                    page.wait_for_timeout(1500)
+                    clicked = True
+                    break
+            if clicked:
+                break
+        except Exception:
+            pass
+        page.wait_for_timeout(1500)
+    else:
+        log_warn("No se encontró opción Full Video.")
+        return None
+
+    # Paso 3: Click en "720p" y capturar descarga
+    for attempt in range(3):
+        try:
+            with page.expect_download(timeout=120000) as download_info:
+                items = page.query_selector_all(
+                    'button, [role="button"], [role="menuitem"], [role="option"], li, a, div[class*="menu"], div[class*="item"]'
+                )
+                clicked = False
+                for item in items:
+                    text = (item.text_content() or "").strip().lower()
+                    if "720" in text:
+                        item.click()
+                        log_ok("Click en 720p. Esperando descarga...")
+                        clicked = True
+                        break
+                if not clicked:
+                    # Si no hay opción 720p, buscar "original" o primer item
+                    for item in items:
+                        text = (item.text_content() or "").strip().lower()
+                        if "original" in text or "tamaño" in text:
+                            item.click()
+                            log_ok("Click en tamaño original (720p no disponible).")
+                            clicked = True
+                            break
+                if not clicked:
+                    log_warn(f"Intento {attempt + 1}: no se encontró opción de calidad.")
+                    page.wait_for_timeout(2000)
+                    continue
+
+            download = download_info.value
+            VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            suggested = download.suggested_filename or "video.mp4"
+            ext = Path(suggested).suffix or ".mp4"
+            output_path = VIDEO_DIR / f"{ts}_fullvideo{ext}"
+            download.save_as(str(output_path))
+            size_mb = output_path.stat().st_size / (1024 * 1024)
+            log_ok(f"Video Full descargado: {output_path.name} ({size_mb:.1f}MB)")
+            return output_path
+
+        except Exception as e:
+            log_warn(f"Intento {attempt + 1} descarga: {e}")
+            page.wait_for_timeout(3000)
+
+    log_error("No se pudo descargar el video via UI.")
+    return None
+
+
 def _download_combined_video(page, video_url: str) -> Path | None:
-    """Download the combined video using CDP context request."""
+    """
+    Descarga el video combinado.
+    Prioridad: UI menu (Descargar → Full Video → 720p) → CDP request (fallback).
+    """
+    # Intentar via UI de Google Flow (mejor calidad, video completo)
+    result = _download_via_ui_menu(page)
+    if result:
+        return result
+
+    log_warn("Descarga via UI falló. Intentando descarga directa...")
+
+    # Fallback: CDP request directo
     from datetime import datetime
     import hashlib
 
-    log_info(f"Descargando video combinado: {video_url[:80]}...")
-
+    log_info(f"Descargando video combinado via CDP: {video_url[:80]}...")
     for attempt in range(3):
         try:
             context = page.context
@@ -549,32 +657,66 @@ def _download_combined_video(page, video_url: str) -> Path | None:
             output_path = VIDEO_DIR / f"{ts}_{vid}.mp4"
             output_path.write_bytes(video_bytes)
             size_mb = len(video_bytes) / (1024 * 1024)
-            log_ok(f"Video combinado descargado: {output_path.name} ({size_mb:.1f}MB)")
+            log_ok(f"Video descargado via CDP: {output_path.name} ({size_mb:.1f}MB)")
             return output_path
         except Exception as e:
             log_warn(f"Intento {attempt + 1} fallo: {e}")
             page.wait_for_timeout(3000)
 
-    # Fallback: urllib
-    try:
-        import urllib.request as _req
-        req = _req.Request(video_url, headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "video/mp4,video/*;q=0.9,*/*;q=0.8",
-        })
-        with _req.urlopen(req, timeout=180) as resp:
-            video_bytes = resp.read()
-        if len(video_bytes) > 100_000:
-            from datetime import datetime
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = VIDEO_DIR / f"{ts}_combined.mp4"
-            output_path.write_bytes(video_bytes)
-            log_ok(f"Video descargado via urllib: {output_path.name}")
-            return output_path
-    except Exception as e:
-        log_error(f"Descarga urllib fallo: {e}")
-
     return None
+
+
+def _analyze_extend_prompt(raw_prompt: str) -> str:
+    """
+    Analiza el prompt de extensión con Claude usando las reglas de video-scene-creator.
+    Convierte la idea del usuario en un prompt cinematográfico optimizado para Veo 3.
+    Si Claude no responde, usa el prompt original.
+    """
+    try:
+        from core.utils.claude_client import ask_claude
+    except ImportError:
+        log_warn("Claude client no disponible. Usando prompt original.")
+        return raw_prompt
+
+    # Cargar reglas del agente video-scene-creator
+    skill_path = PROJECT_ROOT / "core" / "utils" / "AgenteMarketing" / "video-scene-creator.md"
+    skill_rules = ""
+    if skill_path.exists():
+        content = skill_path.read_text("utf-8")
+        # Extraer solo el contenido después del frontmatter
+        if "---" in content:
+            parts = content.split("---", 2)
+            if len(parts) >= 3:
+                skill_rules = parts[2].strip()[:4000]
+
+    system_prompt = f"""Eres el agente video-scene-creator. Tu tarea es convertir la idea del usuario en un prompt de CONTINUACIÓN de video optimizado para Google Veo 3.
+
+REGLAS DEL AGENTE:
+{skill_rules}
+
+REGLAS PARA EL PROMPT DE EXTENSIÓN:
+1. El prompt debe describir QUÉ PASA DESPUÉS en el video actual.
+2. Debe estar en INGLÉS profesional (Veo 3 funciona mejor en inglés).
+3. Debe describir UNA sola acción clara de ~7 segundos.
+4. Mantener continuidad visual con la escena anterior (mismos personajes, ropa, ambiente).
+5. Incluir: estilo visual, acción exacta, composición de cámara, iluminación.
+6. PROHIBIDO incluir texto, logos, nombres de marca o palabras visibles en pantalla.
+7. Terminar con: "No text, no logos, no brand names, no written words visible anywhere."
+8. Máximo 2-3 oraciones concisas.
+
+Responde SOLO con el prompt optimizado. Sin explicaciones, sin comillas, sin prefijos."""
+
+    user_prompt = f"Idea del usuario para la continuación del video:\n\"{raw_prompt}\"\n\nConviértelo en un prompt cinematográfico para Veo 3."
+
+    log_info(f"Analizando prompt de extensión con Claude ({len(raw_prompt)} chars)...")
+    result = ask_claude(system_prompt, user_prompt, max_retries=2, max_tokens=512)
+
+    if result and len(result) > 10:
+        log_ok(f"Prompt optimizado por Claude ({len(result)} chars).")
+        return result.strip()
+
+    log_warn("Claude no pudo optimizar el prompt. Usando original.")
+    return raw_prompt
 
 
 def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
@@ -594,10 +736,19 @@ def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
     )
     from playwright.sync_api import sync_playwright
 
-    extend_prompt = os.environ.get("BOT_VIDEO_EXTEND_PROMPT", "").strip()
-    if not extend_prompt:
+    raw_prompt = os.environ.get("BOT_VIDEO_EXTEND_PROMPT", "").strip()
+    if not raw_prompt:
         log_error("No se proporcionó prompt de extensión (BOT_VIDEO_EXTEND_PROMPT).")
         return 1
+
+    # Si el prompt viene de una escena pre-generada por Claude, ya está optimizado.
+    # Solo analizar con Claude si es un prompt manual del usuario.
+    is_pregenerated = os.environ.get("BOT_VIDEO_EXTEND_PREGENERATED", "0") == "1"
+    if is_pregenerated:
+        log_info("Prompt pre-generado por el agente. Usando directo sin re-analizar.")
+        extend_prompt = raw_prompt
+    else:
+        extend_prompt = _analyze_extend_prompt(raw_prompt)
 
     previous_video_url = os.environ.get("BOT_VIDEO_PREVIOUS_VIDEO_URL", "").strip()
     scene_index = 2
@@ -650,14 +801,37 @@ def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
             page.wait_for_timeout(3000)
 
             # Step 2: Wait for "What happens next?" field to appear
-            if not _wait_for_followup_field(page, timeout_sec=15):
+            if not _wait_for_followup_field(page, timeout_sec=20):
                 return 1
 
             # Step 3: Find and paste into the field
             if not _find_followup_field_and_paste(page, extend_prompt):
                 return 1
 
-            page.wait_for_timeout(1000)
+            # Esperar a que Flow registre el texto y habilite el botón de envío
+            log_info("Esperando que Flow procese el prompt...")
+            page.wait_for_timeout(3000)
+
+            # Verificar que el botón de envío esté habilitado antes de clickear
+            for _wait in range(10):
+                send_ready = page.evaluate("""() => {
+                    const btns = Array.from(document.querySelectorAll('button, [role="button"]'));
+                    const sendBtn = btns.find(b => {
+                        const text = (b.innerText || '').toLowerCase();
+                        const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+                        return (text.includes('arrow_forward') || text.includes('→') ||
+                                text.includes('send') || aria.includes('send') || aria.includes('submit'))
+                               && b.offsetParent !== null
+                               && b.getBoundingClientRect().top > window.innerHeight * 0.4;
+                    });
+                    if (!sendBtn) return 'not_found';
+                    return sendBtn.disabled ? 'disabled' : 'ready';
+                }""")
+                if send_ready == "ready":
+                    log_ok("Botón de envío habilitado.")
+                    break
+                log_info(f"  Botón de envío: {send_ready}. Esperando...")
+                page.wait_for_timeout(2000)
 
             # Step 4: Click the send button (→)
             if not _click_send_button(page):
@@ -679,7 +853,81 @@ def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
             duration = combined_video.get("duration", 0)
             log_ok(f"Video combinado listo: {combined_video.get('width', 0)}x{combined_video.get('height', 0)} | {duration:.1f}s")
 
-            # Download the combined video
+            # ── Loop de extensiones adicionales ──
+            # Leer prompts adicionales de BOT_VIDEO_EXTEND_PROMPTS_JSON (array)
+            extra_prompts = []
+            try:
+                raw = os.environ.get("BOT_VIDEO_EXTEND_PROMPTS_JSON", "").strip()
+                if raw:
+                    extra_prompts = json.loads(raw)
+                    if not isinstance(extra_prompts, list):
+                        extra_prompts = []
+            except Exception:
+                extra_prompts = []
+
+            ext_index = 0
+            while ext_index < len(extra_prompts):
+                next_prompt = str(extra_prompts[ext_index]).strip()
+                if not next_prompt:
+                    ext_index += 1
+                    continue
+
+                scene_index += 1
+                log_info(f"Extensión adicional {ext_index + 1}/{len(extra_prompts)}: {next_prompt[:50]}...")
+
+                # Recargar para que Flow detecte el campo
+                page.reload(wait_until="domcontentloaded")
+                page.wait_for_timeout(5000)
+
+                if not _wait_for_followup_field(page, timeout_sec=20):
+                    log_warn("No apareció campo de extensión. Continuando con descarga.")
+                    break
+
+                if not _find_followup_field_and_paste(page, next_prompt):
+                    log_warn("No se pudo pegar el prompt adicional. Continuando con descarga.")
+                    break
+
+                log_info("Esperando que Flow procese el prompt...")
+                page.wait_for_timeout(3000)
+
+                # Esperar botón habilitado
+                for _wait in range(10):
+                    send_ready = page.evaluate("""() => {
+                        const btns = Array.from(document.querySelectorAll('button, [role="button"]'));
+                        const sendBtn = btns.find(b => {
+                            const text = (b.innerText || '').toLowerCase();
+                            const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+                            return (text.includes('arrow_forward') || text.includes('→') ||
+                                    text.includes('send') || aria.includes('send') || aria.includes('submit'))
+                                   && b.offsetParent !== null
+                                   && b.getBoundingClientRect().top > window.innerHeight * 0.4;
+                        });
+                        if (!sendBtn) return 'not_found';
+                        return sendBtn.disabled ? 'disabled' : 'ready';
+                    }""")
+                    if send_ready == "ready":
+                        break
+                    page.wait_for_timeout(2000)
+
+                if not _click_send_button(page):
+                    log_warn("No se pudo enviar extensión adicional.")
+                    break
+
+                log_ok(f"Extensión {ext_index + 1} enviada. Esperando video...")
+                print(f"PROMPT_SENT=extend_{ext_index + 1}")
+                page.wait_for_timeout(5000)
+
+                combined_video = _poll_for_combined_video(page, timeout_sec=540)
+                if not combined_video:
+                    log_warn("No se generó el video. Descargando último disponible.")
+                    break
+
+                video_url = combined_video["src"]
+                duration = combined_video.get("duration", 0)
+                log_ok(f"Video listo: {combined_video.get('width', 0)}x{combined_video.get('height', 0)} | {duration:.1f}s")
+                ext_index += 1
+
+            # ── Descargar video final ──
             VIDEO_DIR.mkdir(parents=True, exist_ok=True)
             output_path = _download_combined_video(page, video_url)
             if not output_path:
@@ -698,7 +946,7 @@ def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
             (VIDEO_DIR / "last_download.json").write_text(
                 _json.dumps(dl_state, ensure_ascii=False, indent=2), encoding="utf-8"
             )
-            log_ok(f"Video combinado descargado: {output_path.name}")
+            log_ok(f"Video final descargado: {output_path.name}")
 
         except Exception as e:
             log_error(f"Error en extend_video: {e}")

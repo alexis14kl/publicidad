@@ -54,6 +54,8 @@ export function ChatBotPage() {
   const [approvalStep, setApprovalStep] = useState<'extend' | 'publish'>('extend')
   const [lastPreviewType, setLastPreviewType] = useState<string | null>(null)
   const [extendPrompt, setExtendPrompt] = useState('')
+  const [hasMoreScenes, setHasMoreScenes] = useState(false)
+  const [nextScenePreview, setNextScenePreview] = useState('')
   const chatEndRef = useRef<HTMLDivElement>(null)
   const extendInputRef = useRef<HTMLTextAreaElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -129,6 +131,8 @@ export function ChatBotPage() {
           const previewType = result.preview?.type || 'image'
           setLastPreviewType(previewType)
           setApprovalStep(previewType === 'video' ? 'extend' : 'publish')
+          setHasMoreScenes(!!result.hasMoreScenes)
+          setNextScenePreview(result.nextScenePreview || '')
           addMsg('assistant', result.message, 'preview', result.preview || null)
         } else {
           addMsg('assistant', result.message || 'Listo.', 'done')
@@ -183,27 +187,31 @@ export function ChatBotPage() {
     addMsg('assistant', 'Entendido. El contenido no se publicará. Puedes darme más detalles o empezar algo nuevo.', 'done')
   }
 
-  async function handleExtendVideo() {
+  async function handleExtendVideo(customPrompt?: string) {
     if (!awaitingApproval) return
-    const prompt = extendPrompt.trim()
-    if (!prompt) {
-      addMsg('assistant', 'Escribe un prompt de continuación para extender el video.', 'error')
-      extendInputRef.current?.focus()
-      return
-    }
+    // customPrompt = prompt manual del textarea; vacío = usar escena pre-generada
+    const prompt = (customPrompt || extendPrompt || '').trim()
 
     setIsProcessing(true)
     setExtendPrompt('')
-    addMsg('user', `Extender video: ${prompt}`)
-    addMsg('assistant', 'Generando video extendido en Google Flow...', 'pending')
+
+    if (prompt) {
+      addMsg('user', `Extender video: ${prompt}`)
+    } else {
+      addMsg('user', 'Aprobar siguiente escena')
+    }
+    addMsg('assistant', 'Generando extensión de video en Google Flow...', 'pending')
 
     try {
+      // Pasar prompt vacío si es escena automática — el backend usa la pre-generada
       const result = await (api() as any).chatExtendVideo(awaitingApproval, prompt)
       updateMessages(prev => prev.filter(m => m.status !== 'pending'))
 
       if (result.success) {
         setAwaitingApproval(result.jobId || 'pending')
         setApprovalStep('extend')
+        setHasMoreScenes(!!result.hasMoreScenes)
+        setNextScenePreview(result.nextScenePreview || '')
         addMsg('assistant', result.message, 'preview', result.preview || null)
       } else {
         addMsg('assistant', result.error || 'Error al extender el video.', 'error')
@@ -415,29 +423,48 @@ export function ChatBotPage() {
 
         {awaitingApproval && approvalStep === 'extend' && lastPreviewType === 'video' && (
           <div className="chatbot-extend-section">
-            <textarea
-              ref={extendInputRef}
-              className="chatbot-extend-input"
-              value={extendPrompt}
-              onChange={e => setExtendPrompt(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleExtendVideo()
-                }
-              }}
-              placeholder="Describe qué pasa después en el video..."
-              disabled={isProcessing}
-              rows={2}
-            />
-            <div className="chatbot-approval">
-              <button className="chatbot-extend" onClick={handleExtendVideo} disabled={isProcessing || !extendPrompt.trim()}>
-                Extender video
-              </button>
-              <button className="chatbot-continue" onClick={handleContinueToPublish} disabled={isProcessing}>
-                Continuar con publicación
-              </button>
-            </div>
+            {hasMoreScenes ? (
+              <>
+                <div className="chatbot-next-scene">
+                  <span className="chatbot-next-scene-label">Siguiente escena:</span>
+                  <span className="chatbot-next-scene-text">{nextScenePreview}</span>
+                </div>
+                <div className="chatbot-approval">
+                  <button className="chatbot-extend" onClick={() => handleExtendVideo('')} disabled={isProcessing}>
+                    Aprobar escena
+                  </button>
+                  <button className="chatbot-continue" onClick={handleContinueToPublish} disabled={isProcessing}>
+                    Publicar ahora
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <textarea
+                  ref={extendInputRef}
+                  className="chatbot-extend-input"
+                  value={extendPrompt}
+                  onChange={e => setExtendPrompt(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleExtendVideo()
+                    }
+                  }}
+                  placeholder="Describe qué pasa después en el video..."
+                  disabled={isProcessing}
+                  rows={2}
+                />
+                <div className="chatbot-approval">
+                  <button className="chatbot-extend" onClick={() => handleExtendVideo()} disabled={isProcessing || !extendPrompt.trim()}>
+                    Extender video
+                  </button>
+                  <button className="chatbot-continue" onClick={handleContinueToPublish} disabled={isProcessing}>
+                    Publicar ahora
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
