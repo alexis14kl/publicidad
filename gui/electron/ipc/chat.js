@@ -414,7 +414,8 @@ async function getCampaignPreview(ctx) {
       child.stdin.end()
       child.stdout?.on('data', d => { out += d.toString() })
       child.stderr?.on('data', d => { err += d.toString() })
-      child.on('exit', () => resolve({ stdout: out, stderr: err }))
+      // Use 'close' instead of 'exit' to ensure all stdio streams are flushed
+      child.on('close', () => resolve({ stdout: out, stderr: err }))
     })
 
     // Log stderr (Claude analysis progress)
