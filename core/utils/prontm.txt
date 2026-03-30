@@ -1,5 +1,11 @@
-Generate this image now:
+Generate this video now:
 
-Professional advertising test image showcasing high-quality design capabilities. Clean, modern layout with bold headline text 'PROFESSIONAL VISUAL TESTING' prominently displayed at top. Sleek gradient background in corporate blue and white tones. Multiple design elements showing before/after comparison panels. Professional typography, clean spacing, contemporary design aesthetic. Call-to-action button with 'GET STARTED' text. Sample logo placeholder area. Contact information section at bottom. High-quality, crisp, professional advertising photography style, 1080x1350 vertical format, top 15% area clean for logo overlay.
+Professional tortoise character wearing business suit and glasses, sitting at modern computer workstation, typing code on screen with focused expression. Split screen showing rabbit character running fast but stumbling and giving up halfway. Office environment, Colombian business setting, motivational poster on wall, clean modern workspace. Text overlay in Spanish: 'La Constancia Gana - Desarrollo que No Se Rinde' and 'NOYECODE - Desarrollo a la Medida' with phone number +573013859952. Professional advertising style, vibrant colors, 1080x1350 vertical format.
 
-All visible text in the image MUST be in English. Full-bleed design, no margins. Reserve top 8% for logo. Deliver exactly ONE final image.
+CRITICAL RULES:
+- Do NOT include any text, titles, subtitles, captions, logos, brand names, phone numbers, URLs, or watermarks in the video.
+- Do NOT render any written words on screen.
+- Focus ONLY on: actors, actions, expressions, environments, objects, lighting, camera movement, transitions.
+- The video must be a clean visual scene without any overlaid text.
+- Professional cinematic quality, smooth transitions.
+- The overall tone, setting, and cultural context of the video must feel Spanish-speaking (Latin American if Spanish is Spanish).
