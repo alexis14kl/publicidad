@@ -94,7 +94,10 @@ def _load_skills_knowledge() -> str:
     for fname in agent_files:
         fpath = agents_dir / fname
         if fpath.exists():
-            content = fpath.read_text("utf-8").strip()[:2000]  # Limit to avoid token overflow
+            content = fpath.read_text("utf-8").strip()
+            # video-scene-creator necesita más contexto para generar escenas de calidad
+            limit = 6000 if "video-scene" in fname else 2000
+            content = content[:limit]
             knowledge.append(f"[AGENTE: {fname.replace('.md','')}]\n{content}")
 
     return "\n\n".join(knowledge)
@@ -128,10 +131,14 @@ Cada decisión debe tener una razón basada en los frameworks de los agentes.
 
 IMPORTANTE: Genera EXACTAMENTE 1 audiencia y 1 anuncio. NO crear múltiples audiencias ni múltiples ads. Una sola audiencia con budget_pct=1.0 y un solo ad con audience_index=0.
 
+IDIOMA OBLIGATORIO: TODOS los campos del JSON DEBEN estar en ESPAÑOL COLOMBIANO.
+La ÚNICA excepción es "image_prompt" que debe estar en inglés (es para el generador de IA).
+Campos como campaign_name, analysis, primary_text, headline, description, reasoning, post_caption, post_hashtags, voiceover, warnings — TODO en español.
+
 Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
 
 {{
-  "campaign_name": "nombre creativo y descriptivo",
+  "campaign_name": "nombre creativo y descriptivo EN ESPAÑOL",
   "analysis": "análisis estratégico: qué entendiste de la solicitud, qué oportunidad detectas, qué enfoque elegiste y por qué (usa los frameworks de los agentes)",
   "content_type": "{content_type}",
   "calendar": {{
@@ -158,14 +165,14 @@ Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
       "audience_index": 0,
       "angle": "dolor | resultado | prueba_social | curiosidad | comparación | identidad",
       "primary_text": "copy del anuncio en español colombiano (max 500 chars). Aplica: Hook→Contexto→Valor→Prueba→CTA",
-      "headline": "titular (max 40 chars)",
-      "description": "descripción corta (max 30 chars)",
-      "reasoning": "qué principio psicológico aplica (Cialdini, loss aversion, etc.)"
+      "headline": "titular EN ESPAÑOL (max 40 chars)",
+      "description": "descripción corta EN ESPAÑOL (max 30 chars)",
+      "reasoning": "qué principio psicológico aplica EN ESPAÑOL (Cialdini, loss aversion, etc.)"
     }}
   ],
   "post_caption": "OBLIGATORIO. Texto completo para la publicación en redes sociales (en español colombiano). Aplica el framework del agente copywriting: Hook (primera línea impactante que detenga el scroll) → Contexto (por qué importa ahora) → Valor (qué ofrece la empresa) → Prueba (dato, testimonio o credibilidad) → CTA (acción clara: visita la web, escríbenos, agenda). Usa emojis estratégicamente. Menciona el nombre de la empresa. Máximo 300 palabras. NO repetir la solicitud del usuario literalmente — transforma la idea en copy profesional que venda.",
-  "post_hashtags": "OBLIGATORIO. Array de 8-15 hashtags relevantes. Mezclar: 3-4 hashtags de nicho específico del servicio/producto, 3-4 hashtags de la industria o sector, 2-3 hashtags de ubicación, 1-2 hashtags de la marca del usuario. Sin # en el valor.",
-  "image_prompt": "prompt EN INGLÉS para generar la imagen publicitaria con IA. IMPORTANTE: (1) Debe reflejar LITERALMENTE lo que el usuario pidió — si pidió una vaca con un PC, genera una vaca con un PC. (2) SIEMPRE incluir elementos publicitarios: slogan visible en español, headline text, branding de la empresa, call-to-action visual, información de contacto. (3) Debe parecer un anuncio profesional de redes sociales, no una foto cualquiera. (4) Formato: 1080x1350 vertical, zona superior 15% limpia para logo overlay posterior. (5) Estilo: high-quality, professional advertising photography, vibrant colors.",
+  "post_hashtags": "OBLIGATORIO. Array de 8-15 hashtags EN ESPAÑOL. Mezclar: 3-4 hashtags de nicho específico del servicio/producto, 3-4 hashtags de la industria o sector, 2-3 hashtags de ubicación (Colombia, ciudad), 1-2 hashtags de la marca del usuario. Sin # en el valor.",
+  "image_prompt": "prompt EN INGLÉS para el generador de IA. IMPORTANTE: (1) Debe reflejar LITERALMENTE lo que el usuario pidió. (2) Todo texto visible en la imagen (slogan, headline, CTA, contacto) DEBE estar EN ESPAÑOL. Ejemplo: 'with visible Spanish text: Automatiza tu negocio'. (3) Debe parecer un anuncio profesional de redes sociales. (4) Formato: 1080x1350 vertical, zona superior 15% limpia para logo. (5) Estilo: high-quality professional advertising photography, vibrant colors.",
   "video_scenes": [
     {{
       "scene_number": 1,
@@ -208,7 +215,15 @@ REGLAS CRÍTICAS:
    - Ejemplo CORRECTO: "Frustrated office worker slamming old CRT computer, papers flying. Cut to: modern professional smiling at sleek laptop with colorful abstract dashboard. Split screen transition, cinematic lighting, 7 seconds. No text, no logos, no brand names, no written words visible anywhere."
    - Ejemplo INCORRECTO: "Video with text 'company slogan' and company logo at top..." (esto genera texto ilegible)
    - Ejemplo INCORRECTO: "Computer screen showing 'ProductivityPro' dashboard..." (Veo 3 inventara un nombre diferente con errores)
-10. Para tipo "image": el image_prompt SI debe incluir texto visible (slogan, headline, branding) porque la IA de imagenes maneja texto mejor."""
+10. Para tipo "image": el image_prompt SI debe incluir texto visible (slogan, headline, branding) porque la IA de imagenes maneja texto mejor.
+11. Para tipo "video" o "campaign" con video_scenes: OBLIGATORIO usar las reglas del agente video-scene-creator:
+   - Cada escena dura 7 segundos con UN solo beat narrativo.
+   - Prompts visuales en INGLÉS profesional (estilo, personajes, ambiente, acción, cámara, iluminación).
+   - Voiceovers en ESPAÑOL LATINO natural (8-16 palabras, claro, relacionado con la acción).
+   - Mantener continuidad visual: mismos personajes, ropa, objetos, ambiente entre escenas.
+   - Seguir estructura: setup → problema → consecuencia (técnico) o hook → valor → CTA (promo).
+   - Terminar cada prompt visual con: "No text, no logos, no brand names, no written words visible anywhere."
+   - El image_prompt para video debe ser la PRIMERA escena del video (la más impactante)."""
 
     lang_label = "español" if user_language == "es" else "English"
     lang_instruction = (
@@ -225,7 +240,9 @@ REGLAS CRÍTICAS:
         f'TIPO DE CONTENIDO: {content_type}\n'
         f'PRESUPUESTO DIARIO: ${budget} COP (mercado colombiano)\n'
         f'{lang_instruction}\n\n'
-        f'Genera la estrategia completa en JSON. Recuerda: TODOS los campos en {lang_label} excepto image_prompt.'
+        f'Genera la estrategia completa en JSON.\n'
+        f'RECORDATORIO FINAL: TODOS los campos DEBEN estar en {lang_label} (campaign_name, headline, description, primary_text, post_caption, reasoning, warnings). '
+        f'La ÚNICA excepción es image_prompt que va en inglés pero con textos visibles en español.'
     )
 
     response = ask_claude(system_prompt, user_prompt)
