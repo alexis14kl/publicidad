@@ -649,7 +649,13 @@ const { chromium } = require('playwright');
       await focusPromptSurface();
       await clearPromptSurface();
       await focusPromptSurface();
-      await page.keyboard.insertText(prompt);
+      // Streaming por chunks — evita que se trabe con prompts largos o equipo lento
+      const CHUNK_SIZE = 200;
+      for (let i = 0; i < prompt.length; i += CHUNK_SIZE) {
+        const chunk = prompt.slice(i, i + CHUNK_SIZE);
+        await page.keyboard.insertText(chunk);
+        if (i + CHUNK_SIZE < prompt.length) await page.waitForTimeout(50);
+      }
     };
 
     await injectPrompt();

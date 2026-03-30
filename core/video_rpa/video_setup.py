@@ -462,8 +462,13 @@ def _paste_prompt_in_flow(page: Page, prompt_text: str) -> bool:
         if (!el) return '';
         el.focus();
         el.innerHTML = '';
-        el.textContent = text;
-        el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+        // Chunks: escribir en pedazos para no trabar el editor
+        const CHUNK = 150;
+        for (let i = 0; i < text.length; i += CHUNK) {
+            const part = text.slice(i, i + CHUNK);
+            el.textContent = (el.textContent || '') + part;
+            el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: part }));
+        }
         el.dispatchEvent(new Event('change', { bubbles: true }));
         return (el.innerText || el.textContent || '').trim();
     }""", prompt_text)
@@ -932,10 +937,17 @@ def _paste_followup_prompt_in_flow(page: Page, prompt_text: str, scene_index: in
         if (!target) return '';
         target.focus();
         if ('value' in target) {
-            target.value = text;
+            target.value = '';
+            const CHUNK = 150;
+            for (let i = 0; i < text.length; i += CHUNK) {
+                target.value += text.slice(i, i + CHUNK);
+            }
         } else {
             target.innerHTML = '';
-            target.textContent = text;
+            const CHUNK = 150;
+            for (let i = 0; i < text.length; i += CHUNK) {
+                target.textContent = (target.textContent || '') + text.slice(i, i + CHUNK);
+            }
         }
         target.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
         target.dispatchEvent(new Event('change', { bubbles: true }));

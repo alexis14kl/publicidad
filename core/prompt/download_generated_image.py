@@ -49,11 +49,14 @@ def get_latest_downloadable_image_info(page) -> dict:
             const blockHasImageGenOverlay = (block) =>
                 block.querySelector('[data-testid="image-gen-overlay-actions"]') !== null;
 
-            // Try multiple selectors: new ChatGPT DOM first, then legacy <article>
-            const turns = Array.from(document.querySelectorAll('[data-testid^="conversation-turn"]')).reverse();
-            const messages = Array.from(document.querySelectorAll('[data-message-id]')).reverse();
-            const articles = Array.from(document.querySelectorAll('article')).reverse();
-            const candidates = turns.length > 0 ? turns : messages.length > 0 ? messages : articles;
+            // Tomar solo los últimos 2 turns (el más reciente primero)
+            // Evita tomar la imagen de un turn anterior
+            const turns = Array.from(document.querySelectorAll('[data-testid^="conversation-turn"]'));
+            const messages = Array.from(document.querySelectorAll('[data-message-id]'));
+            const articles = Array.from(document.querySelectorAll('article'));
+            const allBlocks = turns.length > 0 ? turns : messages.length > 0 ? messages : articles;
+            // Solo los últimos 2 bloques (el response más reciente)
+            const candidates = allBlocks.slice(-2).reverse();
 
             const targetBlock = candidates.find((block) =>
                 blockHasDownloadButton(block) || blockHasImageGenOverlay(block) || blockHasImageCreatedText(block)
@@ -143,14 +146,27 @@ def main() -> int:
             if not image_url:
                 raise RuntimeError("No se encontro la URL de la imagen generada")
 
-            response = context.request.get(image_url, timeout=300000)
-            if not response.ok:
-                raise RuntimeError(f"No se pudo descargar la imagen generada: HTTP {response.status}")
-
+            # Descarga con retry y chunks para equipos lentos o conexiones inestables
             output_path = IMG_PUBLICITARIAS_DIR / build_filename(image_url)
-            output_path.write_bytes(response.body())
-            print(f"IMAGE_DOWNLOADED={output_path}")
-            return 0
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = context.request.get(image_url, timeout=120000)
+                    if not response.ok:
+                        raise RuntimeError(f"HTTP {response.status}")
+                    image_bytes = response.body()
+                    if len(image_bytes) < 1000:
+                        raise RuntimeError(f"Imagen muy pequeña ({len(image_bytes)} bytes), posible error")
+                    output_path.write_bytes(image_bytes)
+                    print(f"IMAGE_DOWNLOADED={output_path}")
+                    print(f"IMAGE_SIZE={len(image_bytes)}")
+                    return 0
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        print(f"[WARN] Intento {attempt + 1} falló: {e}. Reintentando en 3s...")
+                        time.sleep(3)
+                    else:
+                        raise RuntimeError(f"No se pudo descargar la imagen después de {max_retries} intentos: {e}")
         finally:
             browser.close()
 

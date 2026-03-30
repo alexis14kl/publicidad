@@ -268,8 +268,11 @@ def _find_followup_field_and_paste(page, prompt_text: str) -> bool:
             if (rect.width > 200 && rect.y > window.innerHeight * 0.5) {
                 el.focus();
                 el.innerHTML = '';
-                el.textContent = text;
-                el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+                const CHUNK = 150;
+                for (let i = 0; i < text.length; i += CHUNK) {
+                    el.textContent = (el.textContent || '') + text.slice(i, i + CHUNK);
+                    el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text.slice(i, i + CHUNK) }));
+                }
                 el.dispatchEvent(new Event('change', { bubbles: true }));
                 return;
             }

@@ -388,8 +388,8 @@ JSON: {"image_prompt":"(EN INGLÉS) prompt para imagen publicitaria profesional 
 
   const https = require('https')
   const body = JSON.stringify({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 600,
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 800,
     messages: [
       { role: 'user', content: userPrompt },
     ],
