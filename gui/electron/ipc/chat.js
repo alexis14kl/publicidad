@@ -235,7 +235,13 @@ async function generateSingleContent(ctx) {
 
   let imagePrompt
   if (isVideo) {
-    imagePrompt = `Generate this video now:\n\n${ctx.aiImagePrompt}\n\nCRITICAL RULES:\n- Do NOT include any text, titles, subtitles, captions, logos, brand names, phone numbers, URLs, or watermarks in the video.\n- Do NOT render any written words on screen.\n- Focus ONLY on: actors, actions, expressions, environments, objects, lighting, camera movement, transitions.\n- The video must be a clean visual scene without any overlaid text.\n- Professional cinematic quality, smooth transitions.\n- The overall tone, setting, and cultural context of the video must feel ${langLabel}-speaking (Latin American if ${langLabel} is Spanish).`
+    // Inyectar voiceover de la escena 1 como diálogo en español para Veo 3
+    const videoScenes = ctx.videoScenes || []
+    const scene1Voiceover = videoScenes[0]?.voiceover || ''
+    const voiceoverLine = scene1Voiceover
+      ? `\n\nDIALOGUE/VOICEOVER (spoken in Spanish, Latin American accent): "${scene1Voiceover}"`
+      : ''
+    imagePrompt = `Generate this video now:\n\n${ctx.aiImagePrompt}${voiceoverLine}\n\nCRITICAL RULES:\n- Do NOT include any text, titles, subtitles, captions, logos, brand names, phone numbers, URLs, or watermarks in the video.\n- Do NOT render any written words on screen.\n- Focus ONLY on: actors, actions, expressions, environments, objects, lighting, camera movement, transitions.\n- The video must be a clean visual scene without any overlaid text.\n- Professional cinematic quality, smooth transitions.\n- The overall tone, setting, and cultural context of the video must feel ${langLabel}-speaking (Latin American if ${langLabel} is Spanish).${scene1Voiceover ? '\n- The character MUST speak the dialogue/voiceover line in Spanish with a natural Latin American accent.' : ''}`
   } else {
     imagePrompt = `Generate this image now:\n\n${ctx.aiImagePrompt}\n\nAll visible text in the image MUST be in ${langLabel}. Full-bleed design, no margins. Reserve top 8% for logo. Deliver exactly ONE final image.`
   }
@@ -1224,9 +1230,11 @@ async function handleChatCommand(text) {
   }
 
   ctx.aiImagePrompt = spec.meta.image_prompt
+  ctx.videoScenes = spec.meta.video_scenes || []
   console.log('[CHAT] Step 1 OK: image_prompt =', spec.meta.image_prompt.slice(0, 80))
   console.log('[CHAT] Step 1 OK: analysis =', (spec.meta.ai_analysis || '').slice(0, 80))
   console.log('[CHAT] Step 1 OK: adsets =', (spec.adsets || []).length)
+  console.log('[CHAT] Step 1 OK: video_scenes =', ctx.videoScenes.length)
 
   // ══════════════════════════════════════════════════════════════════════
   // STEP 2: Generate visual content via DiCloak using Claude's prompt
@@ -1312,7 +1320,9 @@ async function handleChatCommand(text) {
 
   const jobId = `job-${Date.now()}`
   // videoFilePath and imageFilePath are set in Step 2 (lines 798-812)
-  pendingJobs.set(jobId, { ctx: { ...ctx }, filePath, videoFilePath, imageFilePath, spec })
+  // Guardar video_scenes del spec para extensiones automáticas
+  const videoScenes = (spec?.meta?.video_scenes || []).filter(s => s && s.visual_description)
+  pendingJobs.set(jobId, { ctx: { ...ctx }, filePath, videoFilePath, imageFilePath, spec, videoScenes, currentSceneIndex: 0 })
 
   let message = ''
   if (ctx.type === 'video_campaign') {
@@ -1338,6 +1348,11 @@ async function handleChatCommand(text) {
     message += campaignInfo
     if (filePath) {
       message += '\n\n**Video** generado (se muestra abajo).'
+    }
+    if (videoScenes.length > 1) {
+      const nextScene = videoScenes[1]
+      message += `\n\n**Escena 1 de ${videoScenes.length} completada.**`
+      message += `\n\nSiguiente escena: _"${nextScene.voiceover || nextScene.visual_description?.slice(0, 80)}"_`
     }
     message += '\n\n¿Apruebas para publicar como reel?'
   } else {
@@ -1371,11 +1386,16 @@ async function handleChatCommand(text) {
     } catch { /* ignore */ }
   }
 
+  const hasMoreScenes = videoScenes.length > 1
+  const nextScenePreview = hasMoreScenes ? (videoScenes[1]?.voiceover || videoScenes[1]?.visual_description?.slice(0, 100) || '') : ''
+
   return {
     success: true,
     needsApproval: !!filePath || !!videoFilePath || ctx.type === 'campaign' || ctx.type === 'video_campaign',
     jobId,
     message,
+    hasMoreScenes,
+    nextScenePreview,
     preview: {
       type: ctx.type,
       imagePath: effectiveImagePath,
@@ -1400,8 +1420,26 @@ async function handleChatExtendVideo(jobId, extendPrompt) {
     return { success: false, error: 'Solo se puede extender contenido de video.' }
   }
 
-  if (!extendPrompt || !extendPrompt.trim()) {
-    return { success: false, error: 'Debes proporcionar un prompt para extender el video.' }
+  // Si hay escenas pre-generadas, usar la siguiente automáticamente
+  const scenes = job.videoScenes || []
+  const sceneIdx = (job.currentSceneIndex || 0) + 1
+  let resolvedPrompt = (extendPrompt || '').trim()
+  let isPregenerated = false
+
+  if (!resolvedPrompt && sceneIdx < scenes.length) {
+    const nextScene = scenes[sceneIdx]
+    const visualDesc = nextScene.visual_description || nextScene.prompt || ''
+    const voiceover = nextScene.voiceover || ''
+    // Inyectar voiceover como diálogo en español dentro del prompt visual
+    resolvedPrompt = voiceover
+      ? `${visualDesc}\n\nDIALOGUE/VOICEOVER (spoken in Spanish, Latin American accent): "${voiceover}". The character MUST speak this line naturally in Spanish.`
+      : visualDesc
+    isPregenerated = true
+    console.log(`[EXTEND] Usando escena pre-generada ${sceneIdx + 1}/${scenes.length}: ${resolvedPrompt.slice(0, 80)}`)
+  }
+
+  if (!resolvedPrompt) {
+    return { success: false, error: 'No hay más escenas pre-generadas y no se proporcionó un prompt.' }
   }
 
   // Read last download state for previous video URL
@@ -1424,7 +1462,8 @@ async function handleChatExtendVideo(jobId, extendPrompt) {
     ...env,
     PYTHONPATH: PROJECT_ROOT,
     PYTHONIOENCODING: 'utf-8',
-    BOT_VIDEO_EXTEND_PROMPT: extendPrompt.trim(),
+    BOT_VIDEO_EXTEND_PROMPT: resolvedPrompt,
+    BOT_VIDEO_EXTEND_PREGENERATED: isPregenerated ? '1' : '0',
     BOT_VIDEO_PREVIOUS_VIDEO_URL: previousVideoUrl,
     CDP_PROFILE_PORT: cdpPort,
   }
@@ -1493,8 +1532,9 @@ async function handleChatExtendVideo(jobId, extendPrompt) {
       })
     })
 
-    // Update the pending job with the new file
+    // Update the pending job with the new file and advance scene index
     const newJobId = `job-${Date.now()}`
+    const newSceneIndex = sceneIdx
     pendingJobs.delete(jobId)
     pendingJobs.set(newJobId, {
       ctx: { ...ctx },
@@ -1502,6 +1542,8 @@ async function handleChatExtendVideo(jobId, extendPrompt) {
       videoFilePath: newFilePath,
       imageFilePath: null,
       spec: job.spec,
+      videoScenes: scenes,
+      currentSceneIndex: newSceneIndex,
     })
 
     // Build video preview URL with cache buster so Electron loads the NEW file
@@ -1510,15 +1552,31 @@ async function handleChatExtendVideo(jobId, extendPrompt) {
       videoDataUrl = `local-video://${newFilePath}?t=${Date.now()}`
     }
 
+    // Construir mensaje con info de siguiente escena
+    const completedScene = newSceneIndex + 1
+    const totalScenes = scenes.length
+    const hasMoreScenes = (newSceneIndex + 1) < totalScenes
+    let extMessage = `**Escena ${completedScene} de ${totalScenes || '?'} completada.**`
+
+    if (hasMoreScenes) {
+      const upcoming = scenes[newSceneIndex + 1]
+      const upcomingVoiceover = upcoming.voiceover || upcoming.visual_description?.slice(0, 80) || ''
+      extMessage += `\n\nSiguiente escena: _"${upcomingVoiceover}"_`
+    } else {
+      extMessage += '\n\nTodas las escenas completadas.'
+    }
+
     return {
       success: true,
       jobId: newJobId,
-      message: 'Video extendido generado. ¿Deseas continuar con la publicación o extender de nuevo?',
+      message: extMessage,
+      hasMoreScenes,
+      nextScenePreview: hasMoreScenes ? (scenes[newSceneIndex + 1]?.voiceover || scenes[newSceneIndex + 1]?.visual_description?.slice(0, 100) || '') : '',
       preview: {
         type: 'video',
         imagePath: newFilePath,
         videoDataUrl,
-        summary: `${ctx.platform} | video extendido`,
+        summary: `${ctx.platform} | escena ${completedScene}/${totalScenes || '?'}`,
       },
     }
   } catch (err) {

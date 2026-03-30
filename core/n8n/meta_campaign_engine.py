@@ -177,8 +177,8 @@ Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
     {{
       "scene_number": 1,
       "duration_seconds": 7,
-      "visual_description": "descripción visual exacta de la escena",
-      "voiceover": "texto del narrador (8-16 palabras, español)",
+      "visual_description": "prompt visual EN INGLÉS para Veo 3 (estilo, personajes, acción, cámara, iluminación). Terminar con: No text, no logos, no brand names visible.",
+      "voiceover": "diálogo o narración EN ESPAÑOL LATINO que el personaje DICE en voz alta en la escena (8-16 palabras, natural, claro). Este texto se inyecta como voz hablada en el video.",
       "camera": "tipo de toma"
     }}
   ],

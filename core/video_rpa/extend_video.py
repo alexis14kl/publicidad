@@ -150,13 +150,46 @@ def _find_followup_field_and_paste(page, prompt_text: str) -> bool:
     log_ok(f"Campo encontrado en ({field_info['x']:.0f},{field_info['y']:.0f}) {field_info['w']:.0f}x{field_info['h']:.0f}")
     page.wait_for_timeout(1000)
 
-    # ── Step 2: Limpiar placeholder y escribir carácter por carácter ──
-    log_info("Escribiendo prompt carácter por carácter...")
-    page.keyboard.press(f"{modifier}+a")
-    page.wait_for_timeout(300)
-    page.keyboard.press("Backspace")
+    # ── Step 2: Limpiar campo completamente antes de escribir ──
+    log_info("Limpiando campo de texto...")
+
+    # Hacer click directo en las coordenadas del campo para activar el cursor
+    page.mouse.click(
+        field_info['x'] + field_info['w'] / 2,
+        field_info['y'] + field_info['h'] / 2
+    )
     page.wait_for_timeout(500)
 
+    # Intentar limpiar múltiples veces hasta que el campo quede vacío
+    for _clear_attempt in range(5):
+        page.keyboard.press(f"{modifier}+a")
+        page.wait_for_timeout(200)
+        page.keyboard.press("Backspace")
+        page.wait_for_timeout(300)
+        page.keyboard.press("Delete")
+        page.wait_for_timeout(300)
+
+        # Verificar si el campo quedó vacío
+        remaining = page.evaluate("""() => {
+            const candidates = Array.from(document.querySelectorAll(
+                '[contenteditable="true"], [role="textbox"]'
+            ));
+            for (const el of candidates) {
+                const rect = el.getBoundingClientRect();
+                if (rect.width > 200 && rect.y > window.innerHeight * 0.5) {
+                    return (el.innerText || el.textContent || '').trim();
+                }
+            }
+            return '';
+        }""")
+        if not remaining or len(remaining) < 5 or "what happens" in remaining.lower() or "que pasa" in remaining.lower():
+            break
+        log_info(f"  Campo aún tiene texto ({len(remaining)} chars). Reintentando limpieza...")
+
+    page.wait_for_timeout(500)
+
+    # ── Step 3: Escribir carácter por carácter ──
+    log_info("Escribiendo prompt carácter por carácter...")
     page.keyboard.type(prompt_text, delay=50)
     page.wait_for_timeout(20000)
 
@@ -657,8 +690,14 @@ def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
         log_error("No se proporcionó prompt de extensión (BOT_VIDEO_EXTEND_PROMPT).")
         return 1
 
-    # Analizar y mejorar el prompt con Claude usando las reglas de video-scene-creator
-    extend_prompt = _analyze_extend_prompt(raw_prompt)
+    # Si el prompt viene de una escena pre-generada por Claude, ya está optimizado.
+    # Solo analizar con Claude si es un prompt manual del usuario.
+    is_pregenerated = os.environ.get("BOT_VIDEO_EXTEND_PREGENERATED", "0") == "1"
+    if is_pregenerated:
+        log_info("Prompt pre-generado por el agente. Usando directo sin re-analizar.")
+        extend_prompt = raw_prompt
+    else:
+        extend_prompt = _analyze_extend_prompt(raw_prompt)
 
     previous_video_url = os.environ.get("BOT_VIDEO_PREVIOUS_VIDEO_URL", "").strip()
     scene_index = 2
