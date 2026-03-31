@@ -206,8 +206,8 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
         exit_code=rc,
         started_at=started_at,
         finished_at=finished_at,
-        stdout=collected_stdout[-5000:] if collected_stdout else "",
-        stderr=collected_stderr[-5000:] if collected_stderr else "",
+        stdout="",
+        stderr=error_text,
         metadata={"profile_name": profile_name, "image_prompt": image_prompt},
     )
 
