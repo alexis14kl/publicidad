@@ -188,12 +188,16 @@ def _find_followup_field_and_paste(page, prompt_text: str) -> bool:
 
     page.wait_for_timeout(500)
 
-    # ── Step 3: Escribir carácter por carácter ──
-    log_info("Escribiendo prompt carácter por carácter...")
-    page.keyboard.type(prompt_text, delay=50)
-    page.wait_for_timeout(20000)
+    # ── Step 3: Limpiar caracteres problemáticos y escribir de corrido ──
+    # Las comillas dobles causan que Flow cierre el campo o active shortcuts
+    clean_text = prompt_text.replace('"', "'").replace('"', "'").replace('"', "'")
+    prompt_len = len(clean_text)
+    log_info(f"Escribiendo prompt ({prompt_len} chars)...")
+    page.keyboard.type(clean_text, delay=60)
+    log_ok(f"Escritura completada ({prompt_len} chars).")
+    page.wait_for_timeout(5000)
 
-    # ── Verificar ──
+    # Verificar que el texto llegó
     result = page.evaluate("""() => {
         const candidates = Array.from(document.querySelectorAll(
             '[contenteditable="true"], [role="textbox"]'
@@ -208,7 +212,7 @@ def _find_followup_field_and_paste(page, prompt_text: str) -> bool:
     }""")
 
     if result and len(result) > 5 and "what happens" not in result.lower() and "que pasa" not in result.lower():
-        log_ok(f"Prompt escrito ({len(result)} chars).")
+        log_ok(f"Prompt verificado ({len(result)} chars).")
         return True
 
     log_error("No se pudo escribir el prompt de extensión.")

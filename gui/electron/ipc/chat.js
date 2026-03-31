@@ -239,9 +239,9 @@ async function generateSingleContent(ctx) {
     const videoScenes = ctx.videoScenes || []
     const scene1Voiceover = videoScenes[0]?.voiceover || ''
     const voiceoverLine = scene1Voiceover
-      ? `\n\nDIALOGUE/VOICEOVER (spoken in Spanish, Latin American accent): "${scene1Voiceover}"`
+      ? ` -- VOICEOVER in Spanish: '${scene1Voiceover}'.`
       : ''
-    imagePrompt = `Generate this video now:\n\n${ctx.aiImagePrompt}${voiceoverLine}\n\nCRITICAL RULES:\n- Do NOT include any text, titles, subtitles, captions, logos, brand names, phone numbers, URLs, or watermarks in the video.\n- Do NOT render any written words on screen.\n- Focus ONLY on: actors, actions, expressions, environments, objects, lighting, camera movement, transitions.\n- The video must be a clean visual scene without any overlaid text.\n- Professional cinematic quality, smooth transitions.\n- The overall tone, setting, and cultural context of the video must feel ${langLabel}-speaking (Latin American if ${langLabel} is Spanish).${scene1Voiceover ? '\n- The character MUST speak the dialogue/voiceover line in Spanish with a natural Latin American accent.' : ''}`
+    imagePrompt = `Generate this video now:\n\n${ctx.aiImagePrompt}${voiceoverLine}\n\nCRITICAL RULES:\n- Do NOT include any text, titles, subtitles, captions, logos, brand names, phone numbers, URLs, or watermarks in the video.\n- Do NOT render any written words on screen.\n- Focus ONLY on: actors, actions, expressions, environments, objects, lighting, camera movement, transitions.\n- The video must be a clean visual scene without any overlaid text.\n- Professional cinematic quality, smooth transitions.\n- The overall tone, setting, and cultural context of the video must feel ${langLabel}-speaking (Latin American if ${langLabel} is Spanish).${scene1Voiceover ? '\n- Character speaks the voiceover line naturally in Spanish with Latin American accent.' : ''}`
   } else {
     imagePrompt = `Generate this image now:\n\n${ctx.aiImagePrompt}\n\nAll visible text in the image MUST be in ${langLabel}. Full-bleed design, no margins. Reserve top 8% for logo. Deliver exactly ONE final image.`
   }
@@ -1430,9 +1430,10 @@ async function handleChatExtendVideo(jobId, extendPrompt) {
     const nextScene = scenes[sceneIdx]
     const visualDesc = nextScene.visual_description || nextScene.prompt || ''
     const voiceover = nextScene.voiceover || ''
-    // Inyectar voiceover como diálogo en español dentro del prompt visual
+    // Inyectar voiceover como diálogo en español — usar comillas simples para evitar
+    // que Flow interprete las comillas dobles como cierre del campo
     resolvedPrompt = voiceover
-      ? `${visualDesc}\n\nDIALOGUE/VOICEOVER (spoken in Spanish, Latin American accent): "${voiceover}". The character MUST speak this line naturally in Spanish.`
+      ? `${visualDesc} -- VOICEOVER in Spanish: '${voiceover}'. Character speaks this line naturally in Spanish.`
       : visualDesc
     isPregenerated = true
     console.log(`[EXTEND] Usando escena pre-generada ${sceneIdx + 1}/${scenes.length}: ${resolvedPrompt.slice(0, 80)}`)
