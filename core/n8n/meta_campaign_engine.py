@@ -205,61 +205,55 @@ REGLAS CRÍTICAS:
 6. Cada ángulo de anuncio debe usar un principio psicológico diferente.
 7. Presupuesto bajo (<$10,000/día): 1-2 audiencias. Medio ($10K-50K): 2-3. Alto (>$50K): 3-5.
 8. Las ciudades deben ser relevantes al concepto.
-9. IMPORTANTE para tipo "video": El image_prompt se usa para generar el video en Veo 3. Reglas ESTRICTAS para video:
-   - Describir SOLO la escena visual, acciones y ambiente. NO incluir texto en pantalla.
-   - PROHIBIDO poner texto, logos, nombres de empresa, slogans, titulares, numeros de telefono, URLs o cualquier texto visible en el prompt de video.
-   - PROHIBIDO describir pantallas de computador que muestren nombres de software, dashboards con titulos, o cualquier UI con texto legible. Si hay pantallas, deben mostrar graficos abstractos sin texto.
-   - Razon: la IA de video NO puede renderizar texto correctamente — SIEMPRE genera errores ortograficos, logos inventados (como "LOGCOX", "TECHFLOW", etc.) y marcas ficticias que dañan el branding real.
-   - El texto, logo e info de contacto se agregan DESPUES como overlay profesional sobre el video con ffmpeg.
-   - Enfocarse en: actores, expresiones, objetos, ambientes, iluminacion, movimiento de camara, transiciones.
-   - CADA prompt de video DEBE terminar con: "No text, no logos, no brand names, no written words visible anywhere."
-   - Ejemplo CORRECTO: "Frustrated office worker slamming old CRT computer, papers flying. Cut to: modern professional smiling at sleek laptop with colorful abstract dashboard. Split screen transition, cinematic lighting, 7 seconds. No text, no logos, no brand names, no written words visible anywhere."
-   - Ejemplo INCORRECTO: "Video with text 'company slogan' and company logo at top..." (esto genera texto ilegible)
-   - Ejemplo INCORRECTO: "Computer screen showing 'ProductivityPro' dashboard..." (Veo 3 inventara un nombre diferente con errores)
-10. Para tipo "image": el image_prompt SI debe incluir texto visible (slogan, headline, branding) porque la IA de imagenes maneja texto mejor.
-11. Para tipo "video" o "campaign" con video_scenes: OBLIGATORIO usar framework PAS (Dolor → Agitación → Solución).
-   Cada escena = 8 segundos, UN beat narrativo, SIN relleno.
+9. Para tipo "video": PROHIBIDO texto, logos, nombres, slogans, URLs visibles. Pantallas solo con gráficos abstractos. Terminar con: "No text, no logos, no brand names, no written words visible anywhere."
+10. Para tipo "image": SI incluir texto visible (slogan, headline, branding).
 
-   ESTRUCTURA PAS POR NÚMERO DE ESCENAS:
+11. REGLAS MAESTRAS PARA VIDEO (tipo "video" o "campaign" con video_scenes):
 
-   ■ 1 ESCENA (8s): Golpe directo.
-     - Escena 1 (PAS comprimido): Mostrar el DOLOR en los primeros 4s, CORTE DIRECTO a la solución en los últimos 4s. Sin transición suave — contraste brutal.
-     - Voiceover: una frase que nombre el dolor + la empresa como solución. Ej: 'Cansado de perder clientes? [Empresa] lo resuelve.'
+   ══ PASO 1: IDENTIDAD VISUAL (definir ANTES de escribir escenas) ══
+   Fijar 4 anclajes que se repiten en CADA escena sin excepción:
+   a) PROTAGONISTA: descripción física exacta. Ej: 'Colombian man, 35, short dark hair, white dress shirt, red tie, medium build'.
+   b) LOCACIÓN: un lugar concreto. Ej: 'small office with wooden desk, filing cabinet, one window'.
+   c) LUZ/HORA: día o noche, tipo de luz. Ej: 'warm natural daylight from window'.
+   d) ESTILO: Ej: 'cinematic commercial style, shallow depth of field, 24fps look'.
 
-   ■ 2 ESCENAS (16s): Contraste fuerte.
-     - Escena 1 (DOLOR): El problema en su peor momento. Caos, frustración, pérdida visible. La persona SUFRE.
-     - Escena 2 (SOLUCIÓN): Mismo personaje, mismo lugar, pero TRANSFORMADO. Orden, sonrisa, éxito. La empresa salvó todo.
-     - Voiceovers: Escena 1 = frase de dolor crudo. Escena 2 = nombre de la empresa + resultado.
+   FORMATO OBLIGATORIO para CADA prompt de escena:
+   Escena 1: '[ESTILO]. [PROTAGONISTA descripción completa] in [LOCACIÓN]. [LUZ]. [Acción]. [Cámara]. No text, no logos...'
+   Escena 2+: 'Same [PROTAGONISTA], same [LOCACIÓN], same [LUZ]. [Acción diferente]. [Cámara]. No text, no logos...'
 
-   ■ 3 ESCENAS (24s): Arco completo.
-     - Escena 1 (DOLOR): El problema golpea. Algo concreto y visual sale MAL. La persona lo ve en tiempo real.
-     - Escena 2 (AGITACIÓN): Las consecuencias EMPEORAN. Pérdida de dinero, clientes, tiempo. Urgencia máxima. El reloj corre.
-     - Escena 3 (SOLUCIÓN): La empresa aparece. Todo se transforma. El resultado es visible e inmediato. CTA claro.
-     - Voiceovers: progresión emocional — frustración → desesperación → alivio/confianza.
+   PROHIBIDO EN ESCENAS 2+:
+   - Cambiar protagonista por otra persona.
+   - Cambiar locación a otro lugar.
+   - Cambiar de día a noche o viceversa.
+   - Introducir personajes nuevos que tomen el rol principal.
+   - Cambiar el estilo visual.
 
-   ■ 4 ESCENAS (32s): Narrativa profunda.
-     - Escena 1 (DOLOR): Setup del problema cotidiano. Algo que la audiencia reconoce al instante.
-     - Escena 2 (AGITACIÓN): El problema se multiplica. No es solo un inconveniente — es una crisis.
-     - Escena 3 (SOLUCIÓN): La empresa entra. Se muestra el producto/servicio en acción resolviendo el caos.
-     - Escena 4 (RESULTADO + CTA): El después. Persona tranquila, negocio funcionando. Frase de cierre con la empresa.
+   ══ PASO 2: COHERENCIA TEMÁTICA (NO NEGOCIABLE) ══
+   El video debe tratar EXACTAMENTE sobre lo que el usuario pidió. NO mezclar con conceptos relacionados.
+   - Si pide TIENDA DE MASCOTAS → mostrar productos, compras, clientes comprando. NO veterinarios, NO consultorios, NO cirugías.
+   - Si pide RESTAURANTE → mostrar comida, servicio, clientes comiendo. NO cocina industrial, NO proveedores.
+   - Si pide SOFTWARE → mostrar pantallas, productividad, automatización. NO servidores físicos, NO cables.
+   - Si pide GIMNASIO → mostrar ejercicio, transformación física. NO nutrición clínica, NO hospitales.
+   REGLA: Antes de escribir cada escena, pregúntate: '¿Esto es lo que el usuario pidió o estoy derivando a otro tema?' Si es otro tema, REESCRIBE.
 
-   ■ 5-6 ESCENAS (40-48s): Historia completa.
-     - Escena 1 (DOLOR leve): Día normal, pequeña molestia. Parece controlable.
-     - Escena 2 (DOLOR fuerte): La molestia se convierte en problema real. Algo se rompe.
-     - Escena 3 (AGITACIÓN): Consecuencias visibles — dinero perdido, clientes que se van, caos total.
-     - Escena 4 (PUNTO DE QUIEBRE): El momento más bajo. La persona está por rendirse.
-     - Escena 5 (SOLUCIÓN): Descubre la empresa. Transformación inmediata. Todo empieza a funcionar.
-     - Escena 6 (RESULTADO + CTA): Éxito visible. Sonrisa. Negocio creciendo. Nombre de la empresa + CTA.
+   ══ PASO 3: NARRATIVA PAS (Dolor → Agitación → Solución) ══
+   El video cuenta UNA historia del MISMO protagonista. Todo relacionado SOLO con lo que el usuario pidió.
 
-   REGLAS DE CADA ESCENA:
-   - Prompts visuales en INGLÉS profesional: estilo + personaje + acción CONCRETA + cámara + iluminación.
-   - Voiceovers en ESPAÑOL LATINO: frases CORTAS y DIRECTAS (8-16 palabras). Sin frases genéricas.
-   - El DOLOR debe ser ESPECÍFICO al negocio del usuario (no genérico). Si es software → archivos perdidos. Si es comida → clientes esperando. Si es logística → envíos retrasados.
-   - La AGITACIÓN debe ESCALAR el dolor, no repetirlo. Mostrar la CONSECUENCIA de no actuar.
-   - La SOLUCIÓN debe mostrar la empresa EN ACCIÓN, no solo mencionarla.
-   - Continuidad visual OBLIGATORIA: mismo personaje, misma ropa, mismo lugar (transformado en la solución).
-   - Cada prompt visual DEBE terminar con: "No text, no logos, no brand names, no written words visible anywhere."
-   - El image_prompt para video = escena de DOLOR (primera escena)."""
+   ■ 1 ESCENA (8s): DOLOR 4s → corte → SOLUCIÓN 4s.
+   ■ 2 ESCENAS (16s): Esc1=DOLOR | Esc2=SOLUCIÓN (mismo lugar transformado).
+   ■ 3 ESCENAS (24s): Esc1=DOLOR | Esc2=AGITACIÓN (escala) | Esc3=SOLUCIÓN+CTA.
+   ■ 4 ESCENAS (32s): Esc1=DOLOR | Esc2=AGITACIÓN | Esc3=SOLUCIÓN en acción | Esc4=RESULTADO+CTA.
+   ■ 5-6 ESCENAS: Esc1=dolor leve | Esc2=problema real | Esc3=consecuencias | Esc4=punto de quiebre | Esc5=solución | Esc6=resultado+CTA.
+
+   ══ PASO 4: REGLAS POR ESCENA ══
+   - Voiceover ESPAÑOL LATINO: 8-16 palabras, directo, emocional, conectado con lo que se VE.
+   - DOLOR: específico al negocio del usuario. Software→datos perdidos. Restaurante→clientes esperando. Logística→envíos retrasados.
+   - AGITACIÓN: escalar el dolor, NO repetirlo. Mostrar QUÉ PASA si no actúa.
+   - SOLUCIÓN: la empresa resolviendo EN ACCIÓN (no solo mencionarla).
+   - COMERCIAL: ritmo rápido, producto en primer plano, CTA visual fuerte.
+   - NARRATIVO: progresión emocional, close-ups en expresiones.
+   - HUMORÍSTICO: exagerar el dolor cómicamente, remate visual en la solución.
+   - image_prompt = escena 1 (DOLOR)."""
 
     lang_label = "español" if user_language == "es" else "English"
     lang_instruction = (
@@ -267,7 +261,7 @@ REGLAS CRÍTICAS:
         f"TODOS los campos de texto en el JSON DEBEN estar en {lang_label}: "
         f"campaign_name, analysis, reasoning, primary_text, headline, description, "
         f"post_caption, post_hashtags, voiceover, warnings — TODO en {lang_label}.\n"
-        f"La UNICA excepcion es image_prompt que puede estar en inglés (es para el generador de IA).\n"
+        f"La UNICA excepcion es image_prompt y visual_description que deben estar en inglés.\n"
         f"{'El contexto cultural debe ser Latinoamérica/Colombia.' if user_language == 'es' else ''}"
     )
 
@@ -276,8 +270,11 @@ REGLAS CRÍTICAS:
         scene_instruction = (
             f'\nNÚMERO DE ESCENAS: {scene_count} escenas de 8 segundos cada una (video total: ~{scene_count * 8}s).\n'
             f'OBLIGATORIO: Genera EXACTAMENTE {scene_count} objetos en el array "video_scenes".\n'
-            f'La escena 1 es la que se genera primero (image_prompt). Las escenas 2-{scene_count} son extensiones automáticas.\n'
-            f'Cada escena debe tener continuidad visual con la anterior (mismos personajes, ropa, ambiente).\n'
+            f'La escena 1 se genera con image_prompt. Las escenas 2-{scene_count} son extensiones automáticas.\n'
+            f'ANTES de escribir escenas, define: PROTAGONISTA (físico exacto), LOCACIÓN, LUZ/HORA, ESTILO.\n'
+            f'Escena 1: descripción completa del protagonista + locación + luz + acción.\n'
+            f'Escenas 2-{scene_count}: empezar SIEMPRE con "Same [protagonista], same [locación], same [luz]".\n'
+            f'NUNCA cambiar protagonista, locación ni hora del día entre escenas.\n'
         )
 
     # Extraer nombre de empresa del user_input para forzar uso correcto

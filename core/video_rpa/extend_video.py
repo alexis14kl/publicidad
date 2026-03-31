@@ -474,60 +474,55 @@ def _download_via_ui_menu(page) -> Path | None:
 
     log_info("Descargando video via menú UI: Descargar → Full Video → 720p...")
 
-    # Paso 1: Click en "Descargar" / "Download"
+    # Keywords multi-idioma para cada botón
+    DOWNLOAD_KEYWORDS = ["descargar", "download", "télécharger", "herunterladen", "baixar", "scarica"]
+    FULL_VIDEO_KEYWORDS = ["full video", "video completo", "vidéo complète", "vollständiges video", "vídeo completo"]
+    QUALITY_KEYWORDS = ["720", "original", "tamaño original", "original size", "taille originale"]
+
+    # Paso 1: Click en botón "Descargar" / "Download"
     for attempt in range(3):
         try:
-            download_btn = page.locator('button, [role="button"]').filter(
-                has_text=lambda t: any(k in (t or "").lower() for k in ["descargar", "download"])
-            ).first
-            if download_btn.is_visible(timeout=5000):
-                download_btn.click()
-                log_ok("Click en botón Descargar.")
-                page.wait_for_timeout(1500)
+            btns = page.query_selector_all('button, [role="button"], [role="menuitem"]')
+            found = False
+            for btn in btns:
+                text = (btn.text_content() or "").lower().strip()
+                if any(kw in text for kw in DOWNLOAD_KEYWORDS):
+                    btn.click()
+                    log_ok(f"Click en botón Descargar: '{text[:30]}'")
+                    page.wait_for_timeout(1500)
+                    found = True
+                    break
+            if found:
                 break
         except Exception:
             pass
-        # Fallback: buscar por texto directo
-        try:
-            btns = page.query_selector_all('button, [role="button"], [role="menuitem"]')
-            for btn in btns:
-                text = (btn.text_content() or "").lower().strip()
-                if "descargar" in text or "download" in text:
-                    btn.click()
-                    log_ok("Click en botón Descargar (fallback).")
-                    page.wait_for_timeout(1500)
-                    break
-            else:
-                continue
-            break
-        except Exception:
-            page.wait_for_timeout(2000)
+        page.wait_for_timeout(2000)
     else:
-        log_warn("No se encontró botón Descargar.")
+        log_warn("No se encontró botón Descargar en ningún idioma.")
         return None
 
-    # Paso 2: Click en "Full Video"
+    # Paso 2: Click en "Full Video" / "Video completo"
     for attempt in range(3):
         try:
             items = page.query_selector_all(
                 'button, [role="button"], [role="menuitem"], [role="option"], li, a, div[class*="menu"], div[class*="item"]'
             )
-            clicked = False
+            found = False
             for item in items:
                 text = (item.text_content() or "").strip().lower()
-                if "full video" in text:
+                if any(kw in text for kw in FULL_VIDEO_KEYWORDS):
                     item.click()
-                    log_ok("Click en Full Video.")
+                    log_ok(f"Click en Full Video: '{text[:30]}'")
                     page.wait_for_timeout(1500)
-                    clicked = True
+                    found = True
                     break
-            if clicked:
+            if found:
                 break
         except Exception:
             pass
         page.wait_for_timeout(1500)
     else:
-        log_warn("No se encontró opción Full Video.")
+        log_warn("No se encontró opción Full Video en ningún idioma.")
         return None
 
     # Paso 3: Click en "720p" y capturar descarga
@@ -537,24 +532,15 @@ def _download_via_ui_menu(page) -> Path | None:
                 items = page.query_selector_all(
                     'button, [role="button"], [role="menuitem"], [role="option"], li, a, div[class*="menu"], div[class*="item"]'
                 )
-                clicked = False
+                found = False
                 for item in items:
                     text = (item.text_content() or "").strip().lower()
-                    if "720" in text:
+                    if any(kw in text for kw in QUALITY_KEYWORDS):
                         item.click()
-                        log_ok("Click en 720p. Esperando descarga...")
-                        clicked = True
+                        log_ok(f"Click en calidad: '{text[:30]}'. Esperando descarga...")
+                        found = True
                         break
-                if not clicked:
-                    # Si no hay opción 720p, buscar "original" o primer item
-                    for item in items:
-                        text = (item.text_content() or "").strip().lower()
-                        if "original" in text or "tamaño" in text:
-                            item.click()
-                            log_ok("Click en tamaño original (720p no disponible).")
-                            clicked = True
-                            break
-                if not clicked:
+                if not found:
                     log_warn(f"Intento {attempt + 1}: no se encontró opción de calidad.")
                     page.wait_for_timeout(2000)
                     continue
