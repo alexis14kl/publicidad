@@ -1409,12 +1409,13 @@ async function handleChatCommand(text, sendStep = () => {}) {
   // Validar que el texto tenga palabras reales (no basura)
   const realWords = ctx.description.match(/[a-záéíóúñ]{3,}/gi) || []
   if (realWords.length < 2) {
+    const companies = listActiveCompanies()
+    const names = companies.map(c => `• ${c.nombre}`).join('\n')
     return {
       success: true,
-      message: 'No entendí tu solicitud. Escribe algo como:\n\n'
-        + '• "Genera una imagen publicitaria para Noyecode"\n'
-        + '• "Crea un video para NyG SG SST"\n'
-        + '• "Lanza una campaña para Nygsoft"',
+      message: 'No entendí tu solicitud. Indica qué quieres crear y para qué empresa.\n\n'
+        + (names ? `**Empresas disponibles:**\n${names}\n\n` : '')
+        + 'Ejemplo: "Genera una imagen publicitaria para Noyecode"',
     }
   }
 
