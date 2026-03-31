@@ -200,82 +200,129 @@ def inject_cdp_hook(port: int = DEFAULT_DICLOAK_PORT) -> bool:
 
 def open_profile_via_cdp(profile_name: str, port: int = DEFAULT_DICLOAK_PORT) -> bool:
     """
-    Abre un perfil en DICloak buscándolo por nombre y haciendo click.
-    Primero inyecta el hook CDP para que ginsbrowser abra con debug port.
+    Abre un perfil en DICloak:
+    1. Inyecta hook CDP (fuerza canIuseCdp=true)
+    2. Busca el perfil por nombre en la tabla
+    3. Hace click en el botón "Abrir" de esa fila
+    4. ginsbrowser abre con --remote-debugging-port dinámico
     """
-    # Inyectar hook primero
+    # Paso 1: Inyectar hook CDP antes de abrir
     hook_ok = inject_cdp_hook(port)
     if hook_ok:
         log_ok("Hook CDP inyectado")
     else:
         log_warn("No se pudo inyectar hook CDP — el perfil puede abrir sin debug port")
 
-    # Buscar perfil y hacer click en "Abrir"
-    js = """(profileName) => {
-        try {
-            // Limpiar búsqueda
-            const searchInputs = document.querySelectorAll('input[type="text"], input[placeholder*="search"], input[placeholder*="buscar"], input[placeholder*="Search"]');
-            for (const input of searchInputs) {
-                const rect = input.getBoundingClientRect();
-                if (rect.width > 100 && rect.y < 200) {
-                    input.value = '';
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    input.value = profileName;
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
+    # Paso 2: Buscar perfil en la tabla y hacer click en "Abrir"
+    # Escapar comillas en el nombre del perfil
+    safe_name = profile_name.replace("'", "\\'").replace('"', '\\"')
+
+    open_js = f"""(() => {{
+        try {{
+            const targetName = "{safe_name}".toLowerCase().trim();
+
+            // Buscar en la tabla de Element Plus (.el-table__row)
+            const rows = document.querySelectorAll('.el-table__row');
+            let targetRow = null;
+
+            for (const row of rows) {{
+                const cells = Array.from(row.querySelectorAll('td .cell'));
+                // Celda 2 = nombre del perfil (0=checkbox, 1=serial, 2=nombre)
+                const nameCell = (cells[2]?.innerText || '').trim();
+                if (nameCell.toLowerCase() === targetName || nameCell.toLowerCase().includes(targetName) || targetName.includes(nameCell.toLowerCase())) {{
+                    targetRow = row;
                     break;
-                }
-            }
+                }}
+            }}
 
-            // Esperar un poco y buscar botón abrir
-            return 'SEARCH_INJECTED';
-        } catch(e) {
-            return 'ERROR: ' + e.message;
-        }
-    }"""
+            if (!targetRow) {{
+                // Fallback: buscar en input de búsqueda y filtrar
+                const searchInputs = document.querySelectorAll('input[type="text"], input.el-input__inner');
+                for (const input of searchInputs) {{
+                    const rect = input.getBoundingClientRect();
+                    if (rect.width > 100 && rect.y < 200) {{
+                        input.focus();
+                        input.value = '';
+                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        input.value = "{safe_name}";
+                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        return 'SEARCH_INJECTED';
+                    }}
+                }}
+                return 'PROFILE_NOT_FOUND';
+            }}
 
-    search_result = cdp_evaluate_sync(f"({js})('{profile_name}')", port, timeout=5)
-    if not search_result or "ERROR" in str(search_result):
-        log_warn(f"No se pudo buscar perfil: {search_result}")
-        return False
-
-    # Esperar que la búsqueda filtre y hacer click en "Abrir"
-    time.sleep(1.5)
-
-    click_js = """(() => {
-        try {
-            const buttons = Array.from(document.querySelectorAll('button, a, [role="button"]'));
-            const openBtn = buttons.find(b => {
+            // Buscar botón "Abrir"/"Open" en la fila encontrada
+            const buttons = Array.from(targetRow.querySelectorAll('button, a, [role="button"], .el-button'));
+            const openBtn = buttons.find(b => {{
                 const text = (b.innerText || b.textContent || '').trim().toLowerCase();
-                return text === 'abrir' || text === 'open' || text === 'launch';
-            });
-            if (openBtn) {
+                return text === 'abrir' || text === 'open' || text === 'launch' || text === 'iniciar';
+            }});
+
+            if (openBtn) {{
                 openBtn.click();
-                return 'CLICKED';
-            }
+                return 'CLICKED_OPEN';
+            }}
 
-            // Fallback: buscar en la primera fila de la tabla
-            const firstRow = document.querySelector('tr[class*="env"], tr[data-row-key], .env-list-item');
-            if (firstRow) {
-                const btn = firstRow.querySelector('button, [role="button"]');
-                if (btn) {
-                    btn.click();
-                    return 'CLICKED_ROW_BTN';
-                }
-            }
+            // Fallback: click en el primer botón de la fila que no sea checkbox
+            const fallbackBtn = buttons.find(b => {{
+                const text = (b.innerText || '').trim().toLowerCase();
+                return text !== '' && text !== 'select' && !b.querySelector('input[type="checkbox"]');
+            }});
 
-            return 'NO_BUTTON_FOUND';
-        } catch(e) {
+            if (fallbackBtn) {{
+                fallbackBtn.click();
+                return 'CLICKED_FALLBACK';
+            }}
+
+            return 'NO_OPEN_BUTTON';
+        }} catch(e) {{
             return 'ERROR: ' + e.message;
-        }
-    })()"""
+        }}
+    }})()"""
 
-    click_result = cdp_evaluate_sync(click_js, port, timeout=5)
-    if click_result and "CLICKED" in str(click_result):
-        log_ok(f"Perfil '{profile_name}' — botón abrir clickeado")
+    result = cdp_evaluate_sync(open_js, port, timeout=8)
+    log_info(f"open_profile result: {result}")
+
+    if result and "CLICKED" in str(result):
+        log_ok(f"Perfil '{profile_name}' abierto via CDP")
         return True
 
-    log_warn(f"No se encontró botón para abrir perfil: {click_result}")
+    # Si se inyectó búsqueda, esperar y hacer click en la primera fila filtrada
+    if result == "SEARCH_INJECTED":
+        log_info("Búsqueda inyectada, esperando filtro...")
+        time.sleep(2)
+
+        click_js = """(() => {
+            try {
+                const rows = document.querySelectorAll('.el-table__row');
+                if (rows.length === 0) return 'NO_ROWS_AFTER_SEARCH';
+                const firstRow = rows[0];
+                const buttons = Array.from(firstRow.querySelectorAll('button, a, [role="button"], .el-button'));
+                const openBtn = buttons.find(b => {
+                    const text = (b.innerText || '').trim().toLowerCase();
+                    return text === 'abrir' || text === 'open' || text === 'launch' || text === 'iniciar';
+                }) || buttons.find(b => (b.innerText || '').trim() !== '');
+
+                if (openBtn) {
+                    openBtn.click();
+                    return 'CLICKED_AFTER_SEARCH';
+                }
+                return 'NO_BUTTON_IN_FILTERED_ROW';
+            } catch(e) {
+                return 'ERROR: ' + e.message;
+            }
+        })()"""
+
+        click_result = cdp_evaluate_sync(click_js, port, timeout=5)
+        if click_result and "CLICKED" in str(click_result):
+            log_ok(f"Perfil '{profile_name}' abierto después de búsqueda")
+            return True
+
+        log_warn(f"Click post-búsqueda falló: {click_result}")
+
+    log_warn(f"No se pudo abrir perfil '{profile_name}': {result}")
     return False
 
 
