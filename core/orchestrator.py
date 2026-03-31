@@ -89,14 +89,21 @@ def _resolve_best_profile(default_profiles: list[str]) -> str:
 
 
 def _resolve_existing_profile_cdp_port(timeout_sec: int = 3) -> int:
-    if test_cdp_port(9225):
-        return 9225
-
     try:
-        from core.cdp.detect_port import detect_debug_port
-        return int(detect_debug_port(timeout_sec=timeout_sec) or 0)
+        from core.cfg.platform import read_cdp_debug_info
+        data = read_cdp_debug_info()
+        for entry in data.values():
+            if not isinstance(entry, dict):
+                continue
+            try:
+                port = int(entry.get("debugPort") or entry.get("port") or 0)
+            except (TypeError, ValueError):
+                continue
+            if port and test_cdp_port(port):
+                return port
     except Exception:
-        return 0
+        pass
+    return 0
 
 
 def _generate_prompt() -> bool:
