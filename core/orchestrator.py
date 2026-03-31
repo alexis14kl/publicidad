@@ -156,28 +156,27 @@ def _generate_prompt() -> bool:
     return True
 
 
-def _fast_path(cdp_port: int = 9225) -> int:
-    """Fast path: CDP ya activo, ir directo a prompt → ChatGPT → imagen → logo → publicar.
+def _fast_path(cdp_port: int) -> int:
+    """Fast path: CDP ya activo, ir directo a post_opening.
 
-    Salta todo el arranque de DICloak, apertura de perfil y forzado de CDP.
-    Solo se ejecuta si el puerto CDP ya esta respondiendo.
-    Returns 0 on success, 1 on failure.
+    Salta arranque de DICloak, apertura de perfil y generación de prompt
+    (el prompt ya viene de chat.js via BOT_CUSTOM_IMAGE_PROMPT).
     """
-    log_step("FAST", "Depuracion activa detectada. Ejecutando ruta rapida...")
+    log_step("FAST", f"CDP activo en {cdp_port}. Ejecutando pipeline directo...")
 
-    # 1. Generar prompt
-    log_step("FAST 1/4", "Generando prompt con Anthropic Claude...")
-    _generate_prompt()
+    # Si tiene prompt custom, solo guardarlo en el archivo (sin regenerar caption)
+    custom_prompt = str(os.getenv("BOT_CUSTOM_IMAGE_PROMPT", "")).strip()
+    if custom_prompt:
+        PROMPT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PROMPT_FILE.write_text(custom_prompt, encoding="utf-8")
 
-    # 2. Pegar prompt + esperar imagen + descargar + logo + publicar
-    log_step("FAST 2/2", "Pegando prompt en ChatGPT y ejecutando pipeline completo...")
     from core.cdp.post_opening import post_opening_automation
     rc = post_opening_automation(cdp_port=cdp_port, skip_force_cdp=True)
     if rc != 0:
-        log_error("La ruta rapida fallo en post_opening_automation.")
+        log_error("Fast path fallo.")
         return 1
 
-    log_ok("Ruta rapida completada con exito.")
+    log_ok("Proceso completado.")
     return 0
 
 
