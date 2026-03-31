@@ -257,10 +257,9 @@ def run_orchestrator(
         return 1
 
     # -----------------------------------------------------------------------
-    # Step 5/10: Abrir perfil via API (hook + click + detectar puerto CDP)
+    # Step 5/10: Abrir perfil via API (click rápido, no espera puerto)
     # -----------------------------------------------------------------------
     log_step("5/10", f"Abriendo perfil '{profile_name}' via API...")
-    profile_cdp_port = 0
 
     try:
         import urllib.request
@@ -273,12 +272,11 @@ def run_orchestrator(
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=90) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:
             result = _json.loads(resp.read().decode("utf-8"))
 
-        if result.get("success") and result.get("data", {}).get("profile", {}).get("cdp_active"):
-            profile_cdp_port = result["data"]["profile"]["debug_port"]
-            log_ok(f"Perfil abierto via API. CDP en puerto {profile_cdp_port}")
+        if result.get("success"):
+            log_ok("Click en perfil enviado via API.")
         else:
             error_msg = result.get("error", "Respuesta inesperada de la API")
             log_error(f"API no pudo abrir perfil: {error_msg}")
@@ -292,14 +290,43 @@ def run_orchestrator(
         log_error(f"Error abriendo perfil via API: {e}")
         return 1
 
+    # -----------------------------------------------------------------------
+    # Step 6/10: Esperar puerto CDP del navegador (cdp_debug_info.json)
+    # -----------------------------------------------------------------------
+    log_step("6/10", "Esperando puerto CDP del navegador...")
+    from core.cfg.platform import read_cdp_debug_info
+    profile_cdp_port = 0
+    deadline = time.time() + 45
+
+    while time.time() < deadline:
+        data = read_cdp_debug_info()
+        for entry in data.values():
+            if not isinstance(entry, dict):
+                continue
+            try:
+                port = int(entry.get("debugPort") or entry.get("port") or 0)
+            except (TypeError, ValueError):
+                continue
+            if port and test_cdp_port(port):
+                profile_cdp_port = port
+                break
+        if profile_cdp_port:
+            break
+        time.sleep(0.5)
+
+    if not profile_cdp_port:
+        log_error("No se detectó puerto CDP del navegador en 45s.")
+        return 1
+
+    log_ok(f"Puerto CDP del navegador: {profile_cdp_port}")
+
     _minimize_window("ginsbrowser")
-    _minimize_window("chatgpt")
     _minimize_window("dicloak")
 
     # -----------------------------------------------------------------------
-    # Step 6/10: Post-opening automation con el puerto CDP de la API
+    # Step 7/10: Post-opening automation
     # -----------------------------------------------------------------------
-    log_step("6/10", f"Ejecutando pipeline en puerto {profile_cdp_port}...")
+    log_step("7/10", f"Ejecutando pipeline en puerto {profile_cdp_port}...")
     from core.cdp.post_opening import post_opening_automation
     rc = post_opening_automation(cdp_port=profile_cdp_port)
     if rc != 0:
