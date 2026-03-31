@@ -27,7 +27,6 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 from core.cfg.platform import (
-    DEVTOOLS_ACTIVE_PORT_FILE,
     IS_MAC,
     IS_WINDOWS,
     N8N_POST_TEXT_CLIENT_PY,
@@ -36,18 +35,11 @@ from core.cfg.platform import (
     PROMPT_FILE,
     PROMPT_SEED_FILE,
     RUN_WITH_PROGRESS_PY,
-    SCRIPT_PATH,
-    find_dicloak_exe,
-    get_browser_process_name,
     get_env,
-    is_process_running,
-    kill_process_by_name,
-    launch_detached,
     load_env,
     test_cdp_port,
     wait_for_cdp,
 )
-from core.cfg.platform import FORCE_OPEN_JS
 from core.utils.logger import log_info, log_ok, log_warn, log_error, log_step, log_debug
 
 
@@ -86,47 +78,6 @@ def _run_python(script: Path, *args: str, timeout: int = 300) -> int:
         return 1
 
 
-def _find_node_bin() -> str | None:
-    """Find Node.js binary.
-
-    When launched from GUI apps on macOS, PATH can be truncated and `node`
-    might not be discoverable via shutil.which().
-    """
-    candidates: list[str | None] = [shutil.which("node")]
-    if IS_MAC:
-        candidates.extend([
-            "/usr/local/bin/node",
-            "/opt/homebrew/bin/node",
-        ])
-
-    for candidate in candidates:
-        if not candidate:
-            continue
-        try:
-            if Path(candidate).exists():
-                return candidate
-        except Exception:
-            continue
-    return None
-
-
-def _run_node(script: Path, *args: str, timeout: int = 300) -> int:
-    node_bin = _find_node_bin()
-    if not node_bin:
-        log_error("Node.js no esta disponible (ni en PATH ni en rutas comunes de macOS).")
-        return 1
-    cmd = [node_bin, str(script)] + list(args)
-    try:
-        result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), timeout=timeout)
-        return result.returncode
-    except subprocess.TimeoutExpired:
-        log_warn(f"Timeout ejecutando {script.name}")
-        return 1
-    except Exception as e:
-        log_error(f"Error ejecutando {script.name}: {e}")
-        return 1
-
-
 def _resolve_best_profile(default_profiles: list[str]) -> str:
     """Use profile_memory.py to find best non-expired profile."""
     try:
@@ -135,18 +86,6 @@ def _resolve_best_profile(default_profiles: list[str]) -> str:
     except Exception:
         return default_profiles[0] if default_profiles else "#1 Chat Gpt PRO"
 
-
-def _wait_for_profile_load(timeout_sec: int = 45) -> bool:
-    """Wait for ginsbrowser to be running (profile loaded)."""
-    browser = get_browser_process_name()
-    deadline = time.time() + timeout_sec
-    while time.time() < deadline:
-        if is_process_running(browser):
-            log_ok("Perfil cargado y listo.")
-            return True
-        time.sleep(1)
-    log_warn("ginsbrowser no encontrado en el timeout.")
-    return False
 
 
 def _resolve_existing_profile_cdp_port(timeout_sec: int = 3) -> int:
@@ -318,127 +257,55 @@ def run_orchestrator(
         return 1
 
     # -----------------------------------------------------------------------
-    # Step 5/10: Inject CDP hook into DiCloak
+    # Step 5/10: Abrir perfil via API (hook + click + detectar puerto CDP)
     # -----------------------------------------------------------------------
-    log_step("5/10", "Inyectando hook CDP en DiCloak (canIuseCdp=true)...")
+    log_step("5/10", f"Abriendo perfil '{profile_name}' via API...")
+    profile_cdp_port = 0
+
     try:
-        from core.cdp.force_cdp import inject_cdp_hook
-        if inject_cdp_hook(dicloak_port=9333):
-            log_ok("Hook CDP inyectado. ginsbrowser se abrira con debug port.")
+        import urllib.request
+        import json as _json
+
+        req_data = _json.dumps({"name": profile_name, "timeout": 60}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{api_url}/profiles/open",
+            data=req_data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            result = _json.loads(resp.read().decode("utf-8"))
+
+        if result.get("success") and result.get("data", {}).get("profile", {}).get("cdp_active"):
+            profile_cdp_port = result["data"]["profile"]["debug_port"]
+            log_ok(f"Perfil abierto via API. CDP en puerto {profile_cdp_port}")
         else:
-            log_warn("No se pudo inyectar hook CDP. Se continuara sin el.")
-    except Exception as e:
-        log_warn(f"Error inyectando hook CDP: {e}. Se continuara sin el.")
-
-    # -----------------------------------------------------------------------
-    # Step 5.5/10: Verify Node.js
-    # -----------------------------------------------------------------------
-    log_step("5.5/10", "Verificando Node.js...")
-    if not shutil.which("node"):
-        log_error("Node.js no esta disponible en PATH.")
-        log_info(f"Instala Node o ejecuta manualmente: node {SCRIPT_PATH} {profile_name} {cdp_url}")
-        return 1
-
-    # -----------------------------------------------------------------------
-    # Step 7/10: Open profile
-    # -----------------------------------------------------------------------
-    log_step("6/10", f"Abriendo perfil: {profile_name}")
-    profile_maybe_open = False
-
-    rc = _run_node(
-        SCRIPT_PATH, profile_name, cdp_url,
-        profile_debug_port_hint, openapi_port_hint,
-        run_mode, openapi_secret_hint,
-    )
-    if rc == 0:
-        profile_maybe_open = True
-    else:
-        log_warn("Flujo principal fallo. Intentando apertura forzada por CDP...")
-        if FORCE_OPEN_JS.exists():
-            rc2 = _run_node(FORCE_OPEN_JS, profile_name, cdp_url)
-            if rc2 == 0:
-                profile_maybe_open = True
-
-        if not profile_maybe_open:
-            browser = get_browser_process_name()
-            if is_process_running(browser):
-                log_info("Se detecto ginsbrowser activo; se continua con forzado CDP.")
-                profile_maybe_open = True
-
-        if not profile_maybe_open:
-            log_error("No se pudo abrir el perfil automaticamente.")
+            error_msg = result.get("error", "Respuesta inesperada de la API")
+            log_error(f"API no pudo abrir perfil: {error_msg}")
             return 1
 
-    # -----------------------------------------------------------------------
-    # Step 7.5/10: Wait for profile to load
-    # -----------------------------------------------------------------------
-    log_step("6.5/10", "Esperando que el perfil cargue completamente...")
-    _wait_for_profile_load(timeout_sec=45)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="ignore")[:300]
+        log_error(f"API error HTTP {e.code}: {body}")
+        return 1
+    except Exception as e:
+        log_error(f"Error abriendo perfil via API: {e}")
+        return 1
+
     _minimize_window("ginsbrowser")
     _minimize_window("chatgpt")
     _minimize_window("dicloak")
 
     # -----------------------------------------------------------------------
-    # Step 8/10: Post-opening automation (in background thread)
+    # Step 6/10: Post-opening automation con el puerto CDP de la API
     # -----------------------------------------------------------------------
-    log_step("7/10", "Ejecutando automatizacion clave de depuracion de perfil...")
+    log_step("6/10", f"Ejecutando pipeline en puerto {profile_cdp_port}...")
+    from core.cdp.post_opening import post_opening_automation
+    rc = post_opening_automation(cdp_port=profile_cdp_port)
+    if rc != 0:
+        log_error("Post-opening automation fallo.")
+        return 1
 
-    def _run_post_opening() -> None:
-        try:
-            from core.cdp.post_opening import post_opening_automation
-            post_opening_automation(cdp_port=9225)
-        except Exception as e:
-            log_error(f"Error en post_opening: {e}")
-
-    post_thread = threading.Thread(target=_run_post_opening, daemon=True)
-    post_thread.start()
-
-    # Wait for debugPort in cdp_debug_info.json (up to 45s)
-    from core.cfg.platform import read_cdp_debug_info
-    log_info("Esperando debugPort en cdp_debug_info.json (hasta 45s)...")
-    deadline = time.time() + 45
-    found_port = False
-    while time.time() < deadline:
-        data = read_cdp_debug_info()
-        for key, entry in data.items():
-            if not isinstance(entry, dict):
-                continue
-            try:
-                port = int(entry.get("debugPort", 0) or 0)
-            except (TypeError, ValueError):
-                port = 0
-            if port and test_cdp_port(port):
-                found_port = True
-                break
-        if found_port:
-            break
-        time.sleep(1)
-
-    if found_port:
-        log_ok("debugPort detectado en cdp_debug_info.json.")
-    else:
-        log_warn("No se detecto debugPort dentro de la espera.")
-
-    # -----------------------------------------------------------------------
-    # Step 9/10: Detect real port
-    # -----------------------------------------------------------------------
-    log_step("8/10", "Detectando puerto real de perfil...")
-    try:
-        from core.cdp.detect_port import detect_debug_port
-        port = detect_debug_port(timeout_sec=30)
-        if port:
-            log_debug(f"DEBUG_PORT={port}")
-        else:
-            log_warn("No se pudo detectar puerto real.")
-    except Exception as e:
-        log_warn(f"Error en deteccion de puerto: {e}")
-
-    # -----------------------------------------------------------------------
-    # Step 10/10: Done — wait for post_opening thread to finish
-    # -----------------------------------------------------------------------
-    log_step("9/10", f"Perfil abierto: {profile_name}")
-    log_info("Esperando a que la automatizacion post-apertura termine...")
-    post_thread.join(timeout=7200)  # max 2 hours
     log_ok("Proceso completado.")
     return 0
 
