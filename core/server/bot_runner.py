@@ -161,109 +161,49 @@ def _run_full_cycle(payload: dict[str, Any] | None, timeout_sec: int) -> RunResu
     profile_name = str(payload.get("profile_name", "")).strip()
     image_prompt = str(payload.get("image_prompt", "")).strip()
 
-    env = os.environ.copy()
-    env["NO_PAUSE"] = "1"
-    env["PYTHONPATH"] = str(PROJECT_ROOT)
-    if image_prompt:
-        env["BOT_CUSTOM_IMAGE_PROMPT"] = image_prompt
-    # Cargar variables del .env para que lleguen al proceso (DEV_MODE, etc.)
+    # Cargar .env al entorno actual
     if ENV_FILE.exists():
         for key, value in dotenv_values(ENV_FILE).items():
             if value is not None:
-                env[key] = value
+                os.environ.setdefault(key, value)
+
+    if image_prompt:
+        os.environ["BOT_CUSTOM_IMAGE_PROMPT"] = image_prompt
+    os.environ["NO_PAUSE"] = "1"
 
     log_file = PROJECT_ROOT / "logs" / "bot_runner_last.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
     run_id = new_run("run_full_cycle", payload, status="running")
-    env["PUBLICIDAD_RUN_ID"] = run_id
-
-    # Prefer Python orchestrator (cross-platform) over legacy bat
-    if ORCHESTRATOR_PY.exists():
-        command = [sys.executable, "-m", "core.orchestrator"]
-        if profile_name:
-            command.append(profile_name)
-        log_info(f"Usando orquestador Python: {ORCHESTRATOR_PY.name}")
-    elif START_BAT.exists() and os.name == "nt":
-        command = ["cmd", "/c", str(START_BAT)]
-        if profile_name:
-            command.append(profile_name)
-        log_info("Usando orquestador legacy: iniciar.bat")
-    else:
-        raise BotRunnerError(
-            f"No existe orquestador: ni {ORCHESTRATOR_PY} ni {START_BAT}"
-        )
-
-    # Force UTF-8 output from Python subprocesses
-    env["PYTHONIOENCODING"] = "utf-8"
+    os.environ["PUBLICIDAD_RUN_ID"] = run_id
 
     started_at = time.time()
-    collected_stdout = ""
-    collected_stderr = ""
-    try:
-        if os.name == "nt" and command[0] == "cmd":
-            # Legacy bat path: needs its own console for 'start ""'
-            result = subprocess.run(
-                command,
-                cwd=str(PROJECT_ROOT),
-                timeout=timeout_sec,
-                env=env,
-                creationflags=subprocess.CREATE_NEW_CONSOLE,
-            )
-        else:
-            # Stream output line-by-line to both stdout and log file
-            proc = subprocess.Popen(
-                command,
-                cwd=str(PROJECT_ROOT),
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                bufsize=1,
-                encoding="utf-8",
-                errors="replace",
-            )
-            with open(log_file, "w", encoding="utf-8") as lf:
-                lines: list[str] = []
-                for line in proc.stdout:
-                    sys.stdout.write(line)
-                    sys.stdout.flush()
-                    lf.write(line)
-                    lf.flush()
-                    lines.append(line)
-                proc.wait(timeout=timeout_sec)
-                collected_stdout = "".join(lines)
+    rc = 1
+    error_text = ""
 
-            result = proc
-    except subprocess.TimeoutExpired:
-        if "proc" in dir() and proc.poll() is None:
-            proc.kill()
-        raise BotRunnerError(f"Timeout ({timeout_sec}s) ejecutando orquestador")
+    try:
+        # Llamar al orquestador directamente (sin subproceso)
+        from core.orchestrator import run_orchestrator
+        log_info("Ejecutando orquestador directo (sin subproceso)")
+        rc = run_orchestrator(profile_name=profile_name)
+    except Exception as e:
+        error_text = str(e)
+        log_error(f"Error en orquestador: {e}")
 
     finished_at = time.time()
     try:
         update_run(
             run_id,
-            status="success" if result.returncode == 0 else "error",
-            result={
-                "exit_code": int(result.returncode),
-                "profile_name": profile_name,
-            },
-            error_text="",
-        )
-        add_artifact(
-            run_id=run_id,
-            artifact_type="bot_runner_log",
-            content=collected_stdout[-5000:] if collected_stdout else "",
-            file_path=str(log_file),
-            meta={"exit_code": int(result.returncode)},
+            status="success" if rc == 0 else "error",
+            result={"exit_code": rc, "profile_name": profile_name},
+            error_text=error_text,
         )
     except Exception:
-        # Never block the run on SQLite logging issues.
         pass
     return RunResult(
         action="run_full_cycle",
-        success=result.returncode == 0,
-        exit_code=result.returncode,
+        success=rc == 0,
+        exit_code=rc,
         started_at=started_at,
         finished_at=finished_at,
         stdout=collected_stdout[-5000:] if collected_stdout else "",
