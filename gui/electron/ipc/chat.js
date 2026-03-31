@@ -1444,16 +1444,47 @@ async function handleChatCommand(text, sendStep = () => {}) {
     : 'imagen'
 
   // ══════════════════════════════════════════════════════════════════════
-  // STEP 1: Claude analyzes
-  // Imagen/Video → flujo rápido (API directa, ~3-5s)
-  // Campaña → flujo completo (Python engine, ~10-15s)
+  // STEP 1: Claude analyzes + DiCloak abre perfil EN PARALELO
   // ══════════════════════════════════════════════════════════════════════
   const useFastPath = ctx.type === 'image' || ctx.type === 'video'
   sendStep(`Analizando tu solicitud con IA...`)
   console.log(`[CHAT] Step 1: ${useFastPath ? 'Quick AI (fast)' : 'Campaign engine (full)'}...`)
+
+  // Lanzar apertura de perfil DiCloak en paralelo (no esperar)
+  const http = require('http')
+  const dicloakPort = process.env.DICLOAK_API_PORT || '8585'
+  const profileName = process.env.INITIAL_PROFILE || '#1 Chat Gpt PRO'
+  const openProfilePromise = new Promise((resolve) => {
+    const postData = JSON.stringify({ name: profileName, timeout: 30 })
+    const req = http.request({
+      hostname: '127.0.0.1', port: dicloakPort, path: '/profiles/open',
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      timeout: 15000,
+    }, (res) => {
+      let body = ''
+      res.on('data', d => body += d)
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)) } catch { resolve(null) }
+      })
+    })
+    req.on('error', () => resolve(null))
+    req.on('timeout', () => { req.destroy(); resolve(null) })
+    req.write(postData)
+    req.end()
+    console.log('[CHAT] DiCloak: perfil solicitado en paralelo')
+  })
+
+  // Claude genera prompt AL MISMO TIEMPO que DiCloak abre
   const spec = useFastPath
     ? await getQuickAISpec(ctx)
     : await getCampaignPreview(ctx)
+
+  // Esperar que DiCloak termine (probablemente ya terminó mientras Claude trabajaba)
+  const dicloakResult = await openProfilePromise
+  if (dicloakResult?.success) {
+    const dp = dicloakResult?.data?.profile?.debug_port
+    console.log(`[CHAT] DiCloak: perfil listo${dp ? ` (CDP ${dp})` : ''}`)
+  }
 
   if (!spec || !spec.meta || spec.meta.error) {
     const reason = spec?.meta?.error || 'Claude no respondió'
