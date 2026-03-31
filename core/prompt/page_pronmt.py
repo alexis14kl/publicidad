@@ -320,6 +320,19 @@ const { chromium } = require('playwright');
 
     await page.bringToFront();
 
+    // Esperar a que Cloudflare Turnstile se resuelva (se auto-resuelve al conectar CDP)
+    const waitForCaptchaResolve = async (maxWaitMs = 15000) => {
+      const deadline = Date.now() + maxWaitMs;
+      while (Date.now() < deadline) {
+        const title = await page.title().catch(() => '');
+        const isCaptcha = /un momento|just a moment|checking|verify/i.test(title);
+        if (!isCaptcha) return;
+        console.log('[CAPTCHA] Cloudflare detectado (titulo: "' + title + '"). Esperando...');
+        await page.waitForTimeout(2000);
+      }
+    };
+    await waitForCaptchaResolve();
+
     let sessionPages = await ensureSingleChatAndDebugPage(page);
     page = sessionPages.keepPage;
 
@@ -501,6 +514,81 @@ const { chromium } = require('playwright');
       console.log('SESSION_EXPIRED');
       return;
     }
+
+    // Detectar y resolver CAPTCHA de Cloudflare Turnstile
+    const solveCaptcha = async (maxAttempts = 3) => {
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const hasCaptcha = await page.evaluate(() => {
+          const iframes = document.querySelectorAll('iframe');
+          for (const iframe of iframes) {
+            const src = (iframe.src || '').toLowerCase();
+            if (src.includes('turnstile') || src.includes('challenges.cloudflare') || src.includes('captcha')) {
+              return true;
+            }
+          }
+          const text = document.body?.innerText || '';
+          if (/verify.*human|verifica.*humano|are you human/i.test(text)) return true;
+          const checkbox = document.querySelector('input[type="checkbox"]');
+          if (checkbox && /verify|captcha|human/i.test(checkbox.closest('div')?.innerText || '')) return true;
+          return false;
+        });
+
+        if (!hasCaptcha) return false;
+
+        console.log(`[CAPTCHA] Detectado (intento ${attempt + 1}/${maxAttempts}). Intentando resolver...`);
+
+        // Intentar click en iframe de Turnstile
+        const clicked = await page.evaluate(() => {
+          const iframes = document.querySelectorAll('iframe');
+          for (const iframe of iframes) {
+            const src = (iframe.src || '').toLowerCase();
+            if (src.includes('turnstile') || src.includes('challenges.cloudflare') || src.includes('captcha')) {
+              iframe.click();
+              return 'clicked_iframe';
+            }
+          }
+          // Click en checkbox si existe
+          const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+          for (const cb of checkboxes) {
+            cb.click();
+            return 'clicked_checkbox';
+          }
+          // Click en botón de verificar
+          const buttons = document.querySelectorAll('button');
+          for (const btn of buttons) {
+            const text = (btn.innerText || '').toLowerCase();
+            if (text.includes('verify') || text.includes('verificar') || text.includes('continuar') || text.includes('continue')) {
+              btn.click();
+              return 'clicked_button';
+            }
+          }
+          return 'nothing_to_click';
+        });
+        console.log(`[CAPTCHA] Resultado: ${clicked}`);
+
+        // También intentar click directo en el iframe via Playwright
+        try {
+          const frames = page.frames();
+          for (const frame of frames) {
+            const url = frame.url() || '';
+            if (url.includes('turnstile') || url.includes('challenges.cloudflare')) {
+              const cb = await frame.$('input[type="checkbox"], .cb-lb, [role="checkbox"]');
+              if (cb) {
+                await cb.click();
+                console.log('[CAPTCHA] Click en checkbox dentro del iframe');
+              }
+            }
+          }
+        } catch (e) {
+          console.log('[CAPTCHA] No se pudo acceder al iframe:', e.message);
+        }
+
+        await page.waitForTimeout(3000);
+      }
+      return true;
+    };
+
+    await solveCaptcha();
 
     try {
       await waitForComposerReady();
