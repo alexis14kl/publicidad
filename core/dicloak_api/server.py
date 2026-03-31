@@ -53,6 +53,8 @@ from core.dicloak_api.cdp_bridge import (
     open_profile_via_cdp,
     detect_ginsbrowser_port,
     _test_cdp_port,
+    _get_page_ws_url,
+    init_cdp,
     DEFAULT_DICLOAK_PORT,
 )
 from core.cfg.platform import (
@@ -144,6 +146,24 @@ class DICloakService:
         if not is_dicloak_ready(self.port):
             raise ConnectionError("DICloak no responde. Verifica que este abierto.")
 
+        # Si ya hay un perfil abierto con CDP activo, reutilizarlo
+        from core.cfg.platform import read_cdp_debug_info
+        data = read_cdp_debug_info()
+        for entry in data.values():
+            if not isinstance(entry, dict):
+                continue
+            try:
+                port = int(entry.get("debugPort") or entry.get("port") or 0)
+            except (TypeError, ValueError):
+                continue
+            if port and _test_cdp_port(port):
+                return {
+                    "name": name,
+                    "debug_port": port,
+                    "ws_url": str(entry.get("webSocketUrl") or ""),
+                    "cdp_active": True,
+                }
+
         clicked = open_profile_via_cdp(name, self.port)
         if not clicked:
             available = [p.name for p in list_profiles_via_cdp(self.port)]
@@ -151,46 +171,25 @@ class DICloakService:
                 f"Perfil '{name}' no encontrado. Disponibles: {available}"
             )
 
-        port = detect_ginsbrowser_port(timeout_sec=timeout)
-        if not port:
-            raise TimeoutError(
-                f"Perfil '{name}' abierto pero no se detecto puerto CDP en {timeout}s."
-            )
-
-        ws_url = ""
-        try:
-            import urllib.request, json
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=3) as resp:
-                ws_url = json.loads(resp.read().decode("utf-8")).get("webSocketDebuggerUrl", "")
-        except Exception:
-            pass
-
+        # Responder inmediato — el puerto se detecta después via cdp_debug_info.json
         return {
             "name": name,
-            "debug_port": port,
-            "ws_url": ws_url,
-            "cdp_active": True,
+            "debug_port": 0,
+            "ws_url": "",
+            "cdp_active": False,
+            "clicked": True,
         }
 
     def close_profiles(self) -> int:
-        browser_name = get_browser_process_name().lower()
-        procs = get_process_list()
-        killed = 0
-        for p in procs:
-            name = str(p.get("name", "")).lower()
-            cmd = str(p.get("cmdline", ""))
-            if name != browser_name and "ginsbrowser" not in cmd.lower():
-                continue
-            if "--type=" in cmd:
-                continue
-            try:
-                pid = p.get("pid", 0)
-                if pid:
-                    os.kill(pid, signal.SIGTERM)
-                    killed += 1
-            except Exception:
-                pass
-        return killed
+        import subprocess
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/IM", "ginsbrowser.exe"],
+                capture_output=True, timeout=5,
+            )
+            return 1
+        except Exception:
+            return 0
 
     def inject_hook(self) -> bool:
         if not is_dicloak_ready(self.port):
@@ -355,13 +354,28 @@ def main():
     print(f"================================")
 
     ensure_dicloak_running(dicloak_port)
+
+    # Esperar a que DiCloak cargue su página (WebSocket URL disponible)
+    for i in range(15):
+        ws = _get_page_ws_url(dicloak_port)
+        if ws:
+            break
+        time.sleep(1)
+
+    # Conectar CDP + inyectar hook ANTES de arrancar el servidor
+    if init_cdp(dicloak_port):
+        print("[OK] CDP conectado y hook inyectado — listo para abrir perfiles")
+    else:
+        print("[WARN] No se pudo conectar CDP al iniciar — se reintentará en cada request")
+
+    dev_mode = os.environ.get("DEV_RELOAD", "0") == "1"
     uvicorn.run(
         "core.dicloak_api.server:app",
         host="0.0.0.0",
         port=server_port,
         log_level="info",
-        reload=True,
-        reload_dirs=[str(PROJECT_ROOT / "core" / "dicloak_api")],
+        reload=dev_mode,
+        reload_dirs=[str(PROJECT_ROOT / "core" / "dicloak_api")] if dev_mode else [],
     )
 
 

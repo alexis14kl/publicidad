@@ -6,13 +6,13 @@ Se conecta al CDP de DICloak (puerto 9333) para:
 - Abrir/cerrar perfiles
 - Detectar puertos CDP dinámicos de ginsbrowser
 
-No usa Playwright ni Node.js — solo WebSocket + HTTP directo.
+Mantiene conexión WebSocket persistente para evitar reconexiones lentas.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import re
+import socket
 import time
 import urllib.request
 from dataclasses import dataclass
@@ -33,36 +33,33 @@ class ProfileInfo:
     pid: int = 0
 
 
+# ── HTTP helpers ─────────────────────────────────────────────────────────────
+
 def _http_get_json(url: str, timeout: int = 5) -> dict | list:
-    """GET request simple, retorna JSON."""
     with urllib.request.urlopen(url, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
 def _test_cdp_port(port: int) -> bool:
-    """Verifica si un puerto CDP responde."""
     try:
-        data = _http_get_json(f"http://127.0.0.1:{port}/json/version", timeout=3)
+        data = _http_get_json(f"http://127.0.0.1:{port}/json/version", timeout=2)
         return "webSocketDebuggerUrl" in str(data)
     except Exception:
         return False
 
 
 def is_dicloak_ready(port: int = DEFAULT_DICLOAK_PORT) -> bool:
-    """Verifica si DICloak responde en su puerto CDP."""
     return _test_cdp_port(port)
 
 
 def get_dicloak_targets(port: int = DEFAULT_DICLOAK_PORT) -> list[dict]:
-    """Obtiene los targets CDP de DICloak."""
     try:
         return _http_get_json(f"http://127.0.0.1:{port}/json")
     except Exception:
         return []
 
 
-def _get_ws_url(port: int = DEFAULT_DICLOAK_PORT) -> str:
-    """Obtiene la WebSocket URL del target principal de DICloak."""
+def _get_page_ws_url(port: int = DEFAULT_DICLOAK_PORT) -> str:
     targets = get_dicloak_targets(port)
     for t in targets:
         if t.get("type") == "page":
@@ -70,64 +67,136 @@ def _get_ws_url(port: int = DEFAULT_DICLOAK_PORT) -> str:
     return ""
 
 
-async def _cdp_evaluate(ws_url: str, expression: str, timeout: int = 10) -> str | None:
-    """Evalúa JavaScript en DICloak via CDP WebSocket."""
-    try:
-        import websockets
-    except ImportError:
-        import subprocess, sys
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "websockets", "-q"])
-        import websockets
+# ── Persistent CDP Connection ────────────────────────────────────────────────
 
-    try:
-        async with websockets.connect(ws_url, max_size=2**22) as ws:
-            msg = json.dumps({
-                "id": 1,
-                "method": "Runtime.evaluate",
-                "params": {"expression": expression, "returnByValue": True}
-            })
-            await ws.send(msg)
-            resp = await asyncio.wait_for(ws.recv(), timeout=timeout)
-            data = json.loads(resp)
+class CDPConnection:
+    """Conexión WebSocket persistente al CDP de DiCloak (9333).
+
+    Se conecta una vez al iniciar el servidor y reutiliza la conexión
+    para todas las evaluaciones de JavaScript. Sin reconexiones, sin
+    ThreadPoolExecutor, sin asyncio.run() por cada llamada.
+    """
+
+    def __init__(self, port: int = DEFAULT_DICLOAK_PORT):
+        self.port = port
+        self._ws = None
+        self._msg_id = 0
+        self._ws_url = ""
+
+    def connect(self) -> bool:
+        """Conecta al WebSocket del CDP de DiCloak."""
+        try:
+            import websockets.sync.client as ws_sync
+        except ImportError:
+            import subprocess, sys
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "websockets", "-q"])
+            import websockets.sync.client as ws_sync
+
+        self._ws_url = _get_page_ws_url(self.port)
+        if not self._ws_url:
+            log_warn(f"No se encontró WebSocket URL en puerto {self.port}")
+            return False
+
+        try:
+            self._ws = ws_sync.connect(self._ws_url, max_size=2**22)
+            log_ok(f"CDP conectado: {self._ws_url[:60]}")
+            return True
+        except Exception as e:
+            log_warn(f"Error conectando CDP WebSocket: {e}")
+            self._ws = None
+            return False
+
+    def is_connected(self) -> bool:
+        if self._ws is None:
+            return False
+        try:
+            self._ws.ping()
+            return True
+        except Exception:
+            self._ws = None
+            return False
+
+    def _ensure_connected(self) -> bool:
+        if self.is_connected():
+            return True
+        return self.connect()
+
+    def evaluate(self, expression: str, timeout: int = 8) -> str | None:
+        """Evalúa JS en DiCloak. Usa la conexión persistente."""
+        if not self._ensure_connected():
+            return None
+
+        self._msg_id += 1
+        msg = json.dumps({
+            "id": self._msg_id,
+            "method": "Runtime.evaluate",
+            "params": {"expression": expression, "returnByValue": True}
+        })
+
+        try:
+            self._ws.send(msg)
+            resp_raw = self._ws.recv(timeout=timeout)
+            data = json.loads(resp_raw)
             result = data.get("result", {}).get("result", {})
             return result.get("value", json.dumps(result))
-    except Exception as e:
-        log_warn(f"CDP evaluate error: {e}")
-        return None
+        except Exception as e:
+            log_warn(f"CDP evaluate error: {e}")
+            self._ws = None
+            return None
+
+    def close(self):
+        if self._ws:
+            try:
+                self._ws.close()
+            except Exception:
+                pass
+            self._ws = None
 
 
-def cdp_evaluate_sync(expression: str, port: int = DEFAULT_DICLOAK_PORT, timeout: int = 10) -> str | None:
-    """Versión sync de _cdp_evaluate. Funciona dentro o fuera de un event loop."""
-    ws_url = _get_ws_url(port)
-    if not ws_url:
-        return None
-    try:
-        loop = asyncio.get_running_loop()
-        # Ya hay un loop corriendo (uvicorn/FastAPI) — usar thread
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            return pool.submit(
-                asyncio.run, _cdp_evaluate(ws_url, expression, timeout)
-            ).result(timeout=timeout + 5)
-    except RuntimeError:
-        # No hay loop — crear uno
-        return asyncio.run(_cdp_evaluate(ws_url, expression, timeout))
+# Conexión global — se inicializa al arrancar el servidor
+_cdp: CDPConnection | None = None
 
 
-# ── Profile Operations via CDP ────────────────────────────────────────────
+def get_cdp(port: int = DEFAULT_DICLOAK_PORT) -> CDPConnection:
+    """Obtiene la conexión CDP global, creándola si no existe."""
+    global _cdp
+    if _cdp is None or _cdp.port != port:
+        _cdp = CDPConnection(port)
+    return _cdp
+
+
+def init_cdp(port: int = DEFAULT_DICLOAK_PORT) -> bool:
+    """Inicializa la conexión CDP y el hook al arrancar el servidor."""
+    cdp = get_cdp(port)
+    if not cdp.connect():
+        return False
+
+    # Inyectar hook CDP de una vez
+    ok = inject_cdp_hook(port)
+    if ok:
+        log_ok("Hook CDP inyectado al iniciar servidor")
+    else:
+        log_warn("No se pudo inyectar hook CDP al iniciar")
+
+    return True
+
+
+# ── Funciones de compatibilidad (usan conexión persistente) ──────────────────
+
+def cdp_evaluate_sync(expression: str, port: int = DEFAULT_DICLOAK_PORT, timeout: int = 8) -> str | None:
+    """Evalúa JS usando la conexión persistente."""
+    return get_cdp(port).evaluate(expression, timeout)
+
+
+# ── Profile Operations via CDP ───────────────────────────────────────────────
 
 def list_profiles_via_cdp(port: int = DEFAULT_DICLOAK_PORT) -> list[ProfileInfo]:
-    """
-    Lista perfiles de DICloak evaluando JS en su renderer.
-    Extrae la lista de perfiles de la tabla de la UI.
-    """
     js = """(() => {
         try {
             const rows = document.querySelectorAll('.el-table__row');
             const profiles = [];
             rows.forEach(row => {
                 const cells = Array.from(row.querySelectorAll('td .cell'));
-                // Celda 0=checkbox, 1=serial, 2=nombre, 3=grupo, ...
                 const serial = (cells[1]?.innerText || '').trim();
                 const name = (cells[2]?.innerText || '').trim();
                 const group = (cells[3]?.innerText || '').trim();
@@ -144,7 +213,6 @@ def list_profiles_via_cdp(port: int = DEFAULT_DICLOAK_PORT) -> list[ProfileInfo]
     result = cdp_evaluate_sync(js, port)
     if not result:
         return []
-
     try:
         items = json.loads(result)
         return [ProfileInfo(id=p.get("id", ""), name=p["name"], status=p.get("status", "")) for p in items if p.get("name")]
@@ -152,82 +220,65 @@ def list_profiles_via_cdp(port: int = DEFAULT_DICLOAK_PORT) -> list[ProfileInfo]
         return []
 
 
+HOOK_JS = r"""(() => {
+    if (window.__CDP_HOOK_INSTALLED__) return 'ALREADY_INSTALLED';
+    window.__CDP_HOOK_INSTALLED__ = true;
+
+    const { ipcRenderer } = require('electron');
+
+    const _origInvoke = ipcRenderer.invoke.bind(ipcRenderer);
+    ipcRenderer.invoke = function(channel, ...args) {
+        for (const arg of args) {
+            if (arg && typeof arg === 'object') {
+                const force = (o) => {
+                    if (!o || typeof o !== 'object') return;
+                    if ('canIuseCdp' in o) o.canIuseCdp = true;
+                    if (o.openParams && 'canIuseCdp' in o.openParams) o.openParams.canIuseCdp = true;
+                    Object.values(o).forEach(v => { if (v && typeof v === 'object' && v !== o) force(v); });
+                };
+                force(arg);
+            }
+        }
+        return _origInvoke(channel, ...args);
+    };
+
+    const _origSend = ipcRenderer.send.bind(ipcRenderer);
+    ipcRenderer.send = function(channel, ...args) {
+        for (const arg of args) {
+            if (arg && typeof arg === 'object') {
+                const force = (o) => {
+                    if (!o || typeof o !== 'object') return;
+                    if ('canIuseCdp' in o) o.canIuseCdp = true;
+                    Object.values(o).forEach(v => { if (v && typeof v === 'object' && v !== o) force(v); });
+                };
+                force(arg);
+            }
+        }
+        return _origSend(channel, ...args);
+    };
+
+    return 'HOOK_INSTALLED';
+})()"""
+
+
 def inject_cdp_hook(port: int = DEFAULT_DICLOAK_PORT) -> bool:
-    """Inyecta el hook que fuerza canIuseCdp=true al abrir perfiles."""
-    hook_js = r"""(() => {
-        if (window.__CDP_HOOK_INSTALLED__) return 'ALREADY_INSTALLED';
-        window.__CDP_HOOK_INSTALLED__ = true;
-
-        const { ipcRenderer } = require('electron');
-
-        const _origInvoke = ipcRenderer.invoke.bind(ipcRenderer);
-        ipcRenderer.invoke = function(channel, ...args) {
-            for (const arg of args) {
-                if (arg && typeof arg === 'object') {
-                    const force = (o) => {
-                        if (!o || typeof o !== 'object') return;
-                        if ('canIuseCdp' in o) o.canIuseCdp = true;
-                        if (o.openParams && 'canIuseCdp' in o.openParams) o.openParams.canIuseCdp = true;
-                        Object.values(o).forEach(v => { if (v && typeof v === 'object' && v !== o) force(v); });
-                    };
-                    force(arg);
-                }
-            }
-            return _origInvoke(channel, ...args);
-        };
-
-        const _origSend = ipcRenderer.send.bind(ipcRenderer);
-        ipcRenderer.send = function(channel, ...args) {
-            for (const arg of args) {
-                if (arg && typeof arg === 'object') {
-                    const force = (o) => {
-                        if (!o || typeof o !== 'object') return;
-                        if ('canIuseCdp' in o) o.canIuseCdp = true;
-                        Object.values(o).forEach(v => { if (v && typeof v === 'object' && v !== o) force(v); });
-                    };
-                    force(arg);
-                }
-            }
-            return _origSend(channel, ...args);
-        };
-
-        return 'HOOK_INSTALLED';
-    })()"""
-
-    result = cdp_evaluate_sync(hook_js, port)
+    result = cdp_evaluate_sync(HOOK_JS, port)
     return result is not None and "INSTALLED" in str(result).upper()
 
 
 def open_profile_via_cdp(profile_name: str, port: int = DEFAULT_DICLOAK_PORT) -> bool:
-    """
-    Abre un perfil en DICloak:
-    1. Inyecta hook CDP (fuerza canIuseCdp=true)
-    2. Busca el perfil por nombre en la tabla
-    3. Hace click en el botón "Abrir" de esa fila
-    4. ginsbrowser abre con --remote-debugging-port dinámico
-    """
-    # Paso 1: Inyectar hook CDP antes de abrir
-    hook_ok = inject_cdp_hook(port)
-    if hook_ok:
-        log_ok("Hook CDP inyectado")
-    else:
-        log_warn("No se pudo inyectar hook CDP — el perfil puede abrir sin debug port")
-
-    # Paso 2: Buscar perfil en la tabla y hacer click en "Abrir"
-    # Escapar comillas en el nombre del perfil
+    """Abre un perfil en DiCloak con un solo evaluate (hook ya inyectado al inicio)."""
     safe_name = profile_name.replace("'", "\\'").replace('"', '\\"')
 
+    # Un solo JS que busca y hace click — sin inyectar hook (ya se hizo al iniciar)
     open_js = f"""(() => {{
         try {{
             const targetName = "{safe_name}".toLowerCase().trim();
-
-            // Buscar en la tabla de Element Plus (.el-table__row)
             const rows = document.querySelectorAll('.el-table__row');
             let targetRow = null;
 
             for (const row of rows) {{
                 const cells = Array.from(row.querySelectorAll('td .cell'));
-                // Celda 2 = nombre del perfil (0=checkbox, 1=serial, 2=nombre)
                 const nameCell = (cells[2]?.innerText || '').trim();
                 if (nameCell.toLowerCase() === targetName || nameCell.toLowerCase().includes(targetName) || targetName.includes(nameCell.toLowerCase())) {{
                     targetRow = row;
@@ -236,24 +287,9 @@ def open_profile_via_cdp(profile_name: str, port: int = DEFAULT_DICLOAK_PORT) ->
             }}
 
             if (!targetRow) {{
-                // Fallback: buscar en input de búsqueda y filtrar
-                const searchInputs = document.querySelectorAll('input[type="text"], input.el-input__inner');
-                for (const input of searchInputs) {{
-                    const rect = input.getBoundingClientRect();
-                    if (rect.width > 100 && rect.y < 200) {{
-                        input.focus();
-                        input.value = '';
-                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                        input.value = "{safe_name}";
-                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                        input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        return 'SEARCH_INJECTED';
-                    }}
-                }}
                 return 'PROFILE_NOT_FOUND';
             }}
 
-            // Buscar botón "Abrir"/"Open" en la fila encontrada
             const buttons = Array.from(targetRow.querySelectorAll('button, a, [role="button"], .el-button'));
             const openBtn = buttons.find(b => {{
                 const text = (b.innerText || b.textContent || '').trim().toLowerCase();
@@ -265,7 +301,6 @@ def open_profile_via_cdp(profile_name: str, port: int = DEFAULT_DICLOAK_PORT) ->
                 return 'CLICKED_OPEN';
             }}
 
-            // Fallback: click en el primer botón de la fila que no sea checkbox
             const fallbackBtn = buttons.find(b => {{
                 const text = (b.innerText || '').trim().toLowerCase();
                 return text !== '' && text !== 'select' && !b.querySelector('input[type="checkbox"]');
@@ -282,77 +317,35 @@ def open_profile_via_cdp(profile_name: str, port: int = DEFAULT_DICLOAK_PORT) ->
         }}
     }})()"""
 
-    result = cdp_evaluate_sync(open_js, port, timeout=8)
+    result = cdp_evaluate_sync(open_js, port, timeout=5)
     log_info(f"open_profile result: {result}")
 
     if result and "CLICKED" in str(result):
         log_ok(f"Perfil '{profile_name}' abierto via CDP")
         return True
 
-    # Si se inyectó búsqueda, esperar y hacer click en la primera fila filtrada
-    if result == "SEARCH_INJECTED":
-        log_info("Búsqueda inyectada, esperando filtro...")
-        time.sleep(2)
-
-        click_js = """(() => {
-            try {
-                const rows = document.querySelectorAll('.el-table__row');
-                if (rows.length === 0) return 'NO_ROWS_AFTER_SEARCH';
-                const firstRow = rows[0];
-                const buttons = Array.from(firstRow.querySelectorAll('button, a, [role="button"], .el-button'));
-                const openBtn = buttons.find(b => {
-                    const text = (b.innerText || '').trim().toLowerCase();
-                    return text === 'abrir' || text === 'open' || text === 'launch' || text === 'iniciar';
-                }) || buttons.find(b => (b.innerText || '').trim() !== '');
-
-                if (openBtn) {
-                    openBtn.click();
-                    return 'CLICKED_AFTER_SEARCH';
-                }
-                return 'NO_BUTTON_IN_FILTERED_ROW';
-            } catch(e) {
-                return 'ERROR: ' + e.message;
-            }
-        })()"""
-
-        click_result = cdp_evaluate_sync(click_js, port, timeout=5)
-        if click_result and "CLICKED" in str(click_result):
-            log_ok(f"Perfil '{profile_name}' abierto después de búsqueda")
-            return True
-
-        log_warn(f"Click post-búsqueda falló: {click_result}")
-
     log_warn(f"No se pudo abrir perfil '{profile_name}': {result}")
     return False
 
 
 def detect_ginsbrowser_port(timeout_sec: int = 60) -> int:
-    """
-    Detecta el puerto CDP dinámico de ginsbrowser después de abrir un perfil.
-    Busca en la lista de procesos del sistema.
-    """
-    from core.cfg.platform import get_process_list, get_browser_process_name
+    """Detecta el puerto CDP del navegador ginsbrowser via cdp_debug_info.json."""
+    from core.cfg.platform import read_cdp_debug_info
 
-    browser_name = get_browser_process_name().lower()
     deadline = time.time() + timeout_sec
 
     while time.time() < deadline:
-        procs = get_process_list()
-        for p in procs:
-            name = str(p.get("name", "")).lower()
-            cmd = str(p.get("cmdline", ""))
-
-            if name != browser_name and "ginsbrowser" not in cmd.lower():
+        data = read_cdp_debug_info()
+        for entry in data.values():
+            if not isinstance(entry, dict):
                 continue
-            if "--type=" in cmd:
+            try:
+                port = int(entry.get("debugPort") or entry.get("port") or 0)
+            except (TypeError, ValueError):
                 continue
+            if port and _test_cdp_port(port):
+                return port
 
-            m = re.search(r"--remote-debugging-port[=\s](\d{2,5})", cmd)
-            if m:
-                port = int(m.group(1))
-                if _test_cdp_port(port):
-                    return port
-
-        time.sleep(1)
+        time.sleep(0.5)
 
     return 0
