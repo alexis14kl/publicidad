@@ -1406,6 +1406,18 @@ async function handleChatCommand(text, sendStep = () => {}) {
     }
   }
 
+  // Validar que el texto tenga palabras reales (no basura)
+  const realWords = ctx.description.match(/[a-záéíóúñ]{3,}/gi) || []
+  if (realWords.length < 2) {
+    return {
+      success: true,
+      message: 'No entendí tu solicitud. Escribe algo como:\n\n'
+        + '• "Genera una imagen publicitaria para Noyecode"\n'
+        + '• "Crea un video para NyG SG SST"\n'
+        + '• "Lanza una campaña para Nygsoft"',
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   // EMPRESA OBLIGATORIA — si no se detectó, preguntar antes de continuar
   // ══════════════════════════════════════════════════════════════════════
