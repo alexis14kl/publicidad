@@ -145,10 +145,23 @@ class DICloakService:
         if not is_dicloak_ready(self.port):
             raise ConnectionError("DICloak no responde. Verifica que este abierto.")
 
-        # Cerrar perfiles anteriores y limpiar JSON
-        self.close_profiles()
-        from core.cfg.platform import write_cdp_debug_info
-        write_cdp_debug_info({})
+        # Si ya hay un perfil abierto con CDP activo, reutilizarlo
+        from core.cfg.platform import read_cdp_debug_info
+        data = read_cdp_debug_info()
+        for entry in data.values():
+            if not isinstance(entry, dict):
+                continue
+            try:
+                port = int(entry.get("debugPort") or entry.get("port") or 0)
+            except (TypeError, ValueError):
+                continue
+            if port and _test_cdp_port(port):
+                return {
+                    "name": name,
+                    "debug_port": port,
+                    "ws_url": str(entry.get("webSocketUrl") or ""),
+                    "cdp_active": True,
+                }
 
         clicked = open_profile_via_cdp(name, self.port)
         if not clicked:
