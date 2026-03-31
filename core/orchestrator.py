@@ -293,60 +293,29 @@ def run_orchestrator(
     _generate_prompt()
 
     # -----------------------------------------------------------------------
-    # Step 2/10: Check if DICloak is already running with CDP
+    # Steps 2-4: Abrir DICloak via API REST (python -m core.dicloak_api.server)
     # -----------------------------------------------------------------------
-    log_step("2/10", "Verificando si DICloak ya esta corriendo con CDP...")
-    dicloak_already_running = False
-    if wait_for_cdp(9333, timeout_sec=3):
-        log_ok("DICloak ya esta corriendo con CDP en puerto 9333. Saltando kill y arranque.")
-        dicloak_already_running = True
-    else:
-        log_info("DICloak no esta corriendo o CDP no responde. Iniciando desde cero...")
+    log_step("2/10", "Abriendo DICloak via API...")
+    api_port = int(os.environ.get("DICLOAK_API_PORT", "0") or "0") or 8585
+    api_url = f"http://127.0.0.1:{api_port}"
 
-    # -----------------------------------------------------------------------
-    # Step 3/10: Start DICloak (only if not already running)
-    # -----------------------------------------------------------------------
-    if not dicloak_already_running:
-        log_step("3/10", "Iniciando DICloak en modo debug (9333)...")
-        dicloak_exe = find_dicloak_exe()
-        if not dicloak_exe or not Path(dicloak_exe).exists():
-            log_error(f"No existe DICloak en: {dicloak_exe}")
-            return 1
-
-        launch_cmd = f'"{dicloak_exe}" --remote-debugging-port=9333 --remote-allow-origins=*'
-        launch_detached(launch_cmd)
-        _minimize_window("dicloak")
-    else:
-        log_step("3/10", "DICloak ya activo, saltando inicio.")
-
-    # -----------------------------------------------------------------------
-    # Step 4/10: Wait for CDP on 9333
-    # -----------------------------------------------------------------------
-    if not dicloak_already_running:
-        log_step("4/10", "Esperando CDP en puerto 9333...")
-        if not wait_for_cdp(9333, timeout_sec=90):
-            log_warn("CDP no respondio en 9333. Buscando DevToolsActivePort...")
-            # Fallback: read DevToolsActivePort
-            active_port = None
-            if DEVTOOLS_ACTIVE_PORT_FILE.exists():
-                try:
-                    content = DEVTOOLS_ACTIVE_PORT_FILE.read_text().strip().splitlines()
-                    if content:
-                        active_port = int(content[0].strip())
-                except Exception:
-                    pass
-
-            if active_port:
-                cdp_url = f"http://127.0.0.1:{active_port}"
-                log_info(f"Puerto detectado: {active_port}")
-                if not wait_for_cdp(active_port, timeout_sec=45):
-                    log_error(f"CDP tampoco respondio en {cdp_url}.")
-                    return 1
+    try:
+        import urllib.request
+        import json as _json
+        with urllib.request.urlopen(f"{api_url}/health", timeout=5) as resp:
+            health = _json.loads(resp.read().decode("utf-8"))
+            if health.get("data", {}).get("dicloak_ready"):
+                log_ok("DICloak abierto via API (CDP en 9333).")
             else:
-                log_error("No se encontro DevToolsActivePort para detectar puerto real.")
-                return 1
-    else:
-        log_step("4/10", "CDP ya confirmado en 9333.")
+                log_warn("API responde pero DICloak no listo. Esperando...")
+                if not wait_for_cdp(9333, timeout_sec=30):
+                    log_error("DICloak no respondio. Verifica el servidor API.")
+                    return 1
+                log_ok("DICloak listo.")
+    except Exception as e:
+        log_error(f"DICloak API no responde en {api_url}: {e}")
+        log_error("Ejecuta primero: python -m core.dicloak_api.server")
+        return 1
 
     # -----------------------------------------------------------------------
     # Step 5/10: Inject CDP hook into DiCloak
