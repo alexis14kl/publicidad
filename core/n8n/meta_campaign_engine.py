@@ -103,7 +103,7 @@ def _load_skills_knowledge() -> str:
     return "\n\n".join(knowledge)
 
 
-def ai_generate_strategy(user_request: str, budget: str, webhook_url: str = "", content_type: str = "campaign", user_language: str = "es") -> dict[str, Any]:
+def ai_generate_strategy(user_request: str, budget: str, webhook_url: str = "", content_type: str = "campaign", user_language: str = "es", scene_count: int = 1) -> dict[str, Any]:
     """
     Envía el preprompt del usuario + conocimiento de skills/agentes a Claude.
     Claude razona con la expertise de los multiagentes para generar la estrategia.
@@ -176,9 +176,10 @@ Responde SOLO en JSON válido (sin markdown, sin backticks, sin texto extra):
   "video_scenes": [
     {{
       "scene_number": 1,
-      "duration_seconds": 7,
-      "visual_description": "prompt visual EN INGLÉS para Veo 3 (estilo, personajes, acción, cámara, iluminación). Terminar con: No text, no logos, no brand names visible.",
-      "voiceover": "diálogo o narración EN ESPAÑOL LATINO que el personaje DICE en voz alta en la escena (8-16 palabras, natural, claro). Este texto se inyecta como voz hablada en el video.",
+      "duration_seconds": 8,
+      "pas_phase": "DOLOR | AGITACION | SOLUCION",
+      "visual_description": "prompt visual EN INGLÉS para Veo 3. Debe reflejar la fase PAS correspondiente. Terminar con: No text, no logos, no brand names visible.",
+      "voiceover": "diálogo EN ESPAÑOL LATINO que el personaje DICE en voz alta (8-16 palabras). Debe reflejar la emoción de la fase PAS: dolor=frustración, agitación=urgencia, solución=alivio/confianza.",
       "camera": "tipo de toma"
     }}
   ],
@@ -216,14 +217,49 @@ REGLAS CRÍTICAS:
    - Ejemplo INCORRECTO: "Video with text 'company slogan' and company logo at top..." (esto genera texto ilegible)
    - Ejemplo INCORRECTO: "Computer screen showing 'ProductivityPro' dashboard..." (Veo 3 inventara un nombre diferente con errores)
 10. Para tipo "image": el image_prompt SI debe incluir texto visible (slogan, headline, branding) porque la IA de imagenes maneja texto mejor.
-11. Para tipo "video" o "campaign" con video_scenes: OBLIGATORIO usar las reglas del agente video-scene-creator:
-   - Cada escena dura 7 segundos con UN solo beat narrativo.
-   - Prompts visuales en INGLÉS profesional (estilo, personajes, ambiente, acción, cámara, iluminación).
-   - Voiceovers en ESPAÑOL LATINO natural (8-16 palabras, claro, relacionado con la acción).
-   - Mantener continuidad visual: mismos personajes, ropa, objetos, ambiente entre escenas.
-   - Seguir estructura: setup → problema → consecuencia (técnico) o hook → valor → CTA (promo).
-   - Terminar cada prompt visual con: "No text, no logos, no brand names, no written words visible anywhere."
-   - El image_prompt para video debe ser la PRIMERA escena del video (la más impactante)."""
+11. Para tipo "video" o "campaign" con video_scenes: OBLIGATORIO usar framework PAS (Dolor → Agitación → Solución).
+   Cada escena = 8 segundos, UN beat narrativo, SIN relleno.
+
+   ESTRUCTURA PAS POR NÚMERO DE ESCENAS:
+
+   ■ 1 ESCENA (8s): Golpe directo.
+     - Escena 1 (PAS comprimido): Mostrar el DOLOR en los primeros 4s, CORTE DIRECTO a la solución en los últimos 4s. Sin transición suave — contraste brutal.
+     - Voiceover: una frase que nombre el dolor + la empresa como solución. Ej: 'Cansado de perder clientes? [Empresa] lo resuelve.'
+
+   ■ 2 ESCENAS (16s): Contraste fuerte.
+     - Escena 1 (DOLOR): El problema en su peor momento. Caos, frustración, pérdida visible. La persona SUFRE.
+     - Escena 2 (SOLUCIÓN): Mismo personaje, mismo lugar, pero TRANSFORMADO. Orden, sonrisa, éxito. La empresa salvó todo.
+     - Voiceovers: Escena 1 = frase de dolor crudo. Escena 2 = nombre de la empresa + resultado.
+
+   ■ 3 ESCENAS (24s): Arco completo.
+     - Escena 1 (DOLOR): El problema golpea. Algo concreto y visual sale MAL. La persona lo ve en tiempo real.
+     - Escena 2 (AGITACIÓN): Las consecuencias EMPEORAN. Pérdida de dinero, clientes, tiempo. Urgencia máxima. El reloj corre.
+     - Escena 3 (SOLUCIÓN): La empresa aparece. Todo se transforma. El resultado es visible e inmediato. CTA claro.
+     - Voiceovers: progresión emocional — frustración → desesperación → alivio/confianza.
+
+   ■ 4 ESCENAS (32s): Narrativa profunda.
+     - Escena 1 (DOLOR): Setup del problema cotidiano. Algo que la audiencia reconoce al instante.
+     - Escena 2 (AGITACIÓN): El problema se multiplica. No es solo un inconveniente — es una crisis.
+     - Escena 3 (SOLUCIÓN): La empresa entra. Se muestra el producto/servicio en acción resolviendo el caos.
+     - Escena 4 (RESULTADO + CTA): El después. Persona tranquila, negocio funcionando. Frase de cierre con la empresa.
+
+   ■ 5-6 ESCENAS (40-48s): Historia completa.
+     - Escena 1 (DOLOR leve): Día normal, pequeña molestia. Parece controlable.
+     - Escena 2 (DOLOR fuerte): La molestia se convierte en problema real. Algo se rompe.
+     - Escena 3 (AGITACIÓN): Consecuencias visibles — dinero perdido, clientes que se van, caos total.
+     - Escena 4 (PUNTO DE QUIEBRE): El momento más bajo. La persona está por rendirse.
+     - Escena 5 (SOLUCIÓN): Descubre la empresa. Transformación inmediata. Todo empieza a funcionar.
+     - Escena 6 (RESULTADO + CTA): Éxito visible. Sonrisa. Negocio creciendo. Nombre de la empresa + CTA.
+
+   REGLAS DE CADA ESCENA:
+   - Prompts visuales en INGLÉS profesional: estilo + personaje + acción CONCRETA + cámara + iluminación.
+   - Voiceovers en ESPAÑOL LATINO: frases CORTAS y DIRECTAS (8-16 palabras). Sin frases genéricas.
+   - El DOLOR debe ser ESPECÍFICO al negocio del usuario (no genérico). Si es software → archivos perdidos. Si es comida → clientes esperando. Si es logística → envíos retrasados.
+   - La AGITACIÓN debe ESCALAR el dolor, no repetirlo. Mostrar la CONSECUENCIA de no actuar.
+   - La SOLUCIÓN debe mostrar la empresa EN ACCIÓN, no solo mencionarla.
+   - Continuidad visual OBLIGATORIA: mismo personaje, misma ropa, mismo lugar (transformado en la solución).
+   - Cada prompt visual DEBE terminar con: "No text, no logos, no brand names, no written words visible anywhere."
+   - El image_prompt para video = escena de DOLOR (primera escena)."""
 
     lang_label = "español" if user_language == "es" else "English"
     lang_instruction = (
@@ -235,10 +271,38 @@ REGLAS CRÍTICAS:
         f"{'El contexto cultural debe ser Latinoamérica/Colombia.' if user_language == 'es' else ''}"
     )
 
+    scene_instruction = ''
+    if content_type in ('video', 'campaign') and scene_count > 1:
+        scene_instruction = (
+            f'\nNÚMERO DE ESCENAS: {scene_count} escenas de 8 segundos cada una (video total: ~{scene_count * 8}s).\n'
+            f'OBLIGATORIO: Genera EXACTAMENTE {scene_count} objetos en el array "video_scenes".\n'
+            f'La escena 1 es la que se genera primero (image_prompt). Las escenas 2-{scene_count} son extensiones automáticas.\n'
+            f'Cada escena debe tener continuidad visual con la anterior (mismos personajes, ropa, ambiente).\n'
+        )
+
+    # Extraer nombre de empresa del user_input para forzar uso correcto
+    company_name = ""
+    if "Empresa:" in user_request:
+        import re as _re
+        m = _re.search(r'Empresa:\s*([^.\n]+)', user_request)
+        if m:
+            company_name = m.group(1).strip()
+
+    company_instruction = ''
+    if company_name:
+        company_instruction = (
+            f'\nEMPRESA: "{company_name}". '
+            f'OBLIGATORIO: En los voiceovers, post_caption y cualquier mención de marca, usar EXACTAMENTE "{company_name}". '
+            f'NO usar "Noyecode", "NoyeCode" ni ningún otro nombre de empresa. '
+            f'Solo mencionar "{company_name}" como la empresa que ofrece el producto/servicio.\n'
+        )
+
     user_prompt = (
         f'SOLICITUD DEL USUARIO:\n"{user_request}"\n\n'
         f'TIPO DE CONTENIDO: {content_type}\n'
         f'PRESUPUESTO DIARIO: ${budget} COP (mercado colombiano)\n'
+        f'{company_instruction}'
+        f'{scene_instruction}'
         f'{lang_instruction}\n\n'
         f'Genera la estrategia completa en JSON.\n'
         f'RECORDATORIO FINAL: TODOS los campos DEBEN estar en {lang_label} (campaign_name, headline, description, primary_text, post_caption, reasoning, warnings). '
@@ -775,8 +839,9 @@ def build_campaign_spec(user_input: dict[str, Any]) -> dict[str, Any]:
     content_type = user_input.get("content_type", "campaign")
 
     user_language = user_input.get("user_language", "es")
-    log_info(f"Enviando solicitud a Claude para análisis estratégico (tipo: {content_type})...")
-    strategy = ai_generate_strategy(description, budget, content_type=content_type, user_language=user_language)
+    scene_count = int(user_input.get("scene_count", 1))
+    log_info(f"Enviando solicitud a Claude para análisis estratégico (tipo: {content_type}, escenas: {scene_count})...")
+    strategy = ai_generate_strategy(description, budget, content_type=content_type, user_language=user_language, scene_count=scene_count)
 
     if not strategy:
         log_error("El AI no devolvió estrategia. Verifica la conexión con n8n.")

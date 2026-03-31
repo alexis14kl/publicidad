@@ -1447,6 +1447,112 @@ def _wait_for_prompt_settle(
     return False
 
 
+def _check_and_switch_model_if_no_credits(page: Page) -> None:
+    """
+    Verifica si el usuario tiene créditos de IA.
+    Si no los tiene (botón de envío con ícono naranja/stop), cambia el modelo
+    de Veo 3.1 Fast a Veo 3.1 Fast (lower priority).
+    """
+    no_credits = page.evaluate("""() => {
+        // 1. Buscar mensaje de créditos en la página
+        const body = (document.body.innerText || '').toLowerCase();
+        const hasCreditsMsg = body.includes('creditos') || body.includes('credits') ||
+                              body.includes('créditos') || body.includes('more credits') ||
+                              body.includes('completar esta solicitud');
+
+        // 2. Buscar botón de envío en la parte inferior
+        const allBtns = Array.from(document.querySelectorAll('button, [role="button"]'));
+        const bottomBtns = allBtns.filter(b => {
+            if (!b.offsetParent) return false;
+            const r = b.getBoundingClientRect();
+            return r.top > window.innerHeight * 0.7 && r.width < 70 && r.height < 70;
+        });
+
+        // 3. Verificar si algún botón en la zona inferior tiene ícono de stop/error
+        let sendBlocked = false;
+        for (const btn of bottomBtns) {
+            const text = (btn.innerText || '').toLowerCase();
+            const html = (btn.innerHTML || '').toLowerCase();
+            // Detectar ícono stop_circle (material icon de Google Flow cuando no hay créditos)
+            if (text.includes('stop') || text.includes('block') ||
+                html.includes('stop_circle') || html.includes('stop-circle') ||
+                html.includes('#ef6c00') || html.includes('#e65100') ||
+                html.includes('rgb(239') || html.includes('rgb(230') ||
+                html.includes('orange') || html.includes('error')) {
+                sendBlocked = true;
+                break;
+            }
+            // Detectar SVG con fill naranja/rojo
+            const svgs = btn.querySelectorAll('svg, svg *');
+            for (const svg of svgs) {
+                const fill = svg.getAttribute('fill') || '';
+                const style = window.getComputedStyle(svg);
+                if (fill.includes('#e') || fill.includes('orange') || fill.includes('red') ||
+                    style.fill.includes('rgb(239') || style.fill.includes('rgb(234') ||
+                    style.color.includes('rgb(239') || style.color.includes('rgb(234')) {
+                    sendBlocked = true;
+                    break;
+                }
+            }
+            if (sendBlocked) break;
+        }
+
+        return hasCreditsMsg || sendBlocked;
+    }""")
+
+    if not no_credits:
+        log_info("Créditos de IA disponibles. Continuando con modelo actual.")
+        return
+
+    log_warn("Sin créditos de IA detectado. Cambiando modelo a lower priority...")
+
+    # Click en el dropdown de modelo Veo
+    clicked = page.evaluate("""() => {
+        const btns = Array.from(document.querySelectorAll('button, [role="button"], [role="listbox"], [role="combobox"]'));
+        for (const btn of btns) {
+            if (!btn.offsetParent) continue;
+            const text = (btn.innerText || '').toLowerCase();
+            const rect = btn.getBoundingClientRect();
+            // El selector de modelo está en la parte inferior, cerca del campo de texto
+            if ((text.includes('veo') || text.includes('3.1') || text.includes('fast')) &&
+                rect.top > window.innerHeight * 0.6) {
+                btn.click();
+                return true;
+            }
+        }
+        return false;
+    }""")
+
+    if not clicked:
+        log_warn("No se encontró el selector de modelo Veo.")
+        return
+
+    log_ok("Dropdown de modelo abierto.")
+    page.wait_for_timeout(2000)
+
+    # Seleccionar "lower priority"
+    selected = page.evaluate("""() => {
+        const items = Array.from(document.querySelectorAll(
+            '[role="option"], [role="menuitem"], [role="menuitemradio"], li, button, div, span'
+        ));
+        for (const item of items) {
+            if (!item.offsetParent) continue;
+            const text = (item.innerText || item.textContent || '').toLowerCase();
+            if (text.includes('lower priority') || text.includes('lower')) {
+                item.click();
+                return true;
+            }
+        }
+        return false;
+    }""")
+
+    if selected:
+        log_ok("Modelo cambiado a Veo 3.1 Fast (lower priority).")
+        page.wait_for_timeout(2000)
+    else:
+        log_warn("No se encontró opción 'lower priority'. Continuando con modelo actual.")
+
+
 def _click_create(page: Page, max_retries: int = 5) -> bool:
     """Click en el boton de envio (flecha →, arrow_forward, Crear) con click real."""
     log_info("Buscando boton de envio...")
@@ -1840,6 +1946,10 @@ def run_video_setup(cdp_port: int = DEFAULT_CDP_PORT) -> int:
                 action_mode="create" if scene_index <= 1 else "followup",
             ):
                 return 1
+
+            # Verificar créditos DESPUÉS de pegar el prompt (el estado naranja aparece con texto)
+            page.wait_for_timeout(2000)
+            _check_and_switch_model_if_no_credits(project_page)
 
             if scene_index <= 1:
                 # Click en "Crear" para generar el video inicial

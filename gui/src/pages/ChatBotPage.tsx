@@ -120,9 +120,10 @@ export function ChatBotPage() {
           setAwaitingApproval(result.jobId || 'pending')
           const previewType = result.preview?.type || 'image'
           setLastPreviewType(previewType)
-          setApprovalStep(previewType === 'video' ? 'extend' : 'publish')
-          setHasMoreScenes(!!result.hasMoreScenes)
-          setNextScenePreview(result.nextScenePreview || '')
+          // Video va directo a publish (extensiones se ejecutaron automáticamente)
+          setApprovalStep('publish')
+          setHasMoreScenes(false)
+          setNextScenePreview('')
           addMsg('assistant', result.message, 'preview', result.preview || null)
         } else {
           addMsg('assistant', result.message || 'Listo.', 'done')

@@ -61,6 +61,7 @@ const conversationContext = {
   companyName: '',
   targetPageName: '',   // Name of the specific FB page to publish to (from prompt)
   budget: '50000',
+  sceneCount: 1,        // número de escenas de video (cada una ~8 segundos)
   messages: [],          // history of user messages
 }
 
@@ -160,6 +161,15 @@ function updateContext(text) {
   // Detect budget
   const budgetMatch = text.match(/\$?\s*([\d,.]+)\s*(?:\/?\s*dia|cop|pesos|diarios)?/i)
   if (budgetMatch) conversationContext.budget = budgetMatch[1].replace(/[,.]/g, '')
+
+  // Detect scene count para video (ej: "3 escenas", "2 scenes", "5 partes", o solo "3")
+  const sceneMatch = text.match(/(\d+)\s*(?:escenas?|scenes?|partes?|clips?)/i)
+  if (sceneMatch) {
+    conversationContext.sceneCount = Math.max(1, Math.min(parseInt(sceneMatch[1], 10), 6))
+  } else if (conversationContext._sceneCountAsked && /^\s*(\d+)\s*$/.test(text.trim())) {
+    // El usuario respondió solo con un número a la pregunta de escenas
+    conversationContext.sceneCount = Math.max(1, Math.min(parseInt(text.trim(), 10), 6))
+  }
 }
 
 function resetContext() {
@@ -171,6 +181,8 @@ function resetContext() {
   conversationContext.companyName = ''
   conversationContext.targetPageName = ''
   conversationContext.budget = '50000'
+  conversationContext.sceneCount = 1
+  conversationContext._sceneCountAsked = false
   conversationContext.messages = []
 }
 
@@ -390,6 +402,7 @@ async function getCampaignPreview(ctx) {
     company_website: brandWebsite,
     company_phone: brandPhone,
     user_language: userLang,
+    scene_count: ctx.sceneCount || 1,
   }
 
   try {
@@ -1207,6 +1220,17 @@ async function handleChatCommand(text) {
     : ctx.type === 'campaign' ? 'imagen para la campaña'
     : 'imagen'
 
+  // Preguntar por número de escenas si es video y no se especificó
+  const isVideoRequest = ctx.type === 'video' || ctx.type === 'video_campaign'
+  if (isVideoRequest && ctx.sceneCount <= 1 && !ctx._sceneCountAsked) {
+    ctx._sceneCountAsked = true
+    return {
+      success: true,
+      message: '¿Cuántas escenas quieres para el video?\n\nCada escena dura **~8 segundos**. Ejemplos:\n• 1 escena = ~8s\n• 2 escenas = ~16s\n• 3 escenas = ~24s\n\nEscribe el número de escenas (1-6) o escribe "1 escena" para un video corto.',
+      _waitingForSceneCount: true,
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   // STEP 1: MANDATORY — Claude analyzes via skills/agents
   // Sin respuesta de Claude = no continuar. NADA se genera sin análisis.
@@ -1261,6 +1285,108 @@ async function handleChatCommand(text) {
     if (ctx.type !== 'campaign' && ctx.type !== 'video_campaign') {
       return { success: false, error: `No se pudo generar la ${typeLabel}: ${err.message}` }
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // STEP 2.5: Auto-extend video if multiple scenes were requested
+  // ══════════════════════════════════════════════════════════════════════
+  const videoScenes = ctx.videoScenes || []
+  const isVideoType = ctx.type === 'video' || ctx.type === 'video_campaign'
+  if (isVideoType && videoScenes.length > 1 && filePath) {
+    console.log(`[CHAT] Step 2.5: Auto-extending video (${videoScenes.length} escenas)...`)
+    const extProjectEnv = getProjectEnv()
+    const extPythonBin = findPython()
+    const lastDownloadFile = path.join(PROJECT_ROOT, 'output', 'videos', 'last_download.json')
+
+    for (let sceneIdx = 1; sceneIdx < videoScenes.length; sceneIdx++) {
+      const scene = videoScenes[sceneIdx]
+      const visualDesc = scene.visual_description || scene.prompt || ''
+      const voiceover = scene.voiceover || ''
+      const extPrompt = voiceover
+        ? `${visualDesc} -- VOICEOVER in Spanish: '${voiceover}'. Character speaks this line naturally in Spanish.`
+        : visualDesc
+
+      if (!extPrompt) continue
+
+      console.log(`[CHAT] Step 2.5: Escena ${sceneIdx + 1}/${videoScenes.length}: ${extPrompt.slice(0, 60)}...`)
+
+      let previousVideoUrl = ''
+      try {
+        if (fs.existsSync(lastDownloadFile)) {
+          const dlState = JSON.parse(fs.readFileSync(lastDownloadFile, 'utf-8'))
+          previousVideoUrl = dlState.video_url || ''
+        }
+      } catch { /* ignore */ }
+
+      // Construir env para la extensión usando env del proyecto + credenciales de empresa
+      const extEnv = {
+        ...extProjectEnv,
+        PYTHONPATH: PROJECT_ROOT,
+        PYTHONIOENCODING: 'utf-8',
+        BOT_VIDEO_EXTEND_PROMPT: extPrompt,
+        BOT_VIDEO_EXTEND_PREGENERATED: '1',
+        BOT_VIDEO_PREVIOUS_VIDEO_URL: previousVideoUrl,
+        BOT_VIDEO_SCENE_CURRENT: String(sceneIdx + 1),
+        BOT_VIDEO_SCENE_TOTAL: String(videoScenes.length),
+        CDP_PROFILE_PORT: extProjectEnv.CDP_PROFILE_PORT || extProjectEnv.CDP_CHATGPT_PORT || '9225',
+      }
+      // Agregar credenciales de empresa si existen
+      if (ctx.companyName) {
+        const credEnv = buildCompanyCredentialEnv(ctx.companyName)
+        if (credEnv) Object.assign(extEnv, credEnv)
+        const company = lookupCompanyData(ctx.companyName)
+        if (company) {
+          extEnv.BOT_COMPANY_NAME = company.nombre || ''
+          extEnv.BUSINESS_WEBSITE = company.sitio_web || ''
+          extEnv.BUSINESS_WHATSAPP = company.telefono || ''
+          if (company.logo) {
+            const logoPath = path.join(PROJECT_ROOT, 'assets', 'logos', 'companies', company.logo)
+            if (fs.existsSync(logoPath)) extEnv.BOT_COMPANY_LOGO_PATH = logoPath
+          }
+        }
+      }
+
+      const extStartTime = Date.now()
+      try {
+        const extResult = await new Promise((resolve, reject) => {
+          const child = spawn(extPythonBin, ['-m', 'core.video_rpa.extend_video'], {
+            cwd: PROJECT_ROOT, env: extEnv, stdio: ['ignore', 'pipe', 'pipe'],
+          })
+          state.botProcess = child
+          child.stdout.on('data', d => console.log(`[EXTEND-${sceneIdx + 1}]`, d.toString().trim()))
+          child.stderr.on('data', d => console.error(`[EXTEND-${sceneIdx + 1}]`, d.toString().trim()))
+          child.on('exit', (code) => {
+            state.botProcess = null
+            if (code === 0) {
+              // Buscar el video más reciente
+              let newFile = null
+              try {
+                const dlState = JSON.parse(fs.readFileSync(lastDownloadFile, 'utf-8'))
+                if (dlState.output_path && fs.existsSync(dlState.output_path) && fs.statSync(dlState.output_path).mtimeMs > extStartTime) {
+                  newFile = dlState.output_path
+                }
+              } catch { /* ignore */ }
+              if (!newFile) newFile = findFileNewerThan(path.join(PROJECT_ROOT, 'output', 'videos'), extStartTime)
+              resolve(newFile)
+            } else {
+              reject(new Error(`Extensión escena ${sceneIdx + 1} falló (código ${code})`))
+            }
+          })
+          child.on('error', reject)
+        })
+
+        if (extResult) {
+          filePath = extResult
+          if (ctx.type === 'video_campaign') videoFilePath = extResult
+          console.log(`[CHAT] Step 2.5: Escena ${sceneIdx + 1} OK: ${extResult}`)
+        }
+      } catch (extErr) {
+        console.error(`[CHAT] Step 2.5: Escena ${sceneIdx + 1} falló: ${extErr.message}`)
+        // Continuar con el video hasta este punto
+        break
+      }
+    }
+    console.log(`[CHAT] Step 2.5: Auto-extensiones completadas. Video final: ${filePath}`)
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -1320,9 +1446,9 @@ async function handleChatCommand(text) {
 
   const jobId = `job-${Date.now()}`
   // videoFilePath and imageFilePath are set in Step 2 (lines 798-812)
-  // Guardar video_scenes del spec para extensiones automáticas
-  const videoScenes = (spec?.meta?.video_scenes || []).filter(s => s && s.visual_description)
-  pendingJobs.set(jobId, { ctx: { ...ctx }, filePath, videoFilePath, imageFilePath, spec, videoScenes, currentSceneIndex: 0 })
+  // Guardar video_scenes del spec para extensiones (ya declarado en Step 2.5)
+  const savedScenes = (spec?.meta?.video_scenes || []).filter(s => s && s.visual_description)
+  pendingJobs.set(jobId, { ctx: { ...ctx }, filePath, videoFilePath, imageFilePath, spec, videoScenes: savedScenes, currentSceneIndex: 0 })
 
   let message = ''
   if (ctx.type === 'video_campaign') {
@@ -1347,12 +1473,9 @@ async function handleChatCommand(text) {
     message = `He preparado tu video publicitario: **"${ctx.description}"**`
     message += campaignInfo
     if (filePath) {
-      message += '\n\n**Video** generado (se muestra abajo).'
-    }
-    if (videoScenes.length > 1) {
-      const nextScene = videoScenes[1]
-      message += `\n\n**Escena 1 de ${videoScenes.length} completada.**`
-      message += `\n\nSiguiente escena: _"${nextScene.voiceover || nextScene.visual_description?.slice(0, 80)}"_`
+      const totalScenes = savedScenes.length || 1
+      const totalDuration = totalScenes * 8
+      message += `\n\n**Video** generado (${totalScenes} escena${totalScenes > 1 ? 's' : ''}, ~${totalDuration}s) (se muestra abajo).`
     }
     message += '\n\n¿Apruebas para publicar como reel?'
   } else {
@@ -1386,16 +1509,13 @@ async function handleChatCommand(text) {
     } catch { /* ignore */ }
   }
 
-  const hasMoreScenes = videoScenes.length > 1
-  const nextScenePreview = hasMoreScenes ? (videoScenes[1]?.voiceover || videoScenes[1]?.visual_description?.slice(0, 100) || '') : ''
-
   return {
     success: true,
     needsApproval: !!filePath || !!videoFilePath || ctx.type === 'campaign' || ctx.type === 'video_campaign',
     jobId,
     message,
-    hasMoreScenes,
-    nextScenePreview,
+    hasMoreScenes: false,
+    nextScenePreview: '',
     preview: {
       type: ctx.type,
       imagePath: effectiveImagePath,

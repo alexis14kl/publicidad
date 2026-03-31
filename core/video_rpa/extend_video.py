@@ -150,7 +150,7 @@ def _find_followup_field_and_paste(page, prompt_text: str) -> bool:
     log_ok(f"Campo encontrado en ({field_info['x']:.0f},{field_info['y']:.0f}) {field_info['w']:.0f}x{field_info['h']:.0f}")
     page.wait_for_timeout(1000)
 
-    # ── Step 2: Limpiar campo completamente antes de escribir ──
+    # ── Step 2: Limpiar placeholder y preparar campo ──
     log_info("Limpiando campo de texto...")
 
     # Hacer click directo en las coordenadas del campo para activar el cursor
@@ -672,6 +672,102 @@ Responde SOLO con el prompt optimizado. Sin explicaciones, sin comillas, sin pre
     return raw_prompt
 
 
+def _check_no_credits(page) -> bool:
+    """Detecta si el usuario no tiene créditos (ícono naranja/stop en botón de envío)."""
+    return page.evaluate("""() => {
+        const body = (document.body.innerText || '').toLowerCase();
+        const hasCreditsMsg = body.includes('creditos') || body.includes('credits') ||
+                              body.includes('créditos') || body.includes('more credits') ||
+                              body.includes('completar esta solicitud');
+
+        const allBtns = Array.from(document.querySelectorAll('button, [role="button"]'));
+        const bottomBtns = allBtns.filter(b => {
+            if (!b.offsetParent) return false;
+            const r = b.getBoundingClientRect();
+            return r.top > window.innerHeight * 0.7 && r.width < 70 && r.height < 70;
+        });
+
+        let sendBlocked = false;
+        for (const btn of bottomBtns) {
+            const text = (btn.innerText || '').toLowerCase();
+            const html = (btn.innerHTML || '').toLowerCase();
+            if (text.includes('stop') || text.includes('block') ||
+                html.includes('stop_circle') || html.includes('stop-circle') ||
+                html.includes('#ef6c00') || html.includes('#e65100') ||
+                html.includes('rgb(239') || html.includes('rgb(230') ||
+                html.includes('orange') || html.includes('error')) {
+                sendBlocked = true;
+                break;
+            }
+            const svgs = btn.querySelectorAll('svg, svg *');
+            for (const svg of svgs) {
+                const fill = svg.getAttribute('fill') || '';
+                const style = window.getComputedStyle(svg);
+                if (fill.includes('#e') || fill.includes('orange') || fill.includes('red') ||
+                    style.fill.includes('rgb(239') || style.fill.includes('rgb(234') ||
+                    style.color.includes('rgb(239') || style.color.includes('rgb(234')) {
+                    sendBlocked = true;
+                    break;
+                }
+            }
+            if (sendBlocked) break;
+        }
+        return hasCreditsMsg || sendBlocked;
+    }""")
+
+
+def _switch_to_lower_priority(page) -> bool:
+    """
+    Cambia el modelo de Veo 3.1 Fast a Veo 3.1 Fast (lower priority) cuando no hay créditos.
+    """
+    log_warn("Sin créditos de IA. Cambiando modelo a lower priority...")
+
+    clicked = page.evaluate("""() => {
+        const btns = Array.from(document.querySelectorAll('button, [role="button"], [role="listbox"], [role="combobox"]'));
+        for (const btn of btns) {
+            if (!btn.offsetParent) continue;
+            const text = (btn.innerText || '').toLowerCase();
+            const rect = btn.getBoundingClientRect();
+            if ((text.includes('veo') || text.includes('3.1') || text.includes('fast')) &&
+                rect.top > window.innerHeight * 0.6) {
+                btn.click();
+                return true;
+            }
+        }
+        return false;
+    }""")
+
+    if not clicked:
+        log_warn("No se encontró el selector de modelo Veo.")
+        return False
+
+    log_ok("Dropdown de modelo abierto.")
+    page.wait_for_timeout(2000)
+
+    selected = page.evaluate("""() => {
+        const items = Array.from(document.querySelectorAll(
+            '[role="option"], [role="menuitem"], [role="menuitemradio"], li, button, div, span'
+        ));
+        for (const item of items) {
+            if (!item.offsetParent) continue;
+            const text = (item.innerText || item.textContent || '').toLowerCase();
+            if (text.includes('lower priority') || text.includes('lower')) {
+                item.click();
+                return true;
+            }
+        }
+        return false;
+    }""")
+
+    if selected:
+        log_ok("Modelo cambiado a Veo 3.1 Fast (lower priority).")
+        page.wait_for_timeout(2000)
+        return True
+
+    log_warn("No se encontró opción 'lower priority'.")
+    return False
+
+
 def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
     """
     Extiende el video actual en Flow:
@@ -765,8 +861,13 @@ def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
             log_info("Esperando que Flow procese el prompt...")
             page.wait_for_timeout(3000)
 
-            # Verificar que el botón de envío esté habilitado antes de clickear
-            for _wait in range(10):
+            # Verificar créditos después de pegar el prompt
+            if _check_no_credits(page):
+                _switch_to_lower_priority(page)
+
+            # Esperar botón de envío habilitado
+            switched_model = False
+            for _wait in range(15):
                 send_ready = page.evaluate("""() => {
                     const btns = Array.from(document.querySelectorAll('button, [role="button"]'));
                     const sendBtn = btns.find(b => {
@@ -783,6 +884,13 @@ def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
                 if send_ready == "ready":
                     log_ok("Botón de envío habilitado.")
                     break
+                # Si no encuentra el botón después de 3 intentos, cambiar modelo
+                if send_ready == "not_found" and _wait >= 3 and not switched_model:
+                    log_warn("Botón de envío no encontrado. Cambiando a lower priority...")
+                    _switch_to_lower_priority(page)
+                    switched_model = True
+                    page.wait_for_timeout(3000)
+                    continue
                 log_info(f"  Botón de envío: {send_ready}. Esperando...")
                 page.wait_for_timeout(2000)
 
@@ -806,100 +914,35 @@ def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
             duration = combined_video.get("duration", 0)
             log_ok(f"Video combinado listo: {combined_video.get('width', 0)}x{combined_video.get('height', 0)} | {duration:.1f}s")
 
-            # ── Loop de extensiones adicionales ──
-            # Leer prompts adicionales de BOT_VIDEO_EXTEND_PROMPTS_JSON (array)
-            extra_prompts = []
-            try:
-                raw = os.environ.get("BOT_VIDEO_EXTEND_PROMPTS_JSON", "").strip()
-                if raw:
-                    extra_prompts = json.loads(raw)
-                    if not isinstance(extra_prompts, list):
-                        extra_prompts = []
-            except Exception:
-                extra_prompts = []
+            # ── Determinar si esta es la última escena ──
+            scene_current = int(os.environ.get("BOT_VIDEO_SCENE_CURRENT", "1"))
+            scene_total = int(os.environ.get("BOT_VIDEO_SCENE_TOTAL", "1"))
+            is_last_scene = scene_current >= scene_total
 
-            ext_index = 0
-            while ext_index < len(extra_prompts):
-                next_prompt = str(extra_prompts[ext_index]).strip()
-                if not next_prompt:
-                    ext_index += 1
-                    continue
+            if is_last_scene:
+                # ── Descargar video final (solo en la última escena) ──
+                log_info(f"Última escena ({scene_current}/{scene_total}). Descargando video final...")
+                VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+                output_path = _download_combined_video(page, video_url)
+                if not output_path:
+                    log_error("No se pudo descargar el video combinado.")
+                    return 1
 
-                scene_index += 1
-                log_info(f"Extensión adicional {ext_index + 1}/{len(extra_prompts)}: {next_prompt[:50]}...")
-
-                # Recargar para que Flow detecte el campo
-                page.reload(wait_until="domcontentloaded")
-                page.wait_for_timeout(5000)
-
-                if not _wait_for_followup_field(page, timeout_sec=20):
-                    log_warn("No apareció campo de extensión. Continuando con descarga.")
-                    break
-
-                if not _find_followup_field_and_paste(page, next_prompt):
-                    log_warn("No se pudo pegar el prompt adicional. Continuando con descarga.")
-                    break
-
-                log_info("Esperando que Flow procese el prompt...")
-                page.wait_for_timeout(3000)
-
-                # Esperar botón habilitado
-                for _wait in range(10):
-                    send_ready = page.evaluate("""() => {
-                        const btns = Array.from(document.querySelectorAll('button, [role="button"]'));
-                        const sendBtn = btns.find(b => {
-                            const text = (b.innerText || '').toLowerCase();
-                            const aria = (b.getAttribute('aria-label') || '').toLowerCase();
-                            return (text.includes('arrow_forward') || text.includes('→') ||
-                                    text.includes('send') || aria.includes('send') || aria.includes('submit'))
-                                   && b.offsetParent !== null
-                                   && b.getBoundingClientRect().top > window.innerHeight * 0.4;
-                        });
-                        if (!sendBtn) return 'not_found';
-                        return sendBtn.disabled ? 'disabled' : 'ready';
-                    }""")
-                    if send_ready == "ready":
-                        break
-                    page.wait_for_timeout(2000)
-
-                if not _click_send_button(page):
-                    log_warn("No se pudo enviar extensión adicional.")
-                    break
-
-                log_ok(f"Extensión {ext_index + 1} enviada. Esperando video...")
-                print(f"PROMPT_SENT=extend_{ext_index + 1}")
-                page.wait_for_timeout(5000)
-
-                combined_video = _poll_for_combined_video(page, timeout_sec=540)
-                if not combined_video:
-                    log_warn("No se generó el video. Descargando último disponible.")
-                    break
-
-                video_url = combined_video["src"]
-                duration = combined_video.get("duration", 0)
-                log_ok(f"Video listo: {combined_video.get('width', 0)}x{combined_video.get('height', 0)} | {duration:.1f}s")
-                ext_index += 1
-
-            # ── Descargar video final ──
-            VIDEO_DIR.mkdir(parents=True, exist_ok=True)
-            output_path = _download_combined_video(page, video_url)
-            if not output_path:
-                log_error("No se pudo descargar el video combinado.")
-                return 1
-
-            # Update last_download.json
-            import json as _json
-            from datetime import datetime as _dt
-            dl_state = {
-                "scene_index": scene_index,
-                "video_url": video_url,
-                "output_path": str(output_path),
-                "downloaded_at": _dt.now().isoformat(),
-            }
-            (VIDEO_DIR / "last_download.json").write_text(
-                _json.dumps(dl_state, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-            log_ok(f"Video final descargado: {output_path.name}")
+                # Update last_download.json
+                import json as _json
+                from datetime import datetime as _dt
+                dl_state = {
+                    "scene_index": scene_index,
+                    "video_url": video_url,
+                    "output_path": str(output_path),
+                    "downloaded_at": _dt.now().isoformat(),
+                }
+                (VIDEO_DIR / "last_download.json").write_text(
+                    _json.dumps(dl_state, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+                log_ok(f"Video final descargado: {output_path.name}")
+            else:
+                log_info(f"Escena {scene_current}/{scene_total} completada. Descarga pendiente hasta la última escena.")
 
         except Exception as e:
             log_error(f"Error en extend_video: {e}")
@@ -907,7 +950,13 @@ def run_extend_video(cdp_port: int = DEFAULT_CDP_PORT) -> int:
         finally:
             browser.close()
 
-    # Apply branding overlay (same as _video_pipeline in post_opening.py)
+    # Apply branding overlay solo si se descargó (última escena)
+    scene_current = int(os.environ.get("BOT_VIDEO_SCENE_CURRENT", "1"))
+    scene_total = int(os.environ.get("BOT_VIDEO_SCENE_TOTAL", "1"))
+    if scene_current < scene_total:
+        log_ok(f"Escena {scene_current}/{scene_total} generada. Sin descarga ni overlay.")
+        return 0
+
     videos = sorted(VIDEO_DIR.glob("*.mp4"), key=lambda f: f.stat().st_mtime, reverse=True)
     if videos:
         try:

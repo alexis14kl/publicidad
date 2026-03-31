@@ -299,34 +299,43 @@ El voiceover debe sonar como una frase que alguien realmente diria o narraria en
 
 ---
 
-## Estructuras narrativas recomendadas
+## Estructura narrativa obligatoria: Dolor → Agitacion → Solucion (PAS)
 
-### Para historias tecnicas o educativas
-Usa normalmente 6 a 8 escenas:
-- Escena 1: setup inocente
-- Escena 2: aparece el problema
-- Escena 3: solucion rapida equivocada
-- Escena 4: decision mala o falta de revision
-- Escena 5: consecuencia visible
-- Escena 6: descubrimiento
-- Escena 7: crisis
-- Escena 8: moraleja o proceso correcto
+TODOS los videos promocionales, comerciales y tecnico-educativos DEBEN seguir el framework PAS:
 
-### Para promocionales
-Usa normalmente 3 a 5 escenas:
-- problema
-- tension o costo
-- solucion
-- prueba visual
-- CTA
+1. **DOLOR** — Muestra el problema real que siente la audiencia. Algo concreto y visual.
+2. **AGITACION** — Profundiza en ese dolor. Hazlo mas vivido, urgente y emocional. Muestra las consecuencias de no actuar.
+3. **SOLUCION** — Presenta el producto/servicio como la salida clara. Cierra con CTA.
 
-### Para invitaciones
-Usa normalmente 4 a 6 escenas:
-- apertura/personajes
-- anuncio del evento
-- fecha/hora
-- lugar
-- cierre con CTA
+### Para videos de 1 escena (8s):
+- Comprimir PAS en un solo beat: dolor visible → giro a solucion.
+
+### Para videos de 2 escenas (16s):
+- Escena 1: DOLOR + AGITACION (problema visible y su consecuencia emocional)
+- Escena 2: SOLUCION + CTA (el producto/servicio resuelve todo)
+
+### Para videos de 3 escenas (24s):
+- Escena 1: DOLOR — El problema real, concreto, visual
+- Escena 2: AGITACION — Las consecuencias de no actuar, urgencia, emocion
+- Escena 3: SOLUCION — El producto/servicio como respuesta clara + CTA
+
+### Para videos de 4-6 escenas (32-48s):
+- Escena 1: DOLOR — Setup del problema
+- Escena 2: DOLOR profundo — Detalle del sufrimiento o ineficiencia
+- Escena 3: AGITACION — Consecuencias visibles (perdida de dinero, clientes, tiempo)
+- Escena 4: SOLUCION — Aparece el producto/servicio
+- Escena 5: PRUEBA — El resultado positivo en accion
+- Escena 6: CTA — Cierre con llamado a la accion
+
+### Para invitaciones o eventos:
+- Escena 1: apertura/personajes
+- Escena 2: anuncio del evento
+- Escena 3: fecha/hora/lugar
+- Escena 4: cierre con CTA
+
+### Regla critica
+Si el video no sigue PAS (Dolor → Agitacion → Solucion), el video no vende.
+Un video que solo muestra el producto sin mostrar primero el dolor es un video que la audiencia ignora.
 
 ---
 
